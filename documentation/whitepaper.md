@@ -346,3 +346,249 @@ iii.The node that performed the smart contract A downloads the smart contract B 
 The procedures outlined above can be used to execute smart contract A’s call to contract B. We call the logic link between them an enclosed call of a smart contract because smart contract B is based on the state of smart contract A as the trigger and input data.
 
 Smart contracts not only make decisions based on their business logic, but they may also invoke other smart contracts based on predefined criteria. It is therefore simple to create network-like call interactions between distinct smart contracts, establishing the value interaction across connected financial apps and thus allowing the creation of complicated applications. As a consequence, sophisticated financial services, such as a loan application based on future cash flow, maybe developed using enclosed smart contract calls. The Lithosphere platform can achieve complicated financial activities thanks to these features and the multi-trigger mechanism, which will be explained in the section on multi-trigger mechanisms.
+
+## Contract development
+To fulfill a smart contract, the following steps need to be completed:
+
+**(1)Build a smart contract**
+
+The Lithosphere smart contracts are an evolution of current smart contracts. There should be two components to the contract: definition and description.
+The defining section is consistent and Ethereum smart contract compliant. As a result, current Ethereum smart contracts are compatible with Lithosphere. It contains contract status, contract values, and methods for defining response conditions and rules.
+
+**(2)Release a smart contract**
+
+Following the publication of the smart contract, the definition section is recorded on the blockchain following current smart contracts. The description section will be merged with the trigger conditions of all smart contracts in the current blockchain to create a calling list that will be recorded in the block and accessible to the whole network.
+Each row of entries in the calling list corresponds to a smart contract. In addition to the material in the description, each record has an index address that corresponds to the stored smart contract.
+
+The next step will be to optimize programming languages and virtual machines for a more robust application development environment, as well as to provide more intuitive application development tools and debug environments for developers with less coding knowledge.
+
+## Timing and trigger conditions
+Proactive triggers are similar to how smart contracts in Ethereum are activated, which is by a transfer to a contract address. The following procedures will be used to create the new time triggering mode and event triggering mode:
+
+**(1)Judge the trigger conditions by nodes**
+
+For execution, the Calling list is downloaded to the local node. To determine if each item in the list matches the trigger condition, the node will poll the list and download matching or local data.
+
+**(2)Trigger a smart contract**
+
+When the accounting node discovers that the condition of a certain smart contract is met while polling at a specific time, the node acquires the smart contract address from the Calling list and sends a particular transaction to activate the smart contract. At the same moment, the smart contract for the selected transaction will be downloaded by the whole network of accounting nodes.
+
+**(3)Execute the smart contract**
+
+A smart contract is performed in the same way as the current smart contract, that is, it is executed in the node’s operational environment (virtual machine). The contract differs in that it has additional triggers and may be integrated into other contracts through triggering conditions, resulting in a chain of occurrences.
+
+## Rapid development and interface
+Lithosphere will provide development environments for smart contracts as well as function libraries. These functions may be used by developers to speed up the creation of smart contracts. To make it simpler to access and interact with data, the development environment will encapsulate different blockchain, smart contracts, data sources, and so on as interfaces.
+
+Here are some typical interfaces:
+#### (1)Key management
+Initializing the key pair, creating and returning the public key address are all functions that must be implemented.
+Returning the signature hash value after entering the public key address and the associated signature. 
+#### (2)Blockchain data acquisition
+If blockchains are thought of as systems that allow distributed applications (DApps), smart contracts collecting blockchain data will be the same as getting the blockchain system’s global variables. Smart contracts can access the following information on the blockchain using this interface:
+Aim for a specific block height. The sender’s information. The recipient’s information.
+#### (3)Call of smart contracts
+Smart contracts are used to implement all of the Lithosphere’s functionalities.
+The use of a transfer smart contract may be used to make a transfer in a smart contract. To encompass typical financial applications, Lithosphere will employ more basic smart contracts. As a result, developing a smart contract on Lithosphere entails embedding simple smart contracts into conventional financial apps and then enhancing their functionality by adding more complicated functionalities.
+Lithosphere will identify fundamental financial contracts, resulting in a smart contract library for developers to employ.
+#### (4)Off-chain Datasource interface
+On trigger circumstances, smart contracts employ off-chain data. Such data is frequently obtained using a standard HTTP or socks-based API supplied by a third party. A third-party interface call function, for example, will obtain the destination URL’s address through HTTP and return a JSON packet.
+This interface method can also be used to get information from other blockchains, such as querying and confirming whether a transaction in another chain is confirmed by the block where it is located.
+The Foundation will be used by Lithosphere to discover third-party interfaces and create third-party interfaces for smart contracts to call.
+#### (5)Rapid development
+Lithosphere will provide several smart contract templates for common applications for reference and usage by application developers in the early phases of the project. However, application developers must still fulfill certain code standards.
+Application developers can use smart contracts by creating preconditions to actualize the desired financial apps as the platform’s underlying functionalities and common financial basic applications grow more resourceful and complex. To further improve such a development environment and drastically reduce the development threshold for developers, Lithosphere’s plan includes visual and modular application development tools, a compilation environment, an application test environment, which will allow smart contract developers to focus on innovations in financial applications and a Launchpad to launch dApps.
+#### (6)Programming language and virtual machine
+For interoperability with smart contracts and quick porting of existing smart contracts, Lithosphere will initially employ Ethereum’s Solidity programming language. We will provide compilers for several languages in the future to accommodate more smart contract development languages.
+We’ll create a smart contract sandboxing system that performs particular fail-safe checks and fuel cost minimization using a browser or programming editor.
+
+## To use multiple triggers to realize complex financial functions
+Existing smart contracts can only passively wait for a transaction’s trigger to be performed by a transaction, which presents the issue of needing the introduction of a trusted broker to establish who has the right to trigger a smart contract and under what conditions. On the Lithosphere platform, smart contracts will describe the relationships between parties through code (whether by common smart contract or by enclosed contracts). Multiple triggers will automate the execution of these smart contracts, allowing them to be engaged one after the other without the need for human interaction. As a result, many parties may trust each other using smart contract codes to perform a range of complicated financial activities. Lithosphere smart contracts provide the capacity to program ownership and usufruct independently, allowing triggers to lend usufruct to another depending on time or other conditions and execute them as promised until the final right of usufruct and ownership is restored to the participants.
+
+Smart contracts may now perform a wide range of financial activities thanks to this functionality. For example, if you want to borrow money, you may design the Lithosphere smart contract to borrow tokens, return fresh currency, and pay interest. Using the Lithosphere platform as an example, a smart contract may autonomously administer a fund, including taking the usufruct of various tokens into a smart contract, keeping various digital assets, producing management fees, paying the dividend, and so on. Using the example of various derivatives, the smart contract may take margins and perform operations such as modifying margins, liquidating, and settling using external data source triggers.
+
+## Community operation plan
+The KaJ Labs Foundation, as the project’s main sponsor, is aiming towards a promising blockchain ecosystem rather than corporate profitability as typical enterprise and startup initiatives do. The Lithosphere platform, which benefits all token holders, is not owned by any single entity or person. The whole blockchain token community owns the Lithosphere platform. Lithosphere makes token usage more flexible and accessible, as well as giving tokens the potential to offer sophisticated DeFi services. The value of all tokens will increase.
+
+In reality, the Internet of Values’ cross-chain ecosystem is a massive project. The Kaj Labs Foundation must progress the ecosystem, which must be joined and participated in by the whole community, and whose blockchain must be enhanced via continual iteration. This is exactly what the features of a blockchain project are. Blockchain initiatives begin with a critical need or problem to be addressed, which must be continually investigated by participants and those in need to encourage continuous progress. At the same time, it will draw more individuals into the community, causing demand to shift the projects in a better direction and encourage the advancement of its technology. The purpose of the echoes is to generate a positive feedback loop of incentives, applications, and usage. As a result, project operations concepts must be community-oriented from the start, and community operations are linked to the success or failure of the blockchain project.
+
+The following people make up the community:
+
+- The Core development team and the Kaj Labs Foundation. They are the project’s platform’s sponsors and facilitators.
+- Programmers who want to be a part of the project. They can join the Foundation development team or independently create and optimize Lithosphere as a third party if they are interested in projects or project technologies.
+- Participating nodes in the Lithosphere They make money by keeping track of ledgers and operating smart contracts while also maintaining Lithosphere.
+- Users of the Lithosphere platform. For DeFi and other services, they employ the Lithosphere platform. 
+- On the Lithosphere platform, DeFi service providers such as payment institutes, centralized or decentralized exchanges, lending institutes, and other financial service providers.
+- Lithosphere token holders, such as private equity companies, early-stage investors, late-stage investors, and potential investors.
+- Other parties involved in the development of Lithosphere, such as the media, government, and so on.
+- The goal of community operations is to gather as much force as possible and arrange it in the most efficient way possible so that Lithosphere can iterate, improve, influence, and serve a wider community.
+
+The growth of the community is inextricably linked to both the core and outlying communities. The two are mutually beneficial, with the core community serving as the focal point. The peripheral community, on the other hand, must continue to participate in the creation of the key community since the core community will originate from and borrow from the peripheral community, and the peripheral community will require the core community’s resources to support them. We discovered that Bitcoin, Ethereum, and other projects have all grown in the same way. The core community consists of early adopters, blockchain technology communities, and blockchain value communities, while peripheral resources include additional investors, users, developers, journalists, and other interested parties.
+
+## Project promotion method
+The concept separates community operations into two categories: core and periphery. The former prefers the offline mode, whilst the latter prefers the internet mode. The following is the strategy for key community operations:
+
+- Lithosphere Foundation team: the team will be rewarded with tokens. One reason is to compensate for the resources used in the previous time, and the other is to allow anybody to become a shareholder and expect them to contribute to Lithosphere in the future.
+- Community for blockchain technology.
+- Technology is both the most important and the most difficult aspect of blockchain development. We will utilize online and offline methods to discover and nurture a group of top-tier talents to promote the technological community, using the founding team’s technical expertise and social resources.
+- Blockchain value community: Using the blockchain technology community, we can organize gatherings with holders to disseminate blockchain knowledge while also promoting opportunities for collaboration with the private value community.
+
+## A movement to Promote Blockchain Technology
+The Internet of Values presently has a usability bottleneck, which will require continuing work in the future to improve. The usefulness of the Internet of Values is strongly connected to the Lithosphere project. To contribute to the usefulness of blockchain technology, we will start the “blockchain technology promotion movement.” For the Kaj Labs Foundation, this will be a long-term project.
+
+In the form of technical salons, training camps, and seminars, this movement will continue to amass skills and technical information. We will encourage participants to provide content, which will be published on numerous websites and in the media. To grow the technical community of blockchain, we will provide monthly training sessions to recruit conventional Internet employees and other technical staff.
+
+The blockchain technology promotion movement will bring together all forces, including universities, research institutes, businesses, institutions, governments, and alliances, to create a cooperative partnership and pool resources to support blockchain technology’s advancement.
+
+## The Standardization of Blockchain Interfaces Movement
+The Internet of Values has interoperability and scalability problems that require many parties to address. The Lithosphere project is inextricably linked to these two obstacles’ breakthrough development and advancement. By establishing the “Blockchain Interface Standardization Movement,” we will help to enhance them. For the Lithosphere Foundation, this will be a long-term project.
+
+The movement will encourage standardization of interfaces not just between blockchains, but also between decentralized and centralized organizations, as well as between blockchains and external data sources.
+
+## Lithosphere Applications
+#### Borrowing and Lending
+Using digital money to produce new value and earn revenue is an unavoidable trend as it grows in importance as a medium of value exchange and a value storage carrier. Bitcoin, for example, is used to fund blockchain mining companies and other crypto initiatives. Direct investment options for digital currency have expanded as the variety of applications for digital money has grown.
+
+Those who generate value with digital currencies need more of them, and people who own digital currencies want to raise their value, thus demand for borrowing and lending digital currencies will rise.
+
+Consider the cryptocurrency Ethereum (ETH). On Lithosphere, a service provider creates a deposit application and sets the interest rate using a smart contract.
+
+Through a cross-chain transaction, a user sends ETH from the Ethereum blockchain to the Lithosphere smart contract address. The deposit on Lithosphere generates a voucher (Lithosphere tokens that look like deposit bank receipts) that is credited to the user’s Lithosphere account. The smart contract then calculates the interest for you. When the user wants to withdraw the money, the voucher is sent to an intermediate address, and a cross-chain transaction is carried out. On the original chain, the ETH corresponding to the voucher is unlocked and sent back to the original user’s account. Deposit reserves (the assets locked on the originating chain that correspond to the intermediate address) are always visible.
+
+#### Payment and Settlement
+Businesses are increasingly accepting digital assets such as Bitcoin as a form of payment. There will be more applications in the future that employ a range of digital currencies for payment. There are several payment options available today, including VISA, Paypal, and Alipay, each with its own set of payment and settlement procedures. The lithosphere is a multi-currency distributed platform that combines many banking ledgers into a single unified ledger. Without needing to install several digital currency wallets, any business or user may utilize the Lithosphere wallet to make multi- currency payments and settlements.
+
+#### Transaction and Exchange
+
+At the moment, centralized exchanges and over-the-counter marketplaces are required to complete digital currency trades. Every transaction is dependent on the exchanges’ and intermediaries’ confidence. After several currencies have been linked with Lithosphere, exchanges and intermediaries may use smart contracts to enable multi-currency auction trading and one-to-one curb transactions. On Lithosphere, the privacy protection transaction mechanism supports transactions that require privacy protection. Importing digital money into Lithosphere, starting private transactions on Lithosphere, and moving digital currency back to the original chain are all possible with Lithosphere. The original chain’s privacy is protected to some extent by concealing the fund tracking paths. Lithosphere can handle 10,000 transactions per second (TPS) compared to Bitcoin which processes 4.6 transactions per second, Ethereum does 15 TPS, and Ripple handles 1,700 TPS. Visa does around 1,700 transactions per second on average (based on a calculation derived from the official claim of over 150 million transactions per day).
+
+##### Investment and Financing
+
+Traditional institutions are increasingly turning to consortium chains to store assets such as commercial invoices, loyalty points, future earning rights, and accounts receivable. More financial assets will be recorded on consortium chains-based distributed ledgers in the future. When these consortium chains connect to Lithosphere, they become financial asset providers, and investors may acquire these assets with their digital currencies. It’s similar to buying financial goods at a bank, as in the traditional banking company. The main distinction is that more intermediaries can participate, and asset owners can finance themselves directly.
+
+In the blockchain world, Initial Coin Offerings (ICOs) / initial exchange offerings (IEOs) have become a popular way to raise funds, and the practice is expanding to non-blockchain domains. Smart contracts are being used directly for ICOs by an increasing number of projects, particularly those built on Ethereum or BSC, making the process more open and equitable. However, ICOs that exclusively accept Ether annoy investors who possess other digital currencies. The ICO issuer can use Lithosphere to create a smart contract that enables multi-currency investments. Investors may invest more easily using Ethereum, Bitcoin, or any other blockchain token linked with Lithosphere, and issuers can manage their funds more simply. Furthermore, when a new blockchain is released, the Lithosphere cross-chain transactions may be used to convert the crowdfunded shares to the local currency. With Lithosphere, we’re entering a new age of blockchain-based digital right issuing
+
+#### More Applications
+
+The financial applications mentioned above are meant to help readers better grasp Lithosphere’s rationale and value. More examples include multi-currency credit cards based on digital money, asset- backed securities that bundle a range of assets, peer-to-peer lending firms based on digital currencies, and crowdfunding, among others.
+
+Major banks see blockchain technology as an essential strategy, but they’re also looking at how it might be used to alter traditional business.
+
+Banking, such as currency exchange, has been flourishing in the realm of digital money. In these sectors, blockchains are progressing on two parallel tracks, but with the emergence of digital assets and their increasing integration into the actual economy, these two tracks will eventually cross. Bank balance sheets will be largely moved to blockchains, and digital assets will be incorporated in bank balance sheets (banks that enable the loan and deposit of digital assets) (fiat money is represented and accounted for by blockchain tokens). This future integration will be supported by Lithosphere’s inter-ledger technology.
+
+## Current Lithosphere Features
+#### Interoperability
+Cross-chain interoperability through a decentralized custodian model (MDKM) 
+#### Next-generation Blockchain for NFTs
+A scalable, decentralized, cross-chain network designed to bring non-fungible tokens to everyone. 
+#### Time-Lock Feature
+Lithosphere’s unique Time-Lock feature enables you to extract time-value out of your digital assets 
+#### Security
+Manage and control private keys in a distributed manner with MDKM technology 
+#### Scalability
+Solving the scaling problem is an open issue for PoW blockchains like Bitcoin and Ethereum v1. Currently, Bitcoin & Ethereum nodes process every single transaction and also store all the states. Since Lithosphere’s proof-of-stake can commit blocks much faster than Proof-of-work, EVM zones powered by Lithopshere’s consensus and operating on bridged-crypto can provide higher performance to PoW blockchains Ethereum, Litecoin & Bitcoin.
+#### Digital Assets
+Create, manage or even lend your own digital assets & NFT’s using the Lithosphere’s LEP100 protocol. 
+#### Cross-chain gaming assets.
+Game economies, owned by players.
+
+Create in-game assets that are available forever. Bring lasting value to gamers by letting them take their loot to another game or into the real world on the JOT ART blockchain-powered by Litho.
+
+## Lithosphere Products
+1. Lithosphere blockchain (PoS ) Litho cross-chain native token
+2. LithoSwap – cross-chain DEX with NFT exchange support.
+3. LEP100 Token Launchpad – Litho Launchpad
+4. Thanos Multi-currency, cross-chain wallet
+5. JOT NFT Platform (NFT marketplace, NFT DEX, SDK to distribute NFT anywhere cost- effectively, cross-chain) FLEEK – Decentralized community-powered gig platform on the blockchain.
+6. LAX – Algorithmic Stablecoin
+
+## Lithosphere Project Governance
+#### Council Members
+Elected to represent passive stakeholders in two primary governance roles: proposing referenda and vetoing dangerous or malicious referenda. Lithosphere creator Joel Kasr chairs the council committee.
+#### Technical Committee
+Composed of core teams actively building Litho. Can propose emergency referenda, together with the council, for fast-tracked voting and implementation.
+#### Community Members
+Can make and vote on proposals to improve Lithosphere.
+#### Tokenomics
+Total Supply : 1 billion
+
+## Funding for the project
+The initial distribution of litho coin and validators on Kamet (the first version of Lithosphere network) will go to the donors of the Lithosphere Fundraiser (70%), lead donors (5%), KaJ Labs Foundation (10%), network awareness (10%) and the core team members (10%). From Kamet onward, 1/3 of the total amount of $Litho will be rewarded to bonded validators and delegators every year.
+
+One of the vaults / Capsules in the Lithosphere will be set up to hold marketing/awareness funds.
+
+## Roadmap
+### Q3 2021
+Finalize network concept 
+Core development team formation 
+Lithopshere White paper published 
+Establish key partnerships 
+Major announcements
+### Q4 2021
+NFT DEX Testnet
+Media presence
+Introduce new token standard – LEP100
+Introduction of governance in the Lithosphere network using native Litho token.
+Litho token presale
+### Q1 2022
+Launch of Jot Art Metaverse testnet 
+Launch of JOT token IDO 
+Launch cross-chain wallet – Thanos Wallet 
+Team expansion
+### Q2 2022
+Jot Art NFT marketplace mainnet live 
+Implement DNNs in LithoSwap 
+Lithosphere core team augmentation 
+Establish Litho network testnet 
+Public Token sale / IEO
+### Q3 2022
+Implement DNNs in Thanos Wallet
+JOT Token Private Sale 
+Start development of Decentralized community powered gig platform on Blockchain – Fleek
+Release Jot Art SDK 
+Launch Litho Launchpad 
+Release blockchain mobile game on JOT NFT Platform 
+LAX algorithmic stablecoin
+
+## Conclusion
+The Lithosphere project has created a BFT algorithm, a new token standard, Litho currency (LITHO), and a key distribution mechanism to achieve the goal of the inclusive decentralized platform. The design of the native token is mostly comprised of the following five elements:
+
+1. Number. A total of one billion tokens are available. This amount will allow the token to launch at an acceptable price and continue to grow steadily from there.
+
+2. A system for distributing tokens. To achieve the idea of non-inflation, the supply of tokens should be limited. This benefits the early members and makes the system more stable in the long run.
+
+3. The allocation of tokens. To realize the decentralized notion, the token distribution must be properly balanced. We award a 10% ratio to the Lithosphere team because of their continuous devotion and efforts to promote Lithosphere’s inclusivity in cross-chain, cross-organization, and cross-data source initiatives. Furthermore, because Lithosphere’s accounting nodes perform more complex functions than ordinary public chains, they will get around one-third of the entire sum. The remainder will be utilized for environmentally friendly buildings.
+
+4. Environmentally-friendly construction. More than half of the funds will go to the Foundation to help the project flourish, particularly in terms of cross-chain, cross-organization, and cross-data features. To allow additional value to be conveyed on the chain and to aid the development of new smart contract applications, the project will also require a token exchange mechanism.
+
+5. Fuels and miners In a distributed node control system, a range of values will enter the Lithosphere. To control tokens, the chain requires a large number of dispersed nodes. The more nodes there are, the more secure the chain will be, and the more nodes are required as the chain’s value grows. The chain must compensate miners by releasing tokens and charging service fees to sustain the number of nodes and calculation power.
+
+Lithosphere was born out of necessity. Our development teams have always been spread throughout the world from the beginning of KaJ Labs, yet we’ve always had problems working effectively. We have to enhance our entire performance and processes for our teams to stay distributed.
+
+We recognized there were several inefficiencies with the existing commonly utilized blockchains like Ethereum, Cardano, and others after working on numerous blockchain projects. The most serious issue was that these blockchain networks were unable to connect. You couldn’t buy ERC721 NFT using a BEP20 token, BTC, DOT, or BNB until Lithosphere. Blockchain networks must be in sync with one another for blockchain and DeFi to grow into the future we all want. Transaction expenses/gas fees are another challenges that networks like Ethereum confront. On the Ethereum network, almost every activity costs money. 
+
+The KaJ Labs team set out to create a worldwide blockchain network that is quicker, cheaper, and more environmentally friendly than existing blockchains such as Cardano, Polkadot, and Ethereum 2.0. Lithosphere may be thought of as the foundation for both old and new blockchains. The Lithosphere ecosystem is powered by the native currency $LITHO /Litho.
+
+## Disclaimer
+This Lithosphere Whitepaper is for information purposes only. The KaJ Labs Foundation does not guarantee the accuracy of or the conclusions reached in this whitepaper, and this whitepaper is provided “as is”. KaJ Labs Foundation does not make and expressly disclaims all representations and warranties, express, whether explicit, implied, statutory, or otherwise, whatsoever, including, but not limited to: (i) that the contents of this whitepaper are free from error; (ii) that such contents will not infringe third-party rights; and (iii) warranties of fitness for a particular purpose, suitability or function. 
+
+KaJ Labs Foundation and its affiliates shall have no liability for damages of any kind arising out of the use, reference to, or reliance on this whitepaper or any of the content contained herein, even if advised of the possibility of such damages. In no event will KaJ Labs Foundation or its affiliates be liable to any person or entity for any damages, losses, liabilities, costs, or expenses of any kind, whether direct or indirect, consequential, compensatory, incidental, actual, exemplary, punitive or special for the use of, reference to, or reliance on this whitepaper or any of the content contained herein, including, without limitation, any loss of business, revenues, profits, data, use, goodwill or other intangible losses.
+
+## Glossary
+**LEP100:** Lithosphere Evolution Proposal
+**WHITE PAPER:** A guide about a specific topic and the problem that surround it. It is meant to educate readers and help them to understand and solve an issue.
+**BLOCKCHAIN:** A growing list of records, called blocks, that are linked together using cryptography.
+**TOKEN:** A token represent a set of rules encoded in a set of smart contracts. Each token belongs to a blockchain address. It is essentially a digital asset that is stored securely on the blockchain.
+**DECENTRALIZED:** Type of cryptocurrency exchange which allows for direct peer-to- peer cryptocurrency exchange to take place online securely and without the need for an intermediary.
+**EVM:** Ethereum virtual machine is a computation engine which acts like a decentralized computer that has millions of executable projects.
+**BSC:** Binance smart chain
+**PEGGED COINS:** LEP100 tokens pegged to external assets.
+**DAPPS:** Decentralized Applications are digital applications that run on a blockchain or peer-to- peer network of computers instead of a single computer.
+**NFT:** A non-fungible token is a unit of data stored on a digital ledger, called blockchain, that certifies a digital asset and therefore not interchangeable.
+**INTEROPERABILITY:** The ability of computer systems or software to exchange and make use of information. 
+**ERC:** Ethereum request for comments
+**BURN:** A process by which digital currency miners and developers can remove tokens or coins from circulation.
+**TRACTION:** Drawing or pulling rate in a business.
+**DEFI:** Decentralized finance
+**CROSS CHAIN:** It is the interoperability between two relatively independent blockchains. 
+**DEX:** Decentralized exchange 
