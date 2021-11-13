@@ -519,36 +519,45 @@ One of the vaults / Capsules in the Lithosphere will be set up to hold marketing
 
 ## Roadmap
 ### Q3 2021
-Finalize network concept 
-Core development team formation 
-Lithopshere White paper published 
-Establish key partnerships 
-Major announcements
+
+- Finalize network concept 
+- Core development team formation 
+- Lithopshere White paper published 
+- Establish key partnerships 
+- Major announcements
+
 ### Q4 2021
-NFT DEX Testnet
-Media presence
-Introduce new token standard – LEP100
-Introduction of governance in the Lithosphere network using native Litho token.
-Litho token presale
+
+- NFT DEX Testnet
+- Media presence
+- Introduce new token standard – LEP100
+- Introduction of governance in the Lithosphere network using native Litho token.
+- Litho token presale
+
 ### Q1 2022
-Launch of Jot Art Metaverse testnet 
-Launch of JOT token IDO 
-Launch cross-chain wallet – Thanos Wallet 
-Team expansion
+
+- Launch of Jot Art Metaverse testnet 
+- Launch of JOT token IDO 
+- Launch cross-chain wallet – Thanos Wallet 
+- Team expansion
+
 ### Q2 2022
-Jot Art NFT marketplace mainnet live 
-Implement DNNs in LithoSwap 
-Lithosphere core team augmentation 
-Establish Litho network testnet 
-Public Token sale / IEO
+
+- Jot Art NFT marketplace mainnet live
+- Implement DNNs in LithoSwap 
+- Lithosphere core team augmentation 
+- Establish Litho network testnet 
+- Public Token sale / IEO
+
 ### Q3 2022
-Implement DNNs in Thanos Wallet
-JOT Token Private Sale 
-Start development of Decentralized community powered gig platform on Blockchain – Fleek
-Release Jot Art SDK 
-Launch Litho Launchpad 
-Release blockchain mobile game on JOT NFT Platform 
-LAX algorithmic stablecoin
+
+- Implement DNNs in Thanos Wallet
+- JOT Token Private Sale 
+- Start development of Decentralized community powered gig platform on Blockchain – Fleek
+- Release Jot Art SDK 
+- Launch Litho Launchpad 
+- Release blockchain mobile game on JOT NFT Platform 
+- LAX algorithmic stablecoin
 
 ## Conclusion
 The Lithosphere project has created a BFT algorithm, a new token standard, Litho currency (LITHO), and a key distribution mechanism to achieve the goal of the inclusive decentralized platform. The design of the native token is mostly comprised of the following five elements:
@@ -576,19 +585,35 @@ KaJ Labs Foundation and its affiliates shall have no liability for damages of an
 
 ## Glossary
 **LEP100:** Lithosphere Evolution Proposal
+
 **WHITE PAPER:** A guide about a specific topic and the problem that surround it. It is meant to educate readers and help them to understand and solve an issue.
+
 **BLOCKCHAIN:** A growing list of records, called blocks, that are linked together using cryptography.
+
 **TOKEN:** A token represent a set of rules encoded in a set of smart contracts. Each token belongs to a blockchain address. It is essentially a digital asset that is stored securely on the blockchain.
+
 **DECENTRALIZED:** Type of cryptocurrency exchange which allows for direct peer-to- peer cryptocurrency exchange to take place online securely and without the need for an intermediary.
+
 **EVM:** Ethereum virtual machine is a computation engine which acts like a decentralized computer that has millions of executable projects.
+
 **BSC:** Binance smart chain
+
 **PEGGED COINS:** LEP100 tokens pegged to external assets.
+
 **DAPPS:** Decentralized Applications are digital applications that run on a blockchain or peer-to- peer network of computers instead of a single computer.
+
 **NFT:** A non-fungible token is a unit of data stored on a digital ledger, called blockchain, that certifies a digital asset and therefore not interchangeable.
+
 **INTEROPERABILITY:** The ability of computer systems or software to exchange and make use of information. 
+
 **ERC:** Ethereum request for comments
+
 **BURN:** A process by which digital currency miners and developers can remove tokens or coins from circulation.
+
 **TRACTION:** Drawing or pulling rate in a business.
+
 **DEFI:** Decentralized finance
+
 **CROSS CHAIN:** It is the interoperability between two relatively independent blockchains. 
+
 **DEX:** Decentralized exchange 
