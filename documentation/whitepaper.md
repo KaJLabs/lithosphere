@@ -14,6 +14,7 @@ We created a completely new “Email system” at the dawn of the Internet of In
 The lithosphere is open to everybody. It connects centralized and decentralized organizations, accommodates authentication methods and anonymous trade mechanisms, and introduces on- chain data and off-chain data by integrating the cryptocurrencies and blockchains that exist today and those that may exist in the future. The lithosphere is a Turing-complete virtual computer that allows DeFi to have unlimited reverie space across multiple tokens in the future, opening up henceforth unthinkable possibilities. The Litho project’s general concept, essential technology, and development strategy are presented in this whitepaper, which presents the prospect of decentralized banking based on an examination of the history of the Internet of Value.
 
 ## Design Concept
+![spaces_1z9NFm1PO35bMUqxrMmL_uploads_EGNnnLHjkJp96HUdYGsz_Figure_6](https://user-images.githubusercontent.com/21309333/166516882-d87ca024-4091-4e11-bc8e-a3652c49798e.png)
 ### Blockchain Emergence and Significance
 Due to a lack of confidence, the conventional market economy has a significant cost. The major method that individuals continuously handle trust is through a centralized organization or company. The fast growth of modern human civilization was aided by people with similar ideals who were organized into institutions such as governments, political parties, and businesses. However, centralized organizations face enormous challenges: First, owing to a lack of trust between organizations and conceptual disputes, various groups become embroiled in violent rivalry, years of warfare, and even nuclear terrorism. Second, resources have been increasingly concentrated in the hands of a small number of people, widening the divide between classes. Finally, there is the concept of a “single point of failure,” such as Solar Winds.
 
@@ -48,6 +49,7 @@ Lithosphere has established the following goals based on research on cross-chain
 - Become a decentralized platform for the trading of non-fungible assets and digital currency. Operate a deposit and lending company for several digital currencies.
 - Use digital money as a vehicle for digital asset transactions.
 - Create brand new digital financial assets and exchange them.
+![spaces_1z9NFm1PO35bMUqxrMmL_uploads_3S0hTZnV5BINjcGE8xpp_Figure_1](https://user-images.githubusercontent.com/21309333/166517531-a2a47911-00a5-427d-9614-7b7957975422.png)
 
 The world has changed dramatically as a result of the Internet of Information. Human civilization is destined to undergo massive societal transformations as a result of the Internet of Value. This is due to the qualities of digitalization, intelligence, decentralization, and inclusiveness that the Internet of Value-based on blockchain technology possesses. Digitization and intelligence, which can help the Internet of Value run more efficiently, are elements that already exist on the Internet of Information, but are now being applied to the Internet of Value. 
 
@@ -61,6 +63,8 @@ Tokens on separate blockchains can’t trade with each other since existing bloc
 Existing blockchain networks are essentially island ecosystems, and the Internet of Value is still a long way from being genuinely interoperable. In terms of scalability, while the Internet of Information is constantly expanding by encoding various data as bits and programming various scenarios’ communication logic as applications, the Internet of Value is only just getting started by tokenizing various values as tokens and mapping various scenarios’ transaction logic as smart contracts. The Internet of Value scale is severely constrained due to its lack of compatibility. The transfer of off-chain values to the Internet of Value is hampered by the difficulty of mapping actual application scenarios involving various currencies, numerous organizations, and multiple data sources to a blockchain to build a distributed solution. In terms of usability, whereas the Internet of Information’s processing power, storage capacity, and synchronous speed were sufficient to handle most information management needs, the Internet of Value can only accommodate somewhat larger projects. In terms of standardization, platformization, functional modularity, application ecology, interoperability, and anti-quantum assaults, the Internet of Value has a lot of work ahead of it. Interoperability is the most pressing of the three types of obstacles listed above, since it allows us to move assets between blockchains, design smart contracts with various currencies, and improve update scalability. Usability, on the other hand, is a long-term effort, but interoperability and scalability, which have slowed the growth of the Internet of Value, require a quick fix and have become the two most pressing barriers to be addressed.
 
 ## Smart Contracts & Decentralized Finance (DeFi)
+![Icon_Template_2](https://user-images.githubusercontent.com/21309333/166517821-d582db4d-6986-4852-961c-8bedddaae7b4.png)
+
 The goal of the Internet of Value is to link different values to blockchains so that smart contracts may control them. The Internet of Value enables decentralized, disintermediated, inclusive, and programmable collaboration among individuals. Because of these apparent benefits, diverse values will race to be mapped to blockchains. The Internet of Value will undoubtedly expand at a faster rate as blockchain constraints are addressed. The process of mapping values to blockchains necessitates decoupling financial logic from business logic, implying that the Internet of Value was created with a significant financial component. 
 
 The financial applications of the Internet of Value are those applications on the Internet of Value that have particularly significant financial features. Decentralized Finance refers to the on-chain financial operations on the Internet of Value, as well as their corresponding off- chain financial activities (DeFi). Because the Internet of Value is built on peer-to-peer networks that use the User Datagram Protocol, there are certain obstacles. The performance of the Internet of Value will progressively approach that of the Internet of Information in the future, allowing business scenarios and financial transactions to be written in the same software. 
@@ -75,6 +79,8 @@ As a result, tokenization is defined as the process of securitizing assets and c
 We propose the Lithosphere project in light of DeFi’s bright future and the challenges that the current Internet of Value presents. The goal of Lithosphere is to create a platform-level public chain in the digital economy era that can connect all kinds of values, provide complete financial functions, communicate diverse communities and tokens, and bridge centralized and decentralized organizations to bring the Internet of Value as soon as possible with the help of blockchain, AI, and other technologies.
 
 ## Lithosphere Architecture and Technology
+![NFT_3-1](https://user-images.githubusercontent.com/21309333/166517918-33ea84b5-abf4-46c7-858c-3d3e3b933d99.png)
+
 #### Distributed Private Key Management and Smart Contract Virtual Machine
 Because DeFi assets are displayed as tokens, they can substantially improve the interoperability of the Internet of Value and make increasing scalability much easier if multi-token smart contracts can be implemented. The present cross-chain technology is mostly side-chain technology, which uses a two- way peg to transfer transactions to side chains and multiple signatures to exit side chains. Such a method can only produce atomic transfers, and the results are unsatisfactory in nearly every way. We need to create a public chain that allows other tokens to be mapped to it in a more inventive fashion, so that multi-token smart contracts may be created. 
 
@@ -85,12 +91,16 @@ Since almost all blockchain tokens are controlled by private keys, values on the
 This blockchain, which connects all tokens, does not require complex logic for various application scenarios. Its purpose is to create a layer of management across all blockchains, enabling all tokens to interact. Because it does not need to run heavy application logic, in its current usability it is capable of fulfilling various DeFi functions.
 
 ## Myriad Distributed Key Management (MDKM)
+![Figure_7](https://user-images.githubusercontent.com/21309333/166518034-664c3655-23da-4858-9700-c105fe5e0a4f.png)
+
 The lithosphere is based on the theories and achievements of distributed key generation (DKG) in the field of cipher- sharing. The public key and the private key are both generated by nodes cooperating to communicate. The public key is broadcast in the public chain, the private key is separately stored by each node in a distributed manner through Variable Secret Sharing (VSS). The common public key is generated by the DKG algorithm, and then the account address of the Lock-in is generated by the corresponding algorithm to realize decentralized control. Here we refer to the domain of VSS and DKG based on elliptic curve cryptography distributed key generation protocol and application research on the process described below: Given elliptic curve E, there exists a finite field GF (q), q is a prime number with n participant sets Q = {P1, P2, …, Pn}, pi denotes the identity of the ith participant Pi, and Pi ∈ GF ∗ (q), where GF ∗ (q) is a multiplicative group on GF (q). In the meantime, pi and I are interchangeable during the calculation. E/GF (q) represents the additive group on E. T is E/GF (q), the order of E/GF (q) is a prime number or prime factor, marking this prime or prime factor as p. In this key generation protocol, it is assumed that both scalar multiplication and dot multiplications are done at δ and that the other operations are done at GF (q). To calculate Q (x) T, we first compute Q (x) and then p(x) mod p, and Q (x) mod p is the scalar multiplication on T. Let us assume that E has another base point T ′ on the elliptic curve δ.
 
 ## Threshold signature
 The threshold signature technique can address the issue of signatures created by Lithosphere’s departing nodes while also improving the blockchain network’s stability. According to studies on node adaptation in distributed key generation networks, Lithosphere will choose appropriate nodes to join and refresh the shared key parameters in extreme circumstances to assure the chain’s successful functioning.
 
 ## Litho Coin
+![LUSD_ALGORITHMIC_STABLECOIN-1](https://user-images.githubusercontent.com/21309333/166518948-408150ac-32e2-4341-8e60-e4a85f6e2404.png)
+
 Litho is the native coin of Lithosphere. Both cross-and intra-chain transactions consume a certain amount of Litho. Litho is also used in security deposits for the cross-chain verification nodes. Litho / $LITHO is the currency of choice in the Lithosphere network although another crypto can be used as well since the Lithosphere blockchain supports interoperability.
 
 ## LAX – Algorithmic Stablecoin
@@ -107,16 +117,23 @@ When an unregistered asset is moved from the originating chain to Lithosphere, L
 Asset mapping refers to the process of producing matching tokens for bookkeeping on Lithosphere for a controlled item. One token can freely interact with other mapped assets thanks to mapping. Lock-in and Lock-out operations are used to establish and de-manage distributed control.
 
 ## Cross-Chain Transactions
+![Figure_2](https://user-images.githubusercontent.com/21309333/166519115-78536f64-982e-49a5-9ad8-e5f7d13d0dbd.png)
+
 Asset Lock-in is a process that enables myriad distributed key management and asset mapping for all key-managed tokens.
 
 Asset Lock-out) is the reversal of Lock-in, and it consists of two parts: control rights management and asset mapping disassembly. After Lock-out is completed, control of the digital asset is returned to the owner, restoring complete key storage and centralized key management. By improving the security, liquidity, and DeFi applications of current digital assets, adopting multifarious key distribution management will improve the value of digital assets.
 
 ## Deep Neural Networks (DNN)
+![DNN-2](https://user-images.githubusercontent.com/21309333/166519146-5d1bf086-c2eb-49df-8c95-66ea586e569e.png)
+
 David Yang PhD, proposes Deep neural networks (DNNs) for Lithosphere smart contracts. DNNs are very useful in blockchain applications such as DeFi and NFT trading. However, training / running large-scale DNNs as part of a smart contract is infeasible on today’s blockchain platforms, due to two fundamental design issues of these platforms. First, blockchains nowadays typically require that each node maintain the complete world state at any time, meaning that the node must execute all transactions in every block. This is prohibitively expensive for computationally intensive smart contracts involving DNNs. Second, existing blockchain platforms expect smart contract transactions to have deterministic, reproducible results and effects. In contrast, DNN is usually trained / run lock-free on massively parallel computing devices such as GPUs, TPUs, and/or computing clusters, which often do not yield deterministic results.
+![Lithosphere-whitepaper1 DNN](https://user-images.githubusercontent.com/21309333/166519192-4d273901-0f60-4ebc-8b8f-dc59782c1f89.png)
 
 For the first time in smart contracts, Lithosphere implements DNN to make smart contracts intelligent by incorporating large-scale deep neural networks (DNNs) into the code, which has numerous potential applications. For instance, in decentralized finance (DeFi), a DNN might help detect abnormal token price movements, which could be part of a flash-loan attack. A decentralized autonomous organization (DAO) might trade tokens automatically with a DNN trained continually through reinforcement learning. A content creator might apply a generative adversarial network (GAN) to generate visual art images, and subsequently tokenize them as non-fungible tokens (NFTs) tradable in a decentralized exchange.
 
 ## LEP100 Multi-chain Token Standard
+![LEP100-TOKENS_AND_LITHO-LAUNCHPAD-1](https://user-images.githubusercontent.com/21309333/166519301-ea54daee-e04a-49d7-8632-6301c9157488.png)
+
 The LEP100 is a novel standard for multi-tokens, allowing for a single contract to represent multiple fungible(currency) and non-fungible tokens (NFT) and batched operations for increased gas efficiency proposed by Joel Kasr, creator of Lithosphere. Most importantly, LEP100 tokens can exchange for any other token equivalents. LEP100 tokens are fueled using the native Litho coin (LITHO). When pegged with the LEP100 tokens, you may also peg onto any networks utilizing any major digital assets. The token is multi-contract compliant and has basic features like transferring, returning a balance, and examining a token’s possession. 
 
 A LEP100 token, unlike ERC20 or BEP20, allows a single contract to represent numerous fungible and non-fungible tokens, allowing for a wide range of applications in everyday use. It is the most efficient token for DeFI platforms, gaming platforms, NFT, and another high-demand contract–compatible platforms. LEP100 may also be easily integrated into any Ethereum dApps or other chains because it can be traded for ERC20, ERC-721, ERC-1155, BEP2, and BEP20 tokens. 
@@ -144,6 +161,7 @@ Further, in the ordinary case, LinBFT involves only a single round of voting ins
 
 ## Myriad Distributed Key Management
 Myriad Distributed Key Management realizes the generation of public-private key pairs and addresses and the transaction signatures on the target blockchain in a distributed manner through several nodes and according to digital signature algorithms adopted by the target blockchain, thus realizing the control and management of accounts and assets on the target blockchain in a distributed manner.
+![Figure_4](https://user-images.githubusercontent.com/21309333/166519378-71e789dd-2956-4200-a2a8-df363eeb6584.png)
 
 Such a technical route enables MDKM to be compatible with as many digital assets controlled by encryption algorithms as possible, whether these digital assets are generated on a centralized or decentralized basis. By supporting a signature algorithm with MDKM, a series of encrypted digital assets with the same signature algorithm can be controlled and managed.
 
@@ -301,6 +319,8 @@ Separation of usufructs refers to the ability to separate the usufructs (rights)
 The transfer of digital assets will be possible if the link between them is solely specified in terms of space. It is a borrowing connection between them if the relationship is characterized in terms of time. When the connection is described in terms of object attribution, it represents the ownership and usufructs of the objects. As a result, the logical abstraction of one or more relationships in terms of time, space, and object attributions can lead to the construction of various transactions ranging from simple to complex between various digital assets, even eliciting yet-to-be-realized financial innovations, allowing for limitless imagination.
 
 ### Contract multi-triggering mechanism Diversity of triggering conditions
+![Figure_5](https://user-images.githubusercontent.com/21309333/166519600-6a9fb980-0adf-446e-8ba3-78e6bba39c89.png)
+
 Because the present smart contract is triggered by a transfer to the contract, the current implementation of smart contracts is based on the transfer of ownership of digital assets.
 
 When a user starts a transfer to a smart contract, for example, a node must first validate the legality of the transfer, which includes determining if the user’s current financial balance on the blockchain supports the transaction. The smart contract then runs the relevant function for accepting the gift and judges it based on the function’s predetermined response condition. For example, the smart contract will examine the entire amount of the donation and only accept it if it does not over the quota. Finally, a modified contract value or smart contract state will be placed into the block to indicate that the transaction has taken place.
