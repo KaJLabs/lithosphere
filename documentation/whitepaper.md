@@ -538,47 +538,59 @@ The initial distribution of litho coin and validators on Kamet (the first versio
 
 One of the vaults / Capsules in the Lithosphere will be set up to hold marketing/awareness funds.
 
-## Roadmap
-### Q3 2021
+## Updated Roadmap 2022-2024
+### 2022 Q4 - (Kamet)
 
-- Finalize network concept 
-- Core development team formation 
-- Lithopshere White paper published 
-- Establish key partnerships 
-- Major announcements
+- Finesse Genesis Collection Drop
+- $JOT IEO
+- Finesse: Shadow Warriors P2E Beta Relase 
+- Team Expansion
+- More CX & DEX Listings For Litho
+- Litho Staking 
+- Key Parterships Announced
 
-### Q4 2021
+### 2023 Q1 (Batura)
 
-- NFT DEX Testnet
-- Media presence
-- Introduce new token standard – LEP100
-- Introduction of governance in the Lithosphere network using native Litho token.
-- Litho token presale
+- Litho Testnet Makalu Goes Live!
+- Jot Art NFT Marketplace Launch 
+- DAO / Community Governance & Proposal Flow Established
+- MDKM Stable Release 
+- JOT CEX & DEX Listings
+- Finesse: The Kingdom MMORPG Public Beta Live. 
 
-### Q1 2022
+### 2023 Q2 (Makalu)
 
-- Launch of Jot Art Metaverse testnet 
-- Launch of JOT token IDO 
-- Launch cross-chain wallet – Thanos Wallet 
-- Team expansion
+- Litho Testnet #2 Everest Goes Live!
+- Litho DEX 
+- LinBFT Stable Release 
+- Jot Art SDK Released 
+- Ego Dex / Litho Bridge Stable Relase
+- Lithosphere Client (Wallet) Thanos Goes Live
 
-### Q2 2022
+### 2023 Q3 (Everest)
 
-- Jot Art NFT marketplace mainnet live
-- Implement DNNs in LithoSwap 
-- Lithosphere core team augmentation 
-- Establish Litho network testnet 
-- Public Token sale / IEO
+- Lithosphere Mainnet Launch ✨ 
+- Litho Whitepaper Update 
+- Fleek DAO on Lithosphere Testnets 
+- Finesse Series Migration To Lithopshere 
+- LEP100 (JOT) Launch & Contract Updates 
+- Litho Launchpad Testnet
 
-### Q3 2022
+### 2023 Q4
 
-- Implement DNNs in Thanos Wallet
-- JOT Token Private Sale 
-- Start development of Decentralized community powered gig platform on Blockchain – Fleek
-- Release Jot Art SDK 
-- Launch Litho Launchpad 
-- Release blockchain mobile game on JOT NFT Platform 
-- LAX algorithmic stablecoin
+- Litho Launchpad LEP100 Projects Previews
+- DNNs Concept on Litho Sidechain
+- LAX Algorithmic Stablecoin 
+- Jot Art Upgrades
+- Inagural LITHO Super Dialogues (LSD Conference).
+
+### 2024 Q1 
+
+- Network Upgrades 
+- Token Standard Upgrades
+- Jot Art Studio Beta Relase 
+- More decentralization 
+- More TBA
 
 ## Conclusion
 The Lithosphere project has created a BFT algorithm, a new token standard, Litho currency (LITHO), and a key distribution mechanism to achieve the goal of the inclusive decentralized platform. The design of the native token is mostly comprised of the following five elements:
