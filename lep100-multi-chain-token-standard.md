@@ -1,0 +1,9 @@
+# LEP100 Multi-chain Token Standard
+
+![](.gitbook/assets/LEP100-TOKENS_AND_LITHO-LAUNCHPAD-1.png)
+
+The LEP100 is a novel standard for multi-tokens, allowing for a single contract to represent multiple fungible(currency) and non-fungible tokens (NFT) and batched operations for increased gas efficiency proposed by Joel Kasr, creator of Lithosphere. Most importantly, LEP100 tokens can exchange for any other token equivalents. LEP100 tokens are fueled using the native Litho coin (LITHO). When pegged with the LEP100 tokens, you may also peg onto any networks utilizing any major digital assets. The token is multi-contract compliant and has basic features like transferring, returning a balance, and examining a token’s possession.&#x20;
+
+A LEP100 token, unlike ERC20 or BEP20, allows a single contract to represent numerous fungible and non-fungible tokens, allowing for a wide range of applications in everyday use. It is the most efficient token for DeFI platforms, gaming platforms, NFT, and another high-demand contract–compatible platforms. LEP100 may also be easily integrated into any Ethereum dApps or other chains because it can be traded for ERC20, ERC-721, ERC-1155, BEP2, and BEP20 tokens.&#x20;
+
+The LEP100 establishes best practices for managing cross-chain tokens. Due to their similarities, the tokens are compatible with ERC20, ERC-721, ERC-1155, BEP2, and BEP20. The LEP100 token standard also allows for token time-slicing in smart contracts. When a token is sliced, it is split into two parts: one is a time-limited slice (here TL is for Time-Lent), and the other is an infinite end (here TL stands for Time Restricted, since its utility is limited for a time but not locked). Both slices can be split into two more time slices if needed, allowing for sophisticated DeFi such as options and futures trading.
