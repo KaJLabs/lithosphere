@@ -9,7 +9,7 @@
 * [Lithosphere Architecture and Technology](lithosphere-architecture-and-technology.md)
 * [Myriad Distributed Key Management (MDKM)](myriad-distributed-key-management-mdkm.md)
 * [Threshold signature](threshold-signature.md)
-* [Litho Coin](litho-coin.md)
+* [𝕃itho Coin](itho-coin.md)
 * [Lithosphere Algorithmic Cryptocurrency - LAX ⋉](lithosphere-algorithmic-cryptocurrency-lax.md)
 * [Consensus Mechanism](consensus-mechanism.md)
 * [Cross-Chain Integration](cross-chain-integration.md)
