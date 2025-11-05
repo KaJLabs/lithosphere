@@ -18,4 +18,23 @@ We recognized there were several inefficiencies with the existing commonly utili
 
 The KaJ Labs team set out to create a worldwide blockchain network that is quicker, cheaper, and more environmentally friendly than existing blockchains such as Cardano, Polkadot, and Ethereum 2.0. Lithosphere may be thought of as the foundation for both old and new blockchains. The Lithosphere ecosystem is powered by the native currency $LITHO /Litho.
 
-####
+#### COMMUNITY:&#xD;
+
+[https:litho.ai](https://litho.ai/)
+
+[ecosystem.litho.ai](https://ecosystem.litho.ai)\
+[ignite.litho.ai](https://ignite.litho.ai)\
+[Staking.litho.ai](https://staking.litho.ai)\
+[whitepaper.litho.ai](https://whitepaper.litho.ai)
+
+[GoodTokens.org](https://goodtokens.org/)\
+[KaJLabs.org](https://kajlabs.org)\
+[ChainFest.ai](https://chainfest.ai)\
+[LAX.money](https://lax.money)
+
+#### DEVELOPERS:
+
+
+
+#### NETWORK STATUS & SECURITY:
+
