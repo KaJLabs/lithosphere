@@ -1,67 +1,44 @@
-Lithosphere Network – Node Chain Binary
+# Lithosphere Network – Node Chain Binary
 
-GitHub repo URL: https://github.com/KaJLabs/lithosphere/   
-Branch: main 
+## GitHub Repository
+- **Repo URL:** [https://github.com/KaJLabs/lithosphere](https://github.com/KaJLabs/lithosphere/)  
+- **Branch:** `main`
 
+---
 
-Binary Name
-lithod
+## Binary Name
+`lithod`
 
-Chain Framework
-Cosmos-SDK–based chain
-Consensus: CometBFT (Tendermint Core)
-Execution: LithoVM (EVM-compatible runtime)
+## Chain Framework
+- **Framework:** Cosmos-SDK–based chain  
+- **Consensus:** CometBFT (Tendermint Core)  
+- **Execution:** LithoVM (EVM-compatible runtime)
 
-Source Repository
-https://github.com/KaJLabs/lithosphere/litho-chain
+## Source Repository
+[https://github.com/KaJLabs/lithosphere/litho-chain](https://github.com/KaJLabs/lithosphere/litho-chain)
 
+---
 
-Pre-built Binary
-Platform: Linux x86_64
-Binary: lithod
-If a release binary is provided:
-https://github.com/lithosphere-network/litho-chain/releases/latest
+## Pre-built Binary
+- **Platform:** Linux x86_64  
+- **Binary:** `lithod`  
 
-(Otherwise build from source as below.)
+**Latest release binary:**  
+[https://github.com/lithosphere-network/litho-chain/releases/latest](https://github.com/lithosphere-network/litho-chain/releases/latest)
 
-Build Instructions (from source)
-Requirements
-Go ≥ 1.22
-GNU Make
-Linux x86_64
+> If no release binary is provided, you can build from source (see below).
+
+---
+
+## Build Instructions (From Source)
+
+### Requirements
+- Go ≥ 1.22  
+- GNU Make  
+- Linux x86_64  
+
+### Steps
+```bash
 git clone https://github.com/lithosphere-network/litho-chain
 cd litho-chain
 make install
-
-This installs:
-$GOPATH/bin/lithod
-
-Verify:
-lithod version
-
-
-Default Node Directories
-~/.lithod/
-├── config/
-│   ├── app.toml
-│   ├── config.toml
-│   ├── genesis.json
-├── data/
-└── keyring/
-
-
-Node Startup
-lithod init <moniker> --chain-id lithosphere-1
-lithod start
-
-
-Genesis & Config
-genesis.json provided separately (chain launch package)
-Seed & persistent peers injected via config.toml
-Remote signer / HSM supported via CometBFT signer
-
-Validator Compatibility
-Cosmovisor supported
-Remote signer (tmkms / KMS / HSM) supported
-Prometheus metrics enabled
-
