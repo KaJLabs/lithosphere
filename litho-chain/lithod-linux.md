@@ -42,3 +42,40 @@
 git clone https://github.com/lithosphere-network/litho-chain
 cd litho-chain
 make install
+```
+
+### This installs:
+$GOPATH/bin/lithod
+
+### Verify:
+lithod version
+
+## Default Node Directories
+```bash
+~/.lithod/
+├── config/
+│   ├── app.toml
+│   ├── config.toml
+│   ├── genesis.json
+├── data/
+└── keyring/
+```
+
+## Node Startup
+```bash
+lithod init <moniker> --chain-id lithosphere-1
+lithod start
+```
+
+## Genesis & Config
+genesis.json provided separately (chain launch package)  
+Seed & persistent peers injected via config.toml  
+Remote signer / HSM supported via CometBFT signer  
+
+## Validator Compatibility
+Cosmovisor supported  
+Remote signer (tmkms / KMS / HSM) supported  
+Prometheus metrics enabled  
+
+This keeps **all your content in one Markdown file** and uses proper code formatting for commands and paths.  
+If you want, I can make an **even cleaner single README.md** that’s ready for GitHub with headings, bolds, and copyable commands. Do you want me to do that?
