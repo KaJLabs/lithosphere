@@ -1,8 +1,6 @@
 # Lithosphere
 
-## `Whitepaper`
-
-### KAJ LABS FOUNDATION
+### KaJ Labs
 
 
 
