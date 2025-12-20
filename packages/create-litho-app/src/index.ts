@@ -144,7 +144,7 @@ async function run(
     console.log(chalk.white('Next steps:'));
     console.log();
     console.log(chalk.gray('  1.'), chalk.cyan(`cd ${path.relative(process.cwd(), targetPath)}`));
-    console.log(chalk.gray('  2.'), chalk.cyan('pnpm install'));
+    console.log(chalk.gray('  2.'), chalk.cyan('pnpm install --ignore-workspace'));
 
     // Template-specific instructions
     switch (template) {
@@ -163,6 +163,7 @@ async function run(
     }
 
     console.log();
+    console.log(chalk.gray('Note: Use --ignore-workspace to install dependencies locally'));
     console.log(chalk.gray('Happy coding! 🎉'));
     console.log();
   } catch (error) {
