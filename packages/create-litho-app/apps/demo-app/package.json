@@ -1,5 +1,5 @@
 {
-  "name": "@lithosphere/contracts-template",
+  "name": "demo-app",
   "version": "0.1.0",
   "description": "Lithosphere Smart Contract Template - Hybrid Hardhat/Foundry",
   "license": "MIT",
