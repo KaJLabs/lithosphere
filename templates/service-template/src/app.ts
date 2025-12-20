@@ -23,8 +23,6 @@ const healthResponseSchema = z.object({
   uptime: z.number(),
   version: z.string(),
 });
- sdsd
-
 
 type HealthResponse = z.infer<typeof healthResponseSchema>;
 
