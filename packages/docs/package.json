@@ -1,0 +1,17 @@
+{
+  "name": "@lithosphere/docs",
+  "version": "1.0.0",
+  "description": "Lithosphere documentation, whitepapers, and technical specifications",
+  "private": true,
+  "scripts": {
+    "build": "echo 'Documentation package - no build needed'",
+    "lint": "prettier --check \"**/*.md\"",
+    "lint:fix": "prettier --write \"**/*.md\""
+  },
+  "keywords": [
+    "lithosphere",
+    "documentation",
+    "blockchain",
+    "whitepaper"
+  ]
+}
