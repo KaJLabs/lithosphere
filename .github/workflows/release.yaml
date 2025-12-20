@@ -13,7 +13,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/service-template
+  # Note: github.repository is converted to lowercase for Docker compatibility
+  IMAGE_NAME: kajlabs/lithosphere/service-template
 
 jobs:
   build-and-push:
@@ -105,7 +106,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: Build
         run: pnpm build
