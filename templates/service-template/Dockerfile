@@ -15,7 +15,9 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 COPY package.json pnpm-lock.yaml* ./
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile --prod=false
+# Note: Using --no-frozen-lockfile for template builds
+# In production, generate a lockfile first with: pnpm install
+RUN pnpm install --no-frozen-lockfile
 
 # Copy source code
 COPY . .
