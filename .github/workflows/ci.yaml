@@ -1,0 +1,122 @@
+# Lithosphere CI - Quality Gate Pipeline
+# Runs on push to main and pull requests targeting main
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      # ─────────────────────────────────────────────────────────────
+      # Checkout with full history for Turbo diff calculation
+      # ─────────────────────────────────────────────────────────────
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ─────────────────────────────────────────────────────────────
+      # Setup pnpm
+      # ─────────────────────────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      # ─────────────────────────────────────────────────────────────
+      # Setup Node.js with pnpm caching
+      # ─────────────────────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # ─────────────────────────────────────────────────────────────
+      # Cache pnpm store
+      # ─────────────────────────────────────────────────────────────
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      # ─────────────────────────────────────────────────────────────
+      # Cache node_modules
+      # ─────────────────────────────────────────────────────────────
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      # ─────────────────────────────────────────────────────────────
+      # Cache Turborepo
+      # ─────────────────────────────────────────────────────────────
+      - name: Cache Turborepo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      # ─────────────────────────────────────────────────────────────
+      # Install dependencies
+      # ─────────────────────────────────────────────────────────────
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ─────────────────────────────────────────────────────────────
+      # Secret Scanning - Detect leaked private keys
+      # ─────────────────────────────────────────────────────────────
+      - name: Secret Scan with Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+      # ─────────────────────────────────────────────────────────────
+      # Run Turbo Pipeline - Build, Test, Lint
+      # Only runs on packages affected since origin/main
+      # ─────────────────────────────────────────────────────────────
+      - name: Build, Test & Lint (Turbo)
+        run: pnpm turbo run build test lint --filter='...[origin/main]'
+
+      # ─────────────────────────────────────────────────────────────
+      # Upload Turbo run summary (optional debugging)
+      # ─────────────────────────────────────────────────────────────
+      - name: Upload Turbo Summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: turbo-summary
+          path: .turbo/runs
+          retention-days: 7
+          if-no-files-found: ignore

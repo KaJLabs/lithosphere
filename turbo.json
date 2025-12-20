@@ -1,0 +1,75 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [
+    ".env",
+    ".env.local",
+    "tsconfig.json"
+  ],
+  "globalEnv": [
+    "NODE_ENV",
+    "CI",
+    "VERCEL_URL"
+  ],
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**",
+        "artifacts/**",
+        "typechain-types/**"
+      ],
+      "cache": true
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "inputs": ["$TURBO_DEFAULT$", "test/**", "**/*.test.ts", "**/*.spec.ts"],
+      "outputs": ["coverage/**"],
+      "cache": true,
+      "env": ["CI", "NODE_ENV"]
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".eslintrc*", "eslint.config.*"],
+      "outputs": [],
+      "cache": true
+    },
+    "lint:fix": {
+      "dependsOn": [],
+      "cache": false
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "tsconfig.json"],
+      "outputs": [],
+      "cache": true
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "clean": {
+      "cache": false
+    },
+    "compile": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "contracts/**/*.sol"],
+      "outputs": ["artifacts/**", "typechain-types/**", "cache/**"],
+      "cache": true
+    },
+    "deploy": {
+      "dependsOn": ["build", "test"],
+      "cache": false,
+      "env": ["DEPLOY_ENV", "RPC_URL", "PRIVATE_KEY"]
+    },
+    "docker:build": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "env": ["DOCKER_TAG"]
+    }
+  }
+}
