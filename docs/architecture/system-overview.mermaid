@@ -1,0 +1,351 @@
+%% Lithosphere Developer Infrastructure - System Overview
+%% Phase 0: Discovery & Architecture
+%% 
+%% This diagram visualizes the Developer Experience Pipeline
+%% following the GitOps flow from code commit to production deployment.
+
+%% =============================================================================
+%% DIAGRAM 1: Developer Experience Pipeline (CI/CD Flow)
+%% =============================================================================
+
+graph TB
+    subgraph Developer
+        A[Developer Workstation]
+        B[Local Development]
+    end
+
+    subgraph Source Control
+        C[Git Push]
+        D[GitHub Repository]
+        E[Branch Protection]
+    end
+
+    subgraph CI Pipeline
+        F[GitHub Actions Triggered]
+        G[Lint & Format Check]
+        H[Unit Tests]
+        I[Contract Compilation]
+        J[Security Scan - Slither]
+        K[Container Build]
+        L[SBOM Generation]
+        M[Artifact Signing - Cosign]
+        N[Provenance Attestation]
+    end
+
+    subgraph Artifact Registry
+        O[OCI Registry]
+        P[Signed Docker Images]
+        Q[Contract Artifacts]
+    end
+
+    subgraph CD Pipeline
+        R[ArgoCD Detects Change]
+        S[Sync to Target Cluster]
+    end
+
+    subgraph Environments
+        T[Devnet Cluster]
+        U[Staging Cluster]
+        V[Mainnet Cluster]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+    J --> K
+    K --> L
+    L --> M
+    M --> N
+    N --> O
+    O --> P
+    O --> Q
+    P --> R
+    Q --> R
+    R --> S
+    S --> T
+    S --> U
+    S --> V
+
+%% =============================================================================
+%% DIAGRAM 2: Runtime Data Flow
+%% =============================================================================
+
+graph LR
+    subgraph Client Layer
+        U1[User Browser]
+    end
+
+    subgraph Frontend
+        U2[Next.js Frontend]
+    end
+
+    subgraph API Layer
+        U3[Apollo GraphQL Gateway]
+        U4[REST API Endpoints]
+    end
+
+    subgraph Blockchain Layer
+        U5[Lithosphere RPC Node]
+        U6[Smart Contracts]
+    end
+
+    subgraph Data Layer
+        U7[PostgreSQL Database]
+        U8[Redis Cache]
+    end
+
+    subgraph Indexer Layer
+        U9[SubQuery Indexer]
+    end
+
+    subgraph Observability
+        U10[Prometheus]
+        U11[Grafana Dashboards]
+        U12[Loki Logs]
+    end
+
+    U1 --> U2
+    U2 --> U3
+    U2 --> U4
+    U3 --> U5
+    U4 --> U5
+    U5 --> U6
+    U5 --> U7
+    U3 --> U7
+    U4 --> U7
+    U3 --> U8
+    U4 --> U8
+    U5 --> U9
+    U9 --> U7
+    U7 --> U10
+    U5 --> U10
+    U10 --> U11
+    U12 --> U11
+
+%% =============================================================================
+%% DIAGRAM 3: Infrastructure Factory (GitOps Flow)
+%% =============================================================================
+
+graph TB
+    subgraph Source
+        S1[Git Monorepo]
+        S2[Infrastructure Code]
+        S3[Application Code]
+        S4[Contract Code]
+    end
+
+    subgraph Build
+        B1[GitHub Actions CI]
+        B2[Terraform Plan]
+        B3[Docker Build]
+        B4[Hardhat Compile]
+        B5[Security Scans]
+        B6[Artifact Signing]
+    end
+
+    subgraph Registry
+        R1[OCI Registry]
+        R2[Signed Images]
+        R3[Contract ABIs]
+        R4[SLSA Provenance]
+    end
+
+    subgraph Deploy
+        D1[ArgoCD Controller]
+        D2[Kustomize Overlays]
+    end
+
+    subgraph Clusters
+        C1[Devnet K8s Cluster]
+        C2[Staging K8s Cluster]
+        C3[Mainnet K8s Cluster]
+    end
+
+    S1 --> S2
+    S1 --> S3
+    S1 --> S4
+    S2 --> B2
+    S3 --> B3
+    S4 --> B4
+    B2 --> B1
+    B3 --> B1
+    B4 --> B1
+    B1 --> B5
+    B5 --> B6
+    B6 --> R1
+    R1 --> R2
+    R1 --> R3
+    R1 --> R4
+    R2 --> D1
+    R3 --> D1
+    D1 --> D2
+    D2 --> C1
+    D2 --> C2
+    D2 --> C3
+
+%% =============================================================================
+%% DIAGRAM 4: Environment Promotion Flow
+%% =============================================================================
+
+graph LR
+    subgraph Development
+        L1[Local Dev]
+        L2[Docker Compose]
+        L3[Hardhat Node]
+    end
+
+    subgraph Devnet
+        D1[Push to main]
+        D2[Auto Deploy]
+        D3[Ephemeral Tests]
+    end
+
+    subgraph Staging
+        ST1[Release Branch]
+        ST2[Auto Deploy]
+        ST3[Persistent Testnet]
+    end
+
+    subgraph Mainnet
+        M1[Git Tag v*]
+        M2[Manual Approval]
+        M3[Production Deploy]
+    end
+
+    L1 --> L2
+    L2 --> L3
+    L3 --> D1
+    D1 --> D2
+    D2 --> D3
+    D3 --> ST1
+    ST1 --> ST2
+    ST2 --> ST3
+    ST3 --> M1
+    M1 --> M2
+    M2 --> M3
+
+%% =============================================================================
+%% DIAGRAM 5: Security & Compliance Flow
+%% =============================================================================
+
+graph TB
+    subgraph Code Commit
+        SC1[Developer Commit]
+        SC2[Signed Commit]
+        SC3[Branch Protection]
+    end
+
+    subgraph Security Gates
+        SG1[Slither Analysis]
+        SG2[Trivy CVE Scan]
+        SG3[Dependency Audit]
+        SG4[SAST Scan]
+    end
+
+    subgraph Artifact Security
+        AS1[Cosign Signing]
+        AS2[SBOM Generation]
+        AS3[SLSA Provenance]
+        AS4[Attestation Store]
+    end
+
+    subgraph Verification
+        V1[Signature Verify]
+        V2[Policy Check]
+        V3[Admission Control]
+    end
+
+    subgraph Runtime
+        RT1[Kubernetes Cluster]
+        RT2[Vault Secrets]
+        RT3[mTLS Istio]
+    end
+
+    SC1 --> SC2
+    SC2 --> SC3
+    SC3 --> SG1
+    SC3 --> SG2
+    SC3 --> SG3
+    SC3 --> SG4
+    SG1 --> AS1
+    SG2 --> AS1
+    SG3 --> AS1
+    SG4 --> AS1
+    AS1 --> AS2
+    AS2 --> AS3
+    AS3 --> AS4
+    AS4 --> V1
+    V1 --> V2
+    V2 --> V3
+    V3 --> RT1
+    RT1 --> RT2
+    RT1 --> RT3
+
+%% =============================================================================
+%% DIAGRAM 6: Kubernetes Cluster Architecture
+%% =============================================================================
+
+graph TB
+    subgraph Ingress
+        I1[CloudFront CDN]
+        I2[NGINX Ingress]
+        I3[WAF]
+    end
+
+    subgraph Services
+        SV1[Frontend Pod]
+        SV2[API Gateway Pod]
+        SV3[Indexer Pod]
+        SV4[Node Pod]
+    end
+
+    subgraph Data
+        DA1[PostgreSQL StatefulSet]
+        DA2[Redis StatefulSet]
+    end
+
+    subgraph Observability
+        OB1[Prometheus]
+        OB2[Grafana]
+        OB3[Loki]
+        OB4[Alertmanager]
+    end
+
+    subgraph Security
+        SE1[Vault Agent]
+        SE2[Istio Sidecar]
+        SE3[Network Policies]
+    end
+
+    I1 --> I2
+    I2 --> I3
+    I3 --> SV1
+    I3 --> SV2
+    SV2 --> SV3
+    SV2 --> SV4
+    SV3 --> DA1
+    SV4 --> DA1
+    SV2 --> DA2
+    SV1 --> OB1
+    SV2 --> OB1
+    SV3 --> OB1
+    SV4 --> OB1
+    OB1 --> OB2
+    OB3 --> OB2
+    OB1 --> OB4
+    SE1 --> SV1
+    SE1 --> SV2
+    SE1 --> SV3
+    SE2 --> SV1
+    SE2 --> SV2
+    SE2 --> SV3
+    SE3 --> SV1
+    SE3 --> SV2
+    SE3 --> SV3
+    SE3 --> SV4

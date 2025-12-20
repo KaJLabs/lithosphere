@@ -14,19 +14,14 @@ RUN apk update && apk upgrade --no-cache
 
 WORKDIR /app
 
-# Copy package files (pnpm-lock.yaml may not exist for templates)
+# Copy package files
 COPY package.json pnpm-lock.yaml* ./
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Install all dependencies (including dev for building)
-# Use --no-frozen-lockfile for templates that may not have a lockfile
-RUN if [ -f pnpm-lock.yaml ]; then \
-        pnpm install --frozen-lockfile; \
-    else \
-        pnpm install; \
-    fi
+RUN pnpm install --frozen-lockfile
 
 # ----------------------------------------------------------------------------
 # Stage 2: Builder

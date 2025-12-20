@@ -36,6 +36,7 @@ docs
 .eslintrc*
 .prettierrc
 vitest.config.ts
+tsconfig.json
 
 # OS
 .DS_Store

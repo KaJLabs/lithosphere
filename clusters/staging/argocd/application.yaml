@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lithosphere-staging
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: lithosphere
+  source:
+    repoURL: https://github.com/lithosphere/infrastructure.git
+    targetRevision: main
+    path: clusters/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lithosphere-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
