@@ -1,0 +1,101 @@
+# ============================================================================
+# Lithosphere Monorepo - CODEOWNERS
+# ============================================================================
+# 
+# This file defines code ownership for the Lithosphere repository.
+# Each line is a file pattern followed by one or more owners.
+# Order matters: later patterns override earlier ones.
+#
+# Documentation: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# ============================================================================
+
+# ============================================================================
+# DEFAULT OWNERS
+# ============================================================================
+# All files require review from the core dev team by default
+*                                       @lithosphere/devs
+
+# ============================================================================
+# INFRASTRUCTURE & DEVOPS
+# ============================================================================
+# All infrastructure code requires DevOps team review
+/infra/                                 @lithosphere/devops
+/clusters/                              @lithosphere/devops
+/.github/workflows/                     @lithosphere/devops
+/docker/                                @lithosphere/devops
+
+# Terraform/IaC changes require additional security review for mainnet
+/infra/terraform/environments/mainnet/  @lithosphere/devops @lithosphere/security
+
+# ArgoCD and Kubernetes manifests
+/infra/k8s/                             @lithosphere/devops
+
+# ============================================================================
+# SMART CONTRACTS & SECURITY
+# ============================================================================
+# All contract code requires security team review
+/contracts/                             @lithosphere/security
+/templates/contracts-template/          @lithosphere/security
+
+# Contract deployment scripts (high risk)
+/contracts/scripts/                     @lithosphere/security @lithosphere/devops
+
+# ============================================================================
+# APPLICATION CODE
+# ============================================================================
+# API service
+/api/                                   @lithosphere/devs
+
+# Frontend
+/web/                                   @lithosphere/devs
+
+# Indexer
+/indexer/                               @lithosphere/devs
+
+# ============================================================================
+# SHARED PACKAGES
+# ============================================================================
+/packages/                              @lithosphere/devs
+
+# ============================================================================
+# DOCUMENTATION & GOVERNANCE
+# ============================================================================
+# Architecture decisions require broader review
+/docs/architecture/                     @lithosphere/devs @lithosphere/devops @lithosphere/security
+
+# Security documentation
+/docs/governance/                       @lithosphere/security
+
+# Runbooks require DevOps review
+/docs/runbooks/                         @lithosphere/devops
+
+# ============================================================================
+# ROOT CONFIG FILES
+# ============================================================================
+# Changes to core config files require DevOps review
+/package.json                           @lithosphere/devs @lithosphere/devops
+/pnpm-workspace.yaml                    @lithosphere/devs @lithosphere/devops
+/turbo.json                             @lithosphere/devs @lithosphere/devops
+/tsconfig.json                          @lithosphere/devs
+/.eslintrc*                             @lithosphere/devs
+/.prettierrc                            @lithosphere/devs
+
+# GitHub settings require DevOps review
+/.github/                               @lithosphere/devops
+/CODEOWNERS                             @lithosphere/devops @lithosphere/security
+
+# ============================================================================
+# DEPENDENCY MANAGEMENT
+# ============================================================================
+# Lock files (security-sensitive)
+pnpm-lock.yaml                          @lithosphere/devs @lithosphere/security
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# Team slugs must be created in GitHub organization:
+#   - @lithosphere/devs      - Core development team
+#   - @lithosphere/devops    - DevOps/SRE team  
+#   - @lithosphere/security  - Security team
+#
+# To create teams: Organization Settings → Teams → New team

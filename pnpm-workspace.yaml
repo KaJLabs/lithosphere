@@ -1,0 +1,24 @@
+# Lithosphere Monorepo - pnpm Workspace Configuration
+# Phase 1: Repo Strategy
+
+packages:
+  # Application packages (existing + future)
+  - "apps/*"
+  
+  # Shared libraries and utilities
+  - "packages/*"
+  
+  # Starter templates for developers
+  - "templates/*"
+  
+  # Infrastructure as Code
+  - "infra/*"
+  
+  # Build tooling and configs
+  - "tooling/*"
+  
+  # Legacy paths (for backward compatibility during migration)
+  - "api"
+  - "web"
+  - "contracts"
+  - "indexer"
