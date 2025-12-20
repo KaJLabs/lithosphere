@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: lithosphere-mainnet
+
+resources:
+  - ../../infra/k8s/base
+
+namePrefix: mainnet-
+
+commonLabels:
+  environment: mainnet
+  app.kubernetes.io/part-of: lithosphere
+  app.kubernetes.io/managed-by: argocd

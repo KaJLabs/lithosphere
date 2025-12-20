@@ -1,0 +1,10 @@
+type Transfer @entity {
+  id: ID!
+  from: String!
+  to: String!
+  value: String!
+  tokenId: Int!
+  txHash: String!
+  blockHeight: Int!
+  timestamp: String!
+}

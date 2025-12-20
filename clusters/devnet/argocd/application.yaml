@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lithosphere-devnet
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: lithosphere
+  source:
+    repoURL: https://github.com/lithosphere/infrastructure.git
+    targetRevision: main
+    path: clusters/devnet
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lithosphere-devnet
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground

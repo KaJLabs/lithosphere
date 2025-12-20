@@ -1,5 +1,5 @@
 {
-  "name": "@lithosphere/service-template",
+  "name": "my-litho-app",
   "version": "0.1.0",
   "description": "Lithosphere Production-Grade Node.js/TypeScript Service Template",
   "license": "MIT",

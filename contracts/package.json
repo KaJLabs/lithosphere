@@ -1,0 +1,17 @@
+{
+  "name": "@lithosphere/contracts",
+  "version": "1.0.0",
+  "description": "Lithosphere Smart Contracts - LITHO + LEP100",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "clean": "hardhat clean",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.ts --network localhost"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.2",
+    "typescript": "^5.3.2"
+  }
+}
