@@ -1,0 +1,28 @@
+{
+  "name": "@lithosphere/blockchain-core",
+  "version": "0.1.0",
+  "description": "Lithosphere L1 Blockchain Core - Smart Contracts, SDK, and Chain Implementation",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist"
+  },
+  "keywords": [
+    "lithosphere",
+    "blockchain",
+    "smart-contracts",
+    "sdk",
+    "web3"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.3.0"
+  }
+}
