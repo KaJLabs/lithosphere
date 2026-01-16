@@ -7,6 +7,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'Makulu/**'
+      - '.github/workflows/release.yaml'
     tags:
       - 'v*'
   workflow_dispatch:  # Allow manual trigger for testing
@@ -25,6 +28,10 @@ jobs:
       packages: write
       id-token: write
       attestations: write
+    
+    defaults:
+      run:
+        working-directory: ./Makulu
 
     outputs:
       digest: ${{ steps.push.outputs.digest }}
@@ -56,8 +63,8 @@ jobs:
         id: push
         uses: docker/build-push-action@v5
         with:
-          context: ./templates/service-template
-          file: ./templates/service-template/Dockerfile
+          context: ./Makulu/templates/service-template
+          file: ./Makulu/templates/service-template/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -88,6 +95,10 @@ jobs:
     needs: build-and-push
     permissions:
       contents: read
+    
+    defaults:
+      run:
+        working-directory: ./Makulu
 
     steps:
       - name: Checkout
@@ -103,6 +114,7 @@ jobs:
         with:
           node-version: 20
           cache: 'pnpm'
+          cache-dependency-path: 'Makulu/pnpm-lock.yaml'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
