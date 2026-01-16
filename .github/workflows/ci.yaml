@@ -7,9 +7,15 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'Makulu/**'
+      - '.github/workflows/ci.yaml'
   pull_request:
     branches:
       - main
+    paths:
+      - 'Makulu/**'
+      - '.github/workflows/ci.yaml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,6 +28,10 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    
+    defaults:
+      run:
+        working-directory: ./Makulu
 
     steps:
       # ─────────────────────────────────────────────────────────────
@@ -48,6 +58,7 @@ jobs:
         with:
           node-version: 20
           cache: 'pnpm'
+          cache-dependency-path: 'Makulu/pnpm-lock.yaml'
 
       # ─────────────────────────────────────────────────────────────
       # Cache pnpm store
@@ -61,7 +72,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makulu/**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
@@ -71,8 +82,8 @@ jobs:
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: 'Makulu/**/node_modules'
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('Makulu/**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-node-modules-
 
@@ -82,7 +93,7 @@ jobs:
       - name: Cache Turborepo
         uses: actions/cache@v4
         with:
-          path: .turbo
+          path: Makulu/.turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-turbo-
@@ -117,6 +128,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: turbo-summary
-          path: .turbo/runs
+          path: Makulu/.turbo/runs
           retention-days: 7
           if-no-files-found: ignore
