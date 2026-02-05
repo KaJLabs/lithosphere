@@ -38,9 +38,6 @@ jobs:
   deploy:
     name: Deploy to Server
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ github.event.inputs.environment || 'testnet' }}
-      url: http://${{ secrets.SERVER_IP }}:4000
 
     steps:
       - name: Checkout Repository
