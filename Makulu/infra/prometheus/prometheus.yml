@@ -1,0 +1,70 @@
+# ============================================================================
+# Prometheus Configuration for Lithosphere
+# ============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+  external_labels:
+    monitor: 'lithosphere-monitor'
+    environment: 'testnet'
+
+# ============================================================================
+# Alertmanager Configuration (optional)
+# ============================================================================
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# ============================================================================
+# Rule Files
+# ============================================================================
+# rule_files:
+#   - "alerts/*.yml"
+
+# ============================================================================
+# Scrape Configurations
+# ============================================================================
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+
+  # Lithosphere API Service
+  - job_name: 'litho-api'
+    static_configs:
+      - targets: ['api:9090']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # Lithosphere Indexer Service
+  - job_name: 'litho-indexer'
+    static_configs:
+      - targets: ['indexer:9090']
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # PostgreSQL (via postgres_exporter if enabled)
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+
+  # Redis (via redis_exporter if enabled)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+
+  # Node metrics (if node_exporter is deployed)
+  # - job_name: 'node'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']
+
+  # Docker container metrics (via cAdvisor)
+  # - job_name: 'cadvisor'
+  #   static_configs:
+  #     - targets: ['cadvisor:8080']

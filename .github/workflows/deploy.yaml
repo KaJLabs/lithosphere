@@ -1,0 +1,460 @@
+# ============================================================================
+# Lithosphere Deployment Pipeline - Phase 4
+# Push-based CD with SLSA signature verification
+# ============================================================================
+
+name: Deploy
+
+on:
+  # Trigger after successful release workflow
+  workflow_run:
+    workflows: ["Release"]
+    types:
+      - completed
+    branches:
+      - main
+
+  # Manual deployment trigger with environment selection
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'testnet'
+        type: choice
+        options:
+          - testnet
+          - staging
+          - mainnet
+      skip_signature_check:
+        description: 'Skip signature verification (emergency only)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: kajlabs/lithosphere/service-template
+  DEPLOY_PATH: /opt/lithosphere/Makulu
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'testnet' }}
+  cancel-in-progress: false
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 1: Verify SLSA Signatures
+  # Ensures only cryptographically signed images are deployed
+  # ─────────────────────────────────────────────────────────────────────────
+  verify-signatures:
+    name: Verify SLSA Signatures
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+
+    outputs:
+      image_digest: ${{ steps.get-digest.outputs.digest }}
+      verified: ${{ steps.verify.outputs.verified }}
+
+    defaults:
+      run:
+        working-directory: ./Makulu
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Get Latest Image Digest
+        id: get-digest
+        run: |
+          # Fetch the latest image digest from the registry
+          DIGEST=$(docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest 2>/dev/null | jq -r '.config.digest // .manifests[0].digest' || echo "")
+          
+          if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
+            echo "::error::Failed to get image digest"
+            exit 1
+          fi
+          
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+          echo "Image digest: $DIGEST"
+
+      - name: Verify Cosign Signature
+        id: verify
+        if: ${{ github.event.inputs.skip_signature_check != 'true' }}
+        run: |
+          set +e
+          
+          echo "Verifying signature for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.get-digest.outputs.digest }}"
+          
+          # Verify the image signature using keyless signing (Fulcio + Rekor)
+          cosign verify \
+            --certificate-identity-regexp="https://github.com/KaJLabs/lithosphere/.*" \
+            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          
+          RESULT=$?
+          
+          if [ $RESULT -eq 0 ]; then
+            echo "✅ Signature verification successful"
+            echo "verified=true" >> $GITHUB_OUTPUT
+          else
+            echo "::error::❌ Signature verification failed!"
+            echo "verified=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Skip Signature Check (Emergency)
+        if: ${{ github.event.inputs.skip_signature_check == 'true' }}
+        run: |
+          echo "::warning::⚠️ Signature verification skipped - Emergency deployment mode"
+          echo "verified=skipped" >> $GITHUB_OUTPUT
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 2: Deploy to Target Environment
+  # Push-based deployment via SSH
+  # ─────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'testnet' }}
+    runs-on: ubuntu-latest
+    needs: verify-signatures
+    if: |
+      needs.verify-signatures.outputs.verified == 'true' || 
+      needs.verify-signatures.outputs.verified == 'skipped'
+    
+    environment:
+      name: ${{ github.event.inputs.environment || 'testnet' }}
+      url: ${{ steps.deploy.outputs.service_url }}
+
+    permissions:
+      contents: read
+      packages: read
+
+    defaults:
+      run:
+        working-directory: ./Makulu
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+      - name: Add VPS to Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Prepare Deployment Package
+        id: prepare
+        run: |
+          # Create deployment directory
+          mkdir -p deploy-package
+          
+          # Copy deployment files
+          cp docker-compose.yaml deploy-package/
+          cp .env.testnet deploy-package/.env 2>/dev/null || echo "No .env.testnet found, will use secrets"
+          
+          # Generate .env file from secrets if not present
+          if [ ! -f deploy-package/.env ]; then
+            cat > deploy-package/.env << 'ENVEOF'
+          # Lithosphere Testnet Environment Configuration
+          # Auto-generated by GitHub Actions deployment
+          
+          NODE_ENV=production
+          ENVIRONMENT=${{ github.event.inputs.environment || 'testnet' }}
+          
+          # API Configuration
+          API_PORT=4000
+          API_HOST=0.0.0.0
+          
+          # GraphQL Configuration
+          GRAPHQL_PLAYGROUND=${{ github.event.inputs.environment == 'testnet' && 'true' || 'false' }}
+          
+          # Database Configuration
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          
+          # Blockchain RPC Configuration
+          LITHO_RPC_URL=${{ secrets.LITHO_RPC_URL }}
+          LITHO_CHAIN_ID=${{ secrets.LITHO_CHAIN_ID }}
+          
+          # Indexer Configuration
+          INDEXER_START_BLOCK=${{ secrets.INDEXER_START_BLOCK || '0' }}
+          INDEXER_BATCH_SIZE=100
+          
+          # Monitoring
+          PROMETHEUS_ENABLED=true
+          METRICS_PORT=9090
+          
+          # Container Registry
+          IMAGE_TAG=latest
+          ENVEOF
+          fi
+          
+          # Create deployment script
+          cat > deploy-package/deploy.sh << 'DEPLOYEOF'
+          #!/bin/bash
+          set -euo pipefail
+          
+          DEPLOY_PATH="${DEPLOY_PATH:-/opt/lithosphere/Makulu}"
+          
+          echo "🚀 Starting Lithosphere deployment..."
+          
+          cd "$DEPLOY_PATH"
+          
+          # Pull latest images
+          echo "📦 Pulling latest images..."
+          docker compose pull
+          
+          # Stop existing containers gracefully
+          echo "🛑 Stopping existing services..."
+          docker compose down --timeout 30 || true
+          
+          # Start services
+          echo "🔄 Starting services..."
+          docker compose up -d
+          
+          # Wait for services to be healthy
+          echo "⏳ Waiting for services to become healthy..."
+          sleep 10
+          
+          # Check service status
+          docker compose ps
+          
+          echo "✅ Deployment complete!"
+          DEPLOYEOF
+          
+          chmod +x deploy-package/deploy.sh
+          
+          echo "package_ready=true" >> $GITHUB_OUTPUT
+
+      - name: Deploy to VPS
+        id: deploy
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
+          IMAGE_DIGEST: ${{ needs.verify-signatures.outputs.image_digest }}
+        run: |
+          echo "🚀 Deploying to $VPS_HOST..."
+          
+          # Create deployment directory on remote
+          ssh $VPS_USER@$VPS_HOST "mkdir -p $DEPLOY_PATH"
+          
+          # Transfer deployment files
+          scp -r deploy-package/* $VPS_USER@$VPS_HOST:$DEPLOY_PATH/
+          
+          # Set environment variables for deployment
+          ssh $VPS_USER@$VPS_HOST "
+            export DEPLOY_PATH='$DEPLOY_PATH'
+            export REGISTRY='${{ env.REGISTRY }}'
+            export IMAGE_NAME='${{ env.IMAGE_NAME }}'
+            export IMAGE_DIGEST='$IMAGE_DIGEST'
+            cd $DEPLOY_PATH && ./deploy.sh
+          "
+          
+          # Get the service URL
+          SERVICE_URL="http://$VPS_HOST:4000"
+          echo "service_url=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "Deployed to: $SERVICE_URL"
+
+      - name: Generate Deployment Summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ github.event.inputs.environment || 'testnet' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Digest | \`${{ needs.verify-signatures.outputs.image_digest }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Signature Verified | ${{ needs.verify-signatures.outputs.verified }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployed At | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered By | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 3: Health Check Verification
+  # Verify all services are running correctly post-deployment
+  # ─────────────────────────────────────────────────────────────────────────
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    needs: deploy
+    
+    defaults:
+      run:
+        working-directory: ./Makulu
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Wait for Services to Stabilize
+        run: sleep 15
+
+      - name: Health Check - API Service
+        id: api-health
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          MAX_RETRIES=5
+          RETRY_DELAY=10
+          
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i of $MAX_RETRIES: Checking API health..."
+            
+            HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+              --connect-timeout 10 \
+              --max-time 30 \
+              "http://$VPS_HOST:4000/health" || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ API health check passed!"
+              cat /tmp/response.txt
+              echo "api_status=healthy" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "⚠️ Health check returned HTTP $HTTP_CODE"
+              if [ -f /tmp/response.txt ]; then
+                cat /tmp/response.txt
+              fi
+              
+              if [ $i -lt $MAX_RETRIES ]; then
+                echo "Retrying in ${RETRY_DELAY}s..."
+                sleep $RETRY_DELAY
+              fi
+            fi
+          done
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::❌ API health check failed after $MAX_RETRIES attempts"
+            echo "api_status=unhealthy" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Health Check - GraphQL Endpoint
+        id: graphql-health
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          echo "Checking GraphQL endpoint..."
+          
+          HTTP_CODE=$(curl -s -o /tmp/graphql-response.txt -w "%{http_code}" \
+            --connect-timeout 10 \
+            --max-time 30 \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{ __typename }"}' \
+            "http://$VPS_HOST:4000/graphql" || echo "000")
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ GraphQL endpoint healthy!"
+            echo "graphql_status=healthy" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::⚠️ GraphQL endpoint returned HTTP $HTTP_CODE"
+            echo "graphql_status=degraded" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Health Check - Metrics Endpoint
+        id: metrics-health
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          echo "Checking Prometheus metrics endpoint..."
+          
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --connect-timeout 10 \
+            --max-time 30 \
+            "http://$VPS_HOST:9090/metrics" || echo "000")
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Metrics endpoint healthy!"
+            echo "metrics_status=healthy" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::⚠️ Metrics endpoint returned HTTP $HTTP_CODE"
+            echo "metrics_status=unavailable" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Health Report
+        if: always()
+        run: |
+          echo "## 🏥 Health Check Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| API (/health) | ${{ steps.api-health.outputs.api_status || 'unknown' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| GraphQL (/graphql) | ${{ steps.graphql-health.outputs.graphql_status || 'unknown' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Metrics (/metrics) | ${{ steps.metrics-health.outputs.metrics_status || 'unknown' }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 4: Rollback on Failure
+  # Automatically rollback if health checks fail
+  # ─────────────────────────────────────────────────────────────────────────
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [deploy, health-check]
+    if: failure() && needs.deploy.result == 'success'
+
+    defaults:
+      run:
+        working-directory: ./Makulu
+
+    steps:
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+      - name: Add VPS to Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Rollback Deployment
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
+        run: |
+          echo "🔄 Initiating rollback..."
+          
+          ssh $VPS_USER@$VPS_HOST "
+            cd $DEPLOY_PATH
+            
+            # Check if previous deployment exists
+            if [ -f docker-compose.yaml.bak ]; then
+              echo 'Restoring previous configuration...'
+              mv docker-compose.yaml.bak docker-compose.yaml
+              docker compose pull
+              docker compose up -d
+              echo '✅ Rollback complete'
+            else
+              echo '::warning::No backup found, stopping services'
+              docker compose down
+            fi
+          "
+
+      - name: Notify Rollback
+        run: |
+          echo "## ⚠️ Deployment Rolled Back" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The deployment was rolled back due to failed health checks." >> $GITHUB_STEP_SUMMARY
+          echo "Please investigate the logs and retry deployment." >> $GITHUB_STEP_SUMMARY

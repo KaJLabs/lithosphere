@@ -1,0 +1,267 @@
+# ============================================================================
+# Lithosphere Monorepo - Docker Compose Configuration
+# Production deployment for Testnet/Staging/Mainnet environments
+# ============================================================================
+# Usage:
+#   docker compose up -d                    # Start all services
+#   docker compose logs -f                  # Follow logs
+#   docker compose down                     # Stop all services
+#   docker compose pull                     # Pull latest images
+# ============================================================================
+
+name: lithosphere
+
+# ============================================================================
+# Services
+# ============================================================================
+services:
+  # --------------------------------------------------------------------------
+  # API Service - GraphQL & REST API
+  # --------------------------------------------------------------------------
+  api:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-kajlabs/lithosphere/api}:${IMAGE_TAG:-latest}
+    container_name: litho-api
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-4000}:4000"
+      - "${METRICS_PORT:-9090}:9090"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - API_PORT=4000
+      - API_HOST=0.0.0.0
+      - DATABASE_URL=${DATABASE_URL}
+      - LITHO_RPC_URL=${LITHO_RPC_URL}
+      - LITHO_CHAIN_ID=${LITHO_CHAIN_ID:-61}
+      - GRAPHQL_PLAYGROUND=${GRAPHQL_PLAYGROUND:-false}
+      - REDIS_URL=redis://redis:6379
+      - PROMETHEUS_ENABLED=true
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - litho-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=PathPrefix(`/api`) || PathPrefix(`/graphql`)"
+      - "traefik.http.services.api.loadbalancer.server.port=4000"
+
+  # --------------------------------------------------------------------------
+  # Indexer Service - Blockchain Event Indexer (SubQuery/SubGraph compatible)
+  # --------------------------------------------------------------------------
+  indexer:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-kajlabs/lithosphere/indexer}:${IMAGE_TAG:-latest}
+    container_name: litho-indexer
+    build:
+      context: ./indexer
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - DATABASE_URL=${DATABASE_URL}
+      - LITHO_RPC_URL=${LITHO_RPC_URL}
+      - LITHO_CHAIN_ID=${LITHO_CHAIN_ID:-61}
+      - INDEXER_START_BLOCK=${INDEXER_START_BLOCK:-0}
+      - INDEXER_BATCH_SIZE=${INDEXER_BATCH_SIZE:-100}
+      - INDEXER_CONFIRMATIONS=${INDEXER_CONFIRMATIONS:-12}
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - litho-network
+    labels:
+      - "traefik.enable=false"
+
+  # --------------------------------------------------------------------------
+  # Contract Service - Contract Deployment & Verification (optional)
+  # Only starts if CONTRACTS_ENABLED=true
+  # --------------------------------------------------------------------------
+  contracts:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-kajlabs/lithosphere/contracts}:${IMAGE_TAG:-latest}
+    container_name: litho-contracts
+    build:
+      context: ./contracts
+      dockerfile: Dockerfile
+    profiles:
+      - contracts
+    restart: "no"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - LITHO_RPC_URL=${LITHO_RPC_URL}
+      - PRIVATE_KEY=${DEPLOYER_PRIVATE_KEY}
+      - ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY:-}
+    env_file:
+      - .env
+    volumes:
+      - contracts-artifacts:/app/artifacts
+      - contracts-deployments:/app/deployments
+    networks:
+      - litho-network
+
+  # --------------------------------------------------------------------------
+  # PostgreSQL Database
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: litho-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-lithosphere}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-lithosphere}
+      - POSTGRES_DB=${POSTGRES_DB:-lithosphere}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lithosphere} -d ${POSTGRES_DB:-lithosphere}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - litho-network
+
+  # --------------------------------------------------------------------------
+  # Redis Cache
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: litho-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - litho-network
+
+  # --------------------------------------------------------------------------
+  # Traefik Reverse Proxy (optional, for production TLS)
+  # --------------------------------------------------------------------------
+  traefik:
+    image: traefik:v3.0
+    container_name: litho-traefik
+    profiles:
+      - proxy
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@lithosphere.network}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-letsencrypt:/letsencrypt
+    networks:
+      - litho-network
+
+  # --------------------------------------------------------------------------
+  # Prometheus Metrics Collector
+  # --------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: litho-prometheus
+    profiles:
+      - monitoring
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "${PROMETHEUS_PORT:-9091}:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - litho-network
+
+  # --------------------------------------------------------------------------
+  # Grafana Dashboards
+  # --------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: litho-grafana
+    profiles:
+      - monitoring
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-lithosphere}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - litho-network
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  litho-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  contracts-artifacts:
+    driver: local
+  contracts-deployments:
+    driver: local
+  traefik-letsencrypt:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
