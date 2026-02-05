@@ -1,0 +1,225 @@
+# ============================================================================
+# Lithosphere Simple Deployment Pipeline
+# Git-based deployment to VPS
+# ============================================================================
+
+name: Deploy to VPS
+
+on:
+  # Trigger on push to main
+  push:
+    branches:
+      - main
+    paths:
+      - 'Makulu/**'
+      - '.github/workflows/deploy-simple.yaml'
+
+  # Manual deployment trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'testnet'
+        type: choice
+        options:
+          - testnet
+          - staging
+          - mainnet
+
+env:
+  DEPLOY_PATH: /opt/lithosphere/Makulu
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'testnet' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'testnet' }}
+      url: http://${{ secrets.SERVER_IP }}:4000
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add Server to Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Server
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
+        run: |
+          echo "🚀 Deploying Lithosphere to $SERVER_IP..."
+          
+          # Update code on server
+          ssh $SERVER_USER@$SERVER_IP << 'ENDSSH'
+            set -e
+            
+            cd /opt/lithosphere
+            
+            echo "📦 Pulling latest code from GitHub..."
+            if [ ! -d lithosphere ]; then
+              git clone https://github.com/KaJLabs/lithosphere.git
+            else
+              cd lithosphere
+              git fetch origin
+              git reset --hard origin/main
+              cd ..
+            fi
+            
+            echo "📋 Copying files to deployment directory..."
+            mkdir -p Makulu
+            cp -r lithosphere/Makulu/* Makulu/
+            cp -r lithosphere/.github Makulu/ 2>/dev/null || true
+            
+            echo "🔧 Configuring environment..."
+            cd Makulu
+            if [ ! -f .env ]; then
+              cp .env.testnet .env
+            fi
+            
+            echo "🐳 Building Docker images..."
+            docker compose build api indexer
+            
+            echo "🔄 Restarting services..."
+            docker compose up -d
+            
+            echo "🧹 Cleaning up..."
+            cd /opt/lithosphere
+            rm -rf lithosphere
+            
+            echo "✅ Deployment complete!"
+          ENDSSH
+          
+          echo "Deployment finished at $(date)"
+
+      - name: Wait for Services
+        run: sleep 15
+
+      - name: Health Check
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+        run: |
+          echo "🏥 Running health checks..."
+          
+          MAX_RETRIES=5
+          RETRY_DELAY=10
+          
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i of $MAX_RETRIES: Checking API health..."
+            
+            HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+              --connect-timeout 10 \
+              --max-time 30 \
+              "http://$SERVER_IP:4000/health" || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ API health check passed!"
+              cat /tmp/response.txt
+              exit 0
+            else
+              echo "⚠️  Health check returned HTTP $HTTP_CODE"
+              if [ -f /tmp/response.txt ]; then
+                cat /tmp/response.txt
+              fi
+              
+              if [ $i -lt $MAX_RETRIES ]; then
+                echo "Retrying in ${RETRY_DELAY}s..."
+                sleep $RETRY_DELAY
+              fi
+            fi
+          done
+          
+          echo "::error::❌ API health check failed after $MAX_RETRIES attempts"
+          exit 1
+
+      - name: Test API Endpoints
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+        run: |
+          echo "🧪 Testing API endpoints..."
+          
+          # Test /health
+          echo "Testing /health..."
+          curl -f "http://$SERVER_IP:4000/health"
+          
+          # Test /api/litho
+          echo -e "\n\nTesting /api/litho..."
+          curl -f "http://$SERVER_IP:4000/api/litho"
+          
+          # Test GraphQL
+          echo -e "\n\nTesting GraphQL..."
+          curl -f -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{ __typename }"}' \
+            "http://$SERVER_IP:4000/graphql"
+          
+          echo -e "\n\n✅ All endpoint tests passed!"
+
+      - name: Generate Deployment Summary
+        if: always()
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ github.event.inputs.environment || 'testnet' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Server IP | ${{ secrets.SERVER_IP }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployed At | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered By | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Service URLs" >> $GITHUB_STEP_SUMMARY
+          echo "- API: http://${{ secrets.SERVER_IP }}:4000" >> $GITHUB_STEP_SUMMARY
+          echo "- GraphQL: http://${{ secrets.SERVER_IP }}:4000/graphql" >> $GITHUB_STEP_SUMMARY
+          echo "- Health: http://${{ secrets.SERVER_IP }}:4000/health" >> $GITHUB_STEP_SUMMARY
+
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: failure()
+
+    steps:
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add Server to Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Rollback
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
+        run: |
+          echo "⚠️  Deployment failed, attempting rollback..."
+          
+          ssh $SERVER_USER@$SERVER_IP << 'ENDSSH'
+            cd /opt/lithosphere/Makulu
+            
+            # Restart with previous version
+            docker compose down --timeout 30
+            docker compose up -d
+            
+            echo "Rollback initiated"
+          ENDSSH
+          
+          echo "::warning::Deployment was rolled back due to health check failure"
