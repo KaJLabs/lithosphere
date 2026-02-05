@@ -51,7 +51,9 @@ jobs:
       - name: Add Server to Known Hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>&1 || echo "Warning: ssh-keyscan failed, will add on first connection"
+          chmod 644 ~/.ssh/known_hosts || true
 
       - name: Deploy to Server
         env:
@@ -62,7 +64,7 @@ jobs:
           echo "🚀 Deploying Lithosphere to $SERVER_IP..."
           
           # Update code on server
-          ssh $SERVER_USER@$SERVER_IP << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=accept-new $SERVER_USER@$SERVER_IP << 'ENDSSH'
             set -e
             
             cd /opt/lithosphere
