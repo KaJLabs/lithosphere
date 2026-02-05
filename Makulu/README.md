@@ -94,6 +94,82 @@ For detailed documentation, see the [docs package](./packages/docs):
 - **Cryptography**: MDKM, Ring Signatures, Threshold Signatures
 - **Build Tools**: Turborepo, pnpm workspaces
 
+## 🚢 Deployment
+
+### Local Development with Docker
+
+```bash
+# Start all services locally
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop services
+docker compose down
+```
+
+### Environment Configuration
+
+Copy the appropriate environment file before deployment:
+
+```bash
+# For testnet
+cp .env.testnet .env
+
+# Edit .env with your configuration
+nano .env
+```
+
+### Production Deployment
+
+The CI/CD pipeline automatically deploys to the target environment when:
+1. Code is pushed to `main` branch
+2. The Release workflow completes successfully
+3. SLSA signatures are verified
+
+**Required GitHub Secrets:**
+- `VPS_HOST` - Target server hostname/IP
+- `VPS_USER` - SSH username
+- `VPS_SSH_PRIVATE_KEY` - SSH private key for authentication
+- `DATABASE_URL` - PostgreSQL connection string
+- `LITHO_RPC_URL` - Blockchain RPC endpoint
+- `LITHO_CHAIN_ID` - Chain ID (61 for testnet)
+
+### Health Checks
+
+Verify deployment status:
+
+```bash
+# Run health check script
+./scripts/health-check.sh localhost 4000 9090
+
+# Or manually check endpoints
+curl http://localhost:4000/health
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"query":"{ __typename }"}' \
+  http://localhost:4000/graphql
+```
+
+### Docker Compose Profiles
+
+```bash
+# Core services only (default)
+docker compose up -d
+
+# With monitoring (Prometheus + Grafana)
+docker compose --profile monitoring up -d
+
+# With reverse proxy (Traefik)
+docker compose --profile proxy up -d
+
+# With contract deployment
+docker compose --profile contracts up -d
+
+# All services
+docker compose --profile monitoring --profile proxy up -d
+```
+
 ## 🤝 Contributing
 
 We welcome contributions! Please see our contributing guidelines (coming soon).
