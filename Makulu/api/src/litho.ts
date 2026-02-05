@@ -4,6 +4,19 @@ const { Pool } = pkg;
 
 export function lithoRouter(): Router {
   const r = Router();
+  
+  // Root endpoint - API info
+  r.get('/', (_req: Request, res: Response) => {
+    res.json({
+      name: 'Lithosphere API',
+      version: '1.0.0',
+      endpoints: {
+        balance: 'GET /api/litho/balance/:address',
+        transfer: 'POST /api/litho/transfer',
+      },
+    });
+  });
+  
   // Demo balance endpoint reads from indexer DB (or call RPC in your prod)
   r.get('/balance/:address', async (req: Request, res: Response) => {
     const address = req.params.address.toLowerCase();
