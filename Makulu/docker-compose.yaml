@@ -19,7 +19,7 @@ services:
   # API Service - GraphQL & REST API
   # --------------------------------------------------------------------------
   api:
-    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-kajlabs/lithosphere/api}:${IMAGE_TAG:-latest}
+    image: ${REGISTRY:-ghcr.io}/kajlabs/lithosphere-api:${IMAGE_TAG:-latest}
     container_name: litho-api
     build:
       context: ./api
@@ -62,7 +62,7 @@ services:
   # Indexer Service - Blockchain Event Indexer (SubQuery/SubGraph compatible)
   # --------------------------------------------------------------------------
   indexer:
-    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-kajlabs/lithosphere/indexer}:${IMAGE_TAG:-latest}
+    image: ${REGISTRY:-ghcr.io}/kajlabs/lithosphere-indexer:${IMAGE_TAG:-latest}
     container_name: litho-indexer
     build:
       context: ./indexer

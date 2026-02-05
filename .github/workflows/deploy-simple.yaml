@@ -104,7 +104,7 @@ jobs:
           echo "Deployment finished at $(date)"
 
       - name: Wait for Services
-        run: sleep 15
+        run: sleep 30
 
       - name: Health Check
         env:
