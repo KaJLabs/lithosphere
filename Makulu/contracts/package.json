@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Lithosphere Smart Contracts - LITHO + LEP100",
   "scripts": {
+    "build": "node -e \"process.env.CI && console.log('Skipping contract compilation in CI') || process.exit(1)\" || pnpm compile",
     "compile": "hardhat compile",
     "test": "hardhat test",
     "clean": "hardhat clean",

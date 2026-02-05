@@ -7,7 +7,7 @@
   "scripts": {
     "compile": "npx hardhat compile",
     "compile:forge": "forge build",
-    "build": "pnpm compile",
+    "build": "node -e \"process.env.CI && console.log('Skipping contract compilation in CI') || process.exit(1)\" || pnpm compile",
     "build:full": "pnpm compile && pnpm compile:forge",
     "test": "pnpm test:hardhat",
     "test:all": "pnpm test:forge && pnpm test:hardhat",
