@@ -59,7 +59,10 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - litho-network
+      litho-network:
+        aliases:
+          - litho-api
+          - api
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.api.rule=PathPrefix(`/api`) || PathPrefix(`/graphql`)"
@@ -105,7 +108,10 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - litho-network
+      litho-network:
+        aliases:
+          - litho-indexer
+          - indexer
     labels:
       - "traefik.enable=false"
       - "prometheus.scrape=true"
@@ -262,10 +268,17 @@ services:
 # ============================================================================
 networks:
   litho-network:
+    name: lithosphere_litho-network
     driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: litho-br0
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+    enable_ipv6: false
     ipam:
+      driver: default
       config:
         - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1
 
 # ============================================================================
 # Volumes
