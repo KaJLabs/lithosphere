@@ -1,0 +1,264 @@
+# ============================================================================
+# Lithosphere Health Monitoring - Phase 5
+# Continuous health checks every 5 minutes with automated alerts
+# ============================================================================
+
+name: Health Monitoring
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to monitor'
+        required: true
+        default: 'testnet'
+        type: choice
+        options:
+          - testnet
+          - staging
+          - mainnet
+
+env:
+  ENVIRONMENT: ${{ github.event.inputs.environment || 'testnet' }}
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Health Check - Monitor API and Services
+  # ─────────────────────────────────────────────────────────────────────────
+  health-check:
+    name: Health Check (${{ github.event.inputs.environment || 'testnet' }})
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Check API Health Endpoint
+        id: api-health
+        continue-on-error: true
+        run: |
+          echo "🏥 Checking API health endpoint..."
+          
+          # Set the API URL based on environment
+          if [ "${{ env.ENVIRONMENT }}" = "testnet" ]; then
+            API_URL="http://${{ secrets.SERVER_IP }}:4000"
+          elif [ "${{ env.ENVIRONMENT }}" = "staging" ]; then
+            API_URL="http://${{ secrets.STAGING_SERVER_IP }}:4000"
+          elif [ "${{ env.ENVIRONMENT }}" = "mainnet" ]; then
+            API_URL="https://api.lithosphere.network"
+          fi
+          
+          echo "API URL: $API_URL"
+          
+          # Check health endpoint with retries
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            HTTP_CODE=$(curl -s -o /tmp/health-response.json -w "%{http_code}" \
+              --connect-timeout 10 \
+              --max-time 30 \
+              "$API_URL/health" || echo "000")
+            
+            echo "Attempt $((RETRY_COUNT + 1)): HTTP $HTTP_CODE"
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ API is healthy!"
+              cat /tmp/health-response.json | jq .
+              echo "health_status=healthy" >> $GITHUB_OUTPUT
+              echo "http_code=200" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "⚠️ Retrying in 10 seconds..."
+              sleep 10
+            fi
+          done
+          
+          echo "::error::❌ API health check failed after $MAX_RETRIES attempts"
+          echo "health_status=unhealthy" >> $GITHUB_OUTPUT
+          echo "http_code=$HTTP_CODE" >> $GITHUB_OUTPUT
+          exit 1
+
+      - name: Check GraphQL Endpoint
+        id: graphql-health
+        continue-on-error: true
+        run: |
+          echo "🔍 Checking GraphQL endpoint..."
+          
+          if [ "${{ env.ENVIRONMENT }}" = "testnet" ]; then
+            API_URL="http://${{ secrets.SERVER_IP }}:4000"
+          elif [ "${{ env.ENVIRONMENT }}" = "staging" ]; then
+            API_URL="http://${{ secrets.STAGING_SERVER_IP }}:4000"
+          elif [ "${{ env.ENVIRONMENT }}" = "mainnet" ]; then
+            API_URL="https://api.lithosphere.network"
+          fi
+          
+          HTTP_CODE=$(curl -s -o /tmp/graphql-response.json -w "%{http_code}" \
+            --connect-timeout 10 \
+            --max-time 30 \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{ __typename }"}' \
+            "$API_URL/graphql" || echo "000")
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ GraphQL is responding!"
+            cat /tmp/graphql-response.json | jq .
+            echo "graphql_status=healthy" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::⚠️ GraphQL check returned HTTP $HTTP_CODE"
+            echo "graphql_status=degraded" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check Prometheus Metrics
+        id: prometheus-health
+        continue-on-error: true
+        run: |
+          echo "📊 Checking Prometheus metrics..."
+          
+          if [ "${{ env.ENVIRONMENT }}" = "testnet" ]; then
+            PROM_URL="http://${{ secrets.SERVER_IP }}:9091"
+          else
+            echo "Skipping Prometheus check for ${{ env.ENVIRONMENT }}"
+            exit 0
+          fi
+          
+          HTTP_CODE=$(curl -s -o /tmp/prometheus-response.txt -w "%{http_code}" \
+            --connect-timeout 10 \
+            --max-time 30 \
+            "$PROM_URL/api/v1/query?query=up" || echo "000")
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Prometheus is accessible!"
+            echo "prometheus_status=healthy" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::⚠️ Prometheus check returned HTTP $HTTP_CODE"
+            echo "prometheus_status=unhealthy" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check Grafana Dashboard
+        id: grafana-health
+        continue-on-error: true
+        run: |
+          echo "📈 Checking Grafana dashboard..."
+          
+          if [ "${{ env.ENVIRONMENT }}" = "testnet" ]; then
+            GRAFANA_URL="http://${{ secrets.SERVER_IP }}:3001"
+          else
+            echo "Skipping Grafana check for ${{ env.ENVIRONMENT }}"
+            exit 0
+          fi
+          
+          HTTP_CODE=$(curl -s -o /tmp/grafana-response.json -w "%{http_code}" \
+            --connect-timeout 10 \
+            --max-time 30 \
+            "$GRAFANA_URL/api/health" || echo "000")
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Grafana is accessible!"
+            echo "grafana_status=healthy" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::⚠️ Grafana check returned HTTP $HTTP_CODE"
+            echo "grafana_status=unhealthy" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Health Report
+        if: always()
+        run: |
+          echo "## 🏥 Health Check Report - ${{ env.ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Status | HTTP Code |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|-----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| API Health | ${{ steps.api-health.outputs.health_status || '❌ failed' }} | ${{ steps.api-health.outputs.http_code || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| GraphQL | ${{ steps.graphql-health.outputs.graphql_status || '❌ failed' }} | N/A |" >> $GITHUB_STEP_SUMMARY
+          echo "| Prometheus | ${{ steps.prometheus-health.outputs.prometheus_status || 'skipped' }} | N/A |" >> $GITHUB_STEP_SUMMARY
+          echo "| Grafana | ${{ steps.grafana-health.outputs.grafana_status || 'skipped' }} | N/A |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.api-health.outputs.health_status }}" = "healthy" ]; then
+            echo "### ✅ All critical services are operational" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ⚠️ One or more services are experiencing issues" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Create GitHub Issue on Failure
+        if: steps.api-health.outputs.health_status != 'healthy'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const timestamp = new Date().toISOString();
+            const environment = '${{ env.ENVIRONMENT }}';
+            const httpCode = '${{ steps.api-health.outputs.http_code }}';
+            
+            // Check if there's already an open issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'deployment-failure,automated'
+            });
+            
+            const existingIssue = issues.data.find(issue => 
+              issue.title.includes(`[${environment.toUpperCase()}]`) && 
+              issue.title.includes('Deployment Failure')
+            );
+            
+            if (existingIssue) {
+              // Update existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `⚠️ **Health check failure detected**\n\n- **Time:** ${timestamp}\n- **HTTP Code:** ${httpCode}\n- **Workflow:** [${context.workflow}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+              });
+            } else {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `🚨 [${environment.toUpperCase()}] Deployment Failure - API Health Check Failed`,
+                labels: ['deployment-failure', 'automated', 'critical', environment],
+                body: `## 🚨 Deployment Failure Alert\n\n**Environment:** ${environment}\n**Timestamp:** ${timestamp}\n**Status Code:** ${httpCode}\n\n### Details\nThe automated health monitoring system detected that the API is not responding correctly.\n\n**Workflow Run:** [View Details](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n### Recommended Actions\n1. Check server logs: \`docker compose -f docker-compose.yaml -f docker-compose.monitoring.yaml logs api\`\n2. Verify Docker containers are running: \`docker compose ps\`\n3. Check Grafana dashboards for metrics\n4. Review recent deployments\n\n### Auto-generated\nThis issue was automatically created by the health monitoring workflow.`
+              });
+            }
+
+      - name: Send Slack Notification (Optional)
+        if: steps.api-health.outputs.health_status != 'healthy' && secrets.SLACK_WEBHOOK_URL != ''
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "text": "🚨 Lithosphere API Health Check Failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Environment:* ${{ env.ENVIRONMENT }}\n*Status Code:* ${{ steps.api-health.outputs.http_code }}\n*Time:* '"$(date -u +"%Y-%m-%d %H:%M:%S UTC")"'"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow"
+                      },
+                      "url": "'"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"'"
+                    }
+                  ]
+                }
+              ]
+            }'

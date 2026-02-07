@@ -1,0 +1,118 @@
+# ============================================================================
+# Alertmanager Configuration - Alert Routing & Notification
+# ============================================================================
+
+global:
+  resolve_timeout: 5m
+  # SMTP configuration (uncomment and configure for email alerts)
+  # smtp_smarthost: 'smtp.gmail.com:587'
+  # smtp_from: 'alerts@lithosphere.network'
+  # smtp_auth_username: 'your-email@gmail.com'
+  # smtp_auth_password: 'your-app-password'
+  
+  # Slack webhook URL (uncomment and configure for Slack alerts)
+  # slack_api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+
+# Route configuration
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: true
+    
+    # Warning alerts - grouped notification
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      group_interval: 5m
+    
+    # API health alerts
+    - match:
+        alertname: APIDown
+      receiver: 'api-alerts'
+    
+    # Database alerts
+    - match:
+        alertname: PostgreSQLDown
+      receiver: 'database-alerts'
+    
+    # VPS resource alerts
+    - match_re:
+        alertname: HighCPUUsage|HighMemoryUsage|DiskSpaceLow
+      receiver: 'infrastructure-alerts'
+
+# Receivers configuration
+receivers:
+  # Default receiver (console output)
+  - name: 'default'
+    # No specific configuration - alerts are logged
+
+  # Critical alerts (multiple channels)
+  - name: 'critical-alerts'
+    # Slack notification
+    # slack_configs:
+    #   - channel: '#lithosphere-critical'
+    #     title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    
+    # Email notification
+    # email_configs:
+    #   - to: 'ops-team@lithosphere.network'
+    #     subject: 'CRITICAL: {{ .GroupLabels.alertname }}'
+    #     html: '{{ template "email.html" . }}'
+
+  # Warning alerts
+  - name: 'warning-alerts'
+    # Slack notification
+    # slack_configs:
+    #   - channel: '#lithosphere-warnings'
+    #     title: '⚠️  WARNING: {{ .GroupLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+  # API specific alerts
+  - name: 'api-alerts'
+    # Webhook notification (for custom integrations)
+    webhook_configs:
+      - url: 'http://api:4000/webhooks/alerts'
+        send_resolved: true
+
+  # Database alerts
+  - name: 'database-alerts'
+    # You can add specific database team notifications here
+    # email_configs:
+    #   - to: 'db-team@lithosphere.network'
+
+  # Infrastructure alerts
+  - name: 'infrastructure-alerts'
+    # Email notification
+    # email_configs:
+    #   - to: 'infra-team@lithosphere.network'
+
+# Inhibit rules (prevent duplicate alerts)
+inhibit_rules:
+  # Inhibit warning if critical is firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']
+  
+  # Inhibit any alert if the entire service is down
+  - source_match:
+      alertname: 'ServiceDown'
+    target_match_re:
+      alertname: '.*'
+    equal: ['service']
+
+# Templates (optional - for custom formatting)
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

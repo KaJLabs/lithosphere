@@ -40,6 +40,13 @@ services:
       - PROMETHEUS_ENABLED=true
     env_file:
       - .env
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service,environment"
+        tag: "{{.Name}}/{{.ID}}"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:4000/health"]
       interval: 30s
@@ -57,6 +64,9 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.api.rule=PathPrefix(`/api`) || PathPrefix(`/graphql`)"
       - "traefik.http.services.api.loadbalancer.server.port=4000"
+      - "prometheus.scrape=true"
+      - "prometheus.port=9090"
+      - "prometheus.path=/metrics"
 
   # --------------------------------------------------------------------------
   # Indexer Service - Blockchain Event Indexer (SubQuery/SubGraph compatible)
@@ -78,6 +88,13 @@ services:
       - INDEXER_CONFIRMATIONS=${INDEXER_CONFIRMATIONS:-12}
     env_file:
       - .env
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service,environment"
+        tag: "{{.Name}}/{{.ID}}"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
       interval: 60s
@@ -91,6 +108,9 @@ services:
       - litho-network
     labels:
       - "traefik.enable=false"
+      - "prometheus.scrape=true"
+      - "prometheus.port=9090"
+      - "prometheus.path=/metrics"
 
   # --------------------------------------------------------------------------
   # Contract Service - Contract Deployment & Verification (optional)

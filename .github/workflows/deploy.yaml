@@ -249,30 +249,43 @@ jobs:
       - name: Deploy to VPS
         id: deploy
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
           IMAGE_DIGEST: ${{ needs.verify-signatures.outputs.image_digest }}
         run: |
-          echo "🚀 Deploying to $VPS_HOST..."
+          echo "🚀 Deploying to $SERVER_IP..."
           
           # Create deployment directory on remote
-          ssh $VPS_USER@$VPS_HOST "mkdir -p $DEPLOY_PATH"
+          ssh $SERVER_USER@$SERVER_IP "mkdir -p $DEPLOY_PATH"
           
           # Transfer deployment files
-          scp -r deploy-package/* $VPS_USER@$VPS_HOST:$DEPLOY_PATH/
+          scp -r deploy-package/* $SERVER_USER@$SERVER_IP:$DEPLOY_PATH/
           
-          # Set environment variables for deployment
-          ssh $VPS_USER@$VPS_HOST "
-            export DEPLOY_PATH='$DEPLOY_PATH'
-            export REGISTRY='${{ env.REGISTRY }}'
-            export IMAGE_NAME='${{ env.IMAGE_NAME }}'
-            export IMAGE_DIGEST='$IMAGE_DIGEST'
-            cd $DEPLOY_PATH && ./deploy.sh
+          # Pull latest code and rebuild on server
+          ssh $SERVER_USER@$SERVER_IP "
+            cd /opt/lithosphere
+            
+            # Update code from Git
+            if [ ! -d lithosphere ]; then
+              git clone https://github.com/KaJLabs/lithosphere.git
+            else
+              cd lithosphere && git pull origin main && cd ..
+            fi
+            
+            # Copy updated files to Makulu
+            cp -r lithosphere/Makulu/* $DEPLOY_PATH/
+            rm -rf lithosphere
+            
+            # Copy environment file and deploy
+            cd $DEPLOY_PATH
+            cp .env.testnet .env
+            docker compose build api indexer
+            docker compose up -d
           "
           
           # Get the service URL
-          SERVICE_URL="http://$VPS_HOST:4000"
+          SERVICE_URL="http://$SERVER_IP:4000"
           echo "service_url=$SERVICE_URL" >> $GITHUB_OUTPUT
           echo "Deployed to: $SERVICE_URL"
 
@@ -312,7 +325,7 @@ jobs:
       - name: Health Check - API Service
         id: api-health
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
           MAX_RETRIES=5
           RETRY_DELAY=10
@@ -323,7 +336,7 @@ jobs:
             HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
               --connect-timeout 10 \
               --max-time 30 \
-              "http://$VPS_HOST:4000/health" || echo "000")
+              "http://$SERVER_IP:4000/health" || echo "000")
             
             if [ "$HTTP_CODE" = "200" ]; then
               echo "✅ API health check passed!"
@@ -352,7 +365,7 @@ jobs:
       - name: Health Check - GraphQL Endpoint
         id: graphql-health
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
           echo "Checking GraphQL endpoint..."
           
@@ -362,7 +375,7 @@ jobs:
             -X POST \
             -H "Content-Type: application/json" \
             -d '{"query":"{ __typename }"}' \
-            "http://$VPS_HOST:4000/graphql" || echo "000")
+            "http://$SERVER_IP:4000/graphql" || echo "000")
           
           if [ "$HTTP_CODE" = "200" ]; then
             echo "✅ GraphQL endpoint healthy!"
@@ -375,14 +388,14 @@ jobs:
       - name: Health Check - Metrics Endpoint
         id: metrics-health
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
           echo "Checking Prometheus metrics endpoint..."
           
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             --connect-timeout 10 \
             --max-time 30 \
-            "http://$VPS_HOST:9090/metrics" || echo "000")
+            "http://$SERVER_IP:9090/metrics" || echo "000")
           
           if [ "$HTTP_CODE" = "200" ]; then
             echo "✅ Metrics endpoint healthy!"
@@ -421,22 +434,22 @@ jobs:
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Add VPS to Known Hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
       - name: Rollback Deployment
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
         run: |
           echo "🔄 Initiating rollback..."
           
-          ssh $VPS_USER@$VPS_HOST "
+          ssh $SERVER_USER@$SERVER_IP "
             cd $DEPLOY_PATH
             
             # Check if previous deployment exists

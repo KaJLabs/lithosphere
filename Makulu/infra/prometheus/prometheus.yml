@@ -1,5 +1,5 @@
 # ============================================================================
-# Prometheus Configuration for Lithosphere
+# Prometheus Configuration for Lithosphere - Phase 5
 # ============================================================================
 
 global:
@@ -9,62 +9,111 @@ global:
   external_labels:
     monitor: 'lithosphere-monitor'
     environment: 'testnet'
+    cluster: 'makulu-vps'
 
 # ============================================================================
-# Alertmanager Configuration (optional)
+# Alertmanager Configuration
 # ============================================================================
-# alerting:
-#   alertmanagers:
-#     - static_configs:
-#         - targets:
-#           - alertmanager:9093
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - 'alertmanager:9093'
 
 # ============================================================================
 # Rule Files
 # ============================================================================
-# rule_files:
-#   - "alerts/*.yml"
+rule_files:
+  - "/etc/prometheus/alerts/*.yml"
 
 # ============================================================================
 # Scrape Configurations
 # ============================================================================
 scrape_configs:
+  # ─────────────────────────────────────────────────────────────────────────
   # Prometheus self-monitoring
+  # ─────────────────────────────────────────────────────────────────────────
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
     metrics_path: /metrics
 
+  # ─────────────────────────────────────────────────────────────────────────
   # Lithosphere API Service
+  # ─────────────────────────────────────────────────────────────────────────
   - job_name: 'litho-api'
     static_configs:
       - targets: ['api:9090']
+        labels:
+          service: 'api'
+          component: 'backend'
     metrics_path: /metrics
     scrape_interval: 10s
 
+  # ─────────────────────────────────────────────────────────────────────────
   # Lithosphere Indexer Service
+  # ─────────────────────────────────────────────────────────────────────────
   - job_name: 'litho-indexer'
     static_configs:
       - targets: ['indexer:9090']
+        labels:
+          service: 'indexer'
+          component: 'backend'
     metrics_path: /metrics
     scrape_interval: 30s
 
-  # PostgreSQL (via postgres_exporter if enabled)
-  # - job_name: 'postgres'
-  #   static_configs:
-  #     - targets: ['postgres-exporter:9187']
+  # ─────────────────────────────────────────────────────────────────────────
+  # Node Exporter - VPS System Metrics
+  # ─────────────────────────────────────────────────────────────────────────
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+          component: 'infrastructure'
+    metrics_path: /metrics
+    scrape_interval: 15s
 
-  # Redis (via redis_exporter if enabled)
-  # - job_name: 'redis'
-  #   static_configs:
-  #     - targets: ['redis-exporter:9121']
+  # ─────────────────────────────────────────────────────────────────────────
+  # cAdvisor - Docker Container Metrics
+  # ─────────────────────────────────────────────────────────────────────────
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'cadvisor'
+          component: 'infrastructure'
+    metrics_path: /metrics
+    scrape_interval: 15s
 
-  # Node metrics (if node_exporter is deployed)
-  # - job_name: 'node'
-  #   static_configs:
-  #     - targets: ['node-exporter:9100']
-
-  # Docker container metrics (via cAdvisor)
-  # - job_name: 'cadvisor'
-  #   static_configs:
-  #     - targets: ['cadvisor:8080']
+  # ─────────────────────────────────────────────────────────────────────────
+  # Docker Service Discovery (Auto-discover containers with prometheus labels)
+  # ─────────────────────────────────────────────────────────────────────────
+  - job_name: 'docker-services'
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Only scrape containers with prometheus.scrape=true label
+      - source_labels: [__meta_docker_container_label_prometheus_scrape]
+        action: keep
+        regex: true
+      
+      # Use custom scrape port if specified
+      - source_labels: [__meta_docker_container_label_prometheus_port]
+        action: replace
+        target_label: __address__
+        regex: (.+)
+        replacement: $__meta_docker_container_name:${1}
+      
+      # Use custom metrics path if specified
+      - source_labels: [__meta_docker_container_label_prometheus_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      
+      # Set service name from container name
+      - source_labels: [__meta_docker_container_name]
+        action: replace
+        target_label: service
+        regex: /(.*)

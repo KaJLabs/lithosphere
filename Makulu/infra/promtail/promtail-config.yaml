@@ -1,0 +1,145 @@
+# ============================================================================
+# Promtail Configuration - Log Collector for Loki
+# ============================================================================
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: info
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    timeout: 10s
+    backoff_config:
+      min_period: 100ms
+      max_period: 10s
+      max_retries: 10
+
+scrape_configs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Docker Container Logs
+  # ─────────────────────────────────────────────────────────────────────────
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["monitoring.component"]
+    relabel_configs:
+      # Extract container name
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      
+      # Extract container ID
+      - source_labels: ['__meta_docker_container_id']
+        target_label: 'container_id'
+      
+      # Extract image name
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'service'
+      
+      # Extract environment
+      - source_labels: ['__meta_docker_container_label_environment']
+        target_label: 'environment'
+        replacement: 'testnet'
+      
+      # Set log path
+      - source_labels: ['__meta_docker_container_id']
+        target_label: '__path__'
+        replacement: '/var/lib/docker/containers/$1/*.log'
+
+    pipeline_stages:
+      # Parse JSON logs from Docker
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            timestamp: time
+      
+      # Extract timestamp
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      
+      # Parse application logs (if JSON)
+      - json:
+          expressions:
+            level: level
+            message: message
+            service: service
+          source: output
+      
+      # Set log level label
+      - labels:
+          level:
+          service:
+      
+      # Output the log message
+      - output:
+          source: message
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Lithosphere API Logs
+  # ─────────────────────────────────────────────────────────────────────────
+  - job_name: lithosphere-api
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: lithosphere-api
+          environment: testnet
+          __path__: /var/lib/docker/containers/*litho-api*/*.log
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Lithosphere Indexer Logs
+  # ─────────────────────────────────────────────────────────────────────────
+  - job_name: lithosphere-indexer
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: lithosphere-indexer
+          environment: testnet
+          __path__: /var/lib/docker/containers/*litho-indexer*/*.log
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PostgreSQL Logs
+  # ─────────────────────────────────────────────────────────────────────────
+  - job_name: postgres
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: postgres
+          environment: testnet
+          __path__: /var/lib/docker/containers/*litho-postgres*/*.log
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # System Logs (VPS)
+  # ─────────────────────────────────────────────────────────────────────────
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          environment: testnet
+          __path__: /var/log/syslog
+    
+    pipeline_stages:
+      - match:
+          selector: '{job="syslog"}'
+          stages:
+            - regex:
+                expression: '^(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+)\s+(?P<hostname>\S+)\s+(?P<service>\S+?)(\[\d+\])?:\s+(?P<message>.*)$'
+            - labels:
+                hostname:
+                service:
+            - timestamp:
+                source: timestamp
+                format: 'Jan 02 15:04:05'

@@ -1,0 +1,227 @@
+# ============================================================================
+# Lithosphere Prometheus Alert Rules - Phase 5
+# ============================================================================
+
+groups:
+  # ─────────────────────────────────────────────────────────────────────────
+  # API Service Alerts
+  # ─────────────────────────────────────────────────────────────────────────
+  - name: lithosphere-api
+    interval: 30s
+    rules:
+      # API is down
+      - alert: APIDown
+        expr: up{job="litho-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "Lithosphere API is down"
+          description: "API service has been down for more than 2 minutes"
+      
+      # High API error rate
+      - alert: HighAPIErrorRate
+        expr: rate(http_requests_total{job="litho-api",status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High API error rate"
+          description: "API error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+      
+      # High API latency
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="litho-api"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High API response time"
+          description: "API 95th percentile latency is {{ $value }}s"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Indexer Service Alerts
+  # ─────────────────────────────────────────────────────────────────────────
+  - name: lithosphere-indexer
+    interval: 30s
+    rules:
+      # Indexer is down
+      - alert: IndexerDown
+        expr: up{job="litho-indexer"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: indexer
+        annotations:
+          summary: "Lithosphere Indexer is down"
+          description: "Indexer service has been down for more than 2 minutes"
+      
+      # Indexer is behind
+      - alert: IndexerLagging
+        expr: (time() - indexer_last_block_timestamp) > 300
+        for: 5m
+        labels:
+          severity: warning
+          service: indexer
+        annotations:
+          summary: "Indexer is lagging behind blockchain"
+          description: "Indexer is {{ $value }}s behind the current block"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Database Alerts
+  # ─────────────────────────────────────────────────────────────────────────
+  - name: postgresql
+    interval: 30s
+    rules:
+      # PostgreSQL is down
+      - alert: PostgreSQLDown
+        expr: up{job=~"postgres.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: postgres
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL has been unreachable for more than 1 minute"
+      
+      # High database connections
+      - alert: HighDatabaseConnections
+        expr: pg_stat_database_numbackends > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: postgres
+        annotations:
+          summary: "High number of database connections"
+          description: "Database has {{ $value }} active connections"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # VPS Infrastructure Alerts
+  # ─────────────────────────────────────────────────────────────────────────
+  - name: infrastructure
+    interval: 30s
+    rules:
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value | humanize }}% on {{ $labels.instance }}"
+      
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value | humanize }}% on {{ $labels.instance }}"
+      
+      # Low disk space
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.*"} / node_filesystem_size_bytes)) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Low disk space"
+          description: "Disk usage is {{ $value | humanize }}% on {{ $labels.mountpoint }}"
+      
+      # Critical disk space
+      - alert: DiskSpaceCritical
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.*"} / node_filesystem_size_bytes)) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Critical disk space"
+          description: "Disk usage is {{ $value | humanize }}% on {{ $labels.mountpoint }}"
+      
+      # Node exporter down
+      - alert: NodeExporterDown
+        expr: up{job="node-exporter"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Node Exporter is down"
+          description: "Cannot collect system metrics - Node Exporter is down"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Container Alerts
+  # ─────────────────────────────────────────────────────────────────────────
+  - name: containers
+    interval: 30s
+    rules:
+      # Container high memory usage
+      - alert: ContainerHighMemoryUsage
+        expr: (container_memory_usage_bytes{name!=""} / container_spec_memory_limit_bytes{name!=""}) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          component: docker
+        annotations:
+          summary: "Container high memory usage"
+          description: "Container {{ $labels.name }} is using {{ $value | humanize }}% of its memory limit"
+      
+      # Container high CPU usage
+      - alert: ContainerHighCPUUsage
+        expr: (rate(container_cpu_usage_seconds_total{name!=""}[5m]) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: docker
+        annotations:
+          summary: "Container high CPU usage"
+          description: "Container {{ $labels.name }} is using {{ $value | humanize }}% CPU"
+      
+      # Container restart
+      - alert: ContainerRestarted
+        expr: increase(container_restart_count{name!=""}[1h]) > 3
+        for: 1m
+        labels:
+          severity: warning
+          component: docker
+        annotations:
+          summary: "Container restarted multiple times"
+          description: "Container {{ $labels.name }} has restarted {{ $value }} times in the last hour"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Monitoring Stack Alerts
+  # ─────────────────────────────────────────────────────────────────────────
+  - name: monitoring
+    interval: 60s
+    rules:
+      # Prometheus target down
+      - alert: PrometheusTargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "Prometheus target is down"
+          description: "{{ $labels.job }} target is down on {{ $labels.instance }}"
+      
+      # Prometheus config reload failed
+      - alert: PrometheusConfigReloadFailed
+        expr: prometheus_config_last_reload_successful == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "Prometheus configuration reload failed"
+          description: "Prometheus configuration reload has failed"
