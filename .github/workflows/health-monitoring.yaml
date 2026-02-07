@@ -233,8 +233,15 @@ jobs:
             }
 
       - name: Send Slack Notification (Optional)
-        if: steps.api-health.outputs.health_status != 'healthy' && secrets.SLACK_WEBHOOK_URL != ''
+        if: steps.api-health.outputs.health_status != 'healthy'
+        continue-on-error: true
         run: |
+          # Skip if SLACK_WEBHOOK_URL is not configured
+          if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            echo "⏭️  Slack webhook not configured, skipping notification"
+            exit 0
+          fi
+          
           curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
             -H 'Content-Type: application/json' \
             -d '{
