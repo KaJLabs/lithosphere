@@ -2,6 +2,10 @@ import 'dotenv/config';
 import { ethers } from 'ethers';
 import pkg from 'pg';
 const { Pool } = pkg;
+import { register, collectDefaultMetrics } from 'prom-client';
+
+// Collect default metrics
+collectDefaultMetrics({ prefix: 'litho_indexer_' });
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -28,6 +32,18 @@ async function startIndexer() {
   const port = process.env.INDEXER_PORT || 3001;
   app.listen(port, () => {
     console.log(`Indexer health endpoint running on :${port}`);
+  });
+
+  // Metrics server on port 9090
+  const metricsApp = express.default();
+  metricsApp.get('/metrics', async (_req, res) => {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  });
+
+  const metricsPort = process.env.METRICS_PORT || 9090;
+  metricsApp.listen(metricsPort, () => {
+    console.log(`Metrics server running on :${metricsPort}`);
   });
 
   // TODO: Implement blockchain polling logic here

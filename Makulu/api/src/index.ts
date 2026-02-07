@@ -4,6 +4,10 @@ import cors from 'cors';
 import { ApolloServer } from 'apollo-server-express';
 import { typeDefs, resolvers } from './schema.js';
 import { lithoRouter } from './litho.js';
+import { register, collectDefaultMetrics } from 'prom-client';
+
+// Collect default metrics (CPU, memory, etc.)
+collectDefaultMetrics({ prefix: 'litho_api_' });
 
 const app = express();
 app.use(cors());
@@ -31,6 +35,18 @@ app.get('/ready', async (_req, res) => {
 });
 
 app.use('/api/litho', lithoRouter());
+
+// Metrics server on port 9090
+const metricsApp = express();
+metricsApp.get('/metrics', async (_req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
+});
+
+const metricsPort = process.env.METRICS_PORT || 9090;
+metricsApp.listen(metricsPort, () => {
+  console.log(`Metrics server running on :${metricsPort}`);
+});
 
 async function start() {
   const server = new ApolloServer({ typeDefs, resolvers });
