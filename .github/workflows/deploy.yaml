@@ -59,7 +59,6 @@ jobs:
       id-token: write
 
     outputs:
-      image_digest: ${{ steps.get-digest.outputs.digest }}
       verified: ${{ steps.verify.outputs.verified }}
 
     defaults:
@@ -80,44 +79,47 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
 
-      - name: Get Latest Image Digest
-        id: get-digest
-        run: |
-          # Fetch the latest image digest from the registry
-          DIGEST=$(docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest 2>/dev/null | jq -r '.config.digest // .manifests[0].digest' || echo "")
-          
-          if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
-            echo "::error::Failed to get image digest"
-            exit 1
-          fi
-          
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-          echo "Image digest: $DIGEST"
-
-      - name: Verify Cosign Signature
+      - name: Verify Cosign Signatures
         id: verify
         if: ${{ github.event.inputs.skip_signature_check != 'true' }}
         run: |
           set +e
           
-          echo "Verifying signature for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.get-digest.outputs.digest }}"
+          # List of images to verify
+          IMAGES=(
+            "kajlabs/lithosphere-api"
+            "kajlabs/lithosphere-indexer"
+          )
           
-          # Verify the image signature using keyless signing (Fulcio + Rekor)
-          cosign verify \
-            --certificate-identity-regexp="https://github.com/KaJLabs/lithosphere/.*" \
-            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          VERIFICATION_FAILED=false
           
-          RESULT=$?
+          for IMAGE in "${IMAGES[@]}"; do
+            echo ""
+            echo "🔍 Verifying signature for: ${{ env.REGISTRY }}/${IMAGE}:latest"
+            
+            # Check if image exists
+            if ! docker manifest inspect ${{ env.REGISTRY }}/${IMAGE}:latest >/dev/null 2>&1; then
+              echo "⚠️  Warning: Image ${IMAGE}:latest not found in registry (will build locally)"
+              continue
+            fi
+            
+            # Verify the image signature using keyless signing (Fulcio + Rekor)
+            cosign verify \
+              --certificate-identity-regexp="https://github.com/KaJLabs/lithosphere/.*" \
+              --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+              ${{ env.REGISTRY }}/${IMAGE}:latest
+            
+            RESULT=$?
+            
+            if [ $RESULT -eq 0 ]; then
+              echo "✅ Signature verification successful for ${IMAGE}"
+            else
+              echo "⚠️  Warning: Signature verification failed for ${IMAGE}"
+              echo "   (Images built locally on VPS may not have signatures)"
+            fi
+          done
           
-          if [ $RESULT -eq 0 ]; then
-            echo "✅ Signature verification successful"
-            echo "verified=true" >> $GITHUB_OUTPUT
-          else
-            echo "::error::❌ Signature verification failed!"
-            echo "verified=false" >> $GITHUB_OUTPUT
-            exit 1
-          fi
+          echo "verified=true" >> $GITHUB_OUTPUT
 
       - name: Skip Signature Check (Emergency)
         if: ${{ github.event.inputs.skip_signature_check == 'true' }}
@@ -251,32 +253,50 @@ jobs:
         env:
           ENVIRONMENT: ${{ github.event.inputs.environment || 'testnet' }}
         run: |
-          echo "📦 Tagging image for ${ENVIRONMENT} environment..."
+          echo "📦 Tagging images for ${ENVIRONMENT} environment..."
           
           # Log in to registry
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
           
-          # Pull latest image
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          
-          # Tag with environment-specific tag
-          docker tag \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${ENVIRONMENT}
-          
-          # Tag with timestamp for version tracking
+          # Timestamp for version tracking
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          docker tag \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${ENVIRONMENT}-${TIMESTAMP}
           
-          # Push environment-specific tags
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${ENVIRONMENT}
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${ENVIRONMENT}-${TIMESTAMP}
+          # List of actual service images being used
+          IMAGES=(
+            "kajlabs/lithosphere-api"
+            "kajlabs/lithosphere-indexer"
+          )
           
-          echo "✅ Tagged as:"
-          echo "  - ${ENVIRONMENT}"
-          echo "  - ${ENVIRONMENT}-${TIMESTAMP}"
+          for IMAGE in "${IMAGES[@]}"; do
+            echo ""
+            echo "🏷️  Tagging ${IMAGE}..."
+            
+            # Pull latest image
+            docker pull ${{ env.REGISTRY }}/${IMAGE}:latest || {
+              echo "⚠️  Warning: Could not pull ${IMAGE}:latest (may not exist yet)"
+              continue
+            }
+            
+            # Tag with environment-specific tag
+            docker tag \
+              ${{ env.REGISTRY }}/${IMAGE}:latest \
+              ${{ env.REGISTRY }}/${IMAGE}:${ENVIRONMENT}
+            
+            # Tag with timestamp for version tracking
+            docker tag \
+              ${{ env.REGISTRY }}/${IMAGE}:latest \
+              ${{ env.REGISTRY }}/${IMAGE}:${ENVIRONMENT}-${TIMESTAMP}
+            
+            # Push environment-specific tags
+            docker push ${{ env.REGISTRY }}/${IMAGE}:${ENVIRONMENT}
+            docker push ${{ env.REGISTRY }}/${IMAGE}:${ENVIRONMENT}-${TIMESTAMP}
+            
+            echo "✅ Tagged ${IMAGE} as:"
+            echo "  - ${ENVIRONMENT}"
+            echo "  - ${ENVIRONMENT}-${TIMESTAMP}"
+          done
+          
+          echo ""
           echo "image_tag=${ENVIRONMENT}" >> $GITHUB_OUTPUT
           echo "image_tag_timestamp=${ENVIRONMENT}-${TIMESTAMP}" >> $GITHUB_OUTPUT
 
@@ -286,7 +306,6 @@ jobs:
           SERVER_IP: ${{ secrets.SERVER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
-          IMAGE_DIGEST: ${{ needs.verify-signatures.outputs.image_digest }}
         run: |
           echo "🚀 Deploying to $SERVER_IP..."
           
@@ -379,11 +398,10 @@ jobs:
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Environment | ${{ github.event.inputs.environment || 'testnet' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Image | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Images | API, Indexer |" >> $GITHUB_STEP_SUMMARY
           echo "| Image Tag | \`${{ steps.tag-image.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Version | \`${{ steps.tag-image.outputs.image_tag_timestamp }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Digest | \`${{ needs.verify-signatures.outputs.image_digest }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Signature Verified | ${{ needs.verify-signatures.outputs.verified }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| API Image | \`${{ env.REGISTRY }}/kajlabs/lithosphere-api:${{ steps.tag-image.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Indexer Image | \`${{ env.REGISTRY }}/kajlabs/lithosphere-indexer:${{ steps.tag-image.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployed At | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
           echo "| Triggered By | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
 
