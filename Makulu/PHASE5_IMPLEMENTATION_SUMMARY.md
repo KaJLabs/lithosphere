@@ -223,7 +223,7 @@ After deployment, access the following URLs (replace `YOUR_VPS_IP`):
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| **Grafana** | http://YOUR_VPS_IP:3001 | Dashboards & visualization |
+| **Grafana** | http://YOUR_VPS_IP:3000 | Dashboards & visualization |
 | **Prometheus** | http://YOUR_VPS_IP:9091 | Metrics & alerts |
 | **Alertmanager** | http://YOUR_VPS_IP:9093 | Alert management |
 | **cAdvisor** | http://YOUR_VPS_IP:8080 | Container stats |
@@ -412,7 +412,7 @@ docker system prune -a --volumes
 2. **Restrict monitoring port access:**
    ```bash
    # Allow only from your IP
-   ufw allow from YOUR_IP to any port 3001
+   ufw allow from YOUR_IP to any port 3000
    ufw allow from YOUR_IP to any port 9091
    ```
 

@@ -100,12 +100,12 @@ services:
     container_name: litho-grafana
     restart: unless-stopped
     ports:
-      - "${GRAFANA_PORT:-3001}:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-lithosphere}
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_SERVER_ROOT_URL=http://72.60.177.106:3000
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_ANALYTICS_REPORTING_ENABLED=false
@@ -202,7 +202,8 @@ services:
 # ============================================================================
 networks:
   litho-network:
-    external: false
+    external: true
+    name: lithosphere_litho-network
 
 # ============================================================================
 # Volumes

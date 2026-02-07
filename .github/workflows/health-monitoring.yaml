@@ -151,7 +151,7 @@ jobs:
           echo "📈 Checking Grafana dashboard..."
           
           if [ "${{ env.ENVIRONMENT }}" = "testnet" ]; then
-            GRAFANA_URL="http://${{ secrets.SERVER_IP }}:3001"
+            GRAFANA_URL="http://${{ secrets.SERVER_IP }}:3000"
           else
             echo "Skipping Grafana check for ${{ env.ENVIRONMENT }}"
             exit 0

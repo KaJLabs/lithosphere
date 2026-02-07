@@ -189,7 +189,7 @@ FAILED=0
 
 check_service "API" "http://$SERVER_IP:4000/health" || FAILED=$((FAILED+1))
 check_service "Prometheus" "http://$SERVER_IP:9091/-/healthy" || FAILED=$((FAILED+1))
-check_service "Grafana" "http://$SERVER_IP:3001/api/health" || FAILED=$((FAILED+1))
+check_service "Grafana" "http://$SERVER_IP:3000/api/health" || FAILED=$((FAILED+1))
 check_service "Loki" "http://$SERVER_IP:3100/ready" || FAILED=$((FAILED+1))
 
 # Display summary

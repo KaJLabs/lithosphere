@@ -36,14 +36,14 @@ Once deployed, access the following services:
 
 | Service | URL | Default Credentials |
 |---------|-----|---------------------|
-| **Grafana** | http://YOUR_VPS_IP:3001 | admin / lithosphere |
+| **Grafana** | http://YOUR_VPS_IP:3000 | admin / lithosphere |
 | **Prometheus** | http://YOUR_VPS_IP:9091 | N/A |
 | **Alertmanager** | http://YOUR_VPS_IP:9093 | N/A |
 | **cAdvisor** | http://YOUR_VPS_IP:8080 | N/A |
 
 ### 3. View Pre-configured Dashboards
 
-After logging into Grafana, navigate to:
+After logging into Grafana (http://YOUR_VPS_IP:3000), navigate to:
 - **Dashboards → Lithosphere → System Overview** - VPS health, CPU, memory, disk
 - **Dashboards → Lithosphere → API Monitoring** - API performance, error rates, logs
 - **Dashboards → Lithosphere → Container Metrics** - Docker container stats
@@ -330,7 +330,7 @@ docker system prune -a --volumes
 ```bash
 # Export dashboard JSON
 curl -u admin:lithosphere \
-  http://localhost:3001/api/dashboards/uid/lithosphere-system-overview \
+  http://localhost:3000/api/dashboards/uid/lithosphere-system-overview \
   | jq '.dashboard' > backup-system-overview.json
 
 # Backup Grafana database
