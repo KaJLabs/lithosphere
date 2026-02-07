@@ -166,8 +166,8 @@
       "pluginVersion": "10.2.3",
       "targets": [
         {
-          "expr": "litho_api_nodejs_eventloop_lag_seconds",
-          "legendFormat": "Event Loop Lag",
+          "expr": "litho_api_nodejs_eventloop_lag_mean_seconds",
+          "legendFormat": "Mean Lag",
           "refId": "A"
         }
       ],
@@ -216,8 +216,8 @@
       "pluginVersion": "10.2.3",
       "targets": [
         {
-          "expr": "litho_api_nodejs_heap_size_used_bytes",
-          "legendFormat": "Heap Used",
+          "expr": "litho_api_process_heap_bytes",
+          "legendFormat": "Heap Bytes",
           "refId": "A"
         }
       ],
@@ -295,13 +295,13 @@
           "refId": "B"
         },
         {
-          "expr": "litho_api_nodejs_heap_size_total_bytes",
+          "expr": "litho_api_process_heap_bytes",
           "legendFormat": "Heap Total",
           "refId": "C"
         },
         {
-          "expr": "litho_api_nodejs_heap_size_used_bytes",
-          "legendFormat": "Heap Used",
+          "expr": "litho_api_nodejs_active_resources",
+          "legendFormat": "Active Resources {{type}}",
           "refId": "D"
         }
       ],
@@ -522,12 +522,22 @@
       "pluginVersion": "10.2.3",
       "targets": [
         {
-          "expr": "rate(litho_api_nodejs_gc_duration_seconds_sum[5m])",
-          "legendFormat": "GC Duration",
+          "expr": "litho_api_nodejs_eventloop_lag_p50_seconds",
+          "legendFormat": "P50",
           "refId": "A"
+        },
+        {
+          "expr": "litho_api_nodejs_eventloop_lag_p90_seconds",
+          "legendFormat": "P90",
+          "refId": "B"
+        },
+        {
+          "expr": "litho_api_nodejs_eventloop_lag_p99_seconds",
+          "legendFormat": "P99",
+          "refId": "C"
         }
       ],
-      "title": "Node.js Garbage Collection",
+      "title": "Event Loop Lag Percentiles",
       "type": "timeseries"
     }
   ],

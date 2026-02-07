@@ -69,8 +69,8 @@
       "pluginVersion": "10.2.3",
       "targets": [
         {
-          "expr": "rate(container_cpu_usage_seconds_total{name=~\"litho.*\"}[5m]) * 100",
-          "legendFormat": "{{name}}",
+          "expr": "rate(container_cpu_usage_seconds_total{id=~\"/docker/.*litho.*\"}[5m]) * 100",
+          "legendFormat": "{{id}}",
           "refId": "A"
         }
       ],
@@ -138,8 +138,8 @@
       "pluginVersion": "10.2.3",
       "targets": [
         {
-          "expr": "container_memory_usage_bytes{name=~\"litho.*\"}",
-          "legendFormat": "{{name}}",
+          "expr": "container_memory_rss{id=~\"/docker/.*litho.*\"}",
+          "legendFormat": "{{id}}",
           "refId": "A"
         }
       ],
@@ -207,13 +207,13 @@
       "pluginVersion": "10.2.3",
       "targets": [
         {
-          "expr": "rate(container_network_receive_bytes_total{name=~\"litho.*\"}[5m])",
-          "legendFormat": "RX {{name}}",
+          "expr": "rate(container_network_receive_bytes_total{id=~\"/docker/.*litho.*\"}[5m])",
+          "legendFormat": "RX {{id}}",
           "refId": "A"
         },
         {
-          "expr": "rate(container_network_transmit_bytes_total{name=~\"litho.*\"}[5m])",
-          "legendFormat": "TX {{name}}",
+          "expr": "rate(container_network_transmit_bytes_total{id=~\"/docker/.*litho.*\"}[5m])",
+          "legendFormat": "TX {{id}}",
           "refId": "B"
         }
       ],
@@ -281,13 +281,13 @@
       "pluginVersion": "10.2.3",
       "targets": [
         {
-          "expr": "rate(container_fs_reads_bytes_total{name=~\"litho.*\"}[5m])",
-          "legendFormat": "Read {{name}}",
+          "expr": "rate(container_fs_reads_bytes_total{id=~\"/docker/.*litho.*\"}[5m])",
+          "legendFormat": "Read {{id}}",
           "refId": "A"
         },
         {
-          "expr": "rate(container_fs_writes_bytes_total{name=~\"litho.*\"}[5m])",
-          "legendFormat": "Write {{name}}",
+          "expr": "rate(container_fs_writes_bytes_total{id=~\"/docker/.*litho.*\"}[5m])",
+          "legendFormat": "Write {{id}}",
           "refId": "B"
         }
       ],
