@@ -99,14 +99,97 @@ jobs:
     permissions:
       actions: read
       id-token: write
+      contents: write
       packages: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v1.9.0
-    with:
-      image: ghcr.io/kajlabs/lithosphere/service-template
-      digest: ${{ needs.build-and-push.outputs.digest }}
-      registry-username: ${{ github.actor }}
-    secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+      
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Generate SLSA Provenance
+        id: provenance
+        run: |
+          # Extract digest hash (remove sha256: prefix if present)
+          DIGEST="${{ needs.build-and-push.outputs.digest }}"
+          DIGEST_HASH="${DIGEST#sha256:}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          # Create provenance attestation
+          cat > provenance.json << EOF
+          {
+            "_type": "https://in-toto.io/Statement/v0.1",
+            "predicateType": "https://slsa.dev/provenance/v0.2",
+            "subject": [
+              {
+                "name": "${IMAGE}",
+                "digest": {
+                  "sha256": "${DIGEST_HASH}"
+                }
+              }
+            ],
+            "predicate": {
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "buildType": "https://github.com/Attestations/GitHubActionsWorkflow@v1",
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                }
+              },
+              "metadata": {
+                "buildInvocationId": "${{ github.run_id }}-${{ github.run_attempt }}",
+                "buildStartedOn": "${{ github.event.head_commit.timestamp }}",
+                "buildFinishedOn": "${TIMESTAMP}",
+                "completeness": {
+                  "parameters": true,
+                  "environment": false,
+                  "materials": true
+                },
+                "reproducible": false
+              },
+              "materials": [
+                {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  }
+                }
+              ]
+            }
+          }
+          EOF
+          
+          echo "Generated SLSA provenance attestation"
+          cat provenance.json
+      
+      - name: Attest Provenance with Cosign
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-and-push.outputs.digest }}"
+          cosign attest --yes --predicate provenance.json --type slsaprovenance "$IMAGE"
+          echo "✅ SLSA provenance attestation signed and pushed"
+      
+      - name: Upload Provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: slsa-provenance
+          path: provenance.json
 
   publish-npm:
     name: Publish NPM Packages
