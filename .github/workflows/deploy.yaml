@@ -205,7 +205,7 @@ jobs:
           METRICS_PORT=9090
           
           # Container Registry
-          IMAGE_TAG=latest
+          IMAGE_TAG=${{ github.event.inputs.environment || 'testnet' }}
           ENVEOF
           fi
           
@@ -246,6 +246,40 @@ jobs:
           
           echo "package_ready=true" >> $GITHUB_OUTPUT
 
+      - name: Tag Image for Environment
+        id: tag-image
+        env:
+          ENVIRONMENT: ${{ github.event.inputs.environment || 'testnet' }}
+        run: |
+          echo "📦 Tagging image for ${ENVIRONMENT} environment..."
+          
+          # Log in to registry
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          
+          # Pull latest image
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          
+          # Tag with environment-specific tag
+          docker tag \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${ENVIRONMENT}
+          
+          # Tag with timestamp for version tracking
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          docker tag \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${ENVIRONMENT}-${TIMESTAMP}
+          
+          # Push environment-specific tags
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${ENVIRONMENT}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${ENVIRONMENT}-${TIMESTAMP}
+          
+          echo "✅ Tagged as:"
+          echo "  - ${ENVIRONMENT}"
+          echo "  - ${ENVIRONMENT}-${TIMESTAMP}"
+          echo "image_tag=${ENVIRONMENT}" >> $GITHUB_OUTPUT
+          echo "image_tag_timestamp=${ENVIRONMENT}-${TIMESTAMP}" >> $GITHUB_OUTPUT
+
       - name: Deploy to VPS
         id: deploy
         env:
@@ -280,6 +314,7 @@ jobs:
             # Copy environment file and deploy
             cd $DEPLOY_PATH
             cp .env.testnet .env
+            export IMAGE_TAG=${{ github.event.inputs.environment || 'testnet' }}
             docker compose build api indexer
             docker compose up -d
           "
@@ -289,6 +324,54 @@ jobs:
           echo "service_url=$SERVICE_URL" >> $GITHUB_OUTPUT
           echo "Deployed to: $SERVICE_URL"
 
+      - name: Cleanup Old Docker Images
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          echo "🧹 Cleaning up old Docker images on VPS..."
+          
+          ssh $SERVER_USER@$SERVER_IP "bash -s" << 'CLEANUP_SCRIPT'
+          set -euo pipefail
+          
+          echo "📊 Disk usage BEFORE cleanup:"
+          df -h /var/lib/docker 2>/dev/null || df -h /
+          echo ""
+          
+          # Remove dangling images (untagged)
+          echo "Removing dangling images..."
+          DANGLING=$(docker image prune -f 2>&1 | grep -oP 'Total reclaimed space: \K.*' || echo "0B")
+          echo "  Reclaimed: ${DANGLING}"
+          
+          # Remove images older than 7 days (keep recent for rollback)
+          echo "Removing images older than 7 days..."
+          OLD_IMAGES=$(docker image prune -a --filter "until=168h" -f 2>&1 | grep -oP 'Total reclaimed space: \K.*' || echo "0B")
+          echo "  Reclaimed: ${OLD_IMAGES}"
+          
+          # Remove unused volumes
+          echo "Removing unused volumes..."
+          VOLUMES=$(docker volume prune -f 2>&1 | grep -oP 'Total reclaimed space: \K.*' || echo "0B")
+          echo "  Reclaimed: ${VOLUMES}"
+          
+          # Remove build cache (keep last 24 hours)
+          echo "Pruning build cache..."
+          BUILD_CACHE=$(docker builder prune -a --filter "until=24h" -f 2>&1 | grep -oP 'Total reclaimed space: \K.*' || echo "0B")
+          echo "  Reclaimed: ${BUILD_CACHE}"
+          
+          echo ""
+          echo "📊 Disk usage AFTER cleanup:"
+          df -h /var/lib/docker 2>/dev/null || df -h /
+          
+          echo ""
+          echo "🐳 Current Docker images:"
+          docker images --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}" | head -10
+          
+          echo ""
+          echo "✅ Cleanup complete!"
+          CLEANUP_SCRIPT
+          
+          echo "cleanup_status=success" >> $GITHUB_OUTPUT
+
       - name: Generate Deployment Summary
         run: |
           echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
@@ -297,6 +380,8 @@ jobs:
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Environment | ${{ github.event.inputs.environment || 'testnet' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Image | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image Tag | \`${{ steps.tag-image.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`${{ steps.tag-image.outputs.image_tag_timestamp }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Digest | \`${{ needs.verify-signatures.outputs.image_digest }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Signature Verified | ${{ needs.verify-signatures.outputs.verified }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployed At | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
