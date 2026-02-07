@@ -43,7 +43,7 @@ scrape_configs:
   # ─────────────────────────────────────────────────────────────────────────
   - job_name: 'litho-api'
     static_configs:
-      - targets: ['api:9090']
+      - targets: ['litho-api:9090']
         labels:
           service: 'api'
           component: 'backend'
@@ -55,7 +55,7 @@ scrape_configs:
   # ─────────────────────────────────────────────────────────────────────────
   - job_name: 'litho-indexer'
     static_configs:
-      - targets: ['indexer:9090']
+      - targets: ['litho-indexer:9090']
         labels:
           service: 'indexer'
           component: 'backend'
