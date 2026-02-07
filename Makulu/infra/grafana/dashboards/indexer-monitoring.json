@@ -313,13 +313,13 @@
           "refId": "B"
         },
         {
-          "expr": "litho_indexer_nodejs_heap_size_total_bytes",
+          "expr": "litho_indexer_process_heap_bytes",
           "legendFormat": "Heap Total",
           "refId": "C"
         },
         {
-          "expr": "litho_indexer_nodejs_heap_size_used_bytes",
-          "legendFormat": "Heap Used",
+          "expr": "litho_indexer_nodejs_active_resources",
+          "legendFormat": "Active Resources {{type}}",
           "refId": "D"
         }
       ],
@@ -540,9 +540,14 @@
       "pluginVersion": "10.2.3",
       "targets": [
         {
-          "expr": "litho_indexer_nodejs_eventloop_lag_seconds",
-          "legendFormat": "Event Loop Lag",
+          "expr": "litho_indexer_nodejs_eventloop_lag_mean_seconds",
+          "legendFormat": "Mean Lag",
           "refId": "A"
+        },
+        {
+          "expr": "litho_indexer_nodejs_eventloop_lag_p99_seconds",
+          "legendFormat": "P99 Lag",
+          "refId": "B"
         }
       ],
       "title": "Node.js Event Loop Performance",

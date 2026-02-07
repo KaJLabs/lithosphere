@@ -530,7 +530,7 @@
       "pluginVersion": "10.2.3",
       "targets": [
         {
-          "expr": "count(container_last_seen{name=~\"litho.*\"})",
+          "expr": "count(container_last_seen{id=~\"/docker/.*litho.*\"})",
           "legendFormat": "Running Containers",
           "refId": "A"
         }
