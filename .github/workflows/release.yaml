@@ -89,6 +89,25 @@ jobs:
           name: sbom
           path: sbom.spdx.json
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # SLSA Provenance Generation - SLSA Level 3 Compliance
+  # Generates cryptographically signed build provenance attestation
+  # ─────────────────────────────────────────────────────────────────────────
+  provenance:
+    name: Generate SLSA Provenance
+    needs: build-and-push
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v1.9.0
+    with:
+      image: ghcr.io/kajlabs/lithosphere/service-template
+      digest: ${{ needs.build-and-push.outputs.digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+
   publish-npm:
     name: Publish NPM Packages
     runs-on: ubuntu-latest

@@ -159,7 +159,7 @@ Many configurations can be overridden with environment variables:
 
 ```bash
 # Grafana
-GRAFANA_PORT=3001
+GRAFANA_PORT=3000
 GRAFANA_USER=admin
 GRAFANA_PASSWORD=lithosphere
 
@@ -237,13 +237,16 @@ By default, monitoring services are exposed on all interfaces. In production:
 **Option A**: Use firewall rules
 ```bash
 # Allow only from specific IP
-ufw allow from YOUR_IP to any port 3001  # Grafana
+ufw allow from YOUR_IP to any port 3000  # Grafana
 ufw allow from YOUR_IP to any port 9091  # Prometheus
 ```
 
 **Option B**: Bind to localhost only
 ```yaml
 # In docker-compose.monitoring.yaml
+grafana:
+  ports:
+    - "127.0.0.1:3000:3000"  # Only accessible locally
 prometheus:
   ports:
     - "127.0.0.1:9091:9090"  # Only accessible locally
