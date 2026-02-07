@@ -125,65 +125,74 @@ jobs:
           DIGEST_HASH="${DIGEST#sha256:}"
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          COMMIT_TIMESTAMP="${{ github.event.head_commit.timestamp }}"
           
-          # Create provenance attestation
-          cat > provenance.json << EOF
+          # Create SLSA v1.0 provenance predicate (only the predicate, not the full statement)
+          cat > provenance.json << 'JSONEOF'
           {
-            "_type": "https://in-toto.io/Statement/v0.1",
-            "predicateType": "https://slsa.dev/provenance/v0.2",
-            "subject": [
-              {
-                "name": "${IMAGE}",
+            "buildType": "https://slsa.dev/provenance/v1.0?draft",
+            "builder": {
+              "id": "https://github.com/KaJLabs/lithosphere/Attestations/GitHubActionsWorkflow@v1"
+            },
+            "invocation": {
+              "configSource": {
+                "uri": "git+https://github.com/KaJLabs/lithosphere",
                 "digest": {
-                  "sha256": "${DIGEST_HASH}"
+                  "sha1": "GITHUB_SHA_PLACEHOLDER"
+                },
+                "entryPoint": ".github/workflows/release.yaml"
+              }
+            },
+            "metadata": {
+              "buildInvocationId": "BUILD_ID_PLACEHOLDER",
+              "buildStartedOn": "BUILD_START_PLACEHOLDER",
+              "buildFinishedOn": "BUILD_END_PLACEHOLDER",
+              "completeness": {
+                "parameters": true,
+                "environment": false,
+                "materials": true
+              },
+              "reproducible": false
+            },
+            "materials": [
+              {
+                "uri": "git+https://github.com/KaJLabs/lithosphere",
+                "digest": {
+                  "sha1": "GITHUB_SHA_PLACEHOLDER"
                 }
               }
-            ],
-            "predicate": {
-              "builder": {
-                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              },
-              "buildType": "https://github.com/Attestations/GitHubActionsWorkflow@v1",
-              "invocation": {
-                "configSource": {
-                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
-                  "digest": {
-                    "sha1": "${{ github.sha }}"
-                  },
-                  "entryPoint": ".github/workflows/release.yaml"
-                }
-              },
-              "metadata": {
-                "buildInvocationId": "${{ github.run_id }}-${{ github.run_attempt }}",
-                "buildStartedOn": "${{ github.event.head_commit.timestamp }}",
-                "buildFinishedOn": "${TIMESTAMP}",
-                "completeness": {
-                  "parameters": true,
-                  "environment": false,
-                  "materials": true
-                },
-                "reproducible": false
-              },
-              "materials": [
-                {
-                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
-                  "digest": {
-                    "sha1": "${{ github.sha }}"
-                  }
-                }
-              ]
-            }
+            ]
           }
-          EOF
+          JSONEOF
           
-          echo "Generated SLSA provenance attestation"
+          # Replace placeholders
+          sed -i "s|GITHUB_SHA_PLACEHOLDER|${{ github.sha }}|g" provenance.json
+          sed -i "s|BUILD_ID_PLACEHOLDER|${{ github.run_id }}-${{ github.run_attempt }}|g" provenance.json
+          sed -i "s|BUILD_START_PLACEHOLDER|${COMMIT_TIMESTAMP}|g" provenance.json
+          sed -i "s|BUILD_END_PLACEHOLDER|${TIMESTAMP}|g" provenance.json
+          
+          echo "Generated SLSA provenance predicate:"
           cat provenance.json
+          
+          # Validate JSON
+          if ! jq empty provenance.json 2>/dev/null; then
+            echo "❌ Invalid JSON generated"
+            exit 1
+          fi
+          
+          echo "✅ Valid JSON provenance generated"
       
       - name: Attest Provenance with Cosign
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-and-push.outputs.digest }}"
-          cosign attest --yes --predicate provenance.json --type slsaprovenance "$IMAGE"
-          echo "✅ SLSA provenance attestation signed and pushed"
+          
+          # Sign the provenance attestation
+          cosign attest --yes \
+            --predicate provenance.json \
+            --type https://slsa.dev/provenance/v1.0?draft \
+            "$IMAGE"
+          
+          echo "✅ SLSA provenance attestation signed and pushed to registry"
       
       - name: Upload Provenance
         uses: actions/upload-artifact@v4
