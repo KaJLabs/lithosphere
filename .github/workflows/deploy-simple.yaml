@@ -46,7 +46,22 @@ jobs:
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+      - name: Validate Secrets
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          if [ -z "$SERVER_IP" ]; then
+            echo "❌ Error: SERVER_IP secret is not set"
+            exit 1
+          fi
+          if [ -z "$SERVER_USER" ]; then
+            echo "❌ Error: SERVER_USER secret is not set"
+            exit 1
+          fi
+          echo "✅ Required secrets are configured"
 
       - name: Add Server to Known Hosts
         run: |
@@ -196,7 +211,7 @@ jobs:
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
       - name: Add Server to Known Hosts
         run: |
