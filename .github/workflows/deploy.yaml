@@ -160,16 +160,38 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
+      - name: Validate Required Secrets
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          MISSING_SECRETS=false
+          
+          if [ -z "$SERVER_IP" ]; then
+            echo "❌ Error: SERVER_IP secret is not set"
+            MISSING_SECRETS=true
+          fi
+          
+          if [ -z "$SERVER_USER" ]; then
+            echo "❌ Error: SERVER_USER secret is not set"
+            MISSING_SECRETS=true
+          fi
+          
+          if [ "$MISSING_SECRETS" = true ]; then
+            echo ""
+            echo "Please configure the following secrets in GitHub repository settings:"
+            echo "- SERVER_IP: Your server's IP address"
+            echo "- SERVER_USER: SSH username (e.g., root, ubuntu)"
+            echo "- VPS_SSH_PRIVATE_KEY: SSH private key for authentication"
+            exit 1
+          fi
+          
+          echo "✅ Required secrets are configured"
+
       - name: Add VPS to Known Hosts
         env:
           SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
-          if [ -z "$SERVER_IP" ]; then
-            echo "❌ Error: SERVER_IP secret is not set"
-            echo "Please configure SERVER_IP in GitHub repository secrets"
-            exit 1
-          fi
-          
           mkdir -p ~/.ssh
           ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts
           echo "✅ Added $SERVER_IP to known_hosts"
@@ -548,16 +570,34 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
+      - name: Validate Required Secrets
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          MISSING_SECRETS=false
+          
+          if [ -z "$SERVER_IP" ]; then
+            echo "❌ Error: SERVER_IP secret is not set"
+            MISSING_SECRETS=true
+          fi
+          
+          if [ -z "$SERVER_USER" ]; then
+            echo "❌ Error: SERVER_USER secret is not set"
+            MISSING_SECRETS=true
+          fi
+          
+          if [ "$MISSING_SECRETS" = true ]; then
+            echo "⚠️ Cannot perform rollback without required secrets"
+            exit 1
+          fi
+          
+          echo "✅ Required secrets are configured"
+
       - name: Add VPS to Known Hosts
         env:
           SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
-          if [ -z "$SERVER_IP" ]; then
-            echo "❌ Error: SERVER_IP secret is not set"
-            echo "Please configure SERVER_IP in GitHub repository secrets"
-            exit 1
-          fi
-          
           mkdir -p ~/.ssh
           ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts
           echo "✅ Added $SERVER_IP to known_hosts"
