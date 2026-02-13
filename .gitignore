@@ -58,6 +58,9 @@ cache/
 typechain-types/
 deployments/
 
+# Docsify build artifacts
+_site/
+
 # Miscellaneous
 *.pem
 .eslintcache
