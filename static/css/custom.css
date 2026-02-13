@@ -1,0 +1,200 @@
+/* Lithosphere Documentation - Custom Theme */
+
+:root {
+  --theme-color: #4a90d9;
+  --theme-color-dark: #2c6fba;
+  --sidebar-width: 280px;
+  --sidebar-bg: #1a1a2e;
+  --sidebar-text: #e0e0e0;
+  --sidebar-active: #4a90d9;
+  --code-bg: #1e1e2e;
+  --code-border: #313244;
+}
+
+/* Sidebar */
+.sidebar {
+  background-color: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  width: var(--sidebar-width);
+}
+
+.sidebar ul li a {
+  color: var(--sidebar-text);
+  font-size: 0.9rem;
+  padding: 4px 16px;
+  transition: color 0.2s ease, padding-left 0.2s ease;
+}
+
+.sidebar ul li a:hover {
+  color: var(--sidebar-active);
+  padding-left: 20px;
+}
+
+.sidebar ul li.active > a {
+  color: var(--sidebar-active);
+  font-weight: 600;
+  border-left: 3px solid var(--sidebar-active);
+}
+
+.sidebar ul li strong {
+  color: #ffffff;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 12px;
+  display: block;
+  padding: 8px 16px 4px;
+}
+
+.sidebar .logo {
+  height: 32px;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+.sidebar .app-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* Main content */
+.markdown-section {
+  max-width: 860px;
+  padding: 30px 40px;
+}
+
+.markdown-section h1 {
+  color: var(--theme-color-dark);
+  border-bottom: 2px solid var(--theme-color);
+  padding-bottom: 8px;
+  margin-top: 0;
+}
+
+.markdown-section h2 {
+  color: #333;
+  margin-top: 2rem;
+}
+
+.markdown-section h3 {
+  color: #555;
+}
+
+/* Code blocks */
+.markdown-section pre {
+  background-color: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.markdown-section code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.875rem;
+}
+
+.markdown-section p > code,
+.markdown-section li > code {
+  background-color: #f0f4f8;
+  color: var(--theme-color-dark);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.85rem;
+}
+
+/* Tables */
+.markdown-section table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.markdown-section table th {
+  background-color: var(--theme-color);
+  color: #fff;
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.markdown-section table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.markdown-section table tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+/* Blockquotes - used for WIP notices */
+.markdown-section blockquote {
+  border-left: 4px solid var(--theme-color);
+  background-color: #f0f7ff;
+  padding: 12px 20px;
+  margin: 1rem 0;
+  border-radius: 0 4px 4px 0;
+}
+
+.markdown-section blockquote p {
+  margin: 0;
+}
+
+/* Search */
+.search input {
+  background-color: #16162a !important;
+  color: #e0e0e0 !important;
+  border: 1px solid #313244 !important;
+  border-radius: 4px;
+}
+
+.search .matching-post {
+  border-bottom: 1px solid #313244;
+}
+
+/* Copy code button */
+.docsify-copy-code-button {
+  font-size: 0.75rem;
+}
+
+/* Responsive */
+@media screen and (max-width: 768px) {
+  :root {
+    --sidebar-width: 240px;
+  }
+
+  .markdown-section {
+    padding: 20px 16px;
+  }
+
+  .markdown-section h1 {
+    font-size: 1.5rem;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .markdown-section pre {
+    font-size: 0.8rem;
+    padding: 10px;
+  }
+}
+
+/* Diagram images */
+.markdown-section img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 1rem 0;
+}
+
+/* WIP badge */
+.wip-badge {
+  display: inline-block;
+  background-color: #f39c12;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-left: 8px;
+  vertical-align: middle;
+}
