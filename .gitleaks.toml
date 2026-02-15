@@ -1,0 +1,15 @@
+# ============================================================================
+# Gitleaks Configuration
+# ============================================================================
+# Allowlist for well-known Anvil/Hardhat default private keys used only in
+# local development seed scripts. These keys are publicly documented at:
+#   https://book.getfoundry.sh/reference/anvil/
+# ============================================================================
+
+title = "Lithosphere Gitleaks Config"
+
+[allowlist]
+  description = "Anvil well-known dev keys in example env file"
+  paths = [
+    '''scripts/\.env\.local\.example''',
+  ]

@@ -27,39 +27,62 @@ import { foundry } from "viem/chains";
 const RPC_URL = process.env.RPC_URL ?? "http://127.0.0.1:8545";
 const CHAIN_ID = Number(process.env.CHAIN_ID ?? 777777);
 
+// ---------------------------------------------------------------------------
+// Private keys are loaded from environment variables.
+// For local development, copy .env.local.example → .env.local and source it,
+// or let the Makefile / docker-compose handle injection.
+//
+// The default values in .env.local.example are Anvil's well-known accounts
+// (publicly documented) and must NEVER be used on mainnet or testnet.
+// ---------------------------------------------------------------------------
+
 /** Anvil account 0 — the deployer / faucet. Never use on mainnet. */
-const DEPLOYER_KEY: Hex =
-  (process.env.DEPLOYER_PRIVATE_KEY as Hex) ??
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+const DEPLOYER_KEY: Hex = requireEnvHex("DEPLOYER_PRIVATE_KEY");
 
 /** Five mock developer wallets (Anvil accounts 5-9). */
 const MOCK_WALLETS: { name: string; address: Address; key: Hex }[] = [
   {
     name: "Dev-Wallet-1",
-    address: "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
-    key: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
+    address: (process.env.DEV_WALLET_1_ADDRESS ?? "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc") as Address,
+    key: requireEnvHex("DEV_WALLET_1_KEY"),
   },
   {
     name: "Dev-Wallet-2",
-    address: "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
-    key: "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
+    address: (process.env.DEV_WALLET_2_ADDRESS ?? "0x976EA74026E726554dB657fA54763abd0C3a0aa9") as Address,
+    key: requireEnvHex("DEV_WALLET_2_KEY"),
   },
   {
     name: "Dev-Wallet-3",
-    address: "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
-    key: "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
+    address: (process.env.DEV_WALLET_3_ADDRESS ?? "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955") as Address,
+    key: requireEnvHex("DEV_WALLET_3_KEY"),
   },
   {
     name: "Dev-Wallet-4",
-    address: "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
-    key: "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
+    address: (process.env.DEV_WALLET_4_ADDRESS ?? "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f") as Address,
+    key: requireEnvHex("DEV_WALLET_4_KEY"),
   },
   {
     name: "Dev-Wallet-5",
-    address: "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
-    key: "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6",
+    address: (process.env.DEV_WALLET_5_ADDRESS ?? "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720") as Address,
+    key: requireEnvHex("DEV_WALLET_5_KEY"),
   },
 ];
+
+// ---------------------------------------------------------------------------
+// Helper — read a required hex-encoded env var or abort with a clear message.
+// ---------------------------------------------------------------------------
+function requireEnvHex(name: string): Hex {
+  const value = process.env[name];
+  if (!value) {
+    console.error(
+      `Missing environment variable: ${name}\n` +
+        `   Copy .env.local.example -> .env.local and source it, or set the var directly.\n` +
+        `   See: Makulu/scripts/.env.local.example`,
+    );
+    process.exit(1);
+  }
+  return value as Hex;
+}
 
 const FUND_AMOUNT = parseEther("1000"); // 1,000 LITHO per wallet
 
