@@ -1,0 +1,342 @@
+# ============================================================================
+# Lithosphere Developer Local Stack - docker-compose.dev.yml
+# Production-grade local development environment
+# ============================================================================
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d          # Start all services
+#   docker compose -f docker-compose.dev.yml logs -f        # Follow all logs
+#   docker compose -f docker-compose.dev.yml down            # Stop all services
+#   docker compose -f docker-compose.dev.yml down -v         # Stop + wipe volumes (clean)
+#   docker compose -f docker-compose.dev.yml ps              # Check service status
+# ============================================================================
+# Prerequisites:
+#   - Copy .env.local.example to .env.local and adjust values as needed
+#   - Ensure Docker Engine >= 24.0 and Compose V2 are installed
+# ============================================================================
+
+name: litho-devnet
+
+# ============================================================================
+# Services
+# ============================================================================
+services:
+  # --------------------------------------------------------------------------
+  # 1. Local Chain (LithoVM) - EVM-compatible local node
+  #    Exposes JSON-RPC on port 8545 and WS on port 8546
+  # --------------------------------------------------------------------------
+  lithovm:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: lithovm-local
+    restart: unless-stopped
+    entrypoint: ["anvil"]
+    command:
+      - "--host=0.0.0.0"
+      - "--port=8545"
+      - "--chain-id=${CHAIN_ID:-777777}"
+      - "--block-time=${BLOCK_TIME:-2}"
+      - "--accounts=${PREFUNDED_ACCOUNTS:-10}"
+      - "--balance=${ACCOUNT_BALANCE:-10000}"
+      - "--gas-limit=${GAS_LIMIT:-30000000}"
+      - "--state=/data/anvil-state.json"
+      - "--prune-history"
+    ports:
+      - "${RPC_PORT:-8545}:8545"
+    volumes:
+      - chain-data:/data
+    env_file:
+      - .env.local
+    healthcheck:
+      test: ["CMD", "cast", "block-number", "--rpc-url", "http://127.0.0.1:8545"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks:
+      litho-devnet:
+        aliases:
+          - lithovm
+          - chain
+    labels:
+      - "litho.service=chain"
+      - "litho.env=local"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # 2. PostgreSQL Database
+  #    Required by both Indexer and API for persistent storage
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: litho-dev-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lithosphere}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lithosphere_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-lithosphere}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    env_file:
+      - .env.local
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-lithosphere} -d ${POSTGRES_DB:-lithosphere}",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      litho-devnet:
+        aliases:
+          - postgres
+          - db
+    labels:
+      - "litho.service=database"
+      - "litho.env=local"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # 3. Redis Cache
+  #    In-memory cache for API sessions, rate limiting, and pub/sub
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: litho-dev-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+        --appendonly yes
+        --maxmemory 128mb
+        --maxmemory-policy allkeys-lru
+        --save 60 1000
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    env_file:
+      - .env.local
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks:
+      litho-devnet:
+        aliases:
+          - redis
+          - cache
+    labels:
+      - "litho.service=cache"
+      - "litho.env=local"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # 4. Indexer Service - Blockchain Event Indexer
+  #    Connects to LithoVM and writes indexed data to Postgres
+  # --------------------------------------------------------------------------
+  indexer:
+    image: ${REGISTRY:-ghcr.io}/kajlabs/lithosphere-indexer:${IMAGE_TAG:-latest}
+    container_name: litho-dev-indexer
+    build:
+      context: ./indexer
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${INDEXER_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lithosphere}:${POSTGRES_PASSWORD:-lithosphere_dev}@postgres:5432/${POSTGRES_DB:-lithosphere}
+      LITHO_RPC_URL: http://lithovm:8545
+      LITHO_WS_URL: ws://lithovm:8545
+      LITHO_CHAIN_ID: ${CHAIN_ID:-777777}
+      INDEXER_PORT: 3001
+      INDEXER_START_BLOCK: ${INDEXER_START_BLOCK:-0}
+      INDEXER_BATCH_SIZE: ${INDEXER_BATCH_SIZE:-50}
+      INDEXER_CONFIRMATIONS: ${INDEXER_CONFIRMATIONS:-1}
+      INDEXER_POLL_INTERVAL: ${INDEXER_POLL_INTERVAL:-2000}
+    env_file:
+      - .env.local
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      lithovm:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      litho-devnet:
+        aliases:
+          - indexer
+          - litho-indexer
+    labels:
+      - "litho.service=indexer"
+      - "litho.env=local"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # 5. API Service - GraphQL & REST API
+  #    Serves data to the frontend / block explorer
+  # --------------------------------------------------------------------------
+  api:
+    image: ${REGISTRY:-ghcr.io}/kajlabs/lithosphere-api:${IMAGE_TAG:-latest}
+    container_name: litho-dev-api
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-4000}:4000"
+      - "${API_METRICS_PORT:-9090}:9090"
+    environment:
+      NODE_ENV: development
+      API_PORT: 4000
+      API_HOST: 0.0.0.0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lithosphere}:${POSTGRES_PASSWORD:-lithosphere_dev}@postgres:5432/${POSTGRES_DB:-lithosphere}
+      LITHO_RPC_URL: http://lithovm:8545
+      LITHO_CHAIN_ID: ${CHAIN_ID:-777777}
+      REDIS_URL: redis://redis:6379
+      GRAPHQL_PLAYGROUND: "true"
+      PROMETHEUS_ENABLED: "true"
+    env_file:
+      - .env.local
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      lithovm:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      indexer:
+        condition: service_healthy
+    networks:
+      litho-devnet:
+        aliases:
+          - api
+          - litho-api
+    labels:
+      - "litho.service=api"
+      - "litho.env=local"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # 6. Block Explorer - Next.js Frontend
+  #    Local explorer UI connected to LithoVM and the API service
+  # --------------------------------------------------------------------------
+  explorer:
+    container_name: litho-dev-explorer
+    build:
+      context: ./explorer
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-4000}
+        NEXT_PUBLIC_GRAPHQL_URL: http://localhost:${API_PORT:-4000}/graphql
+        NEXT_PUBLIC_RPC_URL: http://localhost:${RPC_PORT:-8545}
+        NEXT_PUBLIC_CHAIN_ID: ${CHAIN_ID:-777777}
+        NEXT_PUBLIC_CHAIN_NAME: ${CHAIN_NAME:-Litho Devnet}
+    restart: unless-stopped
+    ports:
+      - "${EXPLORER_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-4000}
+      NEXT_PUBLIC_GRAPHQL_URL: http://localhost:${API_PORT:-4000}/graphql
+      NEXT_PUBLIC_RPC_URL: http://localhost:${RPC_PORT:-8545}
+      NEXT_PUBLIC_WS_URL: ws://localhost:${RPC_PORT:-8545}
+      NEXT_PUBLIC_CHAIN_ID: ${CHAIN_ID:-777777}
+      NEXT_PUBLIC_CHAIN_NAME: ${CHAIN_NAME:-Litho Devnet}
+      NEXT_PUBLIC_EXPLORER_TITLE: ${EXPLORER_TITLE:-Lithosphere Devnet Explorer}
+    env_file:
+      - .env.local
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      api:
+        condition: service_healthy
+      lithovm:
+        condition: service_healthy
+    networks:
+      litho-devnet:
+        aliases:
+          - explorer
+          - litho-explorer
+    labels:
+      - "litho.service=explorer"
+      - "litho.env=local"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  litho-devnet:
+    name: litho-devnet
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: litho-dev-br0
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+    enable_ipv6: false
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.29.0.0/16
+          gateway: 172.29.0.1
+
+# ============================================================================
+# Volumes - Persistent data across container restarts
+# Remove with: docker compose -f docker-compose.dev.yml down -v
+# ============================================================================
+volumes:
+  chain-data:
+    name: litho-dev-chain-data
+    driver: local
+  postgres-data:
+    name: litho-dev-postgres-data
+    driver: local
+  redis-data:
+    name: litho-dev-redis-data
+    driver: local
