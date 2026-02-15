@@ -1,45 +1,33 @@
 # ============================================================================
 # Lithosphere API Service - Production Dockerfile
-# Multi-stage build for minimal, secure production images
+# Two-stage build for minimal, secure production images
 # ============================================================================
 
 # ----------------------------------------------------------------------------
-# Stage 1: Dependencies
+# Stage 1: Build
 # ----------------------------------------------------------------------------
-FROM node:20-alpine AS deps
+FROM node:20-alpine AS builder
 
 RUN apk update && apk upgrade --no-cache
 
 WORKDIR /app
 
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+# Install dependencies first (layer cache)
 COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-RUN if [ -f pnpm-lock.yaml ]; then \
-        pnpm install --frozen-lockfile; \
-    else \
-        pnpm install; \
-    fi
-
-# ----------------------------------------------------------------------------
-# Stage 2: Builder
-# ----------------------------------------------------------------------------
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-COPY --from=deps /app/node_modules ./node_modules
+# Copy source and build
 COPY . .
-
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
 RUN pnpm run build
 
+# Remove dev dependencies
 RUN pnpm prune --prod
 
 # ----------------------------------------------------------------------------
-# Stage 3: Production Runner
+# Stage 2: Production Runner
 # ----------------------------------------------------------------------------
 FROM node:20-alpine AS runner
 

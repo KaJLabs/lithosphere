@@ -1,6 +1,6 @@
 # ============================================================================
-# Lithosphere Indexer Service - Production Dockerfile
-# Two-stage build for minimal, secure production images
+# Lithosphere Block Explorer - Production Dockerfile
+# Two-stage build for Next.js application
 # ============================================================================
 
 # ----------------------------------------------------------------------------
@@ -19,16 +19,23 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install
 
-# Copy source and build
+# Copy source
 COPY . .
 
-# Generate code from schema if using subql/subgraph
-RUN pnpm run codegen 2>/dev/null || true
+# Accept build-time env vars for Next.js public config
+ARG NEXT_PUBLIC_API_URL=http://localhost:4000
+ARG NEXT_PUBLIC_GRAPHQL_URL=http://localhost:4000/graphql
+ARG NEXT_PUBLIC_RPC_URL=http://localhost:8545
+ARG NEXT_PUBLIC_CHAIN_ID=777777
+ARG NEXT_PUBLIC_CHAIN_NAME=Litho Devnet
+
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_GRAPHQL_URL=$NEXT_PUBLIC_GRAPHQL_URL
+ENV NEXT_PUBLIC_RPC_URL=$NEXT_PUBLIC_RPC_URL
+ENV NEXT_PUBLIC_CHAIN_ID=$NEXT_PUBLIC_CHAIN_ID
+ENV NEXT_PUBLIC_CHAIN_NAME=$NEXT_PUBLIC_CHAIN_NAME
 
 RUN pnpm run build
-
-# Remove dev dependencies
-RUN pnpm prune --prod
 
 # ----------------------------------------------------------------------------
 # Stage 2: Production Runner
@@ -42,19 +49,20 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 WORKDIR /app
 
-COPY --from=builder --chown=lithosphere:nodejs /app/dist ./dist
-COPY --from=builder --chown=lithosphere:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=lithosphere:nodejs /app/package.json ./package.json
-COPY --from=builder --chown=lithosphere:nodejs /app/schema.graphql ./schema.graphql
+# Copy Next.js standalone output
+COPY --from=builder --chown=lithosphere:nodejs /app/public ./public
+COPY --from=builder --chown=lithosphere:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=lithosphere:nodejs /app/.next/static ./.next/static
 
 USER lithosphere
 
-EXPOSE 3001
+EXPOSE 3000
 
 ENV NODE_ENV=production
-ENV INDEXER_PORT=3001
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
-HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget -q --spider http://localhost:3001/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget -q --spider http://localhost:3000 || exit 1
 
-CMD ["node", "dist/mappings.js"]
+CMD ["node", "server.js"]

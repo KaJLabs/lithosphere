@@ -3,7 +3,10 @@ node_modules/
 .pnp
 .pnp.js
 .yarn/install-state.gz
+.pnpm-store/
 
+# Redundant / non-project files
+New Files/
 # Testing
 coverage/
 *.lcov
