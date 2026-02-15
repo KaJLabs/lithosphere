@@ -1,138 +1,221 @@
 # Developer Setup Guide
 
-This guide walks you through setting up a local Lithosphere development environment, including prerequisites, installation, available commands, and running services with Docker.
+Get a fully working Lithosphere development environment — chain, indexer, API, and block explorer — running on your machine with a single command. No prior blockchain experience required.
 
 ---
 
 ## Prerequisites
 
-Before you begin, ensure the following tools are installed on your system:
+You only need two things installed:
 
-| Tool       | Minimum Version | Notes                                      |
-|------------|----------------:|---------------------------------------------|
-| **Node.js** | >= 20           | LTS release recommended                    |
-| **pnpm**    | >= 9            | Fast, disk-efficient package manager        |
-| **Docker**  | latest          | Required only for local service development |
+| Tool                | Download                                                                 |
+| ------------------- | ------------------------------------------------------------------------ |
+| **Docker Desktop**  | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) |
+| **VS Code**         | [code.visualstudio.com](https://code.visualstudio.com/)                  |
 
-> **Tip:** You can install pnpm globally with `npm install -g pnpm` or use Corepack which ships with Node.js 16+:
-> ```bash
-> corepack enable
-> corepack prepare pnpm@latest --activate
-> ```
+> **Windows users:** Docker Desktop will prompt you to enable WSL 2 during installation. Accept the defaults — everything works out of the box.
+
+After installing VS Code, add the **Dev Containers** extension:
+
+```
+ext install ms-vscode-remote.remote-containers
+```
+
+That's it. Node.js, pnpm, Go, Solidity tooling, and all project dependencies are installed automatically inside the container.
 
 ---
 
-## Installation
+## 1 — Open the DevContainer (The "Magic" Button)
 
-Clone the repository and install dependencies:
+1. Clone the repo and open it in VS Code:
 
-```bash
-git clone https://github.com/KaJLabs/lithosphere.git
-cd lithosphere
-pnpm install
-```
+   ```bash
+   git clone https://github.com/KaJLabs/lithosphere.git
+   code lithosphere
+   ```
 
-Build all packages, run the test suite, and start the development server:
+2. VS Code will detect the `.devcontainer` configuration and show a notification:
 
-```bash
-pnpm build
-pnpm test
-pnpm dev
-```
+   > **Folder contains a Dev Container configuration file. Reopen folder to develop in a container?**
 
-If all three commands complete without errors, your environment is ready.
+   Click **"Reopen in Container"**.
 
----
+   *If you miss the notification, open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run:*
 
-## Development Commands
+   ```
+   Dev Containers: Reopen in Container
+   ```
 
-The monorepo provides the following commands at the root level. All commands are run via `pnpm`.
+3. **Wait for the build.** The first launch pulls the base image, installs tooling, and runs `pnpm install` across the monorepo. This takes **10–15 minutes** on a typical connection. Subsequent opens are near-instant.
 
-| Command            | Description                                                        |
-|--------------------|--------------------------------------------------------------------|
-| `pnpm build`       | Build all packages and applications for production.                |
-| `pnpm test`        | Run the full test suite across the monorepo.                       |
-| `pnpm lint`        | Run the linter to check for code style and quality issues.         |
-| `pnpm lint:fix`    | Run the linter and automatically fix any fixable issues.           |
-| `pnpm typecheck`   | Run TypeScript type checking across all packages.                  |
-| `pnpm format`      | Format source files using the configured formatter (Prettier).     |
-| `pnpm clean`       | Remove all build artifacts, caches, and `node_modules` directories.|
-| `pnpm dev`         | Start all development servers concurrently (API + Web).            |
-| `pnpm dev:api`     | Start only the API development server.                             |
-| `pnpm dev:web`     | Start only the Web frontend development server.                    |
+When the terminal shows `Done in …s`, your environment is ready.
 
----
+### What You Get
 
-## Local Development with Docker
+The DevContainer pre-installs everything a Lithosphere contributor needs:
 
-### Starting Core Services
-
-Use Docker Compose to spin up the core service stack:
-
-```bash
-docker compose up -d
-```
-
-This starts the essential services required for local development.
-
-### Starting with the Monitoring Stack
-
-To include the full monitoring and observability stack, use both compose files:
-
-```bash
-docker compose -f docker-compose.yaml -f docker-compose.monitoring.yaml up -d
-```
-
-### Services Overview
-
-The Docker Compose environment provides the following services:
-
-| Service                 | Description                                                                 |
-|-------------------------|-----------------------------------------------------------------------------|
-| **API (GraphQL)**       | The primary backend API exposing a GraphQL endpoint for client consumption. |
-| **Blockchain Indexer**  | Indexes on-chain data and stores it in PostgreSQL for fast querying.        |
-| **PostgreSQL**          | Relational database backing the API and Indexer.                            |
-| **Prometheus**          | Metrics collection and time-series database.                               |
-| **Grafana**             | Dashboards and visualization. Available at `http://localhost:3000`.         |
-| **Loki**                | Log aggregation system, integrated with Grafana for log queries.           |
-| **Promtail**            | Log shipping agent that forwards container logs to Loki.                   |
-| **Alertmanager**        | Alert routing and notification management for Prometheus alerts.           |
-
-> **Note:** Grafana is accessible at [http://localhost:3000](http://localhost:3000) once the monitoring stack is running. Default credentials are typically `admin` / `admin`.
-
-### Stopping Services
-
-```bash
-# Stop core services
-docker compose down
-
-# Stop core + monitoring services
-docker compose -f docker-compose.yaml -f docker-compose.monitoring.yaml down
-```
+| Tool / Extension          | Purpose                              |
+| ------------------------- | ------------------------------------ |
+| Node.js 20 + pnpm         | Runtime & package manager            |
+| Go 1.23                   | For chain-level tooling              |
+| Docker CLI + Compose      | Run the local stack from inside VS Code |
+| GitHub CLI                | PR workflows without leaving the terminal |
+| ESLint + Prettier          | Auto-format on save                  |
+| Hardhat Solidity extension | Syntax highlighting, go-to-definition for `.sol` files |
 
 ---
 
-## Environment Variables
+## 2 — Start the Network
 
-The following environment variables are used to configure the development environment. You can set them in a `.env` file at the project root or export them in your shell.
+Open the integrated terminal inside VS Code and run:
 
-| Variable           | Default / Example                          | Description                                                |
-|--------------------|--------------------------------------------|------------------------------------------------------------|
-| `DATABASE_URL`     | `postgresql://user:pass@localhost:5432/litho` | PostgreSQL connection string used by the API and Indexer.  |
-| `LITHO_CHAIN_ID`   | `61`                                       | The chain ID for the Lithosphere network.                  |
-| `LITHO_RPC_URL`    | `http://localhost:26657`                   | RPC endpoint URL for connecting to a Lithosphere node.     |
+```bash
+cd Makulu
+make up
+```
 
-Example `.env` file:
+This builds and launches **six services** via Docker Compose:
 
-```env
-DATABASE_URL=postgresql://litho:litho@localhost:5432/lithosphere
-LITHO_CHAIN_ID=61
-LITHO_RPC_URL=http://localhost:26657
+| Service          | URL / Port                          | Description                        |
+| ---------------- | ----------------------------------- | ---------------------------------- |
+| **LithoVM (Anvil)** | `http://localhost:8545`          | Local EVM chain (Chain ID `777777`, 2 s block time) |
+| **API (GraphQL)**    | `http://localhost:4000`          | Backend API with GraphQL playground |
+| **Indexer**          | `http://localhost:3001`          | Blockchain indexer (→ Postgres)    |
+| **Explorer**         | `http://localhost:3000`          | Block explorer UI                  |
+| **PostgreSQL**       | `localhost:5432`                 | Indexed chain data                 |
+| **Redis**            | `localhost:6379`                 | Caching layer                      |
+
+Once `make up` finishes, open [http://localhost:3000](http://localhost:3000) in your browser to see the block explorer.
+
+---
+
+## 3 — Seed the Devnet
+
+With the stack running, seed it with test data:
+
+```bash
+make seed
+```
+
+This executes a seed script that does four things:
+
+1. **Funds 5 mock wallets** with 1 000 LITHO each.
+2. **Deploys a LEP100 token contract** (the Lithosphere multi-token standard).
+3. **Mints 1 000 LEP100 tokens** to each mock wallet.
+4. **Generates transfer activity** between wallets so the explorer has data to display.
+
+You'll see 16 confirmed transactions in the terminal output. Refresh the explorer to see them.
+
+---
+
+## 4 — Connect MetaMask
+
+Add the local Lithosphere devnet to MetaMask so you can interact with it from your browser.
+
+### Add the Network
+
+Open MetaMask → **Settings → Networks → Add Network → Add a network manually** and enter:
+
+| Field              | Value                        |
+| ------------------ | ---------------------------- |
+| Network Name       | `Lithosphere Devnet`         |
+| RPC URL            | `http://localhost:8545`      |
+| Chain ID           | `777777`                     |
+| Currency Symbol    | `LITHO`                      |
+| Block Explorer URL | `http://localhost:3000`      |
+
+### Import a Funded Wallet
+
+After seeding, five wallets are pre-funded with 1 000 LITHO and 1 000 LEP100 tokens. Import any of them into MetaMask via **Import Account → Private Key**:
+
+| Wallet | Address | Private Key |
+| ------ | ------- | ----------- |
+| Mock 1 | `0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc` | `0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba` |
+| Mock 2 | `0x976EA74026E726554dB657fA54763abd0C3a0aa9` | `0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e` |
+| Mock 3 | `0x14dC79964da2C08b23698B3D3cc7Ca32193d9955` | `0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356` |
+| Mock 4 | `0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f` | `0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97` |
+| Mock 5 | `0xa0Ee7A142d267C1f36714E4a8F75612F20a79720` | `0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6` |
+
+> **Warning:** These are deterministic Anvil keys. **Never send real funds to these addresses.** They are publicly known and used by every developer running this stack.
+
+---
+
+## 5 — Day-to-Day Commands
+
+All Makefile targets run from the `Makulu/` directory:
+
+| Command          | What It Does                                                      |
+| ---------------- | ----------------------------------------------------------------- |
+| `make up`        | Build and start all services (waits for health checks)            |
+| `make down`      | Stop all services (volumes are preserved)                         |
+| `make restart`   | Stop → Start                                                     |
+| `make seed`      | Fund wallets + deploy LEP100 contract                             |
+| `make logs`      | Tail live logs from all services (`Ctrl+C` to stop)               |
+| `make status`    | Show container status                                             |
+| `make clean`     | **Factory reset** — removes all containers, volumes, and build artifacts |
+| `make help`      | Print the command reference                                       |
+
+---
+
+## Troubleshooting
+
+### "The install is taking forever…"
+
+The first `pnpm install` inside the DevContainer downloads ~1 300 packages for the entire monorepo. On a slower connection this can take **10–15 minutes**. This is normal — subsequent container starts reuse the cached `node_modules`.
+
+### "Port 8545 (or 3000, 4000…) is already in use"
+
+Another process is binding that port. Stop the stack and check:
+
+```bash
+make down
+
+# On Linux / macOS / WSL:
+lsof -i :8545
+
+# On Windows (PowerShell):
+netstat -ano | findstr :8545
+```
+
+Kill the conflicting process, then `make up` again.
+
+### "Docker commands don't work inside the container"
+
+The DevContainer mounts the host Docker socket. If you see permission errors:
+
+```bash
+# Verify the socket is mounted
+ls -la /var/run/docker.sock
+
+# Check your user is in the docker group
+groups
+```
+
+If `docker` is missing from the groups list, restart the container via the Command Palette → **Dev Containers: Rebuild Container**.
+
+### "make seed fails with 'connection refused'"
+
+The chain isn't running yet. Start the stack first:
+
+```bash
+make up
+# Wait for "Stack is up" message, then:
+make seed
+```
+
+### "I want to start fresh"
+
+```bash
+make clean   # Wipes everything: containers, volumes, build artifacts
+make up      # Rebuild from scratch
+make seed    # Re-seed the devnet
 ```
 
 ---
 
 ## Next Steps
 
-- [Validator Setup](quickstart/validator-setup.md) -- Run a validator node locally or on a network.
-- [CLI Tools Reference](quickstart/cli-tools.md) -- Explore the `lithod` binary and `create-litho-app` scaffolding tool.
+- [CLI Tools Reference](quickstart/cli-tools.md) — Explore the `lithod` binary and `create-litho-app` scaffolding tool.
+- [Smart Contracts](developers/smart-contracts.md) — Write and deploy LEP100 contracts on Lithosphere.
+- [Hardhat Example](developers/examples/hardhat-example.md) — A step-by-step Hardhat project targeting the local devnet.
+- [Architecture Overview](introduction/architecture-overview.md) — Understand how the chain, indexer, and API fit together.
