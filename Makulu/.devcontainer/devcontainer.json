@@ -1,0 +1,103 @@
+// ============================================================================
+// Lithosphere Developer Container
+// ============================================================================
+// Opens the Makulu monorepo in a fully configured dev environment.
+//
+// Quick start:
+//   1. VS Code → Ctrl+Shift+P → "Dev Containers: Reopen in Container"
+//   2. Wait for the build + postCreateCommand (pnpm install) to finish.
+//   3. Run `make up` in the integrated terminal to start the local stack.
+//   4. Run `make seed` to fund wallets and deploy the demo LEP100 contract.
+// ============================================================================
+{
+  "name": "Lithosphere Dev",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+
+  // --------------------------------------------------------------------------
+  // Dev Container Features
+  // --------------------------------------------------------------------------
+  "features": {
+    // Docker-outside-of-Docker: reuses the host Docker daemon via socket mount.
+    // More reliable on Windows/Docker Desktop than docker-in-docker.
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "dockerDashComposeVersion": "v2",
+      "installDockerBuildx": true
+    },
+    // GitHub CLI for PR workflows
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    // Go toolchain (future toolchain needs)
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "latest"
+    },
+    // Foundry (forge, cast, anvil) for smart contract development
+    "ghcr.io/devcontainers/features/node-version-manager:1": {}
+  },
+
+  // --------------------------------------------------------------------------
+  // VS Code Customizations
+  // --------------------------------------------------------------------------
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // Linting & formatting
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        // Solidity / Hardhat
+        "NomicFoundation.hardhat-solidity",
+        // Config file support
+        "tamasfe.even-better-toml"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "[solidity]": {
+          "editor.defaultFormatter": "NomicFoundation.hardhat-solidity"
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // Lifecycle
+  // --------------------------------------------------------------------------
+  // Install all monorepo dependencies on first build.
+  // Deliberately does NOT run `make up` — the stack is heavy; let devs start
+  // it manually when they're ready.
+  "postCreateCommand": "pnpm install --frozen-lockfile || pnpm install",
+
+  // --------------------------------------------------------------------------
+  // Ports
+  // --------------------------------------------------------------------------
+  "forwardPorts": [
+    8545,  // LithoVM RPC
+    4000,  // API
+    3001,  // Indexer
+    3000,  // Explorer
+    5432,  // Postgres
+    6379   // Redis
+  ],
+  "portsAttributes": {
+    "8545": { "label": "LithoVM RPC",  "onAutoForward": "silent" },
+    "4000": { "label": "API",          "onAutoForward": "notify" },
+    "3001": { "label": "Indexer",      "onAutoForward": "silent" },
+    "3000": { "label": "Explorer",     "onAutoForward": "notify" },
+    "5432": { "label": "Postgres",     "onAutoForward": "silent" },
+    "6379": { "label": "Redis",        "onAutoForward": "silent" }
+  },
+
+  // --------------------------------------------------------------------------
+  // Environment
+  // --------------------------------------------------------------------------
+  "remoteUser": "node",
+  "workspaceFolder": "/workspaces/lithosphere/Makulu"
+}

@@ -1,0 +1,79 @@
+// ============================================================================
+// Lithosphere Developer Container
+// ============================================================================
+// Opens the repo in a fully configured dev environment.
+//
+// Quick start:
+//   1. VS Code → Ctrl+Shift+P → "Dev Containers: Reopen in Container"
+//   2. Wait for the build + postCreateCommand (pnpm install) to finish.
+//   3. cd Makulu && make up    — start the local stack
+//   4. make seed               — fund wallets & deploy demo LEP100 contract
+// ============================================================================
+{
+  "name": "Lithosphere Dev",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+
+  // --------------------------------------------------------------------------
+  // Docker: mount host socket so docker/compose commands work inside container
+  // --------------------------------------------------------------------------
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
+
+  // --------------------------------------------------------------------------
+  // VS Code Customizations
+  // --------------------------------------------------------------------------
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "NomicFoundation.hardhat-solidity",
+        "tamasfe.even-better-toml"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "[solidity]": {
+          "editor.defaultFormatter": "NomicFoundation.hardhat-solidity"
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // Lifecycle
+  // --------------------------------------------------------------------------
+  "postCreateCommand": "cd Makulu && pnpm install --frozen-lockfile || pnpm install",
+
+  // --------------------------------------------------------------------------
+  // Ports
+  // --------------------------------------------------------------------------
+  "forwardPorts": [8545, 4000, 3001, 3000, 5432, 6379],
+  "portsAttributes": {
+    "8545": { "label": "LithoVM RPC",  "onAutoForward": "silent" },
+    "4000": { "label": "API",          "onAutoForward": "notify" },
+    "3001": { "label": "Indexer",      "onAutoForward": "silent" },
+    "3000": { "label": "Explorer",     "onAutoForward": "notify" },
+    "5432": { "label": "Postgres",     "onAutoForward": "silent" },
+    "6379": { "label": "Redis",        "onAutoForward": "silent" }
+  },
+
+  // --------------------------------------------------------------------------
+  // Environment
+  // --------------------------------------------------------------------------
+  "remoteUser": "node"
+}
