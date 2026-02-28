@@ -223,6 +223,8 @@ services:
   # Serves the public-facing explorer UI on port 3000
   # --------------------------------------------------------------------------
   explorer:
+    profiles:
+      - explorer            # Explorer is deployed via Lithoscan stack (/opt/lithoscan)
     image: ${REGISTRY:-ghcr.io}/kajlabs/lithosphere-explorer:${IMAGE_TAG:-latest}
     container_name: litho-explorer
     build:

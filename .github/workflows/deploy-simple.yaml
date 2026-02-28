@@ -139,12 +139,11 @@ jobs:
             echo "🐳 Building Docker images..."
             docker compose build api indexer
 
-            echo "🛑 Stopping explorer from Makulu stack (handled by Lithoscan)..."
-            docker compose stop explorer 2>/dev/null || true
-            docker compose rm -f explorer 2>/dev/null || true
+            echo "🛑 Removing leftover explorer container (handled by Lithoscan)..."
+            docker rm -f litho-explorer 2>/dev/null || true
 
             echo "🔄 Restarting services..."
-            docker compose up -d --remove-orphans --no-deps api indexer postgres redis
+            docker compose up -d --remove-orphans
             
             echo "🧹 Cleaning up..."
             cd /opt/lithosphere
