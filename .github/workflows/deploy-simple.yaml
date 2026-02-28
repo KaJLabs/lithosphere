@@ -89,10 +89,11 @@ jobs:
           echo "✅ Required secrets are configured"
 
       - name: Add Server to Known Hosts
+        continue-on-error: true
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>&1 || echo "Warning: ssh-keyscan failed, will add on first connection"
+          ssh-keyscan -T 10 -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>&1 || echo "Warning: ssh-keyscan failed, will add on first connection"
           chmod 644 ~/.ssh/known_hosts || true
 
       - name: Deploy to Server
@@ -390,9 +391,12 @@ ENVEOF
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
       - name: Add Server to Known Hosts
+        continue-on-error: true
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          ssh-keyscan -T 10 -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>&1 || true
+          chmod 644 ~/.ssh/known_hosts || true
 
       - name: Rollback
         env:
