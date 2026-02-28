@@ -302,9 +302,35 @@ BEGIN
 END
 $$;
 
+-- ============================================================================
+-- GENESIS ACCOUNTS (from address_mapping_litho.csv — 15 genesis allocations)
+-- ============================================================================
+-- These are the initial token holders from the Lithosphere genesis block.
+-- allocation is in whole LITHO (1 LITHO = 10^18 ulitho).
+
+INSERT INTO accounts (address, evm_address, balance, sequence, account_number, account_type, first_seen_block, last_seen_block, tx_count)
+VALUES
+    ('litho1jqa20fhuxlceg7mwflpcxgfe4r2p2g2f0nrnj5', '0x903AA7a6fc37F1947B6e4fC3832139A8D4152149', '190000000000000000000000000', 0, 1, 'genesis', 1, 1, 0),
+    ('litho1fe7hgzhc384dejgzlycyx9t80ere4vakcnphsm', '0x4E7d740Af889EADcC902F9304315677E479aB3b6', '190000000000000000000000000', 0, 2, 'genesis', 1, 1, 0),
+    ('litho13qvmr0wdwun3rqq5qqahqxvzm8c3559pfwwwr0', '0x8819B1BdcD7727118014003b701982d9F11A50a1', '50000000000000000000000000', 0, 3, 'genesis', 1, 1, 0),
+    ('litho1yzxrtd9uetfy5hmzzzqhq2sv2yteaafzes2e67', '0x208c35b4bCCAd24a5F621081702a0C51179Ef522', '50000000000000000000000000', 0, 4, 'genesis', 1, 1, 0),
+    ('litho1v43usrfpru2t7caph9snajs7nf5j2ghuqwxyfc', '0x6563c80D211f14bf63a1B9613ECA1e9a692522Fc', '75000000000000000000000000', 0, 5, 'genesis', 1, 1, 0),
+    ('litho17y8ecmw5p0e5kmvuq2q3m3t98hwz0r2t8su5ng', '0xF10f9C6Dd40bF34B6d9c02811dC5653dDc278D4b', '75000000000000000000000000', 0, 6, 'genesis', 1, 1, 0),
+    ('litho12sdvp8mtl9elhec5mk630u3ge9t8hj5p383gu9', '0x541ac09f6bf973fbe714ddb517f228c9567bca81', '50000000000000000000000000', 0, 7, 'genesis', 1, 1, 0),
+    ('litho1kuaqzyng4prjn7cp45qel58nqweajx7mx45ayp', '0xb73a011268a84729fb01ad019fd0f303b3d91bdb', '50000000000000000000000000', 0, 8, 'genesis', 1, 1, 0),
+    ('litho13rf5cdrsrk073gl3npslv857ya7uufww5437lz', '0x88d34c34701d9fe8a3f19861f61e9e277dce25ce', '25000000000000000000000000', 0, 9, 'genesis', 1, 1, 0),
+    ('litho1kaltpxap8ymlfcykekggpgt228zst3lly2t6mm', '0xb77eb09ba13937f4e096cd9080a16a51c505c7ff', '25000000000000000000000000', 0, 10, 'genesis', 1, 1, 0),
+    ('litho1spzck5q8cymezjyaqw62g8s6hjfsg8cxqsrvww', '0x80458b5007c13791489d03b4a41e1abc93041f06', '35000000000000000000000000', 0, 11, 'genesis', 1, 1, 0),
+    ('litho1h4cl2cxaxzzfxw7qgamn2zuj7cfwjwts6w6rkw', '0xbd71f560dd3084933bc04777350b92f612e93970', '35000000000000000000000000', 0, 12, 'genesis', 1, 1, 0),
+    ('litho14c3y86hfd69kwqmdkup9y90ertu53cu6ewpr7h', '0xae2243eae96e8b67036db7025215f91af948e39a', '40000000000000000000000000', 0, 13, 'genesis', 1, 1, 0),
+    ('litho1g5vc8rcxla03p2456gsfayevpwt44yhxm72naj', '0x4519838f06ff5f10aab4d2209e932c0b975a92e6', '40000000000000000000000000', 0, 14, 'genesis', 1, 1, 0),
+    ('litho187m5cwfthxyspdzrpqvzs9c6f6k5gzenw8lkq2', '0x3fb74c392BB98900b443081828171a4Ead440B33', '70000000000000000000000000', 0, 15, 'genesis', 1, 1, 0)
+ON CONFLICT (address) DO NOTHING;
+
 -- Log initialization
 DO $$
 BEGIN
     RAISE NOTICE 'LITHOSCAN database initialized successfully at %', NOW();
+    RAISE NOTICE 'Genesis accounts seeded: 15 accounts from address_mapping_litho.csv';
 END
 $$;
