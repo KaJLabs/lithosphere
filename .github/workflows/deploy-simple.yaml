@@ -137,10 +137,10 @@ jobs:
             fi
 
             echo "🐳 Building Docker images..."
-            docker compose build api indexer explorer
-            
-            echo "🔄 Restarting services..."
-            docker compose up -d --remove-orphans
+            docker compose build api indexer
+
+            echo "🔄 Restarting services (explorer handled by Lithoscan stack)..."
+            docker compose up -d --remove-orphans --no-deps api indexer postgres redis
             
             echo "🧹 Cleaning up..."
             cd /opt/lithosphere
