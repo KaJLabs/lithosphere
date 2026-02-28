@@ -146,6 +146,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write   # Required for OIDC → AWS role assumption
 
     defaults:
       run:
@@ -154,6 +155,25 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        if: github.event.inputs.environment == 'mainnet'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Fetch RDS Credentials from Secrets Manager
+        if: github.event.inputs.environment == 'mainnet'
+        id: rds-creds
+        run: |
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
+            --secret-id "litho-mainnet-rds-credentials" \
+            --query SecretString --output text)
+          echo "::add-mask::$(echo "$SECRET_JSON" | jq -r '.password')"
+          echo "rds_endpoint=$(echo "$SECRET_JSON" | jq -r '.host')" >> $GITHUB_OUTPUT
+          echo "rds_username=$(echo "$SECRET_JSON" | jq -r '.username')" >> $GITHUB_OUTPUT
+          echo "rds_password=$(echo "$SECRET_JSON" | jq -r '.password')" >> $GITHUB_OUTPUT
 
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -361,14 +381,31 @@ jobs:
             cp -r lithosphere/Makulu/* $DEPLOY_PATH/
             rm -rf lithosphere
             
-            # Copy environment file and deploy
+            # Copy environment file based on target environment
             cd $DEPLOY_PATH
-            cp .env.testnet .env
-            export IMAGE_TAG=${{ github.event.inputs.environment || 'testnet' }}
-            docker compose build api indexer
+            ENV=${{ github.event.inputs.environment || 'testnet' }}
+            if [ -f .env.\${ENV} ]; then
+              cp .env.\${ENV} .env
+            elif [ -f .env.testnet ]; then
+              cp .env.testnet .env
+            fi
+
+            # For mainnet: inject RDS DATABASE_URL (from AWS Secrets Manager via OIDC)
+            if [ \"\${ENV}\" = 'mainnet' ]; then
+              RDS_URL='${{ steps.rds-creds.outputs.rds_endpoint }}'
+              RDS_USER='${{ steps.rds-creds.outputs.rds_username }}'
+              RDS_PASS='${{ steps.rds-creds.outputs.rds_password }}'
+              if [ -n \"\$RDS_URL\" ] && [ -n \"\$RDS_PASS\" ]; then
+                sed -i \"s|^DATABASE_URL=.*|DATABASE_URL=postgresql://\${RDS_USER}:\${RDS_PASS}@\${RDS_URL}:5432/lithoscan|\" .env
+                echo 'DATABASE_URL set to RDS endpoint.'
+              fi
+            fi
+
+            export IMAGE_TAG=\${ENV}
+            docker compose build api indexer explorer
             docker compose up -d
           "
-          
+
           # Get the service URL
           SERVICE_URL="http://$SERVER_IP:4000"
           echo "service_url=$SERVICE_URL" >> $GITHUB_OUTPUT

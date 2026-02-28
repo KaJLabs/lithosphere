@@ -144,24 +144,52 @@ jobs:
             echo "prometheus_status=unhealthy" >> $GITHUB_OUTPUT
           fi
 
-      - name: Check Grafana Dashboard
+      - name: Check Explorer Frontend (makalu.litho.ai — :3000)
+        id: explorer-health
+        continue-on-error: true
+        run: |
+          echo "🌐 Checking Explorer frontend..."
+
+          if [ "${{ env.ENVIRONMENT }}" = "testnet" ]; then
+            EXPLORER_URL="http://${{ secrets.SERVER_IP }}:3000"
+          elif [ "${{ env.ENVIRONMENT }}" = "mainnet" ]; then
+            EXPLORER_URL="https://makalu.litho.ai"
+          else
+            echo "Skipping Explorer check for ${{ env.ENVIRONMENT }}"
+            exit 0
+          fi
+
+          HTTP_CODE=$(curl -s -o /tmp/explorer-response.txt -w "%{http_code}" \
+            --connect-timeout 10 \
+            --max-time 30 \
+            "$EXPLORER_URL" || echo "000")
+
+          if [[ "$HTTP_CODE" =~ ^[23] ]]; then
+            echo "✅ Explorer is accessible (HTTP $HTTP_CODE)!"
+            echo "explorer_status=healthy" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::⚠️ Explorer check returned HTTP $HTTP_CODE"
+            echo "explorer_status=unhealthy" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check Grafana Dashboard (:3001)
         id: grafana-health
         continue-on-error: true
         run: |
           echo "📈 Checking Grafana dashboard..."
-          
+
           if [ "${{ env.ENVIRONMENT }}" = "testnet" ]; then
-            GRAFANA_URL="http://${{ secrets.SERVER_IP }}:3000"
+            GRAFANA_URL="http://${{ secrets.SERVER_IP }}:3001"
           else
             echo "Skipping Grafana check for ${{ env.ENVIRONMENT }}"
             exit 0
           fi
-          
+
           HTTP_CODE=$(curl -s -o /tmp/grafana-response.json -w "%{http_code}" \
             --connect-timeout 10 \
             --max-time 30 \
             "$GRAFANA_URL/api/health" || echo "000")
-          
+
           if [ "$HTTP_CODE" = "200" ]; then
             echo "✅ Grafana is accessible!"
             echo "grafana_status=healthy" >> $GITHUB_OUTPUT
@@ -181,8 +209,9 @@ jobs:
           echo "|---------|--------|-----------|" >> $GITHUB_STEP_SUMMARY
           echo "| API Health | ${{ steps.api-health.outputs.health_status || '❌ failed' }} | ${{ steps.api-health.outputs.http_code || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| GraphQL | ${{ steps.graphql-health.outputs.graphql_status || '❌ failed' }} | N/A |" >> $GITHUB_STEP_SUMMARY
+          echo "| Explorer (:3000) | ${{ steps.explorer-health.outputs.explorer_status || 'skipped' }} | N/A |" >> $GITHUB_STEP_SUMMARY
           echo "| Prometheus | ${{ steps.prometheus-health.outputs.prometheus_status || 'skipped' }} | N/A |" >> $GITHUB_STEP_SUMMARY
-          echo "| Grafana | ${{ steps.grafana-health.outputs.grafana_status || 'skipped' }} | N/A |" >> $GITHUB_STEP_SUMMARY
+          echo "| Grafana (:3001) | ${{ steps.grafana-health.outputs.grafana_status || 'skipped' }} | N/A |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ steps.api-health.outputs.health_status }}" = "healthy" ]; then

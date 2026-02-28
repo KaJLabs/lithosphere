@@ -34,7 +34,7 @@ services:
       - API_HOST=0.0.0.0
       - DATABASE_URL=${DATABASE_URL}
       - LITHO_RPC_URL=${LITHO_RPC_URL}
-      - LITHO_CHAIN_ID=${LITHO_CHAIN_ID:-61}
+      - LITHO_CHAIN_ID=${LITHO_CHAIN_ID:-777777}
       - GRAPHQL_PLAYGROUND=${GRAPHQL_PLAYGROUND:-false}
       - REDIS_URL=redis://redis:6379
       - PROMETHEUS_ENABLED=true
@@ -85,7 +85,7 @@ services:
       - NODE_ENV=${NODE_ENV:-production}
       - DATABASE_URL=${DATABASE_URL}
       - LITHO_RPC_URL=${LITHO_RPC_URL}
-      - LITHO_CHAIN_ID=${LITHO_CHAIN_ID:-61}
+      - LITHO_CHAIN_ID=${LITHO_CHAIN_ID:-777777}
       - INDEXER_START_BLOCK=${INDEXER_START_BLOCK:-0}
       - INDEXER_BATCH_SIZE=${INDEXER_BATCH_SIZE:-100}
       - INDEXER_CONFIRMATIONS=${INDEXER_CONFIRMATIONS:-12}
@@ -219,6 +219,63 @@ services:
       - litho-network
 
   # --------------------------------------------------------------------------
+  # Block Explorer - Next.js Frontend (makalu.litho.ai)
+  # Serves the public-facing explorer UI on port 3000
+  # --------------------------------------------------------------------------
+  explorer:
+    image: ${REGISTRY:-ghcr.io}/kajlabs/lithosphere-explorer:${IMAGE_TAG:-latest}
+    container_name: litho-explorer
+    build:
+      context: ./explorer
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+        NEXT_PUBLIC_GRAPHQL_URL: ${NEXT_PUBLIC_GRAPHQL_URL:-http://localhost:4000/graphql}
+        NEXT_PUBLIC_RPC_URL: ${NEXT_PUBLIC_RPC_URL:-https://rpc.litho.ai}
+        NEXT_PUBLIC_CHAIN_ID: ${CHAIN_ID:-lithosphere_777777-1}
+        NEXT_PUBLIC_CHAIN_NAME: ${CHAIN_NAME:-Lithosphere}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://makalu.litho.ai}
+    restart: unless-stopped
+    ports:
+      - "${EXPLORER_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://makalu.litho.ai/api}
+      - NEXT_PUBLIC_GRAPHQL_URL=${NEXT_PUBLIC_GRAPHQL_URL:-https://makalu.litho.ai/api/graphql}
+      - NEXT_PUBLIC_RPC_URL=${NEXT_PUBLIC_RPC_URL:-https://rpc.litho.ai}
+      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-wss://rpc.litho.ai/websocket}
+      - NEXT_PUBLIC_CHAIN_ID=${CHAIN_ID:-lithosphere_777777-1}
+      - NEXT_PUBLIC_CHAIN_NAME=${CHAIN_NAME:-Lithosphere}
+      - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-https://makalu.litho.ai}
+    env_file:
+      - .env
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service,environment"
+        tag: "{{.Name}}/{{.ID}}"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      litho-network:
+        aliases:
+          - litho-explorer
+          - explorer
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.explorer.rule=Host(`makalu.litho.ai`)"
+      - "traefik.http.services.explorer.loadbalancer.server.port=3000"
+
+  # --------------------------------------------------------------------------
   # Prometheus Metrics Collector
   # --------------------------------------------------------------------------
   prometheus:
@@ -250,7 +307,7 @@ services:
       - monitoring
     restart: unless-stopped
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "${GRAFANA_PORT:-3001}:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-lithosphere}
