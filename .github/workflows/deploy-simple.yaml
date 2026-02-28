@@ -139,7 +139,7 @@ jobs:
             docker compose build api indexer explorer
             
             echo "🔄 Restarting services..."
-            docker compose up -d
+            docker compose up -d --remove-orphans
             
             echo "🧹 Cleaning up..."
             cd /opt/lithosphere
@@ -407,7 +407,7 @@ ENVEOF
             
             # Restart with previous version
             docker compose down --timeout 30
-            docker compose up -d
+            docker compose up -d --remove-orphans
             
             echo "Rollback initiated"
           ENDSSH
