@@ -31,7 +31,7 @@ PERF_FAIL=0
 # Configuration
 VPS_IP="${SERVER_IP:-72.60.177.106}"
 API_PORT="${API_PORT:-4000}"
-GRAFANA_PORT="${GRAFANA_PORT:-3000}"
+GRAFANA_PORT="${GRAFANA_PORT:-3001}"
 PROMETHEUS_PORT="${PROMETHEUS_PORT:-9091}"
 
 # ============================================================================
