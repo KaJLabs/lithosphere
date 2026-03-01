@@ -120,7 +120,7 @@ jobs:
 
       - name: Deploy to Server
         env:
-          SERVER_IP: ${{ secrets.INDEXER_IP }}
+          INDEXER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
         run: |
@@ -179,7 +179,7 @@ jobs:
       - name: Inject RDS DATABASE_URL for Mainnet
         if: github.event.inputs.environment == 'mainnet'
         env:
-          SERVER_IP: ${{ secrets.INDEXER_IP }}
+          INDEXER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           RDS_ENDPOINT: ${{ steps.rds-creds.outputs.rds_endpoint }}
           RDS_USERNAME: ${{ steps.rds-creds.outputs.rds_username }}
@@ -200,7 +200,7 @@ jobs:
       # ── Lithoscan Explorer deploy ───────────────────────────────────────────
       - name: Write Explorer Production .env
         env:
-          SERVER_IP: ${{ secrets.INDEXER_IP }}
+          INDEXER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           LITHOSCAN_PATH: ${{ env.LITHOSCAN_PATH }}
           EXPLORER_ENV_PATH: ${{ env.EXPLORER_ENV_PATH }}
@@ -252,7 +252,7 @@ jobs:
 
       - name: Deploy Explorer Stack via docker compose
         env:
-          SERVER_IP: ${{ secrets.INDEXER_IP }}
+          INDEXER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           LITHOSCAN_PATH: ${{ env.LITHOSCAN_PATH }}
         run: |
@@ -294,7 +294,7 @@ jobs:
 
       - name: Health Check — API Service
         env:
-          SERVER_IP: ${{ secrets.INDEXER_IP }}
+          INDEXER_IP: ${{ secrets.INDEXER_IP }}
         run: |
           echo "🏥 Running health checks..."
 
@@ -330,7 +330,7 @@ jobs:
 
       - name: Health Check — Explorer Frontend (:3000)
         env:
-          SERVER_IP: ${{ secrets.INDEXER_IP }}
+          INDEXER_IP: ${{ secrets.INDEXER_IP }}
         run: |
           echo "🌐 Checking Explorer frontend at http://$INDEXER_IP:3000 ..."
 
@@ -363,7 +363,7 @@ jobs:
 
       - name: Test API Endpoints
         env:
-          SERVER_IP: ${{ secrets.INDEXER_IP }}
+          INDEXER_IP: ${{ secrets.INDEXER_IP }}
         run: |
           echo "🧪 Testing API endpoints..."
           
@@ -438,7 +438,7 @@ jobs:
 
       - name: Rollback
         env:
-          SERVER_IP: ${{ secrets.INDEXER_IP }}
+          INDEXER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
         run: |
