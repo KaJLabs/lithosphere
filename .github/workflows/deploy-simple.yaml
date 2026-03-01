@@ -101,6 +101,7 @@ jobs:
               "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
             set -e
             sudo mkdir -p /opt/lithosphere
+            sudo chown "$USER:$USER" /opt/lithosphere
             cd /opt/lithosphere
 
             echo "📦 Pulling latest code from GitHub..."
