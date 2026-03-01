@@ -196,43 +196,55 @@ jobs:
 
       - name: Health Check — API Service
         run: |
-          echo "🏥 Checking API at http://$INDEXER_IP:4000/health ..."
-          MAX_RETRIES=5; RETRY_DELAY=10
-          for i in $(seq 1 $MAX_RETRIES); do
-            HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
-              --connect-timeout 10 --max-time 30 \
-              "http://$INDEXER_IP:4000/health" || echo "000")
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ API health check passed!"; cat /tmp/response.txt; break
-            fi
-            echo "⚠️  Attempt $i: HTTP $HTTP_CODE"
-            [ $i -lt $MAX_RETRIES ] && sleep $RETRY_DELAY
-          done
-          [ "$HTTP_CODE" != "200" ] && { echo "::error::❌ API health check failed"; exit 1; } || true
+          echo "🏥 Checking API on indexer (localhost:4000/health via SSH)..."
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+            MAX_RETRIES=5; RETRY_DELAY=10
+            for i in $(seq 1 $MAX_RETRIES); do
+              HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+                --connect-timeout 10 --max-time 30 \
+                "http://localhost:4000/health" || echo "000")
+              if [ "$HTTP_CODE" = "200" ]; then
+                echo "✅ API health check passed!"; cat /tmp/response.txt; break
+              fi
+              echo "⚠️  Attempt $i: HTTP $HTTP_CODE"
+              [ $i -lt $MAX_RETRIES ] && sleep $RETRY_DELAY
+            done
+            [ "$HTTP_CODE" != "200" ] && { echo "❌ API health check failed"; exit 1; } || true
+          ENDSSH
 
       - name: Health Check — Explorer Frontend (:3000)
         run: |
-          echo "🌐 Checking Explorer at http://$INDEXER_IP:3000 ..."
-          MAX_RETRIES=6; RETRY_DELAY=15
-          for i in $(seq 1 $MAX_RETRIES); do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-              --connect-timeout 10 --max-time 30 \
-              "http://$INDEXER_IP:3000" || echo "000")
-            echo "  Attempt $i: HTTP $HTTP_CODE"
-            [[ "$HTTP_CODE" =~ ^[23] ]] && { echo "✅ Explorer responding (HTTP $HTTP_CODE)"; break; }
-            [ $i -lt $MAX_RETRIES ] && sleep $RETRY_DELAY
-          done
-          [[ "$HTTP_CODE" =~ ^[23] ]] || { echo "::error::❌ Explorer health check failed"; exit 1; }
+          echo "🌐 Checking Explorer on indexer (localhost:3000 via SSH)..."
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+            MAX_RETRIES=6; RETRY_DELAY=15
+            for i in $(seq 1 $MAX_RETRIES); do
+              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                --connect-timeout 10 --max-time 30 \
+                "http://localhost:3000" || echo "000")
+              echo "  Attempt $i: HTTP $HTTP_CODE"
+              case "$HTTP_CODE" in 2*|3*) echo "✅ Explorer responding (HTTP $HTTP_CODE)"; break ;; esac
+              [ $i -lt $MAX_RETRIES ] && sleep $RETRY_DELAY
+            done
+            case "$HTTP_CODE" in 2*|3*) true ;; *) echo "❌ Explorer health check failed"; exit 1 ;; esac
+          ENDSSH
 
       - name: Test API Endpoints
         run: |
-          echo "🧪 Testing API endpoints..."
-          curl -f "http://$INDEXER_IP:4000/health"
-          curl -f "http://$INDEXER_IP:4000/api/litho"
-          curl -f -X POST -H "Content-Type: application/json" \
-            -d '{"query":"{ __typename }"}' \
-            "http://$INDEXER_IP:4000/graphql"
-          echo "✅ All endpoint tests passed!"
+          echo "🧪 Testing API endpoints on indexer via SSH..."
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+            curl -f "http://localhost:4000/health"
+            curl -f "http://localhost:4000/api/litho"
+            curl -f -X POST -H "Content-Type: application/json" \
+              -d '{"query":"{ __typename }"}' \
+              "http://localhost:4000/graphql"
+            echo "✅ All endpoint tests passed!"
+          ENDSSH
 
       - name: Generate Deployment Summary
         if: always()
