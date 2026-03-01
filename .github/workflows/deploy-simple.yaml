@@ -116,7 +116,7 @@ jobs:
 
             echo "📋 Copying files to deployment directory..."
             mkdir -p Makulu
-            cp -r lithosphere/Makulu/* Makulu/
+            cp -r lithosphere/Makulu/. Makulu/
             cp -r lithosphere/.github Makulu/ 2>/dev/null || true
 
             echo "🔧 Configuring environment..."
