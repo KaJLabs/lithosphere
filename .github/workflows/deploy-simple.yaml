@@ -93,6 +93,24 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
           echo "✅ Secrets validated. Bastion: $BASTION_HOST → Indexer: $INDEXER_IP"
 
+      - name: Bootstrap Server (install Docker if missing)
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+            if ! command -v docker &>/dev/null; then
+              echo "🐳 Installing Docker..."
+              sudo dnf install -y docker
+              sudo systemctl enable --now docker
+              sudo usermod -aG docker "$USER"
+              sudo dnf install -y docker-compose-plugin
+              echo "✅ Docker installed"
+            else
+              echo "✅ Docker present: $(docker --version 2>/dev/null || sudo docker --version)"
+            fi
+            sudo systemctl start docker 2>/dev/null || true
+          ENDSSH
+
       - name: Deploy to Server
         run: |
           echo "🚀 Deploying Lithosphere to $INDEXER_IP via bastion $BASTION_HOST..."
@@ -131,13 +149,13 @@ jobs:
             fi
 
             echo "🐳 Building Docker images..."
-            docker compose build api indexer
+            sudo docker compose build api indexer
 
             echo "🛑 Removing leftover explorer container (handled by Lithoscan stack)..."
-            docker rm -f litho-explorer 2>/dev/null || true
+            sudo docker rm -f litho-explorer 2>/dev/null || true
 
             echo "🔄 Restarting services..."
-            docker compose up -d --remove-orphans
+            sudo docker compose up -d --remove-orphans
 
             echo "🧹 Cleaning up..."
             cd /opt/lithosphere
@@ -236,11 +254,11 @@ jobs:
 
             echo "Using compose file: $COMPOSE_FILE"
 
-            docker compose -f "$COMPOSE_FILE" \
+            sudo docker compose -f "$COMPOSE_FILE" \
               --env-file /opt/lithoscan/monitoring/explorer/.env \
               pull --ignore-pull-failures 2>/dev/null || true
 
-            docker compose -f "$COMPOSE_FILE" \
+            sudo docker compose -f "$COMPOSE_FILE" \
               --env-file /opt/lithoscan/monitoring/explorer/.env \
               up -d --build --remove-orphans
 
