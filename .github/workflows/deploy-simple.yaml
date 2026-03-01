@@ -35,7 +35,7 @@ env:
   SERVER_USER: ${{ secrets.SERVER_USER }}
 
 concurrency:
-  group: deploy-${{ github.event.inputs.environment || 'testnet' }}
+  group: deploy-${{ github.event.inputs.environment || 'mainnet' }}
   cancel-in-progress: false
 
 jobs:
@@ -121,7 +121,7 @@ jobs:
 
             echo "🔧 Configuring environment..."
             cd Makulu
-            ENV="${{ github.event.inputs.environment || 'testnet' }}"
+            ENV="${{ github.event.inputs.environment || 'mainnet' }}"
             if [ -f ".env.${ENV}" ]; then
               cp ".env.${ENV}" .env
               echo "Using .env.${ENV}"
@@ -297,7 +297,7 @@ jobs:
           echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Environment | ${{ github.event.inputs.environment || 'testnet' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ github.event.inputs.environment || 'mainnet' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Indexer EC2 | $INDEXER_IP |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployed At | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
