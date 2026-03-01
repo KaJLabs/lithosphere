@@ -71,60 +71,63 @@ jobs:
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          # Load both keys: bastion key + indexer key (may be same key pair on AWS)
+          ssh-private-key: |
+            ${{ secrets.BASTION_SSH_KEY }}
+            ${{ secrets.INDEXER_SSH_KEY }}
 
       - name: Validate Secrets
         env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
+          INDEXER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-          BASTION_IP: ${{ secrets.BASTION_IP }}
+          BASTION_HOST: ${{ secrets.BASTION_HOST }}
         run: |
-          if [ -z "$SERVER_IP" ]; then
-            echo "❌ Error: SERVER_IP secret is not set"
+          if [ -z "$INDEXER_IP" ]; then
+            echo "❌ Error: INDEXER_IP secret is not set"
             exit 1
           fi
           if [ -z "$SERVER_USER" ]; then
             echo "❌ Error: SERVER_USER secret is not set"
             exit 1
           fi
-          if [ -z "$BASTION_IP" ]; then
-            echo "❌ Error: BASTION_IP secret is not set"
+          if [ -z "$BASTION_HOST" ]; then
+            echo "❌ Error: BASTION_HOST secret is not set"
             exit 1
           fi
           echo "✅ Required secrets are configured"
 
       - name: Configure SSH via Bastion (ProxyJump)
         env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
+          INDEXER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-          BASTION_IP: ${{ secrets.BASTION_IP }}
+          BASTION_HOST: ${{ secrets.BASTION_HOST }}
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           # Scan bastion host key (publicly reachable)
-          ssh-keyscan -T 10 -H "$BASTION_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
-          # Write SSH config so all connections to SERVER_IP auto-route via bastion
+          ssh-keyscan -T 10 -H "$BASTION_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Write SSH config so all connections to INDEXER_IP auto-route via bastion
           cat >> ~/.ssh/config << EOF
-          Host $SERVER_IP
+          Host $INDEXER_IP
             User $SERVER_USER
-            ProxyJump $SERVER_USER@$BASTION_IP
+            ProxyJump $SERVER_USER@$BASTION_HOST
             StrictHostKeyChecking no
             ForwardAgent yes
             ConnectTimeout 15
           EOF
           chmod 600 ~/.ssh/config
-          echo "✅ SSH configured: GitHub Actions → bastion ($BASTION_IP) → target ($SERVER_IP)"
+          echo "✅ SSH configured: GitHub Actions → bastion ($BASTION_HOST) → Indexer EC2 ($INDEXER_IP)"
 
       - name: Deploy to Server
         env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
         run: |
-          echo "🚀 Deploying Lithosphere to $SERVER_IP..."
+          echo "🚀 Deploying Lithosphere to $INDEXER_IP..."
           
           # Update code on server
-          ssh -o StrictHostKeyChecking=accept-new $SERVER_USER@$SERVER_IP << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=accept-new $SERVER_USER@$INDEXER_IP << 'ENDSSH'
             set -e
             
             cd /opt/lithosphere
@@ -176,7 +179,7 @@ jobs:
       - name: Inject RDS DATABASE_URL for Mainnet
         if: github.event.inputs.environment == 'mainnet'
         env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           RDS_ENDPOINT: ${{ steps.rds-creds.outputs.rds_endpoint }}
           RDS_USERNAME: ${{ steps.rds-creds.outputs.rds_username }}
@@ -184,7 +187,7 @@ jobs:
         run: |
           if [ -n "$RDS_ENDPOINT" ] && [ -n "$RDS_PASSWORD" ]; then
             echo "🔒 Injecting RDS DATABASE_URL into .env on remote..."
-            ssh -o StrictHostKeyChecking=accept-new $SERVER_USER@$SERVER_IP << RDSSSH
+            ssh -o StrictHostKeyChecking=accept-new $SERVER_USER@$INDEXER_IP << RDSSSH
               set -e
               cd /opt/lithosphere/Makulu
               sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql://${RDS_USERNAME}:${RDS_PASSWORD}@${RDS_ENDPOINT}:5432/lithoscan|" .env
@@ -197,13 +200,13 @@ jobs:
       # ── Lithoscan Explorer deploy ───────────────────────────────────────────
       - name: Write Explorer Production .env
         env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           LITHOSCAN_PATH: ${{ env.LITHOSCAN_PATH }}
           EXPLORER_ENV_PATH: ${{ env.EXPLORER_ENV_PATH }}
         run: |
-          echo "📝 Writing /opt/lithoscan/monitoring/explorer/.env on $SERVER_IP..."
-          ssh -o StrictHostKeyChecking=accept-new $SERVER_USER@$SERVER_IP << 'ENVSSH'
+          echo "📝 Writing /opt/lithoscan/monitoring/explorer/.env on $INDEXER_IP..."
+          ssh -o StrictHostKeyChecking=accept-new $SERVER_USER@$INDEXER_IP << 'ENVSSH'
             set -e
             sudo mkdir -p /opt/lithoscan/monitoring/explorer
             {
@@ -249,12 +252,12 @@ jobs:
 
       - name: Deploy Explorer Stack via docker compose
         env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           LITHOSCAN_PATH: ${{ env.LITHOSCAN_PATH }}
         run: |
           echo "🐳 Deploying Explorer & Indexer stack at $LITHOSCAN_PATH..."
-          ssh -o StrictHostKeyChecking=accept-new $SERVER_USER@$SERVER_IP << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=accept-new $SERVER_USER@$INDEXER_IP << 'ENDSSH'
             set -e
             cd /opt/lithoscan
 
@@ -291,7 +294,7 @@ jobs:
 
       - name: Health Check — API Service
         env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_IP: ${{ secrets.INDEXER_IP }}
         run: |
           echo "🏥 Running health checks..."
 
@@ -304,7 +307,7 @@ jobs:
             HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
               --connect-timeout 10 \
               --max-time 30 \
-              "http://$SERVER_IP:4000/health" || echo "000")
+              "http://$INDEXER_IP:4000/health" || echo "000")
 
             if [ "$HTTP_CODE" = "200" ]; then
               echo "✅ API health check passed!"
@@ -327,9 +330,9 @@ jobs:
 
       - name: Health Check — Explorer Frontend (:3000)
         env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_IP: ${{ secrets.INDEXER_IP }}
         run: |
-          echo "🌐 Checking Explorer frontend at http://$SERVER_IP:3000 ..."
+          echo "🌐 Checking Explorer frontend at http://$INDEXER_IP:3000 ..."
 
           MAX_RETRIES=6
           RETRY_DELAY=15
@@ -338,7 +341,7 @@ jobs:
             echo "Attempt $i of $MAX_RETRIES..."
             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
               --connect-timeout 10 --max-time 30 \
-              "http://$SERVER_IP:3000" || echo "000")
+              "http://$INDEXER_IP:3000" || echo "000")
 
             echo "  HTTP $HTTP_CODE"
 
@@ -360,24 +363,24 @@ jobs:
 
       - name: Test API Endpoints
         env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_IP: ${{ secrets.INDEXER_IP }}
         run: |
           echo "🧪 Testing API endpoints..."
           
           # Test /health
           echo "Testing /health..."
-          curl -f "http://$SERVER_IP:4000/health"
+          curl -f "http://$INDEXER_IP:4000/health"
           
           # Test /api/litho
           echo -e "\n\nTesting /api/litho..."
-          curl -f "http://$SERVER_IP:4000/api/litho"
+          curl -f "http://$INDEXER_IP:4000/api/litho"
           
           # Test GraphQL
           echo -e "\n\nTesting GraphQL..."
           curl -f -X POST \
             -H "Content-Type: application/json" \
             -d '{"query":"{ __typename }"}' \
-            "http://$SERVER_IP:4000/graphql"
+            "http://$INDEXER_IP:4000/graphql"
           
           echo -e "\n\n✅ All endpoint tests passed!"
 
@@ -389,16 +392,16 @@ jobs:
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Environment | ${{ github.event.inputs.environment || 'testnet' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Server IP | ${{ secrets.SERVER_IP }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Server IP | ${{ secrets.INDEXER_IP }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployed At | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
           echo "| Triggered By | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Service URLs" >> $GITHUB_STEP_SUMMARY
-          echo "- Explorer: https://makalu.litho.ai (internal: http://${{ secrets.SERVER_IP }}:3000)" >> $GITHUB_STEP_SUMMARY
-          echo "- API: http://${{ secrets.SERVER_IP }}:4000" >> $GITHUB_STEP_SUMMARY
-          echo "- GraphQL: http://${{ secrets.SERVER_IP }}:4000/graphql" >> $GITHUB_STEP_SUMMARY
-          echo "- Health: http://${{ secrets.SERVER_IP }}:4000/health" >> $GITHUB_STEP_SUMMARY
+          echo "- Explorer: https://makalu.litho.ai (internal: http://${{ secrets.INDEXER_IP }}:3000)" >> $GITHUB_STEP_SUMMARY
+          echo "- API: http://${{ secrets.INDEXER_IP }}:4000" >> $GITHUB_STEP_SUMMARY
+          echo "- GraphQL: http://${{ secrets.INDEXER_IP }}:4000/graphql" >> $GITHUB_STEP_SUMMARY
+          echo "- Health: http://${{ secrets.INDEXER_IP }}:4000/health" >> $GITHUB_STEP_SUMMARY
 
   rollback:
     name: Rollback on Failure
@@ -410,21 +413,23 @@ jobs:
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          ssh-private-key: |
+            ${{ secrets.BASTION_SSH_KEY }}
+            ${{ secrets.INDEXER_SSH_KEY }}
 
       - name: Configure SSH via Bastion (ProxyJump)
         env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
+          INDEXER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-          BASTION_IP: ${{ secrets.BASTION_IP }}
+          BASTION_HOST: ${{ secrets.BASTION_HOST }}
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          ssh-keyscan -T 10 -H "$BASTION_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -T 10 -H "$BASTION_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
           cat >> ~/.ssh/config << EOF
-          Host $SERVER_IP
+          Host $INDEXER_IP
             User $SERVER_USER
-            ProxyJump $SERVER_USER@$BASTION_IP
+            ProxyJump $SERVER_USER@$BASTION_HOST
             StrictHostKeyChecking no
             ForwardAgent yes
             ConnectTimeout 15
@@ -433,13 +438,13 @@ jobs:
 
       - name: Rollback
         env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_IP: ${{ secrets.INDEXER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
         run: |
           echo "⚠️  Deployment failed, attempting rollback..."
           
-          ssh $SERVER_USER@$SERVER_IP << 'ENDSSH'
+          ssh $SERVER_USER@$INDEXER_IP << 'ENDSSH'
             cd /opt/lithosphere/Makulu
             
             # Restart with previous version

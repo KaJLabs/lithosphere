@@ -38,7 +38,7 @@ step()    { echo -e "\n${BOLD}══ $* ${RESET}"; }
 # ── Defaults ──────────────────────────────────────────────────────────────────
 BASTION_HOST=""
 BASTION_USER="ec2-user"
-TARGET_IP="10.0.10.65"
+TARGET_IP="10.0.10.100"
 TARGET_USER="ec2-user"
 SSH_KEY=""
 SG_ID=""
