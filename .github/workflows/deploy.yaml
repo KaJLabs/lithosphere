@@ -36,6 +36,9 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: kajlabs/lithosphere/service-template
   DEPLOY_PATH: /opt/lithosphere/Makulu
+  INDEXER_IP: ${{ secrets.INDEXER_IP }}
+  BASTION_HOST: ${{ secrets.BASTION_HOST }}
+  SERVER_USER: ${{ secrets.SERVER_USER }}
 
 concurrency:
   group: deploy-${{ github.event.inputs.environment || 'testnet' }}
@@ -178,43 +181,21 @@ jobs:
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          ssh-private-key: |
+            ${{ secrets.BASTION_SSH_KEY }}
+            ${{ secrets.INDEXER_SSH_KEY }}
 
-      - name: Validate Required Secrets
-        env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
+      - name: Validate Required Secrets & Add Bastion to Known Hosts
         run: |
-          MISSING_SECRETS=false
-          
-          if [ -z "$SERVER_IP" ]; then
-            echo "❌ Error: SERVER_IP secret is not set"
-            MISSING_SECRETS=true
-          fi
-          
-          if [ -z "$SERVER_USER" ]; then
-            echo "❌ Error: SERVER_USER secret is not set"
-            MISSING_SECRETS=true
-          fi
-          
-          if [ "$MISSING_SECRETS" = true ]; then
-            echo ""
-            echo "Please configure the following secrets in GitHub repository settings:"
-            echo "- SERVER_IP: Your server's IP address"
-            echo "- SERVER_USER: SSH username (e.g., root, ubuntu)"
-            echo "- VPS_SSH_PRIVATE_KEY: SSH private key for authentication"
-            exit 1
-          fi
-          
-          echo "✅ Required secrets are configured"
-
-      - name: Add VPS to Known Hosts
-        env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts
-          echo "✅ Added $SERVER_IP to known_hosts"
+          MISSING=false
+          [ -z "$INDEXER_IP" ]   && echo "❌ INDEXER_IP not set"   && MISSING=true
+          [ -z "$BASTION_HOST" ] && echo "❌ BASTION_HOST not set" && MISSING=true
+          [ -z "$SERVER_USER" ]  && echo "❌ SERVER_USER not set"  && MISSING=true
+          [ "$MISSING" = true ] && exit 1
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keyscan -T 10 -H "$BASTION_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          chmod 644 ~/.ssh/known_hosts
+          echo "✅ Secrets validated. Bastion: $BASTION_HOST → Indexer: $INDEXER_IP"
 
       - name: Prepare Deployment Package
         id: prepare
@@ -353,72 +334,63 @@ jobs:
 
       - name: Deploy to VPS
         id: deploy
-        env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
         run: |
-          echo "🚀 Deploying to $SERVER_IP..."
-          
-          # Create deployment directory on remote
-          ssh $SERVER_USER@$SERVER_IP "mkdir -p $DEPLOY_PATH"
-          
-          # Transfer deployment files
-          scp -r deploy-package/* $SERVER_USER@$SERVER_IP:$DEPLOY_PATH/
-          
-          # Pull latest code and rebuild on server
-          ssh $SERVER_USER@$SERVER_IP "
+          echo "🚀 Deploying to $INDEXER_IP via bastion $BASTION_HOST..."
+          ENV="${{ github.event.inputs.environment || 'mainnet' }}"
+
+          # Transfer deployment package via SCP through bastion
+          scp -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              -r deploy-package/* "$SERVER_USER@$INDEXER_IP:$DEPLOY_PATH/"
+
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << ENDSSH
+            set -e
+            sudo mkdir -p /opt/lithosphere
+            sudo chown "\$USER:\$USER" /opt/lithosphere
             cd /opt/lithosphere
-            
-            # Update code from Git
+
             if [ ! -d lithosphere ]; then
               git clone https://github.com/KaJLabs/lithosphere.git
             else
-              cd lithosphere && git pull origin main && cd ..
+              cd lithosphere && git fetch origin && git reset --hard origin/main && cd ..
             fi
-            
-            # Copy updated files to Makulu
-            cp -r lithosphere/Makulu/* $DEPLOY_PATH/
+
+            mkdir -p Makulu
+            cp -r lithosphere/Makulu/. Makulu/
             rm -rf lithosphere
-            
-            # Copy environment file based on target environment
-            cd $DEPLOY_PATH
-            ENV=${{ github.event.inputs.environment || 'testnet' }}
-            if [ -f .env.\${ENV} ]; then
-              cp .env.\${ENV} .env
-            elif [ -f .env.testnet ]; then
-              cp .env.testnet .env
+
+            cd Makulu
+            if [ -f ".env.${ENV}" ]; then
+              cp ".env.${ENV}" .env
+              echo "Using .env.${ENV}"
+            elif [ ! -f .env ]; then
+              cp .env.mainnet .env
+              echo "Fallback: using .env.mainnet"
             fi
 
-            # For mainnet: inject RDS DATABASE_URL (from AWS Secrets Manager via OIDC)
-            if [ \"\${ENV}\" = 'mainnet' ]; then
-              RDS_URL='${{ steps.rds-creds.outputs.rds_endpoint }}'
-              RDS_USER='${{ steps.rds-creds.outputs.rds_username }}'
-              RDS_PASS='${{ steps.rds-creds.outputs.rds_password }}'
-              if [ -n \"\$RDS_URL\" ] && [ -n \"\$RDS_PASS\" ]; then
-                sed -i \"s|^DATABASE_URL=.*|DATABASE_URL=postgresql://\${RDS_USER}:\${RDS_PASS}@\${RDS_URL}:5432/lithoscan|\" .env
-                echo 'DATABASE_URL set to RDS endpoint.'
-              fi
+            RDS_URL="${{ steps.rds-creds.outputs.rds_endpoint }}"
+            RDS_USER="${{ steps.rds-creds.outputs.rds_username }}"
+            RDS_PASS="${{ steps.rds-creds.outputs.rds_password }}"
+            if [ "${ENV}" = "mainnet" ] && [ -n "\$RDS_URL" ] && [ -n "\$RDS_PASS" ]; then
+              sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql://\${RDS_USER}:\${RDS_PASS}@\${RDS_URL}:5432/lithoscan|" .env
+              echo "DATABASE_URL injected from RDS."
             fi
 
-            export IMAGE_TAG=\${ENV}
-            docker compose build api indexer explorer
-            docker compose up -d
-          "
+            sudo docker compose up -d --build --remove-orphans
+          ENDSSH
 
-          # Get the service URL
-          SERVICE_URL="http://$SERVER_IP:4000"
-          echo "service_url=$SERVICE_URL" >> $GITHUB_OUTPUT
-          echo "Deployed to: $SERVICE_URL"
+          echo "service_url=https://makalu.litho.ai" >> $GITHUB_OUTPUT
+          echo "✅ Deployed to indexer via bastion"
 
       - name: Cleanup Old Docker Images
-        env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
         run: |
-          echo "🧹 Cleaning up old Docker images on VPS..."
-          
-          ssh $SERVER_USER@$SERVER_IP "bash -s" << 'CLEANUP_SCRIPT'
+          echo "🧹 Cleaning up old Docker images on indexer..."
+
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << 'CLEANUP_SCRIPT'
           set -euo pipefail
           
           echo "📊 Disk usage BEFORE cleanup:"
@@ -481,100 +453,66 @@ jobs:
     name: Health Check
     runs-on: ubuntu-latest
     needs: deploy
-    
-    defaults:
-      run:
-        working-directory: ./Makulu
+
+    env:
+      INDEXER_IP: ${{ secrets.INDEXER_IP }}
+      BASTION_HOST: ${{ secrets.BASTION_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.BASTION_SSH_KEY }}
+            ${{ secrets.INDEXER_SSH_KEY }}
+
+      - name: Add Bastion to Known Hosts
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keyscan -T 10 -H "$BASTION_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Wait for Services to Stabilize
-        run: sleep 15
+        run: sleep 30
 
       - name: Health Check - API Service
         id: api-health
-        env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
-          MAX_RETRIES=5
-          RETRY_DELAY=10
-          
-          for i in $(seq 1 $MAX_RETRIES); do
-            echo "Attempt $i of $MAX_RETRIES: Checking API health..."
-            
-            HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
-              --connect-timeout 10 \
-              --max-time 30 \
-              "http://$SERVER_IP:4000/health" || echo "000")
-            
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ API health check passed!"
-              cat /tmp/response.txt
-              echo "api_status=healthy" >> $GITHUB_OUTPUT
-              break
-            else
-              echo "⚠️ Health check returned HTTP $HTTP_CODE"
-              if [ -f /tmp/response.txt ]; then
-                cat /tmp/response.txt
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+            MAX_RETRIES=5; RETRY_DELAY=10
+            for i in $(seq 1 $MAX_RETRIES); do
+              echo "Attempt $i: checking API..."
+              HTTP_CODE=$(curl -s -o /tmp/r.txt -w "%{http_code}" --connect-timeout 10 --max-time 30 \
+                http://localhost:4000/health || echo "000")
+              if [ "$HTTP_CODE" = "200" ]; then
+                echo "✅ API healthy!"; cat /tmp/r.txt; break
               fi
-              
-              if [ $i -lt $MAX_RETRIES ]; then
-                echo "Retrying in ${RETRY_DELAY}s..."
-                sleep $RETRY_DELAY
-              fi
-            fi
-          done
-          
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::❌ API health check failed after $MAX_RETRIES attempts"
-            echo "api_status=unhealthy" >> $GITHUB_OUTPUT
-            exit 1
-          fi
+              echo "⚠️ HTTP $HTTP_CODE"
+              [ $i -lt $MAX_RETRIES ] && sleep $RETRY_DELAY
+            done
+            [ "$HTTP_CODE" != "200" ] && { echo "❌ API health check failed"; exit 1; } || true
+          ENDSSH
 
       - name: Health Check - GraphQL Endpoint
         id: graphql-health
-        env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
-          echo "Checking GraphQL endpoint..."
-          
-          HTTP_CODE=$(curl -s -o /tmp/graphql-response.txt -w "%{http_code}" \
-            --connect-timeout 10 \
-            --max-time 30 \
-            -X POST \
-            -H "Content-Type: application/json" \
-            -d '{"query":"{ __typename }"}' \
-            "http://$SERVER_IP:4000/graphql" || echo "000")
-          
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ GraphQL endpoint healthy!"
-            echo "graphql_status=healthy" >> $GITHUB_OUTPUT
-          else
-            echo "::warning::⚠️ GraphQL endpoint returned HTTP $HTTP_CODE"
-            echo "graphql_status=degraded" >> $GITHUB_OUTPUT
-          fi
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" \
+              "curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+               -d '{\"query\":\"{ __typename }\"}' http://localhost:4000/graphql" | grep -qE '^2' \
+            && echo "✅ GraphQL healthy" || echo "::warning::⚠️ GraphQL degraded"
 
       - name: Health Check - Metrics Endpoint
         id: metrics-health
-        env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
-          echo "Checking Prometheus metrics endpoint..."
-          
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            --connect-timeout 10 \
-            --max-time 30 \
-            "http://$SERVER_IP:9090/metrics" || echo "000")
-          
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ Metrics endpoint healthy!"
-            echo "metrics_status=healthy" >> $GITHUB_OUTPUT
-          else
-            echo "::warning::⚠️ Metrics endpoint returned HTTP $HTTP_CODE"
-            echo "metrics_status=unavailable" >> $GITHUB_OUTPUT
-          fi
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" \
+              "curl -s -o /dev/null -w '%{http_code}' http://localhost:9090/metrics" | grep -qE '^2' \
+            && echo "✅ Metrics healthy" || echo "::warning::⚠️ Metrics unavailable"
 
       - name: Generate Health Report
         if: always()
@@ -597,6 +535,11 @@ jobs:
     needs: [deploy, health-check]
     if: failure() && needs.deploy.result == 'success'
 
+    env:
+      INDEXER_IP: ${{ secrets.INDEXER_IP }}
+      BASTION_HOST: ${{ secrets.BASTION_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+
     defaults:
       run:
         working-directory: ./Makulu
@@ -605,63 +548,32 @@ jobs:
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          ssh-private-key: |
+            ${{ secrets.BASTION_SSH_KEY }}
+            ${{ secrets.INDEXER_SSH_KEY }}
 
-      - name: Validate Required Secrets
-        env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
+      - name: Add Bastion to Known Hosts
         run: |
-          MISSING_SECRETS=false
-          
-          if [ -z "$SERVER_IP" ]; then
-            echo "❌ Error: SERVER_IP secret is not set"
-            MISSING_SECRETS=true
-          fi
-          
-          if [ -z "$SERVER_USER" ]; then
-            echo "❌ Error: SERVER_USER secret is not set"
-            MISSING_SECRETS=true
-          fi
-          
-          if [ "$MISSING_SECRETS" = true ]; then
-            echo "⚠️ Cannot perform rollback without required secrets"
-            exit 1
-          fi
-          
-          echo "✅ Required secrets are configured"
-
-      - name: Add VPS to Known Hosts
-        env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts
-          echo "✅ Added $SERVER_IP to known_hosts"
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keyscan -T 10 -H "$BASTION_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Rollback Deployment
-        env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
         run: |
           echo "🔄 Initiating rollback..."
-          
-          ssh $SERVER_USER@$SERVER_IP "
-            cd $DEPLOY_PATH
-            
-            # Check if previous deployment exists
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+            cd /opt/lithosphere/Makulu
             if [ -f docker-compose.yaml.bak ]; then
-              echo 'Restoring previous configuration...'
+              echo "Restoring previous configuration..."
               mv docker-compose.yaml.bak docker-compose.yaml
-              docker compose pull
-              docker compose up -d
-              echo '✅ Rollback complete'
+              sudo docker compose up -d --remove-orphans
+              echo "✅ Rollback complete"
             else
-              echo '::warning::No backup found, stopping services'
-              docker compose down
+              echo "::warning::No backup found, stopping services"
+              sudo docker compose down
             fi
-          "
+          ENDSSH
 
       - name: Notify Rollback
         run: |
