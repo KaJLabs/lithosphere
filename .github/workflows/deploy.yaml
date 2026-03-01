@@ -55,7 +55,7 @@ jobs:
     
     permissions:
       contents: read
-      packages: read
+      packages: write
       id-token: write
 
     outputs:
@@ -145,7 +145,7 @@ jobs:
 
     permissions:
       contents: read
-      packages: read
+      packages: write
       id-token: write   # Required for OIDC → AWS role assumption
 
     defaults:
