@@ -2,7 +2,7 @@
 # =============================================================================
 # deploy-indexer-ec2.sh
 # Deploy the Lithosphere Explorer & Indexer stack on the production Indexer-EC2
-# node (10.0.10.65) via Bastion SSH to resolve the 522 Timeout error.
+# node (10.0.10.16) via Bastion SSH to resolve the 522 Timeout error.
 #
 # Usage:
 #   chmod +x deploy-indexer-ec2.sh
@@ -38,7 +38,7 @@ step()    { echo -e "\n${BOLD}══ $* ${RESET}"; }
 # ── Defaults ──────────────────────────────────────────────────────────────────
 BASTION_HOST=""
 BASTION_USER="ec2-user"
-TARGET_IP="10.0.10.100"
+TARGET_IP="10.0.10.16"
 TARGET_USER="ec2-user"
 SSH_KEY=""
 SG_ID=""
