@@ -100,6 +100,7 @@ jobs:
               -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
               "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
             set -e
+            sudo mkdir -p /opt/lithosphere
             cd /opt/lithosphere
 
             echo "📦 Pulling latest code from GitHub..."
