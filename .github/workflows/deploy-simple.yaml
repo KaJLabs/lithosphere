@@ -243,7 +243,7 @@ jobs:
             } | sudo tee /opt/lithoscan/monitoring/explorer/.env > /dev/null
             sudo chmod 640 /opt/lithoscan/monitoring/explorer/.env
             echo "✅ .env written:"
-            cat /opt/lithoscan/monitoring/explorer/.env
+            sudo cat /opt/lithoscan/monitoring/explorer/.env
           ENVSSH
 
       - name: Deploy Explorer Stack via docker compose
