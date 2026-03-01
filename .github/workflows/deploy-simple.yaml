@@ -98,17 +98,31 @@ jobs:
           ssh -o StrictHostKeyChecking=no \
               -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
               "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+            set -e
+            # ── Docker Engine ──────────────────────────────────────────────────
             if ! command -v docker &>/dev/null; then
-              echo "🐳 Installing Docker..."
+              echo "🐳 Installing Docker Engine..."
               sudo dnf install -y docker
               sudo systemctl enable --now docker
               sudo usermod -aG docker "$USER"
-              sudo dnf install -y docker-compose-plugin
-              echo "✅ Docker installed"
+              echo "✅ Docker Engine installed"
             else
-              echo "✅ Docker present: $(docker --version 2>/dev/null || sudo docker --version)"
+              echo "✅ Docker Engine present: $(sudo docker --version)"
             fi
             sudo systemctl start docker 2>/dev/null || true
+
+            # ── Docker Compose plugin ──────────────────────────────────────────
+            if ! sudo docker compose version &>/dev/null 2>&1; then
+              echo "🔧 Installing Docker Compose plugin..."
+              sudo mkdir -p /usr/local/lib/docker/cli-plugins
+              sudo curl -fsSL \
+                "https://github.com/docker/compose/releases/download/v2.24.7/docker-compose-linux-x86_64" \
+                -o /usr/local/lib/docker/cli-plugins/docker-compose
+              sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+              echo "✅ Docker Compose installed: $(sudo docker compose version)"
+            else
+              echo "✅ Docker Compose present: $(sudo docker compose version)"
+            fi
           ENDSSH
 
       - name: Deploy to Server
