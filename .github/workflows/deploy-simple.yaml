@@ -77,6 +77,7 @@ jobs:
         env:
           SERVER_IP: ${{ secrets.SERVER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
+          BASTION_IP: ${{ secrets.BASTION_IP }}
         run: |
           if [ -z "$SERVER_IP" ]; then
             echo "❌ Error: SERVER_IP secret is not set"
@@ -86,15 +87,33 @@ jobs:
             echo "❌ Error: SERVER_USER secret is not set"
             exit 1
           fi
+          if [ -z "$BASTION_IP" ]; then
+            echo "❌ Error: BASTION_IP secret is not set"
+            exit 1
+          fi
           echo "✅ Required secrets are configured"
 
-      - name: Add Server to Known Hosts
-        continue-on-error: true
+      - name: Configure SSH via Bastion (ProxyJump)
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          BASTION_IP: ${{ secrets.BASTION_IP }}
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          ssh-keyscan -T 10 -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>&1 || echo "Warning: ssh-keyscan failed, will add on first connection"
-          chmod 644 ~/.ssh/known_hosts || true
+          # Scan bastion host key (publicly reachable)
+          ssh-keyscan -T 10 -H "$BASTION_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Write SSH config so all connections to SERVER_IP auto-route via bastion
+          cat >> ~/.ssh/config << EOF
+          Host $SERVER_IP
+            User $SERVER_USER
+            ProxyJump $SERVER_USER@$BASTION_IP
+            StrictHostKeyChecking no
+            ForwardAgent yes
+            ConnectTimeout 15
+          EOF
+          chmod 600 ~/.ssh/config
+          echo "✅ SSH configured: GitHub Actions → bastion ($BASTION_IP) → target ($SERVER_IP)"
 
       - name: Deploy to Server
         env:
@@ -393,13 +412,24 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
-      - name: Add Server to Known Hosts
-        continue-on-error: true
+      - name: Configure SSH via Bastion (ProxyJump)
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          BASTION_IP: ${{ secrets.BASTION_IP }}
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          ssh-keyscan -T 10 -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>&1 || true
-          chmod 644 ~/.ssh/known_hosts || true
+          ssh-keyscan -T 10 -H "$BASTION_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          cat >> ~/.ssh/config << EOF
+          Host $SERVER_IP
+            User $SERVER_USER
+            ProxyJump $SERVER_USER@$BASTION_IP
+            StrictHostKeyChecking no
+            ForwardAgent yes
+            ConnectTimeout 15
+          EOF
+          chmod 600 ~/.ssh/config
 
       - name: Rollback
         env:
