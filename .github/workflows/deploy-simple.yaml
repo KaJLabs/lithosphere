@@ -220,7 +220,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no \
               -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
               "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
-            MAX_RETRIES=6; RETRY_DELAY=15
+            MAX_RETRIES=8; RETRY_DELAY=20
             for i in $(seq 1 $MAX_RETRIES); do
               HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
                 --connect-timeout 10 --max-time 30 \
@@ -229,7 +229,18 @@ jobs:
               case "$HTTP_CODE" in 2*|3*) echo "✅ Explorer responding (HTTP $HTTP_CODE)"; break ;; esac
               [ $i -lt $MAX_RETRIES ] && sleep $RETRY_DELAY
             done
-            case "$HTTP_CODE" in 2*|3*) true ;; *) echo "❌ Explorer health check failed"; exit 1 ;; esac
+            case "$HTTP_CODE" in
+              2*|3*) true ;;
+              *)
+                echo "❌ Explorer health check failed — diagnostics:"
+                echo "── All containers:"
+                sudo docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+                echo "── Explorer logs (last 80 lines):"
+                sudo docker logs litho-explorer --tail 80 2>&1 || \
+                  echo "(litho-explorer container not found)"
+                exit 1
+              ;;
+            esac
           ENDSSH
 
       - name: Test API Endpoints
