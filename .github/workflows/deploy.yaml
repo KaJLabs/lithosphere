@@ -168,7 +168,7 @@ jobs:
         id: rds-creds
         run: |
           SECRET_JSON=$(aws secretsmanager get-secret-value \
-            --secret-id "litho-mainnet-rds-credentials" \
+            --secret-id "litho-mainnet-db-credentials" \
             --query SecretString --output text)
           echo "::add-mask::$(echo "$SECRET_JSON" | jq -r '.password')"
           echo "rds_endpoint=$(echo "$SECRET_JSON" | jq -r '.host')" >> $GITHUB_OUTPUT
