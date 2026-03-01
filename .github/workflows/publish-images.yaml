@@ -1,0 +1,142 @@
+# ============================================================================
+# Lithosphere — Build & Publish Docker Images to GHCR
+# Publishes: api, indexer, explorer
+# Registry:  ghcr.io/kajlabs/lithosphere-{api,indexer,explorer}
+# Tags:      latest, mainnet, sha-<short>
+# ============================================================================
+
+name: Publish Docker Images
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Makulu/api/**'
+      - 'Makulu/indexer/**'
+      - 'Makulu/explorer/**'
+      - '.github/workflows/publish-images.yaml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Extra image tag to apply (e.g. mainnet, v1.0.0)'
+        required: false
+        default: 'mainnet'
+      service:
+        description: 'Service to build (api, indexer, explorer, all)'
+        required: false
+        default: 'all'
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  publish:
+    name: Build & Push — ${{ matrix.service }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write    # For Cosign keyless signing
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api
+            image: ghcr.io/kajlabs/lithosphere-api
+            context: ./Makulu/api
+            dockerfile: ./Makulu/api/Dockerfile
+
+          - service: indexer
+            image: ghcr.io/kajlabs/lithosphere-indexer
+            context: ./Makulu/indexer
+            dockerfile: ./Makulu/indexer/Dockerfile
+
+          - service: explorer
+            image: ghcr.io/kajlabs/lithosphere-explorer
+            context: ./Makulu/explorer
+            dockerfile: ./Makulu/explorer/Dockerfile
+
+    steps:
+      - name: Checkout
+        if: github.event.inputs.service == 'all' || github.event.inputs.service == matrix.service || github.event_name == 'push'
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ matrix.image }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ github.event.inputs.tag || 'mainnet' }}
+            type=sha,prefix=sha-,format=short
+
+      # Explorer requires NEXT_PUBLIC_* vars baked in at build time
+      - name: Build and Push — explorer (with mainnet build args)
+        if: matrix.service == 'explorer'
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://makalu.litho.ai/api
+            NEXT_PUBLIC_GRAPHQL_URL=https://makalu.litho.ai/api/graphql
+            NEXT_PUBLIC_RPC_URL=https://rpc.litho.ai
+            NEXT_PUBLIC_CHAIN_ID=lithosphere_777777-1
+            NEXT_PUBLIC_CHAIN_NAME=Lithosphere
+            NEXT_PUBLIC_SITE_URL=https://makalu.litho.ai
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # API and Indexer — no special build args needed
+      - name: Build and Push — ${{ matrix.service }}
+        if: matrix.service != 'explorer'
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image with Cosign (keyless)
+        run: |
+          IMAGE_DIGEST=$(docker buildx imagetools inspect ${{ matrix.image }}:latest --format '{{.Manifest.Digest}}' 2>/dev/null || true)
+          if [ -n "$IMAGE_DIGEST" ]; then
+            cosign sign --yes ${{ matrix.image }}@${IMAGE_DIGEST}
+            echo "✅ Image signed: ${{ matrix.image }}@${IMAGE_DIGEST}"
+          else
+            echo "⚠️  Could not get digest for signing — skipping"
+          fi
+
+      - name: Output image tags
+        run: |
+          echo "## Image Published: ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ matrix.image }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n' | while read tag; do
+            echo "- \`${tag}\`" >> $GITHUB_STEP_SUMMARY
+          done
