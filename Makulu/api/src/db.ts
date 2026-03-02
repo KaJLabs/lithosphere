@@ -1,10 +1,8 @@
-import pg from 'pg';
+import { Pool } from 'pg';
 
-const { Pool } = pg;
+let _pool: Pool | null = null;
 
-let _pool: pg.Pool | null = null;
-
-export function getPool(): pg.Pool {
+export function getPool(): Pool {
   if (!_pool) {
     _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
