@@ -162,15 +162,17 @@ jobs:
               echo "Fallback: using .env.testnet"
             fi
 
-            echo "🔴 Freeing ports used by Makulu stack..."
-            # Stop LITHOSCAN compose stack (may hold ports 4000, 3010)
+            echo "🔴 Stopping all conflicting stacks..."
+            # 1. Stop LITHOSCAN compose project
             if [ -f /opt/lithoscan/docker-compose.yml ]; then
               sudo docker compose -f /opt/lithoscan/docker-compose.yml down --timeout 30 2>/dev/null || true
             fi
-            # Stop any stray containers still holding Makulu's ports
+            # 2. Stop the existing Makulu compose project (catches restarting containers too)
+            sudo docker compose down --timeout 30 2>/dev/null || true
+            # 3. Force-remove any remaining container on Makulu ports (all states, incl. restarting)
             for PORT in 3000 4000 5432 6379; do
-              CIDS=$(sudo docker ps -q --filter "publish=${PORT}" 2>/dev/null)
-              [ -n "$CIDS" ] && sudo docker stop $CIDS --time 15 2>/dev/null || true
+              CIDS=$(sudo docker ps -aq --filter "publish=${PORT}" 2>/dev/null)
+              [ -n "$CIDS" ] && sudo docker rm -f $CIDS 2>/dev/null || true
             done
 
             echo "🐳 Building and starting all services..."
