@@ -86,6 +86,7 @@ jobs:
 
       # Explorer requires NEXT_PUBLIC_* vars baked in at build time
       - name: Build and Push — explorer (with mainnet build args)
+        id: build_explorer
         if: matrix.service == 'explorer'
         uses: docker/build-push-action@v5
         with:
@@ -106,6 +107,7 @@ jobs:
 
       # API and Indexer — no special build args needed
       - name: Build and Push — ${{ matrix.service }}
+        id: build
         if: matrix.service != 'explorer'
         uses: docker/build-push-action@v5
         with:
@@ -121,8 +123,9 @@ jobs:
         uses: sigstore/cosign-installer@v3
 
       - name: Sign image with Cosign (keyless)
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest || steps.build_explorer.outputs.digest }}
         run: |
-          IMAGE_DIGEST=$(docker buildx imagetools inspect ${{ matrix.image }}:latest --format '{{.Manifest.Digest}}' 2>/dev/null || true)
           if [ -n "$IMAGE_DIGEST" ]; then
             cosign sign --yes ${{ matrix.image }}@${IMAGE_DIGEST}
             echo "✅ Image signed: ${{ matrix.image }}@${IMAGE_DIGEST}"
