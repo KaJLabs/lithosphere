@@ -1,54 +1,502 @@
 import 'dotenv/config';
-import { ethers } from 'ethers';
+import { createHash } from 'crypto';
 import pkg from 'pg';
 const { Pool } = pkg;
-import { register, collectDefaultMetrics } from 'prom-client';
+import { Gauge, register, collectDefaultMetrics } from 'prom-client';
+import express from 'express';
 
-// Collect default metrics
-collectDefaultMetrics({ prefix: 'litho_indexer_' });
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+const RPC_URL = (process.env.RPC_URL || process.env.LITHO_RPC_URL || 'https://rpc.litho.ai').replace(/\/$/, '');
+// Derive LCD from RPC: https://rpc.litho.ai → https://api.litho.ai
+const LCD_URL = (process.env.REST_URL || process.env.LCD_URL || RPC_URL.replace('://rpc.', '://api.')).replace(/\/$/, '');
+const EVM_RPC_URL = process.env.EVM_RPC_URL || null;
+const START_BLOCK = parseInt(process.env.START_BLOCK || process.env.INDEXER_START_BLOCK || '1');
+const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || process.env.INDEXER_BATCH_SIZE || '100');
+const POLL_MS = 6000;           // Wait between polls when caught up
+const CATCHUP_DELAY_MS = 100;   // Delay between batches during bulk sync
+
+// ─── DB Pool ──────────────────────────────────────────────────────────────────
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
 });
+pool.on('error', (err) => console.error('[db] Pool error:', err.message));
 
-// Simple indexer that monitors blockchain events
-async function startIndexer() {
-  console.log('Starting Lithosphere Indexer...');
-  console.log('Environment:', process.env.NODE_ENV);
-  console.log('RPC URL:', process.env.LITHO_RPC_URL);
-  
-  // Health check endpoint
-  const express = await import('express');
-  const app = express.default();
-  
-  app.get('/health', (_req, res) => {
-    res.json({ 
-      status: 'healthy', 
-      service: 'lithosphere-indexer',
-      timestamp: new Date().toISOString()
-    });
-  });
-  
-  const port = process.env.INDEXER_PORT || 3001;
-  app.listen(port, () => {
-    console.log(`Indexer health endpoint running on :${port}`);
-  });
+// ─── Prometheus ───────────────────────────────────────────────────────────────
 
-  // Metrics server on port 9090
-  const metricsApp = express.default();
-  metricsApp.get('/metrics', async (_req, res) => {
+collectDefaultMetrics({ prefix: 'litho_indexer_' });
+const gIndexed = new Gauge({ name: 'litho_indexer_last_indexed_block', help: 'Last indexed block height' });
+const gChain   = new Gauge({ name: 'litho_indexer_chain_height',       help: 'Chain tip height' });
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface RpcBlock {
+  block_id: { hash: string };
+  block: {
+    header: { height: string; time: string; proposer_address: string };
+    data: { txs?: string[] };
+  };
+}
+
+interface TxEvent {
+  type: string;
+  attributes: Array<{ key: string; value: string }>;
+}
+
+interface TxResult {
+  code: number;
+  log: string;
+  gas_wanted: string;
+  gas_used: string;
+  events: TxEvent[];
+}
+
+interface RpcBlockResults {
+  height: string;
+  txs_results: TxResult[] | null;
+}
+
+type DbClient = Awaited<ReturnType<typeof pool.connect>>;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Decode a CometBFT event attribute value — newer nodes base64-encode them. */
+function decodeAttr(s: string): string {
+  if (!s) return '';
+  try {
+    const d = Buffer.from(s, 'base64').toString('utf-8');
+    // Accept decoded string if it's printable ASCII / common UTF-8
+    if (/^[\x20-\x7E\u00A0-\uFFFF\n\r\t]*$/.test(d)) return d;
+  } catch { /* not base64 */ }
+  return s;
+}
+
+/** Get the first matching event attribute value. */
+function attr(events: TxEvent[], eventType: string, key: string): string {
+  for (const ev of events) {
+    if (ev.type !== eventType) continue;
+    for (const a of ev.attributes) {
+      if (decodeAttr(a.key) === key) return decodeAttr(a.value);
+    }
+  }
+  return '';
+}
+
+/** Fetch from CometBFT JSON-RPC. */
+async function rpcGet<T>(path: string): Promise<T> {
+  const resp = await fetch(`${RPC_URL}${path}`, { signal: AbortSignal.timeout(30_000) });
+  if (!resp.ok) throw new Error(`RPC ${path} → HTTP ${resp.status}`);
+  const json = await resp.json() as { result?: T; error?: { message: string } };
+  if (json.error) throw new Error(`RPC error on ${path}: ${json.error.message}`);
+  return json.result as T;
+}
+
+async function getLastIndexedBlock(): Promise<number> {
+  const r = await pool.query<{ value: string }>(
+    `SELECT value FROM indexer_state WHERE key = 'last_indexed_block'`
+  );
+  return parseInt(r.rows[0]?.value ?? '0') || 0;
+}
+
+async function setLastIndexedBlock(height: number): Promise<void> {
+  await pool.query(
+    `UPDATE indexer_state SET value = $1, updated_at = NOW() WHERE key = 'last_indexed_block'`,
+    [String(height)]
+  );
+  gIndexed.set(height);
+}
+
+// ─── Block Indexing ───────────────────────────────────────────────────────────
+
+async function indexBlock(height: number): Promise<void> {
+  const [blockData, resultsData] = await Promise.all([
+    rpcGet<RpcBlock>(`/block?height=${height}`),
+    rpcGet<RpcBlockResults>(`/block_results?height=${height}`),
+  ]);
+
+  const rawTxs    = blockData.block.data.txs ?? [];
+  const txResults = resultsData.txs_results ?? [];
+  const totalGas  = txResults.reduce((s, r) => s + parseInt(r.gas_used || '0'), 0);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    await client.query(
+      `INSERT INTO blocks (height, hash, proposer_address, num_txs, total_gas, block_time)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (height) DO NOTHING`,
+      [
+        height,
+        blockData.block_id.hash.toLowerCase(),
+        blockData.block.header.proposer_address.toLowerCase(),
+        rawTxs.length,
+        totalGas,
+        blockData.block.header.time,
+      ]
+    );
+
+    for (let i = 0; i < rawTxs.length; i++) {
+      const txBytes = Buffer.from(rawTxs[i], 'base64');
+      const txHash  = createHash('sha256').update(txBytes).digest('hex').toUpperCase();
+      const result  = txResults[i];
+      if (result) {
+        await indexTx(client, txHash, height, i, blockData.block.header.time, result);
+      }
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ─── Transaction Indexing ─────────────────────────────────────────────────────
+
+async function indexTx(
+  client: DbClient,
+  hash: string,
+  height: number,
+  index: number,
+  blockTime: string,
+  result: TxResult
+): Promise<void> {
+  const evts    = result.events ?? [];
+  const success = result.code === 0;
+  const gasUsed = parseInt(result.gas_used   || '0');
+  const gasWant = parseInt(result.gas_wanted || '0');
+
+  // Action / tx type (e.g. "/cosmos.bank.v1beta1.MsgSend" → "MsgSend")
+  const action = attr(evts, 'message', 'action');
+  const txType = action ? (action.split('.').pop() ?? action) : 'Unknown';
+  const isEvm  = txType === 'MsgEthereumTx';
+
+  // Sender / receiver / amount — pulled from emitted events (no protobuf needed)
+  const sender   = attr(evts, 'message', 'sender')          ||
+                   attr(evts, 'transfer', 'sender')          || '';
+  const receiver = attr(evts, 'coin_received', 'receiver')   ||
+                   attr(evts, 'transfer', 'recipient')        || '';
+  const rawAmt   = attr(evts, 'coin_received', 'amount')     ||
+                   attr(evts, 'transfer', 'amount')           || '0';
+
+  // Parse "1234567ulitho" → amount + denom
+  const amtMatch = rawAmt.match(/^(\d+)([a-zA-Z/]+)$/);
+  const amount   = amtMatch?.[1] ?? '0';
+  const denom    = amtMatch?.[2] ?? 'ulitho';
+
+  // Fee
+  const feeStr   = attr(evts, 'tx', 'fee') || '';
+  const feeMatch = feeStr.match(/^(\d+)([a-zA-Z/]+)$/);
+  const fee      = feeMatch?.[1] ?? '0';
+  const feeDenom = feeMatch?.[2] ?? 'ulitho';
+  const memo     = attr(evts, 'tx', 'memo') || '';
+
+  if (sender)                   await upsertAccount(client, sender,   height);
+  if (receiver && receiver !== sender) await upsertAccount(client, receiver, height);
+
+  await client.query(
+    `INSERT INTO transactions
+       (hash, block_height, tx_index, tx_type, sender, receiver, amount, denom,
+        gas_used, gas_wanted, fee, fee_denom, success, memo, raw_log, timestamp)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+     ON CONFLICT (hash) DO NOTHING`,
+    [
+      hash, height, index, txType,
+      sender   || null,
+      receiver || null,
+      amount, denom,
+      gasUsed, gasWant,
+      fee, feeDenom,
+      success,
+      memo,
+      result.log?.substring(0, 2000) || '',
+      blockTime,
+    ]
+  );
+
+  // EVM transaction
+  if (isEvm) {
+    const evmHash = attr(evts, 'ethereum_tx', 'ethereumTxHash');
+    if (evmHash) {
+      await indexEvmTx(client, evmHash, hash, height, index, blockTime, evts, result, gasUsed);
+    }
+  }
+}
+
+// ─── EVM Transaction Indexing ─────────────────────────────────────────────────
+
+async function indexEvmTx(
+  client: DbClient,
+  evmHash: string,
+  cosmosTxHash: string,
+  height: number,
+  txIndex: number,
+  blockTime: string,
+  evts: TxEvent[],
+  result: TxResult,
+  gasUsed: number
+): Promise<void> {
+  // Initial values from Cosmos events
+  let fromAddr = (attr(evts, 'message', 'sender') || '').toLowerCase();
+  let toAddr: string | null = (attr(evts, 'ethereum_tx', 'recipient') || '').toLowerCase() || null;
+  let value    = '0';
+  let gasPrice = '0';
+  let gasLimit = gasUsed;
+  let nonce    = 0;
+  let input    = '';
+
+  // Enrich with EVM JSON-RPC details when available
+  if (EVM_RPC_URL) {
+    try {
+      const r = await fetch(EVM_RPC_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1,
+          method: 'eth_getTransactionByHash',
+          params: [evmHash],
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      const j = await r.json() as {
+        result?: {
+          from: string; to: string | null; value: string;
+          gasPrice: string; gas: string; nonce: string; input: string;
+        };
+      };
+      if (j.result) {
+        const t = j.result;
+        fromAddr = (t.from  ?? fromAddr).toLowerCase();
+        toAddr   = t.to ? t.to.toLowerCase() : null;
+        value    = String(parseInt(t.value    ?? '0x0', 16));
+        gasPrice = String(parseInt(t.gasPrice ?? '0x0', 16));
+        gasLimit = parseInt(t.gas   ?? '0x0', 16);
+        nonce    = parseInt(t.nonce ?? '0x0', 16);
+        input    = t.input ?? '';
+      }
+    } catch (err) {
+      // EVM RPC unavailable — event data is sufficient for basic indexing
+    }
+  }
+
+  const contractAddr = !toAddr
+    ? (attr(evts, 'ethereum_tx', 'contractAddress') || null)
+    : null;
+
+  await client.query(
+    `INSERT INTO evm_transactions
+       (hash, cosmos_tx_hash, block_height, tx_index,
+        from_address, to_address, value, gas_price, gas_limit, gas_used,
+        nonce, input_data, contract_address, status, timestamp)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+     ON CONFLICT (hash) DO NOTHING`,
+    [
+      evmHash, cosmosTxHash, height, txIndex,
+      fromAddr, toAddr,
+      value, gasPrice, gasLimit, gasUsed,
+      nonce, input.substring(0, 4096),
+      contractAddr,
+      result.code === 0,
+      blockTime,
+    ]
+  );
+
+  // Track contract deployments
+  if (contractAddr && fromAddr) {
+    await client.query(
+      `INSERT INTO contracts (address, creator, creation_tx, creation_block)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (address) DO NOTHING`,
+      [contractAddr, fromAddr, evmHash, height]
+    );
+  }
+}
+
+// ─── Account Upsert ───────────────────────────────────────────────────────────
+
+async function upsertAccount(client: DbClient, address: string, height: number): Promise<void> {
+  if (!address || address.length < 5) return;
+  await client.query(
+    `INSERT INTO accounts (address, first_seen_block, last_seen_block, updated_at)
+     VALUES ($1, $2, $2, NOW())
+     ON CONFLICT (address) DO UPDATE SET
+       last_seen_block = GREATEST(accounts.last_seen_block, EXCLUDED.last_seen_block),
+       updated_at = NOW()`,
+    [address, height]
+  );
+}
+
+// ─── Validator Refresh ────────────────────────────────────────────────────────
+
+async function refreshValidators(): Promise<void> {
+  try {
+    const r = await fetch(
+      `${LCD_URL}/cosmos/staking/v1beta1/validators?pagination.limit=100&status=BOND_STATUS_BONDED`,
+      { signal: AbortSignal.timeout(15_000) }
+    );
+    if (!r.ok) { console.warn(`[validators] LCD ${r.status}`); return; }
+
+    const data = await r.json() as {
+      validators?: Array<{
+        operator_address: string;
+        consensus_pubkey: unknown;
+        description: { moniker: string; identity: string; website: string; security_contact: string; details: string };
+        commission: { commission_rates: { rate: string; max_rate: string; max_change_rate: string } };
+        min_self_delegation: string;
+        tokens: string;
+        delegator_shares: string;
+        status: string;
+        jailed: boolean;
+      }>;
+    };
+
+    const statusCode: Record<string, number> = {
+      BOND_STATUS_BONDED: 3,
+      BOND_STATUS_UNBONDING: 2,
+      BOND_STATUS_UNBONDED: 1,
+    };
+
+    for (const v of data.validators ?? []) {
+      const d = v.description ?? {};
+      const c = v.commission?.commission_rates ?? {};
+      await pool.query(
+        `INSERT INTO validators
+           (operator_address, consensus_pubkey, moniker, identity, website,
+            security_contact, details, commission_rate, commission_max_rate,
+            commission_max_change, min_self_delegation, tokens, delegator_shares,
+            status, jailed, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+         ON CONFLICT (operator_address) DO UPDATE SET
+           tokens            = EXCLUDED.tokens,
+           delegator_shares  = EXCLUDED.delegator_shares,
+           status            = EXCLUDED.status,
+           jailed            = EXCLUDED.jailed,
+           moniker           = EXCLUDED.moniker,
+           commission_rate   = EXCLUDED.commission_rate,
+           updated_at        = NOW()`,
+        [
+          v.operator_address,
+          JSON.stringify(v.consensus_pubkey),
+          d.moniker ?? '', d.identity ?? '', d.website ?? '',
+          d.security_contact ?? '', d.details ?? '',
+          c.rate ?? '0', c.max_rate ?? '0', c.max_change_rate ?? '0',
+          v.min_self_delegation ?? '0',
+          v.tokens ?? '0', v.delegator_shares ?? '0',
+          statusCode[v.status] ?? 1,
+          v.jailed ?? false,
+        ]
+      );
+    }
+    console.log(`[validators] Refreshed ${data.validators?.length ?? 0} bonded validators`);
+  } catch (err) {
+    console.warn('[validators]', err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ─── Network Stats ────────────────────────────────────────────────────────────
+
+async function recordNetworkStats(): Promise<void> {
+  try {
+    const [tx, acc, ct] = await Promise.all([
+      pool.query<{ count: string }>('SELECT COUNT(*) count FROM transactions'),
+      pool.query<{ count: string }>('SELECT COUNT(*) count FROM accounts'),
+      pool.query<{ count: string }>('SELECT COUNT(*) count FROM contracts'),
+    ]);
+    await pool.query(
+      `INSERT INTO network_stats (total_transactions, total_accounts, total_contracts)
+       VALUES ($1, $2, $3)`,
+      [parseInt(tx.rows[0].count), parseInt(acc.rows[0].count), parseInt(ct.rows[0].count)]
+    );
+  } catch (err) {
+    console.warn('[stats]', err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ─── Main Loop ────────────────────────────────────────────────────────────────
+
+async function main(): Promise<void> {
+  console.log(`[indexer] RPC=${RPC_URL}  LCD=${LCD_URL}  START=${START_BLOCK}  BATCH=${BATCH_SIZE}`);
+
+  // Wait for PostgreSQL
+  for (let i = 1; i <= 15; i++) {
+    try { await pool.query('SELECT 1'); console.log('[indexer] DB connected'); break; }
+    catch { console.log(`[indexer] Waiting for DB (${i}/15)…`); await new Promise(r => setTimeout(r, 3000)); }
+  }
+
+  // Health endpoint
+  const app = express();
+  app.get('/health', (_, res) =>
+    res.json({ status: 'healthy', service: 'lithosphere-indexer', timestamp: new Date().toISOString() })
+  );
+  app.listen(process.env.INDEXER_PORT ?? 3001, () => console.log('[indexer] Health: :3001'));
+
+  // Metrics endpoint
+  const metricsApp = express();
+  metricsApp.get('/metrics', async (_, res) => {
     res.set('Content-Type', register.contentType);
     res.end(await register.metrics());
   });
+  metricsApp.listen(process.env.METRICS_PORT ?? 9090, () => console.log('[indexer] Metrics: :9090'));
 
-  const metricsPort = process.env.METRICS_PORT || 9090;
-  metricsApp.listen(metricsPort, () => {
-    console.log(`Metrics server running on :${metricsPort}`);
-  });
+  // Initial validator load
+  await refreshValidators();
 
-  // TODO: Implement blockchain polling logic here
-  console.log('Indexer service ready');
+  let lastValidatorRefresh = Date.now();
+  let lastStatsRefresh     = Date.now();
+
+  while (true) {
+    try {
+      const status = await rpcGet<{ sync_info: { latest_block_height: string } }>('/status');
+      const chainTip = parseInt(status.sync_info.latest_block_height);
+      gChain.set(chainTip);
+
+      let from = await getLastIndexedBlock();
+      if (from < START_BLOCK - 1) from = START_BLOCK - 1;
+      const to = Math.min(from + BATCH_SIZE, chainTip);
+
+      if (from >= chainTip) {
+        // Fully caught up — wait for next block
+        await new Promise(r => setTimeout(r, POLL_MS));
+        continue;
+      }
+
+      const lag = chainTip - from;
+      console.log(`[indexer] Syncing ${from + 1}→${to}  (${lag} blocks behind)`);
+
+      for (let h = from + 1; h <= to; h++) {
+        await indexBlock(h);
+        await setLastIndexedBlock(h);
+      }
+
+      // Periodic maintenance
+      if (Date.now() - lastValidatorRefresh > 600_000) {
+        await refreshValidators();
+        lastValidatorRefresh = Date.now();
+      }
+      if (Date.now() - lastStatsRefresh > 300_000) {
+        await recordNetworkStats();
+        lastStatsRefresh = Date.now();
+      }
+
+      // Back off only when caught up; aggressively sync when behind
+      const delay = to >= chainTip ? POLL_MS : CATCHUP_DELAY_MS;
+      await new Promise(r => setTimeout(r, delay));
+
+    } catch (err) {
+      console.error('[indexer] Error:', err instanceof Error ? err.message : String(err));
+      await new Promise(r => setTimeout(r, 10_000));
+    }
+  }
 }
 
-startIndexer().catch(console.error);
-
+main().catch((err) => {
+  console.error('[indexer] Fatal:', err);
+  process.exit(1);
+});
