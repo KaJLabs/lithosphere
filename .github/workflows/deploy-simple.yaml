@@ -170,15 +170,14 @@ jobs:
             # 2. Stop the existing Makulu compose project (catches restarting containers too)
             sudo docker compose down --timeout 30 2>/dev/null || true
             # 3. Force-remove any remaining container on Makulu ports (all states, incl. restarting)
-            for PORT in 3000 4000 5432 6379; do
+            for PORT in 3010 4000 5432 6379; do
               CIDS=$(sudo docker ps -aq --filter "publish=${PORT}" 2>/dev/null)
               [ -n "$CIDS" ] && sudo docker rm -f $CIDS 2>/dev/null || true
             done
             # 4. Kill any process still holding our ports (covers stale docker-proxy or host procs)
-            for PORT in 3000 4000 5432 6379; do
-              sudo ss -Htlnp "sport = :${PORT}" 2>/dev/null \
-                | grep -oP 'pid=\K\d+' | sort -u \
-                | xargs -r sudo kill -9 2>/dev/null || true
+            for PORT in 3010 4000 5432 6379; do
+              sudo ss -Htlnp | grep -w ":${PORT}" | grep -oP 'pid=\K[0-9]+' \
+                | sort -u | xargs -r sudo kill -9 2>/dev/null || true
             done
 
             echo "🐳 Building and starting all services..."
@@ -233,9 +232,9 @@ jobs:
             [ "$HTTP_CODE" != "200" ] && { echo "❌ API health check failed"; exit 1; } || true
           ENDSSH
 
-      - name: Health Check — Explorer Frontend (:3000)
+      - name: Health Check — Explorer Frontend (:3010)
         run: |
-          echo "🌐 Checking Explorer on indexer (localhost:3000 via SSH)..."
+          echo "🌐 Checking Explorer on indexer (localhost:3010 via SSH)..."
           ssh -o StrictHostKeyChecking=no \
               -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
               "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
@@ -243,7 +242,7 @@ jobs:
             for i in $(seq 1 $MAX_RETRIES); do
               HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
                 --connect-timeout 10 --max-time 30 \
-                "http://localhost:3000" || echo "000")
+                "http://localhost:3010" || echo "000")
               echo "  Attempt $i: HTTP $HTTP_CODE"
               case "$HTTP_CODE" in 2*|3*) echo "✅ Explorer responding (HTTP $HTTP_CODE)"; break ;; esac
               [ $i -lt $MAX_RETRIES ] && sleep $RETRY_DELAY
