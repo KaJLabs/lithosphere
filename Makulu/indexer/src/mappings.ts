@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { createHash } from 'crypto';
-import pkg from 'pg';
+import pkg, { type PoolClient } from 'pg';
 const { Pool } = pkg;
 import { Gauge, register, collectDefaultMetrics } from 'prom-client';
 import express from 'express';
@@ -60,7 +60,7 @@ interface RpcBlockResults {
   txs_results: TxResult[] | null;
 }
 
-type DbClient = Awaited<ReturnType<typeof pool.connect>>;
+type DbClient = PoolClient;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
