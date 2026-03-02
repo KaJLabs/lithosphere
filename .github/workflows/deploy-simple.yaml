@@ -162,10 +162,16 @@ jobs:
               echo "Fallback: using .env.testnet"
             fi
 
-            echo "🔴 Stopping LITHOSCAN stack to free shared ports (4000, 3010)..."
+            echo "🔴 Freeing ports used by Makulu stack..."
+            # Stop LITHOSCAN compose stack (may hold ports 4000, 3010)
             if [ -f /opt/lithoscan/docker-compose.yml ]; then
               sudo docker compose -f /opt/lithoscan/docker-compose.yml down --timeout 30 2>/dev/null || true
             fi
+            # Stop any stray containers still holding Makulu's ports
+            for PORT in 3000 4000 5432 6379; do
+              CIDS=$(sudo docker ps -q --filter "publish=${PORT}" 2>/dev/null)
+              [ -n "$CIDS" ] && sudo docker stop $CIDS --time 15 2>/dev/null || true
+            done
 
             echo "🐳 Building and starting all services..."
             sudo docker compose up -d --build --remove-orphans
