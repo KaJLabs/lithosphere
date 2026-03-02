@@ -162,6 +162,11 @@ jobs:
               echo "Fallback: using .env.testnet"
             fi
 
+            echo "🔴 Stopping LITHOSCAN stack to free shared ports (4000, 3010)..."
+            if [ -f /opt/lithoscan/docker-compose.yml ]; then
+              sudo docker compose -f /opt/lithoscan/docker-compose.yml down --timeout 30 2>/dev/null || true
+            fi
+
             echo "🐳 Building and starting all services..."
             sudo docker compose up -d --build --remove-orphans
 

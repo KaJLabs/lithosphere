@@ -27,7 +27,6 @@ services:
     restart: unless-stopped
     ports:
       - "${API_PORT:-4000}:4000"
-      - "${METRICS_PORT:-9090}:9090"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - API_PORT=4000
