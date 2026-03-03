@@ -195,43 +195,59 @@ jobs:
           ENDSSH
           echo "Deployment finished at $(date)"
 
-      - name: Inject RDS DATABASE_URL for Mainnet
+      - name: Build RDS inject script
         if: steps.resolve-env.outputs.name == 'mainnet'
+        shell: python
         env:
           RDS_ENDPOINT: ${{ steps.rds-creds.outputs.rds_endpoint }}
           RDS_USERNAME: ${{ steps.rds-creds.outputs.rds_username }}
           RDS_PASSWORD: ${{ steps.rds-creds.outputs.rds_password }}
         run: |
-          if [ -n "$RDS_ENDPOINT" ] && [ -n "$RDS_PASSWORD" ]; then
-            echo "🔒 Injecting RDS DATABASE_URL into .env on remote..."
+          import os, re
+          from urllib.parse import quote
+          user = os.environ.get('RDS_USERNAME', '')
+          pw   = quote(os.environ.get('RDS_PASSWORD', ''), safe='')
+          host = os.environ.get('RDS_ENDPOINT', '')
+          if not (user and pw and host):
+              print('::warning::RDS credentials missing — skipping script generation')
+          else:
+              url = f"postgresql://{user}:{pw}@{host}:5432/lithoscan?sslmode=require"
+              script = f"""import re
+          url = {repr(url)}
+          env = '/opt/lithosphere/Makulu/.env'
+          lines = open(env).readlines()
+          out, found = [], False
+          for l in lines:
+              if re.match(r'^DATABASE_URL=', l):
+                  out.append('DATABASE_URL=' + url + '\\n'); found = True
+              else:
+                  out.append(l)
+          if not found:
+              out.append('DATABASE_URL=' + url + '\\n')
+          open(env, 'w').writelines(out)
+          print('DATABASE_URL injected OK')
+          """
+              with open('/tmp/inject_db.py', 'w') as f:
+                  f.write(script)
+              print(f"Script written — host: {host}")
+
+      - name: Inject RDS DATABASE_URL for Mainnet
+        if: steps.resolve-env.outputs.name == 'mainnet'
+        run: |
+          if [ -f /tmp/inject_db.py ]; then
+            echo "🔒 Copying inject script to server..."
+            scp -o StrictHostKeyChecking=no \
+                -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+                /tmp/inject_db.py \
+                "$SERVER_USER@$INDEXER_IP:/tmp/inject_db.py"
+
+            echo "🔒 Running inject and restarting api/indexer..."
             ssh -o StrictHostKeyChecking=no \
                 -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
                 "$SERVER_USER@$INDEXER_IP" \
-                "python3 -c \"
-import sys
-from urllib.parse import quote
-user = '$RDS_USERNAME'
-pw   = quote('$RDS_PASSWORD', safe='')
-host = '$RDS_ENDPOINT'
-url  = f'postgresql://{user}:{pw}@{host}:5432/lithoscan?sslmode=require'
-env  = '/opt/lithosphere/Makulu/.env'
-import re
-lines = open(env).readlines()
-out   = []
-for l in lines:
-    if re.match(r'^DATABASE_URL=', l):        out.append(f'DATABASE_URL={url}\n')
-    elif re.match(r'^NODE_TLS_REJECT_UNAUTHORIZED=', l): continue
-    else: out.append(l)
-if not any(re.match(r'^DATABASE_URL=', l) for l in out):
-    out.append(f'DATABASE_URL={url}\n')
-open(env,'w').writelines(out)
-print('DATABASE_URL injected')
-\" && \
-              cd /opt/lithosphere/Makulu && \
-              sudo docker compose up -d --force-recreate api indexer && \
-              echo 'Containers restarted with new DATABASE_URL'"
+                'sudo python3 /tmp/inject_db.py && cd /opt/lithosphere/Makulu && sudo docker compose up -d --force-recreate api indexer && echo "✅ Containers restarted with new DATABASE_URL"'
           else
-            echo "::warning::RDS credentials not available — skipping DATABASE_URL injection"
+            echo "::warning::No inject script found — skipping DATABASE_URL injection"
           fi
 
       # ── Health checks ──────────────────────────────────────────────────────
