@@ -174,12 +174,12 @@ jobs:
             # 2. Stop the existing Makulu compose project (catches restarting containers too)
             sudo docker compose down --timeout 30 2>/dev/null || true
             # 3. Force-remove any remaining container on Makulu ports (all states, incl. restarting)
-            for PORT in 3010 4000 5432 6379; do
+            for PORT in 3010 4000 6379; do
               CIDS=$(sudo docker ps -aq --filter "publish=${PORT}" 2>/dev/null)
               [ -n "$CIDS" ] && sudo docker rm -f $CIDS 2>/dev/null || true
             done
             # 4. Kill any process still holding our ports (covers stale docker-proxy or host procs)
-            for PORT in 3010 4000 5432 6379; do
+            for PORT in 3010 4000 6379; do
               sudo ss -Htlnp | grep -w ":${PORT}" | grep -oP 'pid=\K[0-9]+' \
                 | sort -u | xargs -r sudo kill -9 2>/dev/null || true
             done
@@ -207,7 +207,29 @@ jobs:
             ssh -o StrictHostKeyChecking=no \
                 -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
                 "$SERVER_USER@$INDEXER_IP" \
-                "sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql://${RDS_USERNAME}:${RDS_PASSWORD}@${RDS_ENDPOINT}:5432/lithoscan|' /opt/lithosphere/Makulu/.env && echo 'DATABASE_URL injected.'"
+                "python3 -c \"
+import sys
+from urllib.parse import quote
+user = '$RDS_USERNAME'
+pw   = quote('$RDS_PASSWORD', safe='')
+host = '$RDS_ENDPOINT'
+url  = f'postgresql://{user}:{pw}@{host}:5432/lithoscan?sslmode=require'
+env  = '/opt/lithosphere/Makulu/.env'
+import re
+lines = open(env).readlines()
+out   = []
+for l in lines:
+    if re.match(r'^DATABASE_URL=', l):        out.append(f'DATABASE_URL={url}\n')
+    elif re.match(r'^NODE_TLS_REJECT_UNAUTHORIZED=', l): continue
+    else: out.append(l)
+if not any(re.match(r'^DATABASE_URL=', l) for l in out):
+    out.append(f'DATABASE_URL={url}\n')
+open(env,'w').writelines(out)
+print('DATABASE_URL injected')
+\" && \
+              cd /opt/lithosphere/Makulu && \
+              sudo docker compose up -d --force-recreate api indexer && \
+              echo 'Containers restarted with new DATABASE_URL'"
           else
             echo "::warning::RDS credentials not available — skipping DATABASE_URL injection"
           fi
