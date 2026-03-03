@@ -9,6 +9,9 @@ export function getPool(): Pool {
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 3000,
+      ssl: process.env.DATABASE_URL?.includes('sslmode=disable')
+        ? false
+        : { rejectUnauthorized: false },
     });
     _pool.on('error', (err) => {
       console.error('PostgreSQL pool error:', err.message);

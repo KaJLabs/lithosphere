@@ -23,6 +23,9 @@ const pool = new Pool({
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
+  ssl: process.env.DATABASE_URL?.includes('sslmode=disable')
+    ? false
+    : { rejectUnauthorized: false },
 });
 pool.on('error', (err) => console.error('[db] Pool error:', err.message));
 
