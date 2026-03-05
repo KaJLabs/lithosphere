@@ -1,0 +1,140 @@
+# ============================================================================
+# Monitoring Diagnostics — Run on Indexer EC2 via Bastion
+# Checks Prometheus, CometBFT metrics, and node_exporter reachability
+# ============================================================================
+
+name: Monitoring Diagnostics
+
+on:
+  workflow_dispatch:
+
+env:
+  INDEXER_IP: ${{ secrets.INDEXER_IP }}
+  BASTION_HOST: ${{ secrets.BASTION_HOST }}
+  SERVER_USER: ${{ secrets.SERVER_USER }}
+
+jobs:
+  diagnose:
+    name: Run Monitoring Checks on Indexer EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.BASTION_SSH_KEY }}
+            ${{ secrets.INDEXER_SSH_KEY }}
+
+      - name: Add Bastion to Known Hosts
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keyscan -T 10 -H "$BASTION_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Run Diagnostics on Indexer
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+          set -euo pipefail
+
+          echo "=============================================="
+          echo "  Lithosphere Monitoring Diagnostics"
+          echo "  Host: $(hostname) — $(date -u)"
+          echo "=============================================="
+
+          # ── 1. Prometheus ──────────────────────────────────────────────
+          echo ""
+          echo "=== 1. PROMETHEUS STATUS ==="
+          echo "--- Docker containers matching 'prom' ---"
+          docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep -i prom || echo "  ⚠ No Prometheus container found"
+
+          echo "--- Prometheus health check (port 9090) ---"
+          if curl -sf --connect-timeout 5 http://localhost:9090/-/healthy; then
+            echo "  ✅ Prometheus healthy on :9090"
+          else
+            echo "  ❌ Prometheus NOT reachable on :9090"
+          fi
+
+          echo "--- Prometheus health check (port 9091, mapped) ---"
+          if curl -sf --connect-timeout 5 http://localhost:9091/-/healthy; then
+            echo "  ✅ Prometheus healthy on :9091"
+          else
+            echo "  ❌ Prometheus NOT reachable on :9091"
+          fi
+
+          echo "--- All running Docker containers ---"
+          docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null || echo "  ⚠ docker ps failed (is Docker running?)"
+
+          # ── 2. CometBFT / Tendermint metrics (port 26660) ──────────────
+          echo ""
+          echo "=== 2. COMETBFT METRICS (port 26660) ==="
+          for entry in "10.0.10.65:validator" "10.0.1.218:sentry-01" "10.1.1.227:sentry-02"; do
+            ip="${entry%%:*}"
+            name="${entry##*:}"
+            printf "  %-12s (%s): " "$name" "$ip"
+            if curl -sf --connect-timeout 5 "http://$ip:26660/metrics" | head -1; then
+              echo "  ✅ reachable"
+            else
+              echo "  ❌ UNREACHABLE"
+            fi
+          done
+
+          # ── 3. node_exporter (port 9100) ───────────────────────────────
+          echo ""
+          echo "=== 3. NODE_EXPORTER (port 9100) ==="
+          for entry in "10.0.10.65:validator" "10.0.1.218:sentry-01" "10.1.1.227:sentry-02"; do
+            ip="${entry%%:*}"
+            name="${entry##*:}"
+            printf "  %-12s (%s): " "$name" "$ip"
+            if curl -sf --connect-timeout 5 "http://$ip:9100/metrics" | head -1; then
+              echo "  ✅ reachable"
+            else
+              echo "  ❌ UNREACHABLE"
+            fi
+          done
+
+          # ── 4. Network connectivity test ───────────────────────────────
+          echo ""
+          echo "=== 4. NETWORK CONNECTIVITY ==="
+          for entry in "10.0.10.65:validator" "10.0.1.218:sentry-01" "10.1.1.227:sentry-02"; do
+            ip="${entry%%:*}"
+            name="${entry##*:}"
+            printf "  %-12s (%s) ping: " "$name" "$ip"
+            if ping -c 1 -W 3 "$ip" > /dev/null 2>&1; then
+              echo "✅ reachable"
+            else
+              echo "❌ unreachable"
+            fi
+          done
+
+          # ── 5. Prometheus scrape config (if running) ───────────────────
+          echo ""
+          echo "=== 5. PROMETHEUS SCRAPE TARGETS ==="
+          PROM_PORT=""
+          if curl -sf --connect-timeout 2 http://localhost:9090/-/healthy > /dev/null 2>&1; then
+            PROM_PORT=9090
+          elif curl -sf --connect-timeout 2 http://localhost:9091/-/healthy > /dev/null 2>&1; then
+            PROM_PORT=9091
+          fi
+
+          if [ -n "$PROM_PORT" ]; then
+            echo "  Prometheus API at :$PROM_PORT"
+            echo "--- Active targets ---"
+            curl -sf "http://localhost:$PROM_PORT/api/v1/targets" | \
+              python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for t in data.get('data',{}).get('activeTargets',[]):
+              print(f\"  {t.get('labels',{}).get('job','?'):25s} {t.get('scrapeUrl','?'):45s} {t.get('health','?')}\")
+          " 2>/dev/null || echo "  Could not parse targets (python3 may not be installed)"
+          else
+            echo "  ⚠ Prometheus not running — cannot query targets"
+          fi
+
+          echo ""
+          echo "=============================================="
+          echo "  Diagnostics complete"
+          echo "=============================================="
+          ENDSSH

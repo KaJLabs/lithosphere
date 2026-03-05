@@ -87,6 +87,50 @@ scrape_configs:
     scrape_interval: 15s
 
   # ─────────────────────────────────────────────────────────────────────────
+  # CometBFT / Tendermint Metrics — Validator & Sentry Nodes
+  # Uses VPC private IPs (not WireGuard overlay).
+  # Requires: Security Groups allow TCP 26660 inbound from Indexer 10.0.10.16
+  # ─────────────────────────────────────────────────────────────────────────
+  - job_name: 'cometbft'
+    static_configs:
+      - targets: ['10.0.10.65:26660']
+        labels:
+          node: 'validator'
+          role: 'validator'
+      - targets: ['10.0.1.218:26660']
+        labels:
+          node: 'sentry-01'
+          role: 'sentry'
+      - targets: ['10.1.1.227:26660']
+        labels:
+          node: 'sentry-02'
+          role: 'sentry'
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Node Exporter — Remote Host Metrics (Validator & Sentry Nodes)
+  # Uses VPC private IPs.
+  # Requires: Security Groups allow TCP 9100 inbound from Indexer 10.0.10.16
+  # ─────────────────────────────────────────────────────────────────────────
+  - job_name: 'node-exporter-remote'
+    static_configs:
+      - targets: ['10.0.10.65:9100']
+        labels:
+          node: 'validator'
+          role: 'validator'
+      - targets: ['10.0.1.218:9100']
+        labels:
+          node: 'sentry-01'
+          role: 'sentry'
+      - targets: ['10.1.1.227:9100']
+        labels:
+          node: 'sentry-02'
+          role: 'sentry'
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  # ─────────────────────────────────────────────────────────────────────────
   # Docker Service Discovery (Auto-discover containers with prometheus labels)
   # ─────────────────────────────────────────────────────────────────────────
   - job_name: 'docker-services'
