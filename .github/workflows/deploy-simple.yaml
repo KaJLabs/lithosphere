@@ -57,13 +57,15 @@ jobs:
 
       - name: Configure AWS Credentials (OIDC)
         if: steps.resolve-env.outputs.name == 'mainnet'
+        continue-on-error: true
+        id: aws-creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: us-east-1
 
       - name: Fetch RDS Credentials from Secrets Manager
-        if: steps.resolve-env.outputs.name == 'mainnet'
+        if: steps.resolve-env.outputs.name == 'mainnet' && steps.aws-creds.outcome == 'success'
         id: rds-creds
         run: |
           SECRET_JSON=$(aws secretsmanager get-secret-value \
@@ -196,7 +198,7 @@ jobs:
           echo "Deployment finished at $(date)"
 
       - name: Build RDS inject script
-        if: steps.resolve-env.outputs.name == 'mainnet'
+        if: steps.resolve-env.outputs.name == 'mainnet' && steps.aws-creds.outcome == 'success'
         shell: python
         env:
           RDS_ENDPOINT: ${{ steps.rds-creds.outputs.rds_endpoint }}
@@ -232,7 +234,7 @@ jobs:
               print(f"Script written — host: {host}")
 
       - name: Inject RDS DATABASE_URL for Mainnet
-        if: steps.resolve-env.outputs.name == 'mainnet'
+        if: steps.resolve-env.outputs.name == 'mainnet' && steps.aws-creds.outcome == 'success'
         run: |
           if [ -f /tmp/inject_db.py ]; then
             echo "🔒 Copying inject script to server..."
