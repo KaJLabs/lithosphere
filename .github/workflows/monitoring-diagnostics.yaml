@@ -47,7 +47,7 @@ jobs:
           echo ""
           echo "=== 1. PROMETHEUS STATUS ==="
           echo "--- Docker containers matching 'prom' ---"
-          docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep -i prom || echo "  ⚠ No Prometheus container found"
+          docker ps --format 'table ${{ '{{' }}.Names${{ '}}' }}\t${{ '{{' }}.Status${{ '}}' }}\t${{ '{{' }}.Ports${{ '}}' }}' | grep -i prom || echo "  ⚠ No Prometheus container found"
 
           echo "--- Prometheus health check (port 9090) ---"
           if curl -sf --connect-timeout 5 http://localhost:9090/-/healthy; then
@@ -64,7 +64,7 @@ jobs:
           fi
 
           echo "--- All running Docker containers ---"
-          docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null || echo "  ⚠ docker ps failed (is Docker running?)"
+          docker ps --format 'table ${{ '{{' }}.Names${{ '}}' }}\t${{ '{{' }}.Status${{ '}}' }}\t${{ '{{' }}.Ports${{ '}}' }}' 2>/dev/null || echo "  ⚠ docker ps failed (is Docker running?)"
 
           # ── 2. CometBFT / Tendermint metrics (port 26660) ──────────────
           echo ""
