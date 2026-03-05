@@ -168,27 +168,27 @@ jobs:
               echo "Fallback: using .env.testnet"
             fi
 
-            echo "🔴 Stopping all conflicting stacks..."
-            # 1. Stop LITHOSCAN compose project (validator team's explorer on :3100)
+            echo "🔴 Stopping only the explorer container on port 3100..."
+            # 1. Stop ONLY the explorer-web service from LITHOSCAN (keep API/indexer/redis!)
+            #    The Fastify API on port 8080 and its indexer MUST stay running.
             if [ -f /opt/lithoscan/docker-compose.yml ]; then
-              sudo docker compose -f /opt/lithoscan/docker-compose.yml down --timeout 30 2>/dev/null || true
+              sudo docker compose -f /opt/lithoscan/docker-compose.yml stop explorer-web 2>/dev/null || true
+              sudo docker compose -f /opt/lithoscan/docker-compose.yml rm -f explorer-web 2>/dev/null || true
             fi
-            # 2. Stop the existing Makulu compose project (catches restarting containers too)
-            sudo docker compose down --timeout 30 2>/dev/null || true
-            # 3. Force-remove any remaining container on our ports (all states, incl. restarting)
-            #    3100 = explorer (nginx routes here), 4000 = API, 6379 = Redis
-            for PORT in 3100 4000 6379; do
+            # 2. Stop the existing Makulu explorer container
+            sudo docker compose stop explorer 2>/dev/null || true
+            sudo docker compose rm -f explorer 2>/dev/null || true
+            # 3. Force-remove any remaining container on port 3100 (nginx routes here)
+            for PORT in 3100; do
               CIDS=$(sudo docker ps -aq --filter "publish=${PORT}" 2>/dev/null)
               [ -n "$CIDS" ] && sudo docker rm -f $CIDS 2>/dev/null || true
             done
-            # 4. Kill any process still holding our ports (covers stale docker-proxy or host procs)
-            for PORT in 3100 4000 6379; do
-              sudo ss -Htlnp | grep -w ":${PORT}" | grep -oP 'pid=\K[0-9]+' \
-                | sort -u | xargs -r sudo kill -9 2>/dev/null || true
-            done
+            # 4. Kill any process still holding port 3100
+            sudo ss -Htlnp | grep -w ":3100" | grep -oP 'pid=\K[0-9]+' \
+              | sort -u | xargs -r sudo kill -9 2>/dev/null || true
 
-            echo "🐳 Building and starting all services..."
-            sudo docker compose up -d --build --remove-orphans
+            echo "🐳 Building and starting explorer service only..."
+            sudo docker compose up -d --build explorer
 
             echo "🧹 Cleaning up..."
             cd /opt/lithosphere

@@ -1,14 +1,11 @@
-import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useGraphQL } from '@/lib/graphql';
-import { TRANSACTION_DETAIL } from '@/lib/queries';
+import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatTimestamp, formatGas, truncateHash } from '@/lib/format';
-import type { Transaction } from '@/lib/types';
+import { formatNumber, formatTimestamp, truncateHash } from '@/lib/format';
+import type { ApiTx } from '@/lib/types';
 import HashDisplay from '@/components/HashDisplay';
-import AddressDisplay from '@/components/AddressDisplay';
 import { TxStatusBadge } from '@/components/Badges';
 import ErrorState from '@/components/ErrorState';
 import Loading from '@/components/Loading';
@@ -16,13 +13,10 @@ import Loading from '@/components/Loading';
 export default function TransactionDetailPage() {
   const router = useRouter();
   const { hash } = router.query;
-  const [showRawLog, setShowRawLog] = useState(false);
 
-  const { data, loading, error, refetch } = useGraphQL<{ transaction: Transaction }>(
-    TRANSACTION_DETAIL, { hash: hash as string }, { skip: !hash }
+  const { data: tx, loading, error, refetch } = useApi<ApiTx>(
+    hash ? `/txs/${hash}` : null
   );
-
-  const tx = data?.transaction;
 
   if (loading) return <Loading lines={10} />;
   if (error) return <ErrorState message={error} onRetry={refetch} />;
@@ -51,66 +45,29 @@ export default function TransactionDetailPage() {
         <div className="detail-row">
           <span className="detail-label">Block</span>
           <span className="detail-value">
-            <Link href={`/blocks/${tx.blockHeight}`} className="font-mono">{formatNumber(tx.blockHeight)}</Link>
+            <Link href={`/blocks/${tx.blockHeight}`} className="font-mono text-litho-400">{formatNumber(tx.blockHeight)}</Link>
           </span>
         </div>
         <div className="detail-row">
-          <span className="detail-label">Timestamp</span>
-          <span className="detail-value">{formatTimestamp(tx.timestamp)}</span>
-        </div>
-        {tx.txIndex != null && (
-          <div className="detail-row">
-            <span className="detail-label">Index</span>
-            <span className="detail-value">{tx.txIndex}</span>
-          </div>
-        )}
-        <div className="detail-row">
-          <span className="detail-label">Type</span>
-          <span className="detail-value"><span className="badge-neutral">{tx.txType || '-'}</span></span>
-        </div>
-        <div className="detail-row">
           <span className="detail-label">From</span>
-          <span className="detail-value"><AddressDisplay address={tx.sender} truncate={false} /></span>
+          <span className="detail-value font-mono break-all">{tx.fromAddr || '-'}</span>
         </div>
         <div className="detail-row">
           <span className="detail-label">To</span>
-          <span className="detail-value"><AddressDisplay address={tx.receiver} truncate={false} /></span>
+          <span className="detail-value font-mono break-all">{tx.toAddr || '-'}</span>
         </div>
-        {tx.amount && (
-          <div className="detail-row">
-            <span className="detail-label">Amount</span>
-            <span className="detail-value font-mono">{tx.amount} {tx.denom || ''}</span>
-          </div>
-        )}
         <div className="detail-row">
-          <span className="detail-label">Gas Used / Wanted</span>
-          <span className="detail-value font-mono">{formatGas(tx.gasUsed)} / {formatGas(tx.gasWanted)}</span>
+          <span className="detail-label">Value</span>
+          <span className="detail-value font-mono">{tx.value || '0'}</span>
         </div>
-        {tx.fee && (
+        <div className="detail-row">
+          <span className="detail-label">Fee Paid</span>
+          <span className="detail-value font-mono">{tx.feePaid || '0'}</span>
+        </div>
+        {tx.method && (
           <div className="detail-row">
-            <span className="detail-label">Fee</span>
-            <span className="detail-value font-mono">{tx.fee} {tx.feeDenom || ''}</span>
-          </div>
-        )}
-        {tx.memo && (
-          <div className="detail-row">
-            <span className="detail-label">Memo</span>
-            <span className="detail-value">{tx.memo}</span>
-          </div>
-        )}
-        {tx.rawLog && (
-          <div className="detail-row border-b-0">
-            <span className="detail-label">Raw Log</span>
-            <span className="detail-value">
-              <button onClick={() => setShowRawLog(!showRawLog)} className="text-litho-400 text-sm mb-2">
-                {showRawLog ? 'Hide' : 'Show'} raw log
-              </button>
-              {showRawLog && (
-                <pre className="mt-2 p-3 rounded bg-[var(--color-bg-tertiary)] text-xs overflow-x-auto max-h-64 font-mono">
-                  {tx.rawLog}
-                </pre>
-              )}
-            </span>
+            <span className="detail-label">Method</span>
+            <span className="detail-value"><span className="badge-neutral">{tx.method}</span></span>
           </div>
         )}
       </div>

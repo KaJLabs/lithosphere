@@ -198,25 +198,17 @@ services:
       context: ./explorer
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
-        NEXT_PUBLIC_GRAPHQL_URL: ${NEXT_PUBLIC_GRAPHQL_URL:-http://localhost:4000/graphql}
         NEXT_PUBLIC_RPC_URL: ${NEXT_PUBLIC_RPC_URL:-https://rpc.litho.ai}
         NEXT_PUBLIC_CHAIN_ID: ${CHAIN_ID:-lithosphere_777777-1}
         NEXT_PUBLIC_CHAIN_NAME: ${CHAIN_NAME:-Lithosphere}
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://makalu.litho.ai}
     restart: unless-stopped
     ports:
       - "${EXPLORER_PORT:-3100}:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
-      - API_INTERNAL_URL=http://api:4000
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://makalu.litho.ai/api}
-      - NEXT_PUBLIC_GRAPHQL_URL=${NEXT_PUBLIC_GRAPHQL_URL:-https://makalu.litho.ai/api/graphql}
       - NEXT_PUBLIC_RPC_URL=${NEXT_PUBLIC_RPC_URL:-https://rpc.litho.ai}
-      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-wss://rpc.litho.ai/websocket}
       - NEXT_PUBLIC_CHAIN_ID=${CHAIN_ID:-lithosphere_777777-1}
       - NEXT_PUBLIC_CHAIN_NAME=${CHAIN_NAME:-Lithosphere}
-      - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-https://makalu.litho.ai}
     env_file:
       - .env
     logging:
@@ -232,9 +224,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    depends_on:
-      api:
-        condition: service_healthy
     networks:
       litho-network:
         aliases:

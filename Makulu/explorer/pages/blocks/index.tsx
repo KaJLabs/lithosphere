@@ -1,31 +1,27 @@
-import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import { useGraphQL } from '@/lib/graphql';
-import { BLOCKS } from '@/lib/queries';
-import { EXPLORER_TITLE, PAGE_SIZE } from '@/lib/constants';
-import { formatNumber, timeAgo } from '@/lib/format';
-import type { BlocksResult } from '@/lib/types';
+import { useApi } from '@/lib/api';
+import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
+import { formatNumber } from '@/lib/format';
+import type { ApiBlock } from '@/lib/types';
 import DataTable, { type Column } from '@/components/DataTable';
-import type { Block } from '@/lib/types';
-import Pagination from '@/components/Pagination';
 import HashDisplay from '@/components/HashDisplay';
-import AddressDisplay from '@/components/AddressDisplay';
 import TimeAgo from '@/components/TimeAgo';
 import ErrorState from '@/components/ErrorState';
 
 export default function BlocksPage() {
-  const [offset, setOffset] = useState(0);
-  const { data, loading, error, refetch } = useGraphQL<{ blocks: BlocksResult }>(
-    BLOCKS, { limit: PAGE_SIZE, offset }
+  const { data, loading, error, refetch } = useApi<ApiBlock[]>(
+    '/blocks?limit=25', { pollInterval: POLL_INTERVAL }
   );
 
-  const columns: Column<Block>[] = [
+  const blocks = data ?? [];
+
+  const columns: Column<ApiBlock>[] = [
     {
       key: 'height',
       header: 'Height',
       render: (b) => (
-        <Link href={`/blocks/${b.height}`} className="font-mono font-medium">
+        <Link href={`/blocks/${b.height}`} className="font-mono font-medium text-litho-400">
           {formatNumber(b.height)}
         </Link>
       ),
@@ -36,24 +32,14 @@ export default function BlocksPage() {
       render: (b) => <HashDisplay hash={b.hash} />,
     },
     {
-      key: 'proposer',
-      header: 'Proposer',
-      render: (b) => <AddressDisplay address={b.proposerAddress} />,
-    },
-    {
       key: 'txns',
       header: 'Txns',
-      render: (b) => formatNumber(b.numTxs),
-    },
-    {
-      key: 'gas',
-      header: 'Gas',
-      render: (b) => formatNumber(b.totalGas),
+      render: (b) => formatNumber(b.txCount),
     },
     {
       key: 'time',
       header: 'Time',
-      render: (b) => <TimeAgo timestamp={b.blockTime} />,
+      render: (b) => <TimeAgo timestamp={b.timestamp} />,
     },
   ];
 
@@ -64,22 +50,14 @@ export default function BlocksPage() {
       <Head><title>Blocks | {EXPLORER_TITLE}</title></Head>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Blocks</h1>
-        {data?.blocks?.pageInfo && (
-          <span className="text-sm text-[var(--color-text-muted)]">
-            Total: {formatNumber(data.blocks.pageInfo.total)}
-          </span>
-        )}
       </div>
       <DataTable
         columns={columns}
-        data={data?.blocks?.items ?? []}
+        data={blocks}
         loading={loading}
-        rowKey={(b) => b.height}
+        rowKey={(b) => String(b.height)}
         emptyMessage="No blocks found"
       />
-      {data?.blocks?.pageInfo && (
-        <Pagination pageInfo={data.blocks.pageInfo} onPageChange={setOffset} />
-      )}
     </>
   );
 }
