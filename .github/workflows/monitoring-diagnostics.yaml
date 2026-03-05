@@ -8,15 +8,14 @@ name: Monitoring Diagnostics
 on:
   workflow_dispatch:
 
-env:
-  INDEXER_IP: ${{ secrets.INDEXER_IP }}
-  BASTION_HOST: ${{ secrets.BASTION_HOST }}
-  SERVER_USER: ${{ secrets.SERVER_USER }}
-
 jobs:
   diagnose:
     name: Run Monitoring Checks on Indexer EC2
     runs-on: ubuntu-latest
+    env:
+      INDEXER_IP: ${{ secrets.INDEXER_IP }}
+      BASTION_HOST: ${{ secrets.BASTION_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
 
     steps:
       - name: Setup SSH Agent
