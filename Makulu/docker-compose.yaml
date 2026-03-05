@@ -209,6 +209,7 @@ services:
       - "${EXPLORER_PORT:-3100}:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
+      - API_INTERNAL_URL=http://api:4000
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://makalu.litho.ai/api}
       - NEXT_PUBLIC_GRAPHQL_URL=${NEXT_PUBLIC_GRAPHQL_URL:-https://makalu.litho.ai/api/graphql}
       - NEXT_PUBLIC_RPC_URL=${NEXT_PUBLIC_RPC_URL:-https://rpc.litho.ai}
