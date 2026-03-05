@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg-primary: #ffffff;
+    --color-bg-secondary: #f8fafc;
+    --color-bg-tertiary: #f1f5f9;
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #475569;
+    --color-text-muted: #94a3b8;
+    --color-border: #e2e8f0;
+    --color-border-light: #f1f5f9;
+  }
+
+  .dark {
+    --color-bg-primary: #0f172a;
+    --color-bg-secondary: #1e293b;
+    --color-bg-tertiary: #334155;
+    --color-text-primary: #f1f5f9;
+    --color-text-secondary: #94a3b8;
+    --color-text-muted: #64748b;
+    --color-border: #334155;
+    --color-border-light: #1e293b;
+  }
+
+  body {
+    @apply bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] transition-colors duration-200;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  a {
+    @apply text-litho-400 hover:text-litho-300 transition-colors;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg;
+  }
+
+  .data-table {
+    @apply w-full text-sm;
+  }
+
+  .data-table th {
+    @apply text-left px-4 py-3 text-[var(--color-text-muted)] font-medium border-b border-[var(--color-border)] text-xs uppercase tracking-wider;
+  }
+
+  .data-table td {
+    @apply px-4 py-3 border-b border-[var(--color-border-light)];
+  }
+
+  .data-table tbody tr {
+    @apply hover:bg-[var(--color-bg-tertiary)] transition-colors;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply badge bg-green-500/10 text-green-500;
+  }
+
+  .badge-error {
+    @apply badge bg-red-500/10 text-red-500;
+  }
+
+  .badge-warning {
+    @apply badge bg-yellow-500/10 text-yellow-500;
+  }
+
+  .badge-info {
+    @apply badge bg-litho-400/10 text-litho-400;
+  }
+
+  .badge-neutral {
+    @apply badge bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)];
+  }
+
+  .detail-row {
+    @apply flex flex-col sm:flex-row py-3 border-b border-[var(--color-border-light)];
+  }
+
+  .detail-label {
+    @apply text-[var(--color-text-muted)] text-sm w-full sm:w-48 shrink-0 mb-1 sm:mb-0;
+  }
+
+  .detail-value {
+    @apply text-sm break-all;
+  }
+
+  .tab {
+    @apply px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] border-b-2 border-transparent cursor-pointer transition-colors;
+  }
+
+  .tab-active {
+    @apply tab text-litho-400 border-litho-400;
+  }
+
+  .tab:hover:not(.tab-active) {
+    @apply text-[var(--color-text-primary)] border-[var(--color-border)];
+  }
+}

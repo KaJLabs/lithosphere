@@ -1,127 +1,212 @@
-import { useState, useEffect } from 'react';
+import Head from 'next/head';
+import Link from 'next/link';
+import { useGraphQL } from '@/lib/graphql';
+import { CHAIN_SUMMARY, LATEST_BLOCKS, LATEST_TRANSACTIONS } from '@/lib/queries';
+import { EXPLORER_TITLE, POLL_INTERVAL, HOMEPAGE_ITEMS } from '@/lib/constants';
+import { formatNumber, formatBlockTime, truncateHash, truncateAddress, timeAgo } from '@/lib/format';
+import type { ChainSummary, BlocksResult, TransactionsResult } from '@/lib/types';
+import StatCard from '@/components/StatCard';
+import { TxStatusBadge } from '@/components/Badges';
+import { CardSkeleton } from '@/components/Loading';
+import ErrorState from '@/components/ErrorState';
 
-interface Block {
-  number: string;
-  hash: string;
-  timestamp: string;
-  transactions: string[];
-}
+export default function Home() {
+  const { data: summaryData, loading: summaryLoading, error: summaryError, refetch: refetchSummary } =
+    useGraphQL<{ chainSummary: ChainSummary }>(CHAIN_SUMMARY, undefined, { pollInterval: POLL_INTERVAL });
 
-export default function Explorer() {
-  const [blocks, setBlocks] = useState<Block[]>([]);
-  const [chainId, setChainId] = useState<string>('');
-  const [blockNumber, setBlockNumber] = useState<string>('0');
-  const [error, setError] = useState<string>('');
+  const { data: blocksData, loading: blocksLoading } =
+    useGraphQL<{ blocks: BlocksResult }>(LATEST_BLOCKS, { limit: HOMEPAGE_ITEMS }, { pollInterval: POLL_INTERVAL });
 
-  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'http://localhost:8545';
-  const configuredChainId = process.env.NEXT_PUBLIC_CHAIN_ID || '777777';
-  const chainName = process.env.NEXT_PUBLIC_CHAIN_NAME || 'Litho Devnet';
-  const title = process.env.NEXT_PUBLIC_EXPLORER_TITLE || 'Lithosphere Devnet Explorer';
+  const { data: txsData, loading: txsLoading } =
+    useGraphQL<{ transactions: TransactionsResult }>(LATEST_TRANSACTIONS, { limit: HOMEPAGE_ITEMS }, { pollInterval: POLL_INTERVAL });
 
-  async function rpc(method: string, params: unknown[] = []) {
-    const res = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method, params, id: 1 }),
-    });
-    const json = await res.json();
-    if (json.error) throw new Error(json.error.message);
-    return json.result;
-  }
-
-  async function fetchLatest() {
-    try {
-      const cid = await rpc('eth_chainId');
-      setChainId(String(parseInt(cid, 16)));
-
-      const bn = await rpc('eth_blockNumber');
-      const num = parseInt(bn, 16);
-      setBlockNumber(String(num));
-
-      const fetched: Block[] = [];
-      const start = Math.max(0, num - 9);
-      for (let i = num; i >= start; i--) {
-        const block = await rpc('eth_getBlockByNumber', [`0x${i.toString(16)}`, false]);
-        if (block) {
-          fetched.push({
-            number: String(parseInt(block.number, 16)),
-            hash: block.hash,
-            timestamp: new Date(parseInt(block.timestamp, 16) * 1000).toLocaleString(),
-            transactions: block.transactions || [],
-          });
-        }
-      }
-      setBlocks(fetched);
-      setError('');
-    } catch (e: any) {
-      setError(e.message || 'Failed to connect to chain');
-    }
-  }
-
-  useEffect(() => {
-    fetchLatest();
-    const interval = setInterval(fetchLatest, 4000);
-    return () => clearInterval(interval);
-  }, []);
+  const summary = summaryData?.chainSummary;
+  const blocks = blocksData?.blocks?.items ?? [];
+  const txs = txsData?.transactions?.items ?? [];
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: 24, fontFamily: 'system-ui, sans-serif' }}>
-      <h1 style={{ borderBottom: '2px solid #333', paddingBottom: 8 }}>{title}</h1>
+    <>
+      <Head>
+        <title>{EXPLORER_TITLE} - Lithosphere Mainnet Explorer</title>
+        <meta name="description" content="Explore blocks, transactions, validators, and smart contracts on the Lithosphere blockchain." />
+      </Head>
 
-      <div style={{ display: 'flex', gap: 24, marginBottom: 24, flexWrap: 'wrap' }}>
-        <Stat label="Chain Name" value={chainName} />
-        <Stat label="Chain ID" value={chainId || configuredChainId} />
-        <Stat label="Latest Block" value={`#${blockNumber}`} />
-        <Stat label="RPC" value={rpcUrl} />
-      </div>
-
-      {error && (
-        <div style={{ background: '#fee', border: '1px solid #c00', padding: 12, borderRadius: 4, marginBottom: 16 }}>
-          {error}
+      {/* Chain Summary Stats */}
+      {summaryError ? (
+        <ErrorState message={summaryError} onRetry={refetchSummary} />
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+          {summaryLoading ? (
+            Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)
+          ) : (
+            <>
+              <StatCard
+                label="Latest Block"
+                value={`#${formatNumber(summary?.latestBlock)}`}
+                icon={<BlockIcon />}
+              />
+              <StatCard
+                label="Transactions"
+                value={formatNumber(summary?.totalTransactions)}
+                icon={<TxIcon />}
+              />
+              <StatCard
+                label="Accounts"
+                value={formatNumber(summary?.totalAccounts)}
+                icon={<AccountIcon />}
+              />
+              <StatCard
+                label="Validators"
+                value={String(summary?.totalValidators ?? 0)}
+                icon={<ValidatorIcon />}
+              />
+              <StatCard
+                label="Contracts"
+                value={formatNumber(summary?.totalContracts)}
+                icon={<ContractIcon />}
+              />
+              <StatCard
+                label="Block Time"
+                value={formatBlockTime(summary?.avgBlockTime)}
+                icon={<ClockIcon />}
+              />
+            </>
+          )}
         </div>
       )}
 
-      <h2>Recent Blocks</h2>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
-            <th style={th}>Block</th>
-            <th style={th}>Timestamp</th>
-            <th style={th}>Txns</th>
-            <th style={th}>Hash</th>
-          </tr>
-        </thead>
-        <tbody>
-          {blocks.map((b) => (
-            <tr key={b.hash} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={td}>{b.number}</td>
-              <td style={td}>{b.timestamp}</td>
-              <td style={td}>{b.transactions.length}</td>
-              <td style={{ ...td, fontFamily: 'monospace', fontSize: 12 }}>
-                {b.hash.slice(0, 18)}...{b.hash.slice(-6)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Latest Blocks + Latest Transactions side by side */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Latest Blocks */}
+        <div className="card">
+          <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
+            <h2 className="font-semibold">Latest Blocks</h2>
+            <Link href="/blocks" className="text-sm text-litho-400 hover:text-litho-300">
+              View all &rarr;
+            </Link>
+          </div>
+          <div className="divide-y divide-[var(--color-border-light)]">
+            {blocksLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="p-4 animate-pulse">
+                  <div className="h-4 bg-[var(--color-bg-tertiary)] rounded w-1/2 mb-2" />
+                  <div className="h-3 bg-[var(--color-bg-tertiary)] rounded w-3/4" />
+                </div>
+              ))
+            ) : blocks.length === 0 ? (
+              <div className="p-8 text-center text-[var(--color-text-muted)]">No blocks yet</div>
+            ) : (
+              blocks.map((block) => (
+                <div key={block.height} className="p-4 hover:bg-[var(--color-bg-tertiary)] transition-colors">
+                  <div className="flex items-center justify-between mb-1">
+                    <Link href={`/blocks/${block.height}`} className="font-mono text-sm font-medium text-litho-400">
+                      #{formatNumber(block.height)}
+                    </Link>
+                    <span className="text-xs text-[var(--color-text-muted)]">{timeAgo(block.blockTime)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+                    <span>
+                      {block.numTxs} txn{block.numTxs !== 1 ? 's' : ''}
+                    </span>
+                    {block.proposerAddress && (
+                      <span className="font-mono">{truncateAddress(block.proposerAddress, 8, 4)}</span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
 
-      {blocks.length === 0 && !error && <p style={{ opacity: 0.6 }}>Waiting for blocks...</p>}
-
-      <button onClick={fetchLatest} style={{ marginTop: 16, padding: '8px 16px', cursor: 'pointer' }}>
-        Refresh
-      </button>
-    </main>
+        {/* Latest Transactions */}
+        <div className="card">
+          <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
+            <h2 className="font-semibold">Latest Transactions</h2>
+            <Link href="/txs" className="text-sm text-litho-400 hover:text-litho-300">
+              View all &rarr;
+            </Link>
+          </div>
+          <div className="divide-y divide-[var(--color-border-light)]">
+            {txsLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="p-4 animate-pulse">
+                  <div className="h-4 bg-[var(--color-bg-tertiary)] rounded w-1/2 mb-2" />
+                  <div className="h-3 bg-[var(--color-bg-tertiary)] rounded w-3/4" />
+                </div>
+              ))
+            ) : txs.length === 0 ? (
+              <div className="p-8 text-center text-[var(--color-text-muted)]">No transactions yet</div>
+            ) : (
+              txs.map((tx) => (
+                <div key={tx.id} className="p-4 hover:bg-[var(--color-bg-tertiary)] transition-colors">
+                  <div className="flex items-center justify-between mb-1">
+                    <Link href={`/txs/${tx.hash}`} className="font-mono text-sm text-litho-400">
+                      {truncateHash(tx.hash)}
+                    </Link>
+                    <span className="text-xs text-[var(--color-text-muted)]">{timeAgo(tx.timestamp)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+                    <span>
+                      {tx.sender ? truncateAddress(tx.sender, 8, 4) : '—'}{' '}
+                      <span className="text-[var(--color-text-muted)]">&rarr;</span>{' '}
+                      {tx.receiver ? truncateAddress(tx.receiver, 8, 4) : '—'}
+                    </span>
+                    <TxStatusBadge success={tx.success} />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function BlockIcon() {
   return (
-    <div style={{ background: '#f8f8f8', padding: '12px 20px', borderRadius: 6, minWidth: 140 }}>
-      <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontWeight: 600 }}>{value}</div>
-    </div>
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+    </svg>
   );
 }
 
-const th: React.CSSProperties = { padding: '8px 12px', fontWeight: 600 };
-const td: React.CSSProperties = { padding: '8px 12px' };
+function TxIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+    </svg>
+  );
+}
+
+function AccountIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+    </svg>
+  );
+}
+
+function ValidatorIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+    </svg>
+  );
+}
+
+function ContractIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
