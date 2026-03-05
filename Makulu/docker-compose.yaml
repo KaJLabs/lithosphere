@@ -189,7 +189,7 @@ services:
 
   # --------------------------------------------------------------------------
   # Block Explorer - Next.js Frontend (makalu.litho.ai)
-  # Serves the public-facing explorer UI on port 3000
+  # Runs on EXPLORER_PORT (default: 3100) — matches nginx upstream routing
   # --------------------------------------------------------------------------
   explorer:
     image: ${REGISTRY:-ghcr.io}/kajlabs/lithosphere-explorer:${IMAGE_TAG:-latest}
@@ -206,7 +206,7 @@ services:
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://makalu.litho.ai}
     restart: unless-stopped
     ports:
-      - "${EXPLORER_PORT:-3010}:3000"
+      - "${EXPLORER_PORT:-3100}:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://makalu.litho.ai/api}
