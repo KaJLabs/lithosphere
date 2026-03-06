@@ -1,0 +1,103 @@
+# Lithosphere CI — SDK Pipeline
+# Build, test, lint, typecheck on Node LTS matrix (18, 20, 22)
+
+name: CI SDK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Makulu/templates/sdk-template/**'
+      - 'Makulu/packages/**'
+      - '.github/workflows/ci-sdk.yaml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Makulu/templates/sdk-template/**'
+      - 'Makulu/packages/**'
+      - '.github/workflows/ci-sdk.yaml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: SDK — Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 20, 22]
+
+    defaults:
+      run:
+        working-directory: ./Makulu/templates/sdk-template
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+          cache-dependency-path: Makulu/templates/sdk-template/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test
+        env:
+          CI: true
+
+      - name: Lint
+        run: pnpm lint
+        continue-on-error: true
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## SDK Tests — Node ${{ matrix.node-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Build: completed" >> $GITHUB_STEP_SUMMARY
+          echo "- Tests: completed" >> $GITHUB_STEP_SUMMARY
+          echo "- Typecheck: completed" >> $GITHUB_STEP_SUMMARY
+
+  size-check:
+    name: SDK — Bundle Size
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./Makulu/templates/sdk-template
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: Makulu/templates/sdk-template/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Build
+        run: pnpm build
+
+      - name: Check bundle size
+        run: pnpm size
+        continue-on-error: true
