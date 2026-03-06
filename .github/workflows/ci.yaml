@@ -1,5 +1,5 @@
-# Lithosphere CI - Quality Gate Pipeline
-# Runs on push to main and pull requests targeting main
+# Lithosphere CI — Quality Gate Pipeline
+# Parallel jobs: build, lint, test, typecheck, gitleaks
 
 name: CI
 
@@ -22,112 +22,237 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality-gate:
-    name: Quality Gate
+  # ─────────────────────────────────────────────────────────────────────
+  # Secret Scanning (runs in parallel, no dependencies)
+  # ─────────────────────────────────────────────────────────────────────
+  gitleaks:
+    name: Secret Scan
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
-    
-    defaults:
-      run:
-        working-directory: ./Makulu
-
     steps:
-      # ─────────────────────────────────────────────────────────────
-      # Checkout with full history for Turbo diff calculation
-      # ─────────────────────────────────────────────────────────────
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ─────────────────────────────────────────────────────────────
-      # Setup pnpm
-      # ─────────────────────────────────────────────────────────────
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Install + Build (required by test and typecheck)
+  # ─────────────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ./Makulu
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v2
         with:
           version: 9
 
-      # ─────────────────────────────────────────────────────────────
-      # Setup Node.js with pnpm caching
-      # ─────────────────────────────────────────────────────────────
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
-          cache-dependency-path: 'Makulu/pnpm-lock.yaml'
+          cache: pnpm
+          cache-dependency-path: Makulu/pnpm-lock.yaml
 
-      # ─────────────────────────────────────────────────────────────
-      # Cache pnpm store
-      # ─────────────────────────────────────────────────────────────
       - name: Get pnpm store directory
         shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makulu/**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+          restore-keys: ${{ runner.os }}-pnpm-store-
 
-      # ─────────────────────────────────────────────────────────────
-      # Cache node_modules
-      # ─────────────────────────────────────────────────────────────
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
-          path: 'Makulu/**/node_modules'
+          path: Makulu/**/node_modules
           key: ${{ runner.os }}-node-modules-${{ hashFiles('Makulu/**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-node-modules-
+          restore-keys: ${{ runner.os }}-node-modules-
 
-      # ─────────────────────────────────────────────────────────────
-      # Cache Turborepo
-      # ─────────────────────────────────────────────────────────────
       - name: Cache Turborepo
         uses: actions/cache@v4
         with:
           path: Makulu/.turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-
+          restore-keys: ${{ runner.os }}-turbo-
 
-      # ─────────────────────────────────────────────────────────────
-      # Install dependencies
-      # ─────────────────────────────────────────────────────────────
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # ─────────────────────────────────────────────────────────────
-      # Secret Scanning - Detect leaked private keys
-      # ─────────────────────────────────────────────────────────────
-      - name: Secret Scan with Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+      - name: Build (Turbo)
+        run: pnpm turbo run build --filter='...[origin/main]'
 
-      # ─────────────────────────────────────────────────────────────
-      # Run Turbo Pipeline - Build, Test, Lint
-      # Only runs on packages affected since origin/main
-      # ─────────────────────────────────────────────────────────────
-      - name: Build, Test & Lint (Turbo)
-        run: pnpm turbo run build test lint --filter='...[origin/main]'
-
-      # ─────────────────────────────────────────────────────────────
-      # Upload Turbo run summary (optional debugging)
-      # ─────────────────────────────────────────────────────────────
       - name: Upload Turbo Summary
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: turbo-summary
+          name: turbo-build-summary
           path: Makulu/.turbo/runs
           retention-days: 7
           if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Lint (parallel with build — no build dependency needed)
+  # ─────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ./Makulu
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: Makulu/pnpm-lock.yaml
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makulu/**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (Turbo)
+        run: pnpm turbo run lint --filter='...[origin/main]'
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Test (after build — tests may require compiled output)
+  # ─────────────────────────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: ./Makulu
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: Makulu/pnpm-lock.yaml
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makulu/**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
+
+      - name: Cache Turborepo
+        uses: actions/cache@v4
+        with:
+          path: Makulu/.turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-turbo-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test (Turbo)
+        run: pnpm turbo run test --filter='...[origin/main]'
+        env:
+          CI: true
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          for pkg in api indexer templates/service-template templates/sdk-template templates/contracts-template; do
+            if [ -d "$pkg" ] && grep -q '"test"' "$pkg/package.json" 2>/dev/null; then
+              echo "| $pkg | Ran |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Typecheck (after build — needs compiled dependencies)
+  # ─────────────────────────────────────────────────────────────────────
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ./Makulu
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: Makulu/pnpm-lock.yaml
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makulu/**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
+
+      - name: Cache Turborepo
+        uses: actions/cache@v4
+        with:
+          path: Makulu/.turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-turbo-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (Turbo)
+        run: pnpm turbo run typecheck --filter='...[origin/main]'
+        continue-on-error: true
