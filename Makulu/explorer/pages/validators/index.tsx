@@ -54,7 +54,7 @@ export default function ValidatorsPage() {
         data={validators}
         loading={loading}
         rowKey={(v) => v.address}
-        emptyMessage="No validators found"
+        emptyMessage="Validator data is not yet available. The indexer is still syncing validator information."
       />
     </>
   );

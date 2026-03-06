@@ -8,7 +8,18 @@ export async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`/api${path}`);
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(text || `Request failed (${res.status})`);
+    // API returns JSON error bodies like {"statusCode":404,"message":"Block not found"}
+    // Extract the human-readable message instead of showing raw JSON.
+    let msg = `Request failed (${res.status})`;
+    if (text) {
+      try {
+        const json = JSON.parse(text);
+        msg = json.message || json.error || msg;
+      } catch {
+        msg = text;
+      }
+    }
+    throw new Error(msg);
   }
   return res.json();
 }

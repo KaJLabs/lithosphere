@@ -27,7 +27,11 @@ export default function Header() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 shrink-0">
-            <img src="/logo.svg" alt="Lithosphere" className="h-8" />
+            <img
+              src="https://lithosphere.network/wp-content/uploads/2026/02/icon-1-300x234.png"
+              alt="Lithosphere"
+              className="h-8 w-auto"
+            />
             <span className="font-bold text-lg text-[var(--color-text-primary)] hidden sm:block">
               {EXPLORER_TITLE}
             </span>

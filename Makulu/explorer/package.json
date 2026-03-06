@@ -1,7 +1,7 @@
 {
   "name": "@lithosphere/explorer",
   "version": "1.0.0",
-  "description": "Lithosphere Mainnet Block Explorer",
+  "description": "Lithosphere Testnet Makalu Block Explorer",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",

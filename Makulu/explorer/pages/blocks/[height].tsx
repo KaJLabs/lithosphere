@@ -94,12 +94,12 @@ export default function BlockDetailPage() {
         </div>
       </div>
 
-      {block.transactions && block.transactions.length > 0 && (
+      {block.txs && block.txs.length > 0 && (
         <>
-          <h2 className="text-lg font-semibold mb-4">Transactions ({block.transactions.length})</h2>
+          <h2 className="text-lg font-semibold mb-4">Transactions ({block.txs.length})</h2>
           <DataTable
             columns={txColumns}
-            data={block.transactions}
+            data={block.txs}
             rowKey={(tx) => tx.hash}
           />
         </>

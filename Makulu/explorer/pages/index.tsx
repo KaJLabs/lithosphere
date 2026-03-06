@@ -20,7 +20,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>{EXPLORER_TITLE} - Lithosphere Mainnet Explorer</title>
+        <title>{EXPLORER_TITLE} - Lithosphere Testnet Makalu Explorer</title>
         <meta name="description" content="Explore blocks, transactions, validators, and smart contracts on the Lithosphere blockchain." />
       </Head>
 

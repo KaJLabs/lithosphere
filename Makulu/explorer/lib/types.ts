@@ -8,7 +8,7 @@ export interface StatsSummary {
 
 export interface TokenConfig {
   token: { symbol: string; decimals: number };
-  fiat: { symbol: string; price: number; fetchedAt: string };
+  fiat: { symbol: string; price: number | null; fetchedAt: string | null };
 }
 
 export interface ApiBlock {
@@ -17,7 +17,7 @@ export interface ApiBlock {
   parentHash?: string;
   timestamp: string;
   txCount: number;
-  transactions?: ApiTx[];
+  txs?: ApiTx[];
 }
 
 export interface ApiTx {
