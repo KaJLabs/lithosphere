@@ -1,3 +1,4 @@
+import './tracing.js';
 import { buildApp, setReady } from './app.js';
 import { loadConfig } from './config.js';
 
