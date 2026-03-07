@@ -5,42 +5,43 @@ import {
   parseEther,
   formatEther,
   type Address,
+  defineChain,
 } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { config } from '../config.js';
 
-const chain = {
+const chain = defineChain({
   id: config.chainId,
   name: 'Lithosphere',
   nativeCurrency: { name: 'LITHO', symbol: 'LITHO', decimals: 18 },
   rpcUrls: { default: { http: [config.rpcUrl] } },
-} as const;
+});
 
 const transport = http(config.rpcUrl);
 
 const publicClient = createPublicClient({ chain, transport });
 
-let walletClient: ReturnType<typeof createWalletClient> | null = null;
+let account: PrivateKeyAccount | null = null;
 
-function getWalletClient() {
-  if (walletClient) return walletClient;
-
+function getAccount(): PrivateKeyAccount {
+  if (account) return account;
   if (!config.privateKey) {
     throw new Error('FAUCET_PRIVATE_KEY not set');
   }
-
-  const account = privateKeyToAccount(config.privateKey);
-  walletClient = createWalletClient({ account, chain, transport });
-  return walletClient;
+  account = privateKeyToAccount(config.privateKey);
+  return account;
 }
 
 export async function drip(recipient: Address): Promise<{ txHash: string; amount: string }> {
-  const client = getWalletClient();
+  const acc = getAccount();
+  const client = createWalletClient({ account: acc, chain, transport });
   const amount = parseEther(config.dripAmount);
 
   const txHash = await client.sendTransaction({
+    account: acc,
     to: recipient,
     value: amount,
+    chain,
   });
 
   return { txHash, amount: config.dripAmount };
@@ -48,13 +49,12 @@ export async function drip(recipient: Address): Promise<{ txHash: string; amount
 
 export async function getFaucetBalance(): Promise<string> {
   if (!config.privateKey) return '0';
-  const account = privateKeyToAccount(config.privateKey);
-  const balance = await publicClient.getBalance({ address: account.address });
+  const acc = getAccount();
+  const balance = await publicClient.getBalance({ address: acc.address });
   return formatEther(balance);
 }
 
 export function getFaucetAddress(): string {
   if (!config.privateKey) return '0x0';
-  const account = privateKeyToAccount(config.privateKey);
-  return account.address;
+  return getAccount().address;
 }
