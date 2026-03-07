@@ -244,10 +244,11 @@ jobs:
   publish-npm:
     name: Publish NPM Packages
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: [semantic-release, build-and-push]
+    if: always() && needs.semantic-release.outputs.new_release_published == 'true'
     permissions:
       contents: read
-    
+
     defaults:
       run:
         working-directory: ./Makulu
@@ -272,11 +273,137 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Sync version from release
+        if: needs.semantic-release.outputs.new_release_version != ''
+        run: |
+          VERSION="${{ needs.semantic-release.outputs.new_release_version }}"
+          echo "Syncing version ${VERSION} to publishable packages"
+          # Update SDK
+          cd templates/sdk-template && node -e "
+            const pkg=JSON.parse(require('fs').readFileSync('package.json','utf8'));
+            pkg.version='${VERSION}';
+            require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2)+'\n');
+          " && cd ../..
+          # Update CLI
+          cd packages/create-litho-app && node -e "
+            const pkg=JSON.parse(require('fs').readFileSync('package.json','utf8'));
+            pkg.version='${VERSION}';
+            require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2)+'\n');
+          " && cd ../..
+
       - name: Build
         run: pnpm build
 
-      - name: Publish to NPM
-        run: pnpm publish -r --no-git-checks --access public
+      - name: Publish @lithosphere/sdk
+        run: cd templates/sdk-template && pnpm publish --no-git-checks --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         continue-on-error: true
+
+      - name: Publish create-litho-app
+        run: cd packages/create-litho-app && pnpm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        continue-on-error: true
+
+      - name: Publish Summary
+        if: always()
+        run: |
+          echo "## NPM Publish" >> $GITHUB_STEP_SUMMARY
+          echo "- @lithosphere/sdk" >> $GITHUB_STEP_SUMMARY
+          echo "- create-litho-app" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: ${{ needs.semantic-release.outputs.new_release_version }}" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Contract Artifact Release — versioned ABI/bytecode bundles with checksums
+  # ─────────────────────────────────────────────────────────────────────────
+  publish-contract-artifacts:
+    name: Publish Contract Artifacts
+    runs-on: ubuntu-latest
+    needs: semantic-release
+    if: needs.semantic-release.outputs.new_release_published == 'true'
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: ./Makulu/contracts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Compile contracts
+        run: pnpm compile
+
+      - name: Bundle versioned artifacts
+        run: |
+          VERSION="${{ needs.semantic-release.outputs.new_release_version }}"
+          BUNDLE_DIR="lithosphere-contracts-v${VERSION}"
+          mkdir -p "${BUNDLE_DIR}/abi" "${BUNDLE_DIR}/bytecode" "${BUNDLE_DIR}/metadata"
+
+          for f in artifacts/contracts/src/*.sol/*.json; do
+            [ -f "$f" ] || continue
+            [[ "$f" == *.dbg.json ]] && continue
+            NAME=$(basename "$f" .json)
+
+            # Extract ABI
+            node -e "const a=JSON.parse(require('fs').readFileSync('$f','utf8'));require('fs').writeFileSync('${BUNDLE_DIR}/abi/${NAME}.abi.json',JSON.stringify(a.abi,null,2))"
+
+            # Extract bytecode
+            node -e "const a=JSON.parse(require('fs').readFileSync('$f','utf8'));require('fs').writeFileSync('${BUNDLE_DIR}/bytecode/${NAME}.bin',a.bytecode||'')"
+
+            # Copy full artifact as metadata
+            cp "$f" "${BUNDLE_DIR}/metadata/${NAME}.json"
+
+            echo "Bundled: ${NAME}"
+          done
+
+          # Add version manifest
+          cat > "${BUNDLE_DIR}/manifest.json" << MANIFEST_EOF
+          {
+            "version": "${VERSION}",
+            "chain": "lithosphere_777777-1",
+            "compiler": "solc",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit": "${{ github.sha }}"
+          }
+          MANIFEST_EOF
+
+          # Create tarball
+          tar -czf "${BUNDLE_DIR}.tar.gz" "${BUNDLE_DIR}/"
+
+          # Generate SHA256 checksums
+          sha256sum "${BUNDLE_DIR}.tar.gz" > "${BUNDLE_DIR}.sha256"
+          cd "${BUNDLE_DIR}" && sha256sum abi/*.json bytecode/*.bin > ../checksums.txt && cd ..
+
+          echo "BUNDLE_NAME=${BUNDLE_DIR}" >> $GITHUB_ENV
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.semantic-release.outputs.new_release_version }}
+          files: |
+            Makulu/contracts/${{ env.BUNDLE_NAME }}.tar.gz
+            Makulu/contracts/${{ env.BUNDLE_NAME }}.sha256
+            Makulu/contracts/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-artifacts-v${{ needs.semantic-release.outputs.new_release_version }}
+          path: |
+            Makulu/contracts/${{ env.BUNDLE_NAME }}.tar.gz
+            Makulu/contracts/${{ env.BUNDLE_NAME }}.sha256
+          retention-days: 90

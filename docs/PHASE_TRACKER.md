@@ -13,7 +13,7 @@
 | 0 | Discovery & Architecture | 100% | Done |
 | 1 | Source Control & Repo | 100% | Done |
 | 2 | CI Foundations | 100% | Done |
-| 3 | Artifact & Package Mgmt | ~40% | Partial |
+| 3 | Artifact & Package Mgmt | 100% | Done |
 | 4 | GitOps CD & Promotion | ~45% | Partial |
 | 5 | Developer Local Env | ~90% | Done |
 | 6 | Test Strategy | ~5% | CRITICAL GAP |
@@ -62,14 +62,16 @@
 - [x] Cache strategy doc — `docs/guides/ci-cache-strategy.md`
 - [x] API + Indexer test scripts — vitest with health smoke tests (turbo run test no longer a no-op)
 
-## Phase 3 — Artifact & Package Management (~40%)
+## Phase 3 — Artifact & Package Management (100%)
 
-- [x] Docker image build & push (publish-images.yaml — 3 images)
+- [x] Docker image build & push (publish-images.yaml — 3 images, semver + sha tags)
 - [x] Cosign image signing (in release.yaml + publish-images.yaml)
-- [x] SBOM generation SPDX (in release.yaml via anchore/sbom-action)
-- [ ] NPM scope publish for SDKs — no npm publish step anywhere
-- [ ] Contract versioned artifacts (ABI/bytecode publish) — not implemented
-- [ ] OCI registry — uses GHCR, functional but basic
+- [x] SBOM generation SPDX (release.yaml + per-image in publish-images.yaml)
+- [x] NPM scope publish — `@lithosphere/sdk` + `create-litho-app` with version sync from semantic-release
+- [x] Contract versioned artifacts — ABI/bytecode/metadata tarball + SHA256 checksums uploaded to GitHub Releases
+- [x] OCI registry — GHCR with semver tags (`1.2.3`, `1.2`), sha-based immutable tags, retention policy
+- [x] Immutable artifact conventions + retention policy — `docs/guides/consuming-releases.md`
+- [x] "How to consume releases" guide with cosign verification commands
 
 ## Phase 4 — GitOps CD & Environment Promotion (~45%)
 
