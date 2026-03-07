@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "NomicFoundation.hardhat-solidity",
+    "ms-vscode.vscode-typescript-next",
+    "bradlc.vscode-tailwindcss",
+    "ms-azuretools.vscode-docker",
+    "tamasfe.even-better-toml",
+    "streetsidesoftware.code-spell-checker"
+  ]
+}

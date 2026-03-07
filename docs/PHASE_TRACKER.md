@@ -15,7 +15,7 @@
 | 2 | CI Foundations | 100% | Done |
 | 3 | Artifact & Package Mgmt | 100% | Done |
 | 4 | GitOps CD & Promotion | 100% | Done |
-| 5 | Developer Local Env | ~90% | Done |
+| 5 | Developer Local Env | 100% | Done |
 | 6 | Test Strategy | ~5% | CRITICAL GAP |
 | 7 | Contract Tooling | ~30% | Partial |
 | 8 | SDKs & DX Portal | ~35% | Partial |
@@ -86,15 +86,19 @@
 - [x] Rollback script — `Makulu/scripts/rollback.sh` for manual rollback
 - [x] Promotion & rollback playbook — `docs/guides/promotion-playbook.md`
 
-## Phase 5 — Developer Local Environment (~90%) — MOST COMPLETE
+## Phase 5 — Developer Local Environment (100%)
 
 - [x] `make up` one-command stack with health checks
-- [x] docker-compose.dev.yml with LithoVM/Anvil
+- [x] docker-compose.dev.yml with LithoVM/Anvil (7 services incl. faucet)
 - [x] seed-local.ts (27KB) — funds wallets, deploys LEP100, generates transfers
-- [x] .env profiles (local, testnet, mainnet)
+- [x] .env profiles (local, testnet, staging, mainnet)
 - [x] VS Code devcontainers (root + Makulu)
+- [x] VS Code workspace config — `.vscode/settings.json`, `launch.json` (debugger attach), `extensions.json`
 - [x] Onboarding doc (docs/quickstart/dev-setup.md — thorough)
-- [x] Makefile targets (up, down, clean, logs, seed, status, restart, help)
+- [x] Makefile targets (up, down, clean, logs, seed, status, restart, dev, test, faucet-fund, help)
+- [x] Faucet service — `Makulu/faucet/` (Fastify + viem, Redis rate limiting, HTML frontend)
+- [x] Faucet in production compose — `docker-compose.yaml` with Traefik routing
+- [x] `make dev` — one-command full setup (up + seed + endpoints)
 
 ## Phase 6 — Test Strategy & Ephemeral Environments (~5%) — CRITICAL GAP
 
