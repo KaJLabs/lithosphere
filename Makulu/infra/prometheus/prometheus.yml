@@ -8,7 +8,7 @@ global:
 
   external_labels:
     monitor: 'lithosphere-monitor'
-    environment: 'testnet'
+    environment: 'mainnet'
     cluster: 'makulu-vps'
 
 # ============================================================================

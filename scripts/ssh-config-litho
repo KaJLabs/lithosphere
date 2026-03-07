@@ -1,0 +1,12 @@
+Host litho-bastion
+    HostName 44.218.142.100
+    User ec2-user
+    IdentityFile C:\Users\Bachal\.ssh\litho-validator
+    StrictHostKeyChecking no
+
+Host litho-indexer
+    HostName 10.0.10.16
+    User ec2-user
+    IdentityFile C:\Users\Bachal\.ssh\litho-validator
+    StrictHostKeyChecking no
+    ProxyCommand ssh -F none -o StrictHostKeyChecking=no -i C:\Users\Bachal\.ssh\litho-validator -W %h:%p ec2-user@44.218.142.100
