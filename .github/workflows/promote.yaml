@@ -1,0 +1,333 @@
+# ============================================================================
+# Lithosphere Environment Promotion Pipeline
+# Promotes a verified image tag from one environment to the next
+# Flow: testnet -> staging -> mainnet (with approval gates)
+# ============================================================================
+
+name: Promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_environment:
+        description: 'Source environment (promote FROM)'
+        required: true
+        type: choice
+        options:
+          - testnet
+          - staging
+      target_environment:
+        description: 'Target environment (promote TO)'
+        required: true
+        type: choice
+        options:
+          - staging
+          - mainnet
+      image_tag:
+        description: 'Image tag to promote (e.g. testnet-20260307-143000 or sha-abc1234)'
+        required: true
+        type: string
+      skip_approval:
+        description: 'Skip approval gate (emergency only)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  INDEXER_IP: ${{ secrets.INDEXER_IP }}
+  BASTION_HOST: ${{ secrets.BASTION_HOST }}
+  SERVER_USER: ${{ secrets.SERVER_USER }}
+
+concurrency:
+  group: promote-${{ github.event.inputs.target_environment }}
+  cancel-in-progress: false
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 1: Validate promotion request
+  # ─────────────────────────────────────────────────────────────────────────
+  validate:
+    name: Validate Promotion
+    runs-on: ubuntu-latest
+
+    outputs:
+      valid: ${{ steps.check.outputs.valid }}
+      images: ${{ steps.check.outputs.images }}
+
+    steps:
+      - name: Validate promotion path
+        id: check
+        run: |
+          SOURCE="${{ github.event.inputs.source_environment }}"
+          TARGET="${{ github.event.inputs.target_environment }}"
+          TAG="${{ github.event.inputs.image_tag }}"
+
+          # Validate promotion direction
+          VALID=false
+          if [ "$SOURCE" = "testnet" ] && [ "$TARGET" = "staging" ]; then
+            VALID=true
+          elif [ "$SOURCE" = "testnet" ] && [ "$TARGET" = "mainnet" ]; then
+            VALID=true
+          elif [ "$SOURCE" = "staging" ] && [ "$TARGET" = "mainnet" ]; then
+            VALID=true
+          fi
+
+          if [ "$VALID" != "true" ]; then
+            echo "Invalid promotion path: ${SOURCE} -> ${TARGET}"
+            echo "Allowed: testnet->staging, testnet->mainnet, staging->mainnet"
+            exit 1
+          fi
+
+          echo "Promotion: ${SOURCE} -> ${TARGET} (tag: ${TAG})"
+          echo "valid=true" >> $GITHUB_OUTPUT
+          echo "images=kajlabs/lithosphere-api,kajlabs/lithosphere-indexer,kajlabs/lithosphere-explorer" >> $GITHUB_OUTPUT
+
+      - name: Verify source images exist
+        run: |
+          TAG="${{ github.event.inputs.image_tag }}"
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+          IMAGES=("kajlabs/lithosphere-api" "kajlabs/lithosphere-indexer")
+          for IMAGE in "${IMAGES[@]}"; do
+            echo "Checking ${{ env.REGISTRY }}/${IMAGE}:${TAG}..."
+            if docker manifest inspect "${{ env.REGISTRY }}/${IMAGE}:${TAG}" >/dev/null 2>&1; then
+              echo "  Found"
+            else
+              echo "  WARNING: ${IMAGE}:${TAG} not found — may be built locally on deploy"
+            fi
+          done
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 2: Approval gate (uses GitHub Environment protection rules)
+  # ─────────────────────────────────────────────────────────────────────────
+  approve:
+    name: Approval Gate — ${{ github.event.inputs.target_environment }}
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.skip_approval != 'true'
+
+    # GitHub Environment protection rules enforce required reviewers here.
+    # Configure in: Settings > Environments > mainnet > Required reviewers
+    environment:
+      name: ${{ github.event.inputs.target_environment }}
+
+    steps:
+      - name: Approval confirmed
+        run: |
+          echo "Promotion to ${{ github.event.inputs.target_environment }} approved by ${{ github.actor }}"
+          echo "Image tag: ${{ github.event.inputs.image_tag }}"
+          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 3: Retag images for target environment
+  # ─────────────────────────────────────────────────────────────────────────
+  retag:
+    name: Retag Images
+    runs-on: ubuntu-latest
+    needs: [validate, approve]
+    if: always() && needs.validate.outputs.valid == 'true' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
+
+    permissions:
+      packages: write
+
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Retag images for target environment
+        run: |
+          SOURCE_TAG="${{ github.event.inputs.image_tag }}"
+          TARGET="${{ github.event.inputs.target_environment }}"
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+          IMAGES=("kajlabs/lithosphere-api" "kajlabs/lithosphere-indexer" "kajlabs/lithosphere-explorer")
+
+          for IMAGE in "${IMAGES[@]}"; do
+            FULL="${{ env.REGISTRY }}/${IMAGE}"
+            echo "Retagging ${FULL}:${SOURCE_TAG} -> ${TARGET}, ${TARGET}-${TIMESTAMP}"
+
+            docker pull "${FULL}:${SOURCE_TAG}" 2>/dev/null || {
+              echo "  Skipping ${IMAGE} (not in registry)"
+              continue
+            }
+
+            docker tag "${FULL}:${SOURCE_TAG}" "${FULL}:${TARGET}"
+            docker tag "${FULL}:${SOURCE_TAG}" "${FULL}:${TARGET}-${TIMESTAMP}"
+
+            docker push "${FULL}:${TARGET}"
+            docker push "${FULL}:${TARGET}-${TIMESTAMP}"
+
+            echo "  Tagged: ${TARGET}, ${TARGET}-${TIMESTAMP}"
+          done
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 4: Deploy to target environment
+  # ─────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to ${{ github.event.inputs.target_environment }}
+    runs-on: ubuntu-latest
+    needs: retag
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        if: github.event.inputs.target_environment == 'mainnet'
+        continue-on-error: true
+        id: aws-creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Fetch RDS Credentials
+        if: github.event.inputs.target_environment == 'mainnet' && steps.aws-creds.outcome == 'success'
+        id: rds-creds
+        run: |
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
+            --secret-id "litho-mainnet-db-credentials" \
+            --query SecretString --output text)
+          echo "::add-mask::$(echo "$SECRET_JSON" | jq -r '.password')"
+          echo "rds_endpoint=$(echo "$SECRET_JSON" | jq -r '.host')" >> $GITHUB_OUTPUT
+          echo "rds_username=$(echo "$SECRET_JSON" | jq -r '.username')" >> $GITHUB_OUTPUT
+          echo "rds_password=$(echo "$SECRET_JSON" | jq -r '.password')" >> $GITHUB_OUTPUT
+
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.BASTION_SSH_KEY }}
+            ${{ secrets.INDEXER_SSH_KEY }}
+
+      - name: Add Bastion to Known Hosts
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keyscan -T 10 -H "$BASTION_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Deploy via SSH
+        run: |
+          ENV="${{ github.event.inputs.target_environment }}"
+          echo "Deploying to ${ENV}..."
+
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << ENDSSH
+            set -e
+            sudo mkdir -p /opt/lithosphere
+            sudo chown "\$USER:\$USER" /opt/lithosphere
+            cd /opt/lithosphere
+
+            # Save rollback snapshot
+            if [ -d Makulu ]; then
+              mkdir -p Makulu/.rollback
+              cp Makulu/docker-compose.yaml Makulu/.rollback/docker-compose.yaml.bak 2>/dev/null || true
+              cp Makulu/.env Makulu/.rollback/.env.bak 2>/dev/null || true
+              sudo docker compose -f Makulu/docker-compose.yaml images --format json \
+                > Makulu/.rollback/images.json 2>/dev/null || true
+            fi
+
+            # Pull latest code
+            if [ ! -d lithosphere ]; then
+              git clone https://github.com/KaJLabs/lithosphere.git
+            else
+              cd lithosphere && git fetch origin && git reset --hard origin/main && cd ..
+            fi
+
+            mkdir -p Makulu
+            cp -r lithosphere/Makulu/. Makulu/
+            rm -rf lithosphere
+
+            cd Makulu
+            if [ -f ".env.${ENV}" ]; then
+              cp ".env.${ENV}" .env
+              echo "Using .env.${ENV}"
+            fi
+
+            sudo docker compose up -d --build --remove-orphans
+            echo "Deployment complete for ${ENV}"
+          ENDSSH
+
+      - name: Wait and Health Check
+        run: |
+          sleep 30
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+            MAX_RETRIES=5; RETRY_DELAY=10
+            for i in $(seq 1 $MAX_RETRIES); do
+              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                --connect-timeout 10 --max-time 30 \
+                "http://localhost:4000/health" || echo "000")
+              if [ "$HTTP_CODE" = "200" ]; then
+                echo "API healthy (HTTP 200)"; break
+              fi
+              echo "Attempt $i: HTTP $HTTP_CODE"
+              [ $i -lt $MAX_RETRIES ] && sleep $RETRY_DELAY
+            done
+            [ "$HTTP_CODE" != "200" ] && { echo "Health check failed"; exit 1; } || true
+          ENDSSH
+
+      - name: Generate Promotion Summary
+        if: always()
+        run: |
+          echo "## Promotion Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Source | ${{ github.event.inputs.source_environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Target | ${{ github.event.inputs.target_environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image Tag | \`${{ github.event.inputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Promoted By | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 5: Rollback on failure
+  # ─────────────────────────────────────────────────────────────────────────
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: failure()
+
+    steps:
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.BASTION_SSH_KEY }}
+            ${{ secrets.INDEXER_SSH_KEY }}
+
+      - name: Add Bastion to Known Hosts
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keyscan -T 10 -H "$BASTION_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Rollback
+        run: |
+          echo "Promotion failed — rolling back..."
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+            cd /opt/lithosphere/Makulu
+            ROLLBACK_DIR=".rollback"
+            if [ -f "${ROLLBACK_DIR}/docker-compose.yaml.bak" ]; then
+              cp "${ROLLBACK_DIR}/docker-compose.yaml.bak" docker-compose.yaml
+            fi
+            if [ -f "${ROLLBACK_DIR}/.env.bak" ]; then
+              cp "${ROLLBACK_DIR}/.env.bak" .env
+            fi
+            sudo docker compose down --timeout 30
+            sudo docker compose up -d --remove-orphans
+            echo "Rollback complete"
+          ENDSSH
+          echo "::warning::Promotion was rolled back due to deployment failure"

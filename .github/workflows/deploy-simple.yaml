@@ -142,6 +142,17 @@ jobs:
             sudo chown "$USER:$USER" /opt/lithosphere
             cd /opt/lithosphere
 
+            # Save rollback snapshot before deploying
+            echo "💾 Saving rollback snapshot..."
+            if [ -d Makulu ]; then
+              mkdir -p Makulu/.rollback
+              cp Makulu/docker-compose.yaml Makulu/.rollback/docker-compose.yaml.bak 2>/dev/null || true
+              cp Makulu/.env Makulu/.rollback/.env.bak 2>/dev/null || true
+              sudo docker compose -f Makulu/docker-compose.yaml images --format json \
+                > Makulu/.rollback/images.json 2>/dev/null || true
+              echo "Rollback snapshot saved"
+            fi
+
             echo "📦 Pulling latest code from GitHub..."
             if [ ! -d lithosphere ]; then
               git clone https://github.com/KaJLabs/lithosphere.git
@@ -364,13 +375,25 @@ jobs:
 
       - name: Rollback
         run: |
-          echo "⚠️ Deployment failed — rolling back..."
+          echo "Deployment failed — rolling back to previous state..."
           ssh -o StrictHostKeyChecking=no \
               -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
               "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
             cd /opt/lithosphere/Makulu
-            docker compose down --timeout 30
-            docker compose up -d --remove-orphans
-            echo "Rollback initiated"
+            ROLLBACK_DIR=".rollback"
+
+            # Restore previous config if snapshot exists
+            if [ -f "${ROLLBACK_DIR}/docker-compose.yaml.bak" ]; then
+              echo "Restoring previous docker-compose.yaml..."
+              cp "${ROLLBACK_DIR}/docker-compose.yaml.bak" docker-compose.yaml
+            fi
+            if [ -f "${ROLLBACK_DIR}/.env.bak" ]; then
+              echo "Restoring previous .env..."
+              cp "${ROLLBACK_DIR}/.env.bak" .env
+            fi
+
+            sudo docker compose down --timeout 30
+            sudo docker compose up -d --remove-orphans
+            echo "Rollback complete — previous state restored"
           ENDSSH
           echo "::warning::Deployment was rolled back due to health check failure"

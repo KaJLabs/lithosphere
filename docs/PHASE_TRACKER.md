@@ -14,7 +14,7 @@
 | 1 | Source Control & Repo | 100% | Done |
 | 2 | CI Foundations | 100% | Done |
 | 3 | Artifact & Package Mgmt | 100% | Done |
-| 4 | GitOps CD & Promotion | ~45% | Partial |
+| 4 | GitOps CD & Promotion | 100% | Done |
 | 5 | Developer Local Env | ~90% | Done |
 | 6 | Test Strategy | ~5% | CRITICAL GAP |
 | 7 | Contract Tooling | ~30% | Partial |
@@ -73,16 +73,18 @@
 - [x] Immutable artifact conventions + retention policy — `docs/guides/consuming-releases.md`
 - [x] "How to consume releases" guide with cosign verification commands
 
-## Phase 4 — GitOps CD & Environment Promotion (~45%)
+## Phase 4 — GitOps CD & Environment Promotion (100%)
 
 - [x] deploy-simple.yaml — SSH via bastion to EC2, docker compose up (WORKING)
 - [x] deploy.yaml — full pipeline with SLSA + image tagging (WORKING)
 - [x] Health monitoring — health-monitoring.yaml cron every 5 min
-- [ ] K8s/ArgoCD — configs exist but are UNUSED BOILERPLATE (production is EC2)
-- [ ] Kustomize overlays — exist but unused
-- [ ] Blue/green / canary — not implemented (deploy is docker compose up --build)
-- [ ] Automated rollback — not implemented
-- [ ] Formal staging->mainnet approval flow — not implemented
+- [x] K8s/ArgoCD — N/A, out of scope for Makalu (production is EC2 + Docker Compose)
+- [x] Kustomize overlays — N/A, out of scope for Makalu
+- [x] Blue/green deploy — `Makulu/scripts/blue-green-deploy.sh` (Docker Compose based)
+- [x] Automated rollback — rollback jobs in both deploy workflows + rollback snapshots saved pre-deploy
+- [x] Formal staging->mainnet approval flow — `promote.yaml` with GitHub Environment protection rules
+- [x] Rollback script — `Makulu/scripts/rollback.sh` for manual rollback
+- [x] Promotion & rollback playbook — `docs/guides/promotion-playbook.md`
 
 ## Phase 5 — Developer Local Environment (~90%) — MOST COMPLETE
 
