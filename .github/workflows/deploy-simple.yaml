@@ -198,8 +198,8 @@ jobs:
             sudo ss -Htlnp | grep -w ":3100" | grep -oP 'pid=\K[0-9]+' \
               | sort -u | xargs -r sudo kill -9 2>/dev/null || true
 
-            echo "🐳 Building and starting explorer service only..."
-            sudo docker compose up -d --build explorer
+            echo "🐳 Building and starting all core services..."
+            sudo docker compose up -d --build redis api indexer explorer
 
             echo "🧹 Cleaning up..."
             cd /opt/lithosphere
@@ -325,9 +325,14 @@ jobs:
               "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
             curl -f "http://localhost:4000/health"
             curl -f "http://localhost:4000/api/litho"
+            curl -sf "http://localhost:4000/api/config" | head -c 200
+            curl -sf "http://localhost:4000/api/stats/summary" | head -c 200
+            curl -sf "http://localhost:4000/api/blocks?limit=1" | head -c 200
+            curl -sf "http://localhost:4000/api/validators" | head -c 200
             curl -f -X POST -H "Content-Type: application/json" \
               -d '{"query":"{ __typename }"}' \
               "http://localhost:4000/graphql"
+            echo ""
             echo "✅ All endpoint tests passed!"
           ENDSSH
 

@@ -231,7 +231,10 @@ jobs:
           LITHO_CHAIN_ID=${{ secrets.LITHO_CHAIN_ID }}
           
           # Indexer Configuration
-          INDEXER_START_BLOCK=${{ secrets.INDEXER_START_BLOCK || '0' }}
+          INDEXER_START_BLOCK=${{ secrets.INDEXER_START_BLOCK || '1' }}
+          START_BLOCK=${{ secrets.INDEXER_START_BLOCK || '1' }}
+          RPC_URL=${{ secrets.LITHO_RPC_URL }}
+          EVM_RPC_URL=${{ secrets.EVM_RPC_URL }}
           INDEXER_BATCH_SIZE=100
           
           # Monitoring
