@@ -198,8 +198,11 @@ jobs:
             sudo ss -Htlnp | grep -w ":3100" | grep -oP 'pid=\K[0-9]+' \
               | sort -u | xargs -r sudo kill -9 2>/dev/null || true
 
-            echo "🐳 Building and starting all core services..."
-            sudo docker compose up -d --build redis api indexer explorer
+            echo "🐳 Building all images..."
+            sudo docker compose build redis api indexer explorer
+
+            echo "🐳 Starting redis + explorer..."
+            sudo docker compose up -d redis explorer
 
             echo "🧹 Cleaning up..."
             cd /opt/lithosphere
@@ -263,6 +266,14 @@ jobs:
           else
             echo "::warning::No inject script found — skipping DATABASE_URL injection"
           fi
+
+      - name: Start API + Indexer
+        run: |
+          echo "🐳 Starting api + indexer (uses current .env on server)..."
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" \
+              'cd /opt/lithosphere/Makulu && sudo docker compose up -d api indexer && echo "✅ api + indexer started"'
 
       # ── Health checks ──────────────────────────────────────────────────────
       - name: Wait for Services

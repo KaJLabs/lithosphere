@@ -1,4 +1,4 @@
-// ── REST API response types (Fastify API on port 8080) ──────────────
+// ── REST API response types (Express API on port 4000) ──────────────
 
 export interface StatsSummary {
   tipHeight: number;
