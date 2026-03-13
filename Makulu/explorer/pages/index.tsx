@@ -57,8 +57,7 @@ export default function Home() {
         />
       </Head>
 
-      <div className="bg-[#06080d] text-white -mx-4 -my-6 px-4 py-8 md:px-6">
-        <div className="mx-auto max-w-7xl">
+      <div className="text-white">
 
           {/* Hero */}
           <section className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr] lg:items-center">
@@ -396,7 +395,6 @@ export default function Home() {
             </div>
           </section>
 
-        </div>
       </div>
     </>
   );

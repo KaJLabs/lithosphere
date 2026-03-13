@@ -184,7 +184,7 @@ export default function FaucetPage() {
         <title>Faucet | {EXPLORER_TITLE}</title>
       </Head>
 
-      <div className="min-h-screen bg-black text-white -mx-4 px-4 py-10 md:px-6">
+      <div className="text-white">
         <div className="mx-auto max-w-6xl">
           {/* Hero */}
           <div className="mb-10 grid gap-6 lg:grid-cols-2 lg:items-center">
