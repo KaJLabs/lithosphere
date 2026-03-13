@@ -26,9 +26,21 @@ export interface ApiTx {
   fromAddr: string;
   toAddr: string;
   value: string;
+  denom?: string;
   feePaid: string;
+  gasUsed?: string | null;
+  gasWanted?: string | null;
   success: boolean;
   method?: string;
+  memo?: string;
+  timestamp?: string;
+}
+
+export interface ApiTxList {
+  txs: ApiTx[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface ApiAddress {

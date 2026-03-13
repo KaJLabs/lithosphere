@@ -92,9 +92,14 @@ function mapTx(r: TxRow) {
     fromAddr: r.sender ?? '',
     toAddr: r.receiver ?? '',
     value: r.amount ?? '0',
+    denom: r.denom ?? 'ulitho',
     feePaid: r.fee ?? '0',
+    gasUsed: r.gas_used ?? null,
+    gasWanted: r.gas_wanted ?? null,
     success: r.success,
     method: r.tx_type ?? undefined,
+    memo: r.memo ?? undefined,
+    timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
   };
 }
 
@@ -201,6 +206,29 @@ export function explorerRouter(): Router {
   });
 
   // ── Transactions ────────────────────────────────────────────────────────
+
+  r.get('/txs', async (req: Request, res: Response) => {
+    try {
+      const limit = clamp(req.query.limit);
+      const offset = Math.max(0, Number(req.query.offset) || 0);
+      const [rows, countResult] = await Promise.all([
+        query<TxRow>(
+          'SELECT * FROM transactions ORDER BY timestamp DESC, block_height DESC LIMIT $1 OFFSET $2',
+          [limit, offset]
+        ),
+        query<CountRow>('SELECT COUNT(*) AS count FROM transactions'),
+      ]);
+      res.json({
+        txs: rows.map(mapTx),
+        total: parseInt(countResult[0]?.count ?? '0'),
+        limit,
+        offset,
+      });
+    } catch (err) {
+      console.error('[api] /txs error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
   r.get('/txs/:hash', async (req: Request, res: Response) => {
     try {
