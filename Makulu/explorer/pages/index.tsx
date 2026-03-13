@@ -2,147 +2,402 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
-import { formatNumber, timeAgo } from '@/lib/format';
-import type { StatsSummary, TokenConfig, ApiBlock } from '@/lib/types';
-import StatCard from '@/components/StatCard';
-import { CardSkeleton } from '@/components/Loading';
-import ErrorState from '@/components/ErrorState';
+import { formatNumber, timeAgo, truncateHash } from '@/lib/format';
+import type { StatsSummary, ApiBlock, ApiTx, ApiValidator } from '@/lib/types';
+import SearchBar from '@/components/SearchBar';
+
+const AI_STATS = [
+  { label: 'AI Requests (24h)', value: '184,220' },
+  { label: 'Receipts Verified', value: '178,944' },
+  { label: 'zk-AI Proofs', value: '12,118' },
+  { label: 'Providers', value: '16' },
+];
+
+const TOKENS = [
+  { symbol: 'LITHO', supply: '1.2B', holders: '12,441' },
+  { symbol: 'wLITHO', supply: '18.4M', holders: '1,221' },
+  { symbol: 'USDL', supply: '5.1M', holders: '922' },
+  { symbol: 'mBTC', supply: '184', holders: '76' },
+];
 
 export default function Home() {
-  const { data: stats, loading: statsLoading, error: statsError, refetch: refetchStats } =
-    useApi<StatsSummary>('/stats/summary', { pollInterval: POLL_INTERVAL });
+  const { data: stats, loading: statsLoading } = useApi<StatsSummary>('/stats/summary', {
+    pollInterval: POLL_INTERVAL,
+  });
+  const { data: blocks, loading: blocksLoading } = useApi<ApiBlock[]>('/blocks?limit=4', {
+    pollInterval: POLL_INTERVAL,
+  });
+  const { data: txs, loading: txsLoading } = useApi<ApiTx[]>('/txs?limit=4', {
+    pollInterval: POLL_INTERVAL,
+  });
+  const { data: validators } = useApi<ApiValidator[]>('/validators');
 
-  const { data: config } = useApi<TokenConfig>('/config');
+  const topValidators = validators?.slice(0, 4) ?? [];
 
-  const { data: blocks, loading: blocksLoading } =
-    useApi<ApiBlock[]>('/blocks?limit=10', { pollInterval: POLL_INTERVAL });
+  const summaryStats = [
+    {
+      label: 'Latest Block',
+      value: statsLoading ? '—' : `#${formatNumber(stats?.tipHeight ?? 0)}`,
+    },
+    { label: 'TPS', value: statsLoading ? '—' : String(stats?.tps1m ?? 0) },
+    {
+      label: 'Validators',
+      value: validators ? String(validators.length) : '—',
+    },
+    { label: 'Gas Price', value: '0.0001 LITHO' },
+  ];
 
   return (
     <>
       <Head>
-        <title>{EXPLORER_TITLE} - Lithosphere Testnet Makalu Explorer</title>
-        <meta name="description" content="Explore blocks, transactions, validators, and smart contracts on the Lithosphere blockchain." />
+        <title>{EXPLORER_TITLE} - Lithosphere Makalu Explorer</title>
+        <meta
+          name="description"
+          content="Explore blocks, transactions, validators, and smart contracts on the Lithosphere blockchain."
+        />
       </Head>
 
-      {/* Chain Summary Stats */}
-      {statsError ? (
-        <ErrorState message={statsError} onRetry={refetchStats} />
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
-          {statsLoading ? (
-            Array.from({ length: 5 }).map((_, i) => <CardSkeleton key={i} />)
-          ) : (
-            <>
-              <StatCard
-                label="Tip Height"
-                value={`#${formatNumber(stats?.tipHeight ?? 0)}`}
-                icon={<BlockIcon />}
-              />
-              <StatCard
-                label="TPS (1m)"
-                value={String(stats?.tps1m ?? 0)}
-                icon={<TxIcon />}
-              />
-              <StatCard
-                label="TPS (5m)"
-                value={String(stats?.tps5m ?? 0)}
-                icon={<ClockIcon />}
-              />
-              <StatCard
-                label="Token"
-                value={config?.token?.symbol ?? 'LITHO'}
-                icon={<CoinIcon />}
-              />
-              {config?.fiat?.price != null && (
-                <StatCard
-                  label={`Price (${config.fiat.symbol})`}
-                  value={`$${config.fiat.price.toFixed(4)}`}
-                  icon={<PriceIcon />}
-                />
-              )}
-            </>
-          )}
-        </div>
-      )}
+      <div className="bg-[#06080d] text-white -mx-4 -my-6 px-4 py-8 md:px-6">
+        <div className="mx-auto max-w-7xl">
 
-      {/* Latest Blocks */}
-      <div className="card">
-        <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
-          <h2 className="font-semibold">Latest Blocks</h2>
-          <Link href="/blocks" className="text-sm text-litho-400 hover:text-litho-300">
-            View all &rarr;
-          </Link>
-        </div>
-        <div className="divide-y divide-[var(--color-border-light)]">
-          {blocksLoading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="p-4 animate-pulse">
-                <div className="h-4 bg-[var(--color-bg-tertiary)] rounded w-1/2 mb-2" />
-                <div className="h-3 bg-[var(--color-bg-tertiary)] rounded w-3/4" />
+          {/* Hero */}
+          <section className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr] lg:items-center">
+            <div>
+              <div className="mb-3 inline-flex rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">
+                Lithosphere Makalu Testnet
               </div>
-            ))
-          ) : !blocks || blocks.length === 0 ? (
-            <div className="p-8 text-center text-[var(--color-text-muted)]">No blocks yet</div>
-          ) : (
-            blocks.map((block) => (
-              <div key={block.height} className="p-4 hover:bg-[var(--color-bg-tertiary)] transition-colors">
-                <div className="flex items-center justify-between mb-1">
-                  <Link href={`/blocks/${block.height}`} className="font-mono text-sm font-medium text-litho-400">
-                    #{formatNumber(block.height)}
-                  </Link>
-                  <span className="text-xs text-[var(--color-text-muted)]">{timeAgo(block.timestamp)}</span>
+              <h1 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">
+                Explore blocks, contracts, AI activity, and LEP100 assets on Makalu.
+              </h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-white/65 md:text-lg">
+                A unified explorer for Lithosphere&apos;s Cosmos and EVM layers with validator
+                intelligence, AI execution receipts, bridge activity, and real-time network
+                analytics.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href="/blocks"
+                  className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90 transition"
+                >
+                  View Latest Blocks
+                </Link>
+                <Link
+                  href="/contracts"
+                  className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium text-white hover:bg-white/10 transition"
+                >
+                  Verify Lithic Contract
+                </Link>
+              </div>
+
+              <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl shadow-black/30">
+                <div className="mb-3 text-sm text-white/55">Global Search</div>
+                <SearchBar />
+              </div>
+            </div>
+
+            {/* Summary stats */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              {summaryStats.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-3xl border border-white/10 bg-white/5 p-5"
+                >
+                  <div className="text-sm text-white/55">{item.label}</div>
+                  <div className="mt-2 text-2xl font-semibold">{item.value}</div>
                 </div>
-                <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
-                  <span>
-                    {block.txCount} txn{block.txCount !== 1 ? 's' : ''}
-                  </span>
-                  <span className="font-mono">{block.hash?.slice(0, 16)}...</span>
+              ))}
+            </div>
+          </section>
+
+          {/* AI stats */}
+          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {AI_STATS.map((item) => (
+              <div
+                key={item.label}
+                className="rounded-3xl border border-violet-400/15 bg-violet-400/5 p-5"
+              >
+                <div className="text-sm text-violet-200/65">{item.label}</div>
+                <div className="mt-2 text-2xl font-semibold text-violet-100">{item.value}</div>
+              </div>
+            ))}
+          </section>
+
+          {/* Blocks + Transactions */}
+          <section className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            {/* Latest Blocks */}
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-white/55">Live Network Activity</div>
+                  <h2 className="mt-1 text-2xl font-semibold">Latest Blocks</h2>
+                </div>
+                <Link
+                  href="/blocks"
+                  className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/80 hover:bg-black/50 transition"
+                >
+                  View all
+                </Link>
+              </div>
+
+              <div className="space-y-3">
+                {blocksLoading
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="rounded-2xl border border-white/10 bg-black/25 p-4 animate-pulse"
+                      >
+                        <div className="h-4 rounded bg-white/10 w-1/3 mb-2" />
+                        <div className="h-3 rounded bg-white/10 w-2/3" />
+                      </div>
+                    ))
+                  : (blocks ?? []).map((block) => (
+                      <div
+                        key={block.height}
+                        className="grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 md:grid-cols-4 md:items-center"
+                      >
+                        <div>
+                          <div className="text-xs text-white/45">Height</div>
+                          <Link
+                            href={`/blocks/${block.height}`}
+                            className="mt-1 block font-medium hover:text-emerald-300 transition"
+                          >
+                            #{formatNumber(block.height)}
+                          </Link>
+                        </div>
+                        <div>
+                          <div className="text-xs text-white/45">Age</div>
+                          <div className="mt-1 font-medium">{timeAgo(block.timestamp)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-white/45">Transactions</div>
+                          <div className="mt-1 font-medium">{block.txCount}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-white/45">Hash</div>
+                          <div className="mt-1 font-mono text-sm text-white/70">
+                            {block.hash ? truncateHash(block.hash) : '—'}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+              </div>
+            </div>
+
+            {/* Latest Transactions */}
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-white/55">Realtime Feed</div>
+                  <h2 className="mt-1 text-2xl font-semibold">Latest Transactions</h2>
+                </div>
+                <Link
+                  href="/txs"
+                  className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/80 hover:bg-black/50 transition"
+                >
+                  View all
+                </Link>
+              </div>
+
+              <div className="space-y-3">
+                {txsLoading
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="rounded-2xl border border-white/10 bg-black/25 p-4 animate-pulse"
+                      >
+                        <div className="h-4 rounded bg-white/10 w-1/2 mb-2" />
+                        <div className="h-3 rounded bg-white/10 w-full" />
+                      </div>
+                    ))
+                  : (txs ?? []).map((tx) => (
+                      <div
+                        key={tx.hash}
+                        className="rounded-2xl border border-white/10 bg-black/25 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <Link
+                            href={`/txs/${tx.hash}`}
+                            className="font-mono font-medium hover:text-emerald-300 transition"
+                          >
+                            {truncateHash(tx.hash)}
+                          </Link>
+                          <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
+                            {tx.method || 'Transfer'}
+                          </div>
+                        </div>
+                        <div className="mt-3 grid gap-2 text-sm text-white/65 sm:grid-cols-3">
+                          <div>
+                            From:{' '}
+                            <span className="text-white font-mono">
+                              {truncateHash(tx.fromAddr)}
+                            </span>
+                          </div>
+                          <div>
+                            To:{' '}
+                            <span className="text-white font-mono">
+                              {truncateHash(tx.toAddr)}
+                            </span>
+                          </div>
+                          <div>
+                            Value: <span className="text-white">{tx.value}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+              </div>
+            </div>
+          </section>
+
+          {/* Validators + Tokens + Dev tools */}
+          <section className="mt-8 grid gap-6 xl:grid-cols-3">
+            {/* Top Validators */}
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-white/55">Consensus Layer</div>
+                  <h2 className="mt-1 text-2xl font-semibold">Top Validators</h2>
+                </div>
+                <Link
+                  href="/validators"
+                  className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/80 hover:bg-black/50 transition"
+                >
+                  All validators
+                </Link>
+              </div>
+
+              <div className="space-y-3">
+                {topValidators.length === 0
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="rounded-2xl border border-white/10 bg-black/25 p-4 animate-pulse"
+                      >
+                        <div className="h-4 rounded bg-white/10 w-1/2 mb-2" />
+                        <div className="h-3 rounded bg-white/10 w-3/4" />
+                      </div>
+                    ))
+                  : topValidators.map((v) => (
+                      <Link
+                        key={v.address}
+                        href={`/validators/${v.address}`}
+                        className="block rounded-2xl border border-white/10 bg-black/25 p-4 hover:bg-black/40 transition"
+                      >
+                        <div className="font-medium">{v.moniker}</div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-white/65">
+                          <div>
+                            Voting Power:{' '}
+                            <span className="text-white">{v.votingPower}</span>
+                          </div>
+                          <div>
+                            Commission:{' '}
+                            <span className="text-white">{v.commission}</span>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+              </div>
+            </div>
+
+            {/* Top Tokens */}
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-white/55">LEP100 Assets</div>
+                  <h2 className="mt-1 text-2xl font-semibold">Top Tokens</h2>
+                </div>
+                <Link
+                  href="/tokens"
+                  className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/80 hover:bg-black/50 transition"
+                >
+                  View tokens
+                </Link>
+              </div>
+
+              <div className="space-y-3">
+                {TOKENS.map((token) => (
+                  <div
+                    key={token.symbol}
+                    className="rounded-2xl border border-white/10 bg-black/25 p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">{token.symbol}</div>
+                      <div className="text-sm text-white/60">Holders {token.holders}</div>
+                    </div>
+                    <div className="mt-2 text-sm text-white/65">
+                      Supply: <span className="text-white">{token.supply}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Developer tools */}
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+              <div className="mb-5">
+                <div className="text-sm text-white/55">Developer Tools</div>
+                <h2 className="mt-1 text-2xl font-semibold">Contracts &amp; AI</h2>
+              </div>
+
+              <div className="space-y-3">
+                <Link
+                  href="/contracts"
+                  className="block rounded-2xl border border-white/10 bg-black/25 p-4 hover:bg-black/40 transition"
+                >
+                  <div className="font-medium">Verified Lithic Contracts</div>
+                  <div className="mt-2 text-sm text-white/65">
+                    Browse verified source, ABIs, events, and contract creators.
+                  </div>
+                </Link>
+                <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                  <div className="font-medium">AI Execution Receipts</div>
+                  <div className="mt-2 text-sm text-white/65">
+                    Inspect LEP100 receipts, provider proofs, and zk-verifiable AI executions.
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                  <div className="font-medium">Bridge Activity</div>
+                  <div className="mt-2 text-sm text-white/65">
+                    Track wrapped assets, cross-chain messages, and bridge mint / burn flows.
+                  </div>
                 </div>
               </div>
-            ))
-          )}
+            </div>
+          </section>
+
+          {/* CTA banner */}
+          <section className="mt-8 rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/10 via-transparent to-violet-500/10 p-6">
+            <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div>
+                <div className="text-sm text-white/55">Developer Experience</div>
+                <h2 className="mt-1 text-3xl font-semibold">
+                  Build, verify, and explore Lithic contracts on Makalu.
+                </h2>
+                <p className="mt-3 max-w-3xl text-base leading-7 text-white/65">
+                  Connect wallet, inspect onchain activity, verify LEP100 contracts, monitor AI
+                  requests, and track validator or bridge performance from a single explorer
+                  interface.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/contracts"
+                  className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90 transition"
+                >
+                  Open Contract Verifier
+                </Link>
+                <Link
+                  href="/faucet"
+                  className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium text-white hover:bg-white/10 transition"
+                >
+                  Get Testnet LITHO
+                </Link>
+              </div>
+            </div>
+          </section>
+
         </div>
       </div>
     </>
-  );
-}
-
-function BlockIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
-    </svg>
-  );
-}
-
-function TxIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-    </svg>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
-}
-
-function CoinIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125v-3.75m16.5 3.75v3.75c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125v-3.75" />
-    </svg>
-  );
-}
-
-function PriceIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
   );
 }

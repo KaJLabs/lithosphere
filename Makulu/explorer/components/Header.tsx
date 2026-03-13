@@ -10,6 +10,10 @@ const NAV_ITEMS = [
   { label: 'Blocks', href: '/blocks' },
   { label: 'Transactions', href: '/txs' },
   { label: 'Validators', href: '/validators' },
+  { label: 'Contracts', href: '/contracts' },
+  { label: 'Tokens', href: '/tokens' },
+  { label: 'Governance', href: '/proposals' },
+  { label: 'Faucet', href: '/faucet' },
 ];
 
 export default function Header() {
