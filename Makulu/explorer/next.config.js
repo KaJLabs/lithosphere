@@ -3,6 +3,23 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   eslint: { ignoreDuringBuilds: true },
+
+  // Permanent redirects for common URL aliases (singular → plural routes).
+  // External links and block explorers often use /tx/, /block/, etc.
+  async redirects() {
+    return [
+      { source: '/tx/:hash',         destination: '/txs/:hash',         permanent: true },
+      { source: '/transaction/:hash',destination: '/txs/:hash',         permanent: true },
+      { source: '/block/:height',    destination: '/blocks/:height',    permanent: true },
+      { source: '/validator/:addr',  destination: '/validators/:addr',  permanent: true },
+      { source: '/contract/:addr',   destination: '/contracts/:addr',   permanent: true },
+      { source: '/proposal/:id',     destination: '/proposals/:id',     permanent: true },
+      { source: '/evm-tx/:hash',     destination: '/evm-txs/:hash',     permanent: true },
+      { source: '/account/:addr',    destination: '/address/:addr',     permanent: true },
+      { source: '/addr/:addr',       destination: '/address/:addr',     permanent: true },
+    ];
+  },
+
   // Proxy /api/* calls to the API service.
   // In Docker Compose the API container is reachable at http://api:4000.
   // In production, nginx handles routing — these rewrites are a fallback
