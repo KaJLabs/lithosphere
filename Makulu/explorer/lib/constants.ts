@@ -1,6 +1,6 @@
 export const CHAIN_NAME = 'Lithosphere';
-export const CHAIN_ID = 'lithosphere_777777-1';
-export const EVM_CHAIN_ID = '777777';
+export const CHAIN_ID = 'lithosphere_700777-1';
+export const EVM_CHAIN_ID = '700777';
 export const DENOM = 'LITHO';
 export const DENOM_BASE = 'ulitho';
 export const DECIMALS = 18;

@@ -6,7 +6,7 @@ export const config = {
 
   // Chain
   rpcUrl: process.env.FAUCET_RPC_URL ?? 'http://localhost:8545',
-  chainId: parseInt(process.env.FAUCET_CHAIN_ID ?? '777777', 10),
+  chainId: parseInt(process.env.FAUCET_CHAIN_ID ?? '700777', 10),
 
   // Faucet wallet
   privateKey: process.env.FAUCET_PRIVATE_KEY as `0x${string}` | undefined,

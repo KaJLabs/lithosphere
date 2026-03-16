@@ -33,7 +33,7 @@ services:
       - API_HOST=0.0.0.0
       - DATABASE_URL=${DATABASE_URL}
       - LITHO_RPC_URL=${LITHO_RPC_URL}
-      - LITHO_CHAIN_ID=${LITHO_CHAIN_ID:-777777}
+      - LITHO_CHAIN_ID=${LITHO_CHAIN_ID:-700777}
       - GRAPHQL_PLAYGROUND=${GRAPHQL_PLAYGROUND:-false}
       - REDIS_URL=redis://redis:6379
       - PROMETHEUS_ENABLED=true
@@ -85,7 +85,7 @@ services:
       - LITHO_RPC_URL=${LITHO_RPC_URL:-https://rpc.litho.ai}
       - LCD_URL=${LITHO_LCD_URL:-https://api.litho.ai}
       - EVM_RPC_URL=${EVM_RPC_URL:-}
-      - LITHO_CHAIN_ID=${LITHO_CHAIN_ID:-777777}
+      - LITHO_CHAIN_ID=${LITHO_CHAIN_ID:-700777}
       - START_BLOCK=${START_BLOCK:-1}
       - INDEXER_START_BLOCK=${INDEXER_START_BLOCK:-1}
       - BATCH_SIZE=${BATCH_SIZE:-100}
@@ -204,7 +204,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_RPC_URL: ${NEXT_PUBLIC_RPC_URL:-https://rpc.litho.ai}
-        NEXT_PUBLIC_CHAIN_ID: ${CHAIN_ID:-lithosphere_777777-1}
+        NEXT_PUBLIC_CHAIN_ID: ${CHAIN_ID:-lithosphere_700777-1}
         NEXT_PUBLIC_CHAIN_NAME: ${CHAIN_NAME:-Lithosphere}
     restart: unless-stopped
     ports:
@@ -212,7 +212,7 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - NEXT_PUBLIC_RPC_URL=${NEXT_PUBLIC_RPC_URL:-https://rpc.litho.ai}
-      - NEXT_PUBLIC_CHAIN_ID=${CHAIN_ID:-lithosphere_777777-1}
+      - NEXT_PUBLIC_CHAIN_ID=${CHAIN_ID:-lithosphere_700777-1}
       - NEXT_PUBLIC_CHAIN_NAME=${CHAIN_NAME:-Lithosphere}
     env_file:
       - .env
@@ -254,7 +254,7 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - FAUCET_RPC_URL=${FAUCET_RPC_URL:-https://rpc.litho.ai}
-      - FAUCET_CHAIN_ID=${FAUCET_CHAIN_ID:-777777}
+      - FAUCET_CHAIN_ID=${FAUCET_CHAIN_ID:-700777}
       - FAUCET_PRIVATE_KEY=${FAUCET_PRIVATE_KEY}
       - FAUCET_DRIP_AMOUNT=${FAUCET_DRIP_AMOUNT:-1}
       - FAUCET_COOLDOWN_HOURS=${FAUCET_COOLDOWN_HOURS:-24}
