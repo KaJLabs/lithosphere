@@ -24,8 +24,8 @@ export default function BlockDetailPage() {
       key: 'hash',
       header: 'Tx Hash',
       render: (tx) => (
-        <Link href={`/txs/${tx.hash}`} className="font-mono text-litho-400">
-          <HashDisplay hash={tx.hash} />
+        <Link href={`/txs/${tx.evmHash || tx.hash}`} className="font-mono text-litho-400">
+          <HashDisplay hash={tx.evmHash || tx.hash} />
         </Link>
       ),
     },

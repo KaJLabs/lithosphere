@@ -64,6 +64,24 @@ interface ValidatorRow {
   jailed: boolean;
 }
 
+interface EvmTxRow {
+  hash: string;
+  cosmos_tx_hash: string;
+  block_height: string;
+  tx_index: number | null;
+  from_address: string | null;
+  to_address: string | null;
+  value: string | null;
+  gas_price: string | null;
+  gas_limit: number | null;
+  gas_used: number | null;
+  nonce: number | null;
+  input_data: string | null;
+  contract_address: string | null;
+  status: boolean;
+  timestamp: Date;
+}
+
 interface CountRow { count: string }
 
 // ── Mappers → Explorer-expected shapes ──────────────────────────────────────
@@ -77,17 +95,18 @@ function mapBlock(r: BlockRow) {
   };
 }
 
-function mapBlockDetail(r: BlockRow, txs: TxRow[]) {
+function mapBlockDetail(r: BlockRow, txs: Array<TxRow & { evm_hash?: string | null }>) {
   return {
     ...mapBlock(r),
     parentHash: null,
-    txs: txs.map(mapTx),
+    txs: txs.map((t) => mapTx(t, t.evm_hash)),
   };
 }
 
-function mapTx(r: TxRow) {
+function mapTx(r: TxRow, evmHash?: string | null) {
   return {
     hash: r.hash,
+    evmHash: evmHash ?? undefined,
     blockHeight: Number(r.block_height),
     fromAddr: r.sender ?? '',
     toAddr: r.receiver ?? '',
@@ -100,6 +119,29 @@ function mapTx(r: TxRow) {
     method: r.tx_type ?? undefined,
     memo: r.memo ?? undefined,
     timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
+  };
+}
+
+function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
+  return {
+    hash: cosmosTx?.hash ?? evm.cosmos_tx_hash,
+    evmHash: evm.hash,
+    blockHeight: Number(evm.block_height),
+    fromAddr: evm.from_address ?? cosmosTx?.sender ?? '',
+    toAddr: evm.to_address ?? cosmosTx?.receiver ?? '',
+    value: evm.value ?? cosmosTx?.amount ?? '0',
+    denom: cosmosTx?.denom ?? 'ulitho',
+    feePaid: cosmosTx?.fee ?? '0',
+    gasUsed: evm.gas_used != null ? String(evm.gas_used) : cosmosTx?.gas_used ?? null,
+    gasWanted: evm.gas_limit != null ? String(evm.gas_limit) : cosmosTx?.gas_wanted ?? null,
+    success: evm.status,
+    method: cosmosTx?.tx_type ?? 'MsgEthereumTx',
+    memo: cosmosTx?.memo ?? undefined,
+    timestamp: evm.timestamp instanceof Date ? evm.timestamp.toISOString() : String(evm.timestamp),
+    contractAddress: evm.contract_address ?? undefined,
+    nonce: evm.nonce ?? undefined,
+    gasPrice: evm.gas_price ?? undefined,
+    inputData: evm.input_data ?? undefined,
   };
 }
 
@@ -194,8 +236,12 @@ export function explorerRouter(): Router {
         res.status(404).json({ message: 'Block not found' });
         return;
       }
-      const txs = await query<TxRow>(
-        'SELECT * FROM transactions WHERE block_height = $1 ORDER BY tx_index ASC',
+      const txs = await query<TxRow & { evm_hash: string | null }>(
+        `SELECT t.*, e.hash AS evm_hash
+         FROM transactions t
+         LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
+         WHERE t.block_height = $1
+         ORDER BY t.tx_index ASC`,
         [height]
       );
       res.json(mapBlockDetail(blocks[0], txs));
@@ -212,14 +258,18 @@ export function explorerRouter(): Router {
       const limit = clamp(req.query.limit);
       const offset = Math.max(0, Number(req.query.offset) || 0);
       const [rows, countResult] = await Promise.all([
-        query<TxRow>(
-          'SELECT * FROM transactions ORDER BY timestamp DESC, block_height DESC LIMIT $1 OFFSET $2',
+        query<TxRow & { evm_hash: string | null }>(
+          `SELECT t.*, e.hash AS evm_hash
+           FROM transactions t
+           LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
+           ORDER BY t.timestamp DESC, t.block_height DESC
+           LIMIT $1 OFFSET $2`,
           [limit, offset]
         ),
         query<CountRow>('SELECT COUNT(*) AS count FROM transactions'),
       ]);
       res.json({
-        txs: rows.map(mapTx),
+        txs: rows.map((r) => mapTx(r, r.evm_hash)),
         total: parseInt(countResult[0]?.count ?? '0'),
         limit,
         offset,
@@ -233,24 +283,49 @@ export function explorerRouter(): Router {
   r.get('/txs/:hash', async (req: Request, res: Response) => {
     try {
       const { hash } = req.params;
-      const rows = await query<TxRow>(
-        'SELECT * FROM transactions WHERE hash = $1',
+
+      // 1. Try exact match in transactions table (Cosmos SHA256 hash)
+      const rows = await query<TxRow & { evm_hash: string | null }>(
+        `SELECT t.*, e.hash AS evm_hash
+         FROM transactions t
+         LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
+         WHERE t.hash = $1`,
         [hash.toUpperCase()]
       );
-      if (!rows[0]) {
-        // Try case-insensitive / lowercase
-        const rows2 = await query<TxRow>(
-          'SELECT * FROM transactions WHERE LOWER(hash) = LOWER($1)',
-          [hash]
-        );
-        if (!rows2[0]) {
-          res.status(404).json({ message: 'Transaction not found' });
-          return;
-        }
-        res.json(mapTx(rows2[0]));
+      if (rows[0]) {
+        res.json(mapTx(rows[0], rows[0].evm_hash));
         return;
       }
-      res.json(mapTx(rows[0]));
+
+      // 2. Try case-insensitive match in transactions
+      const rows2 = await query<TxRow & { evm_hash: string | null }>(
+        `SELECT t.*, e.hash AS evm_hash
+         FROM transactions t
+         LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
+         WHERE LOWER(t.hash) = LOWER($1)`,
+        [hash]
+      );
+      if (rows2[0]) {
+        res.json(mapTx(rows2[0], rows2[0].evm_hash));
+        return;
+      }
+
+      // 3. Try EVM tx hash lookup (0x-prefixed hashes)
+      const evmRows = await query<EvmTxRow>(
+        'SELECT * FROM evm_transactions WHERE LOWER(hash) = LOWER($1)',
+        [hash]
+      );
+      if (evmRows[0]) {
+        // Get the linked Cosmos tx for full details
+        const cosmosTx = await query<TxRow>(
+          'SELECT * FROM transactions WHERE hash = $1',
+          [evmRows[0].cosmos_tx_hash]
+        );
+        res.json(mapEvmTx(evmRows[0], cosmosTx[0]));
+        return;
+      }
+
+      res.status(404).json({ message: 'Transaction not found' });
     } catch (err) {
       console.error('[api] /txs/:hash error:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -281,13 +356,21 @@ export function explorerRouter(): Router {
     try {
       const { address } = req.params;
       const limit = clamp(req.query.limit, 25);
-      const rows = await query<TxRow>(
-        `SELECT * FROM transactions
-         WHERE sender = $1 OR receiver = $1
-         ORDER BY timestamp DESC LIMIT $2`,
-        [address, limit]
+      const addrLower = address.toLowerCase();
+
+      // Search both Cosmos transactions (sender/receiver) and EVM transactions (from/to)
+      const rows = await query<TxRow & { evm_hash: string | null }>(
+        `SELECT DISTINCT ON (t.hash) t.*, e.hash AS evm_hash
+         FROM transactions t
+         LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
+         WHERE t.sender = $1 OR t.receiver = $1
+            OR LOWER(t.sender) = $2 OR LOWER(t.receiver) = $2
+            OR LOWER(e.from_address) = $2 OR LOWER(e.to_address) = $2
+         ORDER BY t.hash, t.timestamp DESC
+         LIMIT $3`,
+        [address, addrLower, limit]
       );
-      res.json(rows.map(mapTx));
+      res.json(rows.map((r) => mapTx(r, r.evm_hash)));
     } catch (err) {
       console.error('[api] /address/:address/txs error:', err);
       res.status(500).json({ error: 'Internal server error' });

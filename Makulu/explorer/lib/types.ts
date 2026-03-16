@@ -22,6 +22,7 @@ export interface ApiBlock {
 
 export interface ApiTx {
   hash: string;
+  evmHash?: string;
   blockHeight: number;
   fromAddr: string;
   toAddr: string;
@@ -34,6 +35,10 @@ export interface ApiTx {
   method?: string;
   memo?: string;
   timestamp?: string;
+  contractAddress?: string;
+  nonce?: number;
+  gasPrice?: string;
+  inputData?: string;
 }
 
 export interface ApiTxList {

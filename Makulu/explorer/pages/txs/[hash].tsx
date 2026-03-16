@@ -103,6 +103,13 @@ export default function TransactionDetailPage() {
             <CopyBtn text={tx.hash} />
           </Row>
 
+          {tx.evmHash && (
+            <Row label="EVM Tx Hash">
+              <span className="font-mono">{tx.evmHash}</span>
+              <CopyBtn text={tx.evmHash} />
+            </Row>
+          )}
+
           <Row label="Status">
             <span className={tx.success ? 'text-emerald-300' : 'text-red-300'}>
               {tx.success ? 'Success' : 'Failed'}
