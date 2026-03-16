@@ -20,9 +20,9 @@ type ClaimResponse = {
 const NETWORK = {
   networkName: 'Lithosphere Makalu',
   rpcUrl: 'https://rpc.litho.ai',
-  cosmosChainId: 'lithosphere_700777-1',
-  evmChainIdDecimal: 700777,
-  evmChainIdHex: '0xab169',
+  cosmosChainId: 'lithosphere_777777-1',
+  evmChainIdDecimal: 777777,
+  evmChainIdHex: '0xbde31',
   explorer: 'https://makalu.litho.ai',
   symbol: 'LITHO',
   decimals: 18,
@@ -420,7 +420,7 @@ export default function FaucetPage() {
               <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4">
                 <div className="text-sm font-medium text-white">Suggested usage</div>
                 <ul className="mt-3 space-y-2 text-sm text-white/65">
-                  <li>• Connect an injected EVM wallet and switch to chain ID 700777.</li>
+                  <li>• Connect an injected EVM wallet and switch to chain ID 777777.</li>
                   <li>• Use the Cosmos chain ID for Cosmos-native clients and relayers.</li>
                   <li>• Track faucet transfers and balances on the Makalu explorer.</li>
                 </ul>

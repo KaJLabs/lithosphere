@@ -179,6 +179,15 @@ jobs:
               echo "Fallback: using .env.testnet"
             fi
 
+            # Force-correct RPC_URL in .env (testnet-rpc.lithosphere.network is dead)
+            echo "🔧 Ensuring correct RPC endpoints..."
+            sed -i 's|testnet-rpc\.lithosphere\.network|rpc.litho.ai|g' .env 2>/dev/null || true
+            sed -i 's|testnet-ws\.lithosphere\.network|54.163.248.63:8546|g' .env 2>/dev/null || true
+            sed -i 's|testnet-rpc-backup\.lithosphere\.network|52.41.98.79:26657|g' .env 2>/dev/null || true
+            # Ensure RPC_URL is set (indexer reads this first)
+            grep -q '^RPC_URL=' .env || echo 'RPC_URL=https://rpc.litho.ai' >> .env
+            grep -q '^LCD_URL=' .env || echo 'LCD_URL=https://api.litho.ai' >> .env
+
             echo "🔴 Stopping only the explorer container on port 3100..."
             # 1. Stop ONLY the explorer-web service from LITHOSCAN (keep API/indexer/redis!)
             #    The Fastify API on port 8080 and its indexer MUST stay running.
