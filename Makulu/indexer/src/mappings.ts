@@ -107,7 +107,9 @@ async function getLastIndexedBlock(): Promise<number> {
 
 async function setLastIndexedBlock(height: number): Promise<void> {
   await pool.query(
-    `UPDATE indexer_state SET value = $1, updated_at = NOW() WHERE key = 'last_indexed_block'`,
+    `INSERT INTO indexer_state (key, value, updated_at)
+     VALUES ('last_indexed_block', $1, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
     [String(height)]
   );
   gIndexed.set(height);
@@ -451,12 +453,28 @@ async function main(): Promise<void> {
   });
   metricsApp.listen(process.env.METRICS_PORT ?? 9090, () => console.log('[indexer] Metrics: :9090'));
 
+  // Ensure indexer_state table exists (RDS may have been created by another indexer)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS indexer_state (
+      key VARCHAR(100) PRIMARY KEY,
+      value TEXT,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    INSERT INTO indexer_state (key, value) VALUES ('last_indexed_block', '0')
+    ON CONFLICT (key) DO NOTHING
+  `);
+
   // Force re-index: reset indexer_state so we re-process all blocks from START_BLOCK.
   // This is needed when another indexer (e.g. EVM-only) populated blocks with num_txs=0
   // and our CometBFT indexer needs to find the actual transactions.
   if (process.env.FORCE_REINDEX === '1' || process.env.FORCE_REINDEX === 'true') {
     console.log('[indexer] FORCE_REINDEX=1 — resetting last_indexed_block to 0');
-    await pool.query(`UPDATE indexer_state SET value = '0', updated_at = NOW() WHERE key = 'last_indexed_block'`);
+    await pool.query(`
+      INSERT INTO indexer_state (key, value, updated_at) VALUES ('last_indexed_block', '0', NOW())
+      ON CONFLICT (key) DO UPDATE SET value = '0', updated_at = NOW()
+    `);
   }
 
   // Initial validator load
