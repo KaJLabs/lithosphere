@@ -391,5 +391,51 @@ export function explorerRouter(): Router {
     }
   });
 
+  // ── Debug / Diagnostics ─────────────────────────────────────────────
+
+  r.get('/debug', async (_req: Request, res: Response) => {
+    try {
+      const [
+        indexerState,
+        blockCount,
+        txCount,
+        evmTxCount,
+        minBlock,
+        maxBlock,
+        sampleBlock,
+        tableColumns,
+      ] = await Promise.all([
+        query<{ key: string; value: string }>('SELECT * FROM indexer_state').catch(() => []),
+        query<CountRow>('SELECT COUNT(*) AS count FROM blocks').catch(() => [{ count: '?' }]),
+        query<CountRow>('SELECT COUNT(*) AS count FROM transactions').catch(() => [{ count: '?' }]),
+        query<CountRow>('SELECT COUNT(*) AS count FROM evm_transactions').catch(() => [{ count: '?' }]),
+        query<{ height: string }>('SELECT MIN(height) AS height FROM blocks').catch(() => []),
+        query<{ height: string }>('SELECT MAX(height) AS height FROM blocks').catch(() => []),
+        query<Record<string, unknown>>('SELECT * FROM blocks ORDER BY height ASC LIMIT 1').catch(() => []),
+        query<{ column_name: string; data_type: string; character_maximum_length: number | null }>(
+          `SELECT column_name, data_type, character_maximum_length
+           FROM information_schema.columns WHERE table_name = 'blocks' ORDER BY ordinal_position`
+        ).catch(() => []),
+      ]);
+
+      res.json({
+        indexerState,
+        counts: {
+          blocks: blockCount[0]?.count,
+          transactions: txCount[0]?.count,
+          evmTransactions: evmTxCount[0]?.count,
+        },
+        blockRange: {
+          min: minBlock[0]?.height,
+          max: maxBlock[0]?.height,
+        },
+        sampleBlock: sampleBlock[0] ?? null,
+        blocksSchema: tableColumns,
+      });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
   return r;
 }
