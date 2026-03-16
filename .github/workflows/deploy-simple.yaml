@@ -276,31 +276,13 @@ jobs:
             echo "::warning::No inject script found — skipping DATABASE_URL injection"
           fi
 
-      - name: Start API + Indexer (reset indexer to re-sync)
+      - name: Start API + Indexer
         run: |
           echo "🐳 Starting api + indexer (uses current .env on server)..."
           ssh -o StrictHostKeyChecking=no \
               -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
-            cd /opt/lithosphere/Makulu
-
-            # Reset indexer state to force full re-sync from block 1.
-            # The validator team's indexer stored blocks with 0 txns (EVM layer).
-            # Our CometBFT indexer needs to re-process to find actual transactions.
-            echo "🔄 Resetting indexer state for full re-sync..."
-            sudo docker compose up -d api
-            sudo docker compose run --rm -e DATABASE_URL="$( grep '^DATABASE_URL=' .env | cut -d= -f2- )" indexer \
-              node -e "
-                const pg = require('pg');
-                const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-                pool.query(\"UPDATE indexer_state SET value = '0' WHERE key = 'last_indexed_block'\")
-                  .then(r => { console.log('Reset indexer_state:', r.rowCount, 'rows'); process.exit(0); })
-                  .catch(e => { console.error(e.message); process.exit(1); });
-              " 2>/dev/null || echo "⚠️  Could not reset indexer_state (will start from current position)"
-
-            sudo docker compose up -d --force-recreate indexer
-            echo "✅ api + indexer started (indexer will re-sync from block 1)"
-          ENDSSH
+              "$SERVER_USER@$INDEXER_IP" \
+              'cd /opt/lithosphere/Makulu && sudo docker compose up -d --force-recreate api indexer && echo "✅ api + indexer started"'
 
       # ── Health checks ──────────────────────────────────────────────────────
       - name: Wait for Services

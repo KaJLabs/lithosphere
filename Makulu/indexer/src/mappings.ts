@@ -451,6 +451,14 @@ async function main(): Promise<void> {
   });
   metricsApp.listen(process.env.METRICS_PORT ?? 9090, () => console.log('[indexer] Metrics: :9090'));
 
+  // Force re-index: reset indexer_state so we re-process all blocks from START_BLOCK.
+  // This is needed when another indexer (e.g. EVM-only) populated blocks with num_txs=0
+  // and our CometBFT indexer needs to find the actual transactions.
+  if (process.env.FORCE_REINDEX === '1' || process.env.FORCE_REINDEX === 'true') {
+    console.log('[indexer] FORCE_REINDEX=1 — resetting last_indexed_block to 0');
+    await pool.query(`UPDATE indexer_state SET value = '0', updated_at = NOW() WHERE key = 'last_indexed_block'`);
+  }
+
   // Initial validator load
   await refreshValidators();
 
