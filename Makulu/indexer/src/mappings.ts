@@ -132,7 +132,10 @@ async function indexBlock(height: number): Promise<void> {
     await client.query(
       `INSERT INTO blocks (height, hash, proposer_address, num_txs, total_gas, block_time)
        VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (height) DO NOTHING`,
+       ON CONFLICT (height) DO UPDATE SET
+         num_txs = GREATEST(blocks.num_txs, EXCLUDED.num_txs),
+         total_gas = GREATEST(blocks.total_gas, EXCLUDED.total_gas),
+         proposer_address = COALESCE(EXCLUDED.proposer_address, blocks.proposer_address)`,
       [
         height,
         blockData.block_id.hash.toLowerCase(),
