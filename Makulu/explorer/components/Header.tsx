@@ -5,14 +5,21 @@ import ThemeToggle from './ThemeToggle';
 import SearchBar from './SearchBar';
 import { EXPLORER_TITLE } from '@/lib/constants';
 
-const NAV_ITEMS = [
+interface NavItem {
+  label: string;
+  href: string;
+  external?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { label: 'Home', href: '/' },
   { label: 'Blocks', href: '/blocks' },
   { label: 'Transactions', href: '/txs' },
-  { label: 'Validators', href: '/validators' },
-  { label: 'Contracts', href: '/contracts' },
+  { label: 'Validators', href: 'https://validator.litho.ai', external: true },
+  { label: 'Contracts', href: 'https://lithiclang.ai/verifier', external: true },
   { label: 'Tokens', href: '/tokens' },
-  { label: 'Governance', href: '/proposals' },
+  { label: 'Governance', href: 'https://vote.litho.ai', external: true },
+  { label: 'LITHO TGE', href: 'https://portal.litho.ai', external: true },
   { label: 'Faucet', href: '/faucet' },
 ];
 
@@ -26,7 +33,7 @@ export default function Header() {
   };
 
   return (
-    <header className="border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
+    <header className="sticky top-0 z-50 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]/95 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
@@ -43,19 +50,31 @@ export default function Header() {
 
           {/* Desktop nav */}
           <nav className="hidden lg:flex items-center gap-1">
-            {NAV_ITEMS.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive(item.href)
-                    ? 'text-litho-400 bg-litho-400/10'
-                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]'
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {NAV_ITEMS.map((item) =>
+              item.external ? (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 rounded-md text-sm font-medium transition-colors text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]"
+                >
+                  {item.label}
+                </a>
+              ) : (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    isActive(item.href)
+                      ? 'text-litho-400 bg-litho-400/10'
+                      : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              )
+            )}
           </nav>
 
           {/* Search + theme */}
@@ -87,20 +106,33 @@ export default function Header() {
             <div className="md:hidden mb-3">
               <SearchBar />
             </div>
-            {NAV_ITEMS.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMenuOpen(false)}
-                className={`block px-3 py-2 rounded-md text-sm font-medium ${
-                  isActive(item.href)
-                    ? 'text-litho-400 bg-litho-400/10'
-                    : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)]'
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {NAV_ITEMS.map((item) =>
+              item.external ? (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMenuOpen(false)}
+                  className="block px-3 py-2 rounded-md text-sm font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)]"
+                >
+                  {item.label}
+                </a>
+              ) : (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMenuOpen(false)}
+                  className={`block px-3 py-2 rounded-md text-sm font-medium ${
+                    isActive(item.href)
+                      ? 'text-litho-400 bg-litho-400/10'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)]'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              )
+            )}
           </div>
         )}
       </div>

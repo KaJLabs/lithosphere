@@ -11,11 +11,23 @@ export default function Footer() {
             className="h-6 w-auto"
           />
           <span>&mdash;</span>
-          <span>{EXPLORER_TITLE} | Lithosphere Testnet Makalu</span>
+          <span>{EXPLORER_TITLE} | Lithosphere Makalu Testnet</span>
         </div>
         <div className="flex items-center gap-4">
           <a href="https://litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
             Website
+          </a>
+          <a href="https://access.litho.ai/" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
+            ACCESS
+          </a>
+          <a href="https://portal.litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
+            LITHO TGE
+          </a>
+          <a href="https://validator.litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
+            Validators
+          </a>
+          <a href="https://vote.litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
+            Governance
           </a>
         </div>
       </div>

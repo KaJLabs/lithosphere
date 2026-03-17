@@ -3,15 +3,8 @@ import Link from 'next/link';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
 import { formatNumber, timeAgo, truncateHash } from '@/lib/format';
-import type { StatsSummary, ApiBlock, ApiTx, ApiTxList, ApiValidator } from '@/lib/types';
+import type { StatsSummary, ApiBlock, ApiTxList, ApiValidator } from '@/lib/types';
 import SearchBar from '@/components/SearchBar';
-
-const AI_STATS = [
-  { label: 'AI Requests (24h)', value: '184,220' },
-  { label: 'Receipts Verified', value: '178,944' },
-  { label: 'zk-AI Proofs', value: '12,118' },
-  { label: 'Providers', value: '16' },
-];
 
 const TOKENS = [
   { symbol: 'LITHO', supply: '1.2B', holders: '12,441' },
@@ -48,6 +41,25 @@ export default function Home() {
     { label: 'Gas Price', value: '0.0001 LITHO' },
   ];
 
+  const networkMetrics = [
+    {
+      label: 'Average Block Time',
+      value: statsLoading ? '—' : `${stats?.avgBlockTime ?? 0}s`,
+    },
+    {
+      label: 'Total Transactions',
+      value: statsLoading ? '—' : formatNumber(stats?.totalTransactions ?? 0),
+    },
+    {
+      label: 'Wallet Addresses',
+      value: statsLoading ? '—' : formatNumber(stats?.walletAddresses ?? 0),
+    },
+    {
+      label: 'Gas Tracker',
+      value: '< $0.01',
+    },
+  ];
+
   return (
     <>
       <Head>
@@ -82,12 +94,14 @@ export default function Home() {
                 >
                   View Latest Blocks
                 </Link>
-                <Link
-                  href="/contracts"
+                <a
+                  href="https://lithiclang.ai/verifier"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium text-white hover:bg-white/10 transition"
                 >
                   Verify Lithic Contract
-                </Link>
+                </a>
               </div>
 
               <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl shadow-black/30">
@@ -110,9 +124,9 @@ export default function Home() {
             </div>
           </section>
 
-          {/* AI stats */}
+          {/* Network metrics (real data from chain) */}
           <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {AI_STATS.map((item) => (
+            {networkMetrics.map((item) => (
               <div
                 key={item.label}
                 className="rounded-3xl border border-violet-400/15 bg-violet-400/5 p-5"
@@ -258,12 +272,14 @@ export default function Home() {
                   <div className="text-sm text-white/55">Consensus Layer</div>
                   <h2 className="mt-1 text-2xl font-semibold">Top Validators</h2>
                 </div>
-                <Link
-                  href="/validators"
+                <a
+                  href="https://validator.litho.ai"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/80 hover:bg-black/50 transition"
                 >
                   All validators
-                </Link>
+                </a>
               </div>
 
               <div className="space-y-3">
@@ -278,10 +294,9 @@ export default function Home() {
                       </div>
                     ))
                   : topValidators.map((v) => (
-                      <Link
+                      <div
                         key={v.address}
-                        href={`/validators/${v.address}`}
-                        className="block rounded-2xl border border-white/10 bg-black/25 p-4 hover:bg-black/40 transition"
+                        className="rounded-2xl border border-white/10 bg-black/25 p-4"
                       >
                         <div className="font-medium">{v.moniker}</div>
                         <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-white/65">
@@ -294,7 +309,7 @@ export default function Home() {
                             <span className="text-white">{v.commission}</span>
                           </div>
                         </div>
-                      </Link>
+                      </div>
                     ))}
               </div>
             </div>
@@ -340,15 +355,17 @@ export default function Home() {
               </div>
 
               <div className="space-y-3">
-                <Link
-                  href="/contracts"
+                <a
+                  href="https://lithiclang.ai/verifier"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="block rounded-2xl border border-white/10 bg-black/25 p-4 hover:bg-black/40 transition"
                 >
                   <div className="font-medium">Verified Lithic Contracts</div>
                   <div className="mt-2 text-sm text-white/65">
                     Browse verified source, ABIs, events, and contract creators.
                   </div>
-                </Link>
+                </a>
                 <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
                   <div className="font-medium">AI Execution Receipts</div>
                   <div className="mt-2 text-sm text-white/65">
@@ -380,12 +397,14 @@ export default function Home() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
-                <Link
-                  href="/contracts"
+                <a
+                  href="https://lithiclang.ai/verifier"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90 transition"
                 >
                   Open Contract Verifier
-                </Link>
+                </a>
                 <Link
                   href="/faucet"
                   className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium text-white hover:bg-white/10 transition"

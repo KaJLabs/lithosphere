@@ -175,7 +175,7 @@ export function explorerRouter(): Router {
 
   r.get('/stats/summary', async (_req: Request, res: Response) => {
     try {
-      const [blockRow, tx1m, tx5m] = await Promise.all([
+      const [blockRow, tx1m, tx5m, totalTxs, walletCount, avgBlockTime] = await Promise.all([
         query<{ height: string }>('SELECT height FROM blocks ORDER BY height DESC LIMIT 1'),
         query<CountRow>(
           `SELECT COUNT(*) AS count FROM transactions
@@ -185,6 +185,14 @@ export function explorerRouter(): Router {
           `SELECT COUNT(*) AS count FROM transactions
            WHERE timestamp > NOW() - INTERVAL '5 minutes'`
         ),
+        query<CountRow>('SELECT COUNT(*) AS count FROM transactions'),
+        query<CountRow>('SELECT COUNT(*) AS count FROM accounts'),
+        query<{ avg_seconds: string }>(
+          `SELECT COALESCE(EXTRACT(EPOCH FROM AVG(diff)), 0) AS avg_seconds FROM (
+             SELECT block_time - LAG(block_time) OVER (ORDER BY height) AS diff
+             FROM blocks ORDER BY height DESC LIMIT 100
+           ) sub WHERE diff IS NOT NULL`
+        ).catch(() => [{ avg_seconds: '0' }]),
       ]);
       const tipHeight = blockRow[0] ? Number(blockRow[0].height) : 0;
       const txs1m = parseInt(tx1m[0]?.count ?? '0');
@@ -193,6 +201,9 @@ export function explorerRouter(): Router {
         tipHeight,
         tps1m: Math.round((txs1m / 60) * 100) / 100,
         tps5m: Math.round((txs5m / 300) * 100) / 100,
+        totalTransactions: parseInt(totalTxs[0]?.count ?? '0'),
+        walletAddresses: parseInt(walletCount[0]?.count ?? '0'),
+        avgBlockTime: Math.round(parseFloat(avgBlockTime[0]?.avg_seconds ?? '0') * 10) / 10,
       });
     } catch (err) {
       console.error('[api] /stats/summary error:', err);

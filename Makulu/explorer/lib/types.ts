@@ -4,6 +4,9 @@ export interface StatsSummary {
   tipHeight: number;
   tps1m: number;
   tps5m: number;
+  totalTransactions: number;
+  walletAddresses: number;
+  avgBlockTime: number;
 }
 
 export interface TokenConfig {

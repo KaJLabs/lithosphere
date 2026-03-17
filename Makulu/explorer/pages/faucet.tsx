@@ -20,9 +20,9 @@ type ClaimResponse = {
 const NETWORK = {
   networkName: 'Lithosphere Makalu',
   rpcUrl: 'https://rpc.litho.ai',
-  cosmosChainId: 'lithosphere_777777-1',
-  evmChainIdDecimal: 777777,
-  evmChainIdHex: '0xbde31',
+  cosmosChainId: 'lithosphere_700777-1',
+  evmChainIdDecimal: 700777,
+  evmChainIdHex: '0xab169',
   explorer: 'https://makalu.litho.ai',
   symbol: 'LITHO',
   decimals: 18,
@@ -37,7 +37,7 @@ function shortenAddress(value: string) {
 export default function FaucetPage() {
   const [address, setAddress] = useState('');
   const [walletType, setWalletType] = useState<WalletType>('EVM');
-  const [amount, setAmount] = useState('100 LITHO');
+  const [amount, setAmount] = useState('10 LITHO');
   const [reason, setReason] = useState('');
   const [connectedAddress, setConnectedAddress] = useState('');
   const [connecting, setConnecting] = useState(false);
@@ -298,9 +298,9 @@ export default function FaucetPage() {
                       onChange={(e) => setAmount(e.target.value)}
                       className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-white/25"
                     >
-                      <option>100 LITHO</option>
-                      <option>250 LITHO</option>
-                      <option>500 LITHO</option>
+                      <option>10 LITHO</option>
+                      <option>25 LITHO</option>
+                      <option>50 LITHO</option>
                     </select>
                   </div>
                 </div>
@@ -420,7 +420,7 @@ export default function FaucetPage() {
               <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4">
                 <div className="text-sm font-medium text-white">Suggested usage</div>
                 <ul className="mt-3 space-y-2 text-sm text-white/65">
-                  <li>• Connect an injected EVM wallet and switch to chain ID 777777.</li>
+                  <li>• Connect an injected EVM wallet and switch to chain ID 700777.</li>
                   <li>• Use the Cosmos chain ID for Cosmos-native clients and relayers.</li>
                   <li>• Track faucet transfers and balances on the Makalu explorer.</li>
                 </ul>
