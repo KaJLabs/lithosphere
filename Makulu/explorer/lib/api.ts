@@ -1,14 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 /**
- * Fetch from the REST API via the /_api proxy path.
- *
- * External nginx intercepts /api/* and routes it to the validator's Fastify
- * API on port 8080. By using /_api/*, requests go through the Next.js server
- * (nginx routes / → :3100) which rewrites them to our Express API on :4000.
+ * Fetch from the REST API.
+ * Nginx routes /api/* to our Express API on :8080 (mapped from :4000).
  */
 export async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`/_api${path}`);
+  const res = await fetch(`/api${path}`);
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     // API returns JSON error bodies like {"statusCode":404,"message":"Block not found"}

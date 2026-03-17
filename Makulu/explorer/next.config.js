@@ -24,18 +24,11 @@ const nextConfig = {
   // In Docker Compose the API container is reachable at http://api:4000.
   // In production, nginx handles routing — these rewrites are a fallback
   // so the explorer works correctly without an external reverse proxy.
+  // In production, nginx routes /api/* to our API on :8080 (mapped from :4000).
+  // These rewrites are a fallback for local dev where nginx isn't present.
   async rewrites() {
     const apiUrl = process.env.API_INTERNAL_URL || 'http://api:4000';
     return [
-      // /_api/* is our internal proxy path. External nginx intercepts /api/*
-      // and routes it to the validator's Fastify API on :8080. By using /_api/*
-      // from the frontend, requests reach the Next.js server first (via nginx
-      // routing / → :3100), which then rewrites them to our Express API on :4000.
-      {
-        source: '/_api/:path*',
-        destination: `${apiUrl}/api/:path*`,
-      },
-      // Also keep /api/* rewrite as fallback (works when nginx doesn't intercept)
       {
         source: '/api/:path*',
         destination: `${apiUrl}/api/:path*`,

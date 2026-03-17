@@ -1,6 +1,6 @@
 # ============================================================================
-# Lithosphere Simple Deployment Pipeline
-# Git-based deployment to VPS via Bastion ProxyJump
+# Lithosphere Deployment Pipeline
+# Deploys to EC2 via AWS Systems Manager (SSM) — no SSH/bastion needed
 # ============================================================================
 
 name: Deploy to VPS
@@ -18,7 +18,7 @@ on:
       environment:
         description: 'Deployment environment'
         required: true
-        default: 'testnet'
+        default: 'mainnet'
         type: choice
         options:
           - testnet
@@ -27,12 +27,8 @@ on:
 
 env:
   DEPLOY_PATH: /opt/lithosphere/Makulu
-  LITHOSCAN_PATH: /opt/lithoscan
-  EXPLORER_ENV_PATH: /opt/lithoscan/monitoring/explorer
-  # SSH targets — resolved from secrets at workflow level
-  INDEXER_IP: ${{ secrets.INDEXER_IP }}
-  BASTION_HOST: ${{ secrets.BASTION_HOST }}
-  SERVER_USER: ${{ secrets.SERVER_USER }}
+  INSTANCE_ID: i-057bf8e4baabd9f31
+  AWS_REGION: us-east-1
 
 concurrency:
   group: deploy-${{ github.event.inputs.environment || 'mainnet' }}
@@ -45,7 +41,7 @@ jobs:
 
     permissions:
       contents: read
-      id-token: write   # Required for OIDC → AWS role assumption (mainnet RDS)
+      id-token: write   # Required for OIDC → AWS role assumption
 
     steps:
       - name: Checkout Repository
@@ -55,17 +51,25 @@ jobs:
         id: resolve-env
         run: echo "name=${{ github.event.inputs.environment || 'mainnet' }}" >> $GITHUB_OUTPUT
 
+      # ── AWS Authentication ──────────────────────────────────────────────────
       - name: Configure AWS Credentials (OIDC)
-        if: steps.resolve-env.outputs.name == 'mainnet'
-        continue-on-error: true
         id: aws-creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
+      - name: Verify SSM Connectivity
+        run: |
+          echo "Checking SSM agent on instance $INSTANCE_ID..."
+          aws ssm describe-instance-information \
+            --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
+            --query "InstanceInformationList[0].PingStatus" --output text
+          echo "SSM connectivity verified"
+
+      # ── Fetch RDS Credentials ───────────────────────────────────────────────
       - name: Fetch RDS Credentials from Secrets Manager
-        if: steps.resolve-env.outputs.name == 'mainnet' && steps.aws-creds.outcome == 'success'
+        if: steps.resolve-env.outputs.name == 'mainnet'
         id: rds-creds
         run: |
           SECRET_JSON=$(aws secretsmanager get-secret-value \
@@ -76,444 +80,205 @@ jobs:
           echo "rds_username=$(echo "$SECRET_JSON" | jq -r '.username')" >> $GITHUB_OUTPUT
           echo "rds_password=$(echo "$SECRET_JSON" | jq -r '.password')" >> $GITHUB_OUTPUT
 
-      - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.BASTION_SSH_KEY }}
-            ${{ secrets.INDEXER_SSH_KEY }}
-
-      - name: Validate Secrets & Add Bastion to Known Hosts
-        run: |
-          if [ -z "$INDEXER_IP" ]; then
-            echo "❌ INDEXER_IP secret is not set"; exit 1
-          fi
-          if [ -z "$SERVER_USER" ]; then
-            echo "❌ SERVER_USER secret is not set"; exit 1
-          fi
-          if [ -z "$BASTION_HOST" ]; then
-            echo "❌ BASTION_HOST secret is not set"; exit 1
-          fi
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          ssh-keyscan -T 10 -H "$BASTION_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          chmod 644 ~/.ssh/known_hosts
-          echo "✅ Secrets validated. Bastion: $BASTION_HOST → Indexer: $INDEXER_IP"
-
-      - name: Bootstrap Server (install Docker if missing)
-        run: |
-          ssh -o StrictHostKeyChecking=no \
-              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
-            set -e
-            # ── Docker Engine ──────────────────────────────────────────────────
-            if ! command -v docker &>/dev/null; then
-              echo "🐳 Installing Docker Engine..."
-              sudo dnf install -y docker
-              sudo systemctl enable --now docker
-              sudo usermod -aG docker "$USER"
-              echo "✅ Docker Engine installed"
-            else
-              echo "✅ Docker Engine present: $(sudo docker --version)"
-            fi
-            sudo systemctl start docker 2>/dev/null || true
-
-            # ── Docker Compose plugin ──────────────────────────────────────────
-            if ! sudo docker compose version &>/dev/null 2>&1; then
-              echo "🔧 Installing Docker Compose plugin..."
-              sudo mkdir -p /usr/local/lib/docker/cli-plugins
-              sudo curl -fsSL \
-                "https://github.com/docker/compose/releases/download/v2.24.7/docker-compose-linux-x86_64" \
-                -o /usr/local/lib/docker/cli-plugins/docker-compose
-              sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-              echo "✅ Docker Compose installed: $(sudo docker compose version)"
-            else
-              echo "✅ Docker Compose present: $(sudo docker compose version)"
-            fi
-          ENDSSH
-
-      - name: Deploy to Server
-        run: |
-          echo "🚀 Deploying Lithosphere to $INDEXER_IP via bastion $BASTION_HOST..."
-          ssh -o StrictHostKeyChecking=no \
-              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
-            set -e
-            sudo mkdir -p /opt/lithosphere
-            sudo chown "$USER:$USER" /opt/lithosphere
-            cd /opt/lithosphere
-
-            # Save rollback snapshot before deploying
-            echo "💾 Saving rollback snapshot..."
-            if [ -d Makulu ]; then
-              mkdir -p Makulu/.rollback
-              cp Makulu/docker-compose.yaml Makulu/.rollback/docker-compose.yaml.bak 2>/dev/null || true
-              cp Makulu/.env Makulu/.rollback/.env.bak 2>/dev/null || true
-              sudo docker compose -f Makulu/docker-compose.yaml images --format json \
-                > Makulu/.rollback/images.json 2>/dev/null || true
-              echo "Rollback snapshot saved"
-            fi
-
-            echo "📦 Pulling latest code from GitHub..."
-            if [ ! -d lithosphere ]; then
-              git clone https://github.com/KaJLabs/lithosphere.git
-            else
-              cd lithosphere
-              git fetch origin
-              git reset --hard origin/main
-              cd ..
-            fi
-
-            echo "📋 Copying files to deployment directory..."
-            mkdir -p Makulu
-            cp -r lithosphere/Makulu/. Makulu/
-            cp -r lithosphere/.github Makulu/ 2>/dev/null || true
-
-            echo "🔧 Configuring environment..."
-            cd Makulu
-            ENV="${{ github.event.inputs.environment || 'mainnet' }}"
-            if [ -f ".env.${ENV}" ]; then
-              cp ".env.${ENV}" .env
-              echo "Using .env.${ENV}"
-            elif [ ! -f .env ]; then
-              cp .env.testnet .env
-              echo "Fallback: using .env.testnet"
-            fi
-
-            # Force-correct RPC_URL in .env (testnet-rpc.lithosphere.network is dead)
-            echo "🔧 Ensuring correct RPC endpoints..."
-            sed -i 's|testnet-rpc\.lithosphere\.network|rpc.litho.ai|g' .env 2>/dev/null || true
-            sed -i 's|testnet-ws\.lithosphere\.network|54.163.248.63:8546|g' .env 2>/dev/null || true
-            sed -i 's|testnet-rpc-backup\.lithosphere\.network|52.41.98.79:26657|g' .env 2>/dev/null || true
-            # Ensure RPC_URL is set (indexer reads this first)
-            grep -q '^RPC_URL=' .env || echo 'RPC_URL=https://rpc.litho.ai' >> .env
-            grep -q '^LCD_URL=' .env || echo 'LCD_URL=https://api.litho.ai' >> .env
-
-            echo "🔴 Stopping lithoscan containers that conflict with Makulu..."
-            # Stop the lithoscan explorer-web AND API (we take over port 8080).
-            # Keep their indexer + redis running — indexer writes blocks to DB.
-            if [ -f /opt/lithoscan/docker-compose.yml ]; then
-              echo "── Lithoscan services:"
-              sudo docker compose -f /opt/lithoscan/docker-compose.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
-              # Stop ALL services except indexer and redis (we don't know exact service names)
-              for SVC in $(sudo docker compose -f /opt/lithoscan/docker-compose.yml ps --services 2>/dev/null); do
-                case "$SVC" in
-                  *index*|*redis*|*postgres*|*db*) echo "  Keeping: $SVC" ;;
-                  *) echo "  Stopping: $SVC"
-                     sudo docker compose -f /opt/lithoscan/docker-compose.yml stop "$SVC" 2>/dev/null || true
-                     sudo docker compose -f /opt/lithoscan/docker-compose.yml rm -f "$SVC" 2>/dev/null || true
-                     ;;
-                esac
-              done
-            fi
-            # 2. Stop the existing Makulu explorer container
-            sudo docker compose stop explorer 2>/dev/null || true
-            sudo docker compose rm -f explorer 2>/dev/null || true
-            # 3. Force-remove any remaining container on ports 3100 or 8080
-            echo "── Checking what's on ports 3100 and 8080:"
-            sudo ss -tlnp | grep -E ':3100|:8080' || echo "  (nothing)"
-            sudo docker ps --format "{{.Names}} {{.Ports}}" | grep -E '3100|8080' || echo "  (no docker containers)"
-            for PORT in 3100 8080; do
-              CIDS=$(sudo docker ps -aq --filter "publish=${PORT}" 2>/dev/null)
-              [ -n "$CIDS" ] && echo "  Removing containers on :${PORT}: $CIDS" && sudo docker rm -f $CIDS 2>/dev/null || true
-            done
-            # 4. Kill any process still holding ports 3100 or 8080
-            for PORT in 3100 8080; do
-              PIDS=$(sudo ss -Htlnp | grep -w ":${PORT}" | grep -oP 'pid=\K[0-9]+' | sort -u)
-              [ -n "$PIDS" ] && echo "  Killing PIDs on :${PORT}: $PIDS" && echo "$PIDS" | xargs -r sudo kill -9 2>/dev/null || true
-            done
-            echo "── After cleanup:"
-            sudo ss -tlnp | grep -E ':3100|:8080' || echo "  (ports free)"
-
-            echo "🐳 Starting redis + building & starting explorer..."
-            sudo docker compose up -d redis
-            sudo docker compose up -d --build --force-recreate explorer
-
-            echo "🧹 Cleaning up..."
-            cd /opt/lithosphere
-            rm -rf lithosphere
-
-            echo "✅ Deployment complete!"
-          ENDSSH
-          echo "Deployment finished at $(date)"
-
-      - name: Build RDS inject script
-        if: steps.resolve-env.outputs.name == 'mainnet' && steps.aws-creds.outcome == 'success'
+      # ── Build DATABASE_URL ──────────────────────────────────────────────────
+      - name: Build DATABASE_URL
+        if: steps.resolve-env.outputs.name == 'mainnet' && steps.rds-creds.outcome == 'success'
+        id: db-url
         shell: python
         env:
           RDS_ENDPOINT: ${{ steps.rds-creds.outputs.rds_endpoint }}
           RDS_USERNAME: ${{ steps.rds-creds.outputs.rds_username }}
           RDS_PASSWORD: ${{ steps.rds-creds.outputs.rds_password }}
         run: |
-          import os, re
+          import os
           from urllib.parse import quote
           user = os.environ.get('RDS_USERNAME', '')
-          pw   = quote(os.environ.get('RDS_PASSWORD', ''), safe='')
+          pw = quote(os.environ.get('RDS_PASSWORD', ''), safe='')
           host = os.environ.get('RDS_ENDPOINT', '')
-          if not (user and pw and host):
-              print('::warning::RDS credentials missing — skipping script generation')
-          else:
+          if user and pw and host:
               url = f"postgresql://{user}:{pw}@{host}:5432/lithoscan?sslmode=require"
-              script = f"""import re
-          url = {repr(url)}
-          env = '/opt/lithosphere/Makulu/.env'
-          lines = open(env).readlines()
-          out, found = [], False
-          for l in lines:
-              if re.match(r'^DATABASE_URL=', l):
-                  out.append('DATABASE_URL=' + url + '\\n'); found = True
-              else:
-                  out.append(l)
-          if not found:
-              out.append('DATABASE_URL=' + url + '\\n')
-          open(env, 'w').writelines(out)
-          print('DATABASE_URL injected OK')
-          """
-              with open('/tmp/inject_db.py', 'w') as f:
-                  f.write(script)
-              print(f"Script written — host: {host}")
+              # Mask the full URL in logs
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"url={url}\n")
+              print(f"DATABASE_URL built for host: {host}")
+          else:
+              print("::warning::RDS credentials incomplete — DATABASE_URL not built")
 
-      - name: Inject RDS DATABASE_URL for Mainnet
-        if: steps.resolve-env.outputs.name == 'mainnet' && steps.aws-creds.outcome == 'success'
+      # ── Deploy Code ─────────────────────────────────────────────────────────
+      - name: Deploy Code to Server
         run: |
-          if [ -f /tmp/inject_db.py ]; then
-            echo "🔒 Copying inject script to server..."
-            scp -o StrictHostKeyChecking=no \
-                -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-                /tmp/inject_db.py \
-                "$SERVER_USER@$INDEXER_IP:/tmp/inject_db.py"
+          ENV_NAME="${{ github.event.inputs.environment || 'mainnet' }}"
+          echo "Deploying to $INSTANCE_ID (env: $ENV_NAME)..."
 
-            echo "🔒 Running inject and restarting api/indexer..."
-            ssh -o StrictHostKeyChecking=no \
-                -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-                "$SERVER_USER@$INDEXER_IP" \
-                'sudo python3 /tmp/inject_db.py && cd /opt/lithosphere/Makulu && sudo docker compose up -d --build --force-recreate api indexer && echo "✅ Containers restarted with new DATABASE_URL"'
-          else
-            echo "::warning::No inject script found — skipping DATABASE_URL injection"
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --timeout-seconds 600 \
+            --parameters commands='[
+              "set -e",
+              "echo \"── Preparing deployment...\"",
+              "sudo mkdir -p /opt/lithosphere && sudo chown ec2-user:ec2-user /opt/lithosphere",
+              "cd /opt/lithosphere",
+              "",
+              "echo \"── Saving rollback snapshot...\"",
+              "if [ -d Makulu ]; then mkdir -p Makulu/.rollback && cp Makulu/docker-compose.yaml Makulu/.rollback/docker-compose.yaml.bak 2>/dev/null || true && cp Makulu/.env Makulu/.rollback/.env.bak 2>/dev/null || true; fi",
+              "",
+              "echo \"── Pulling latest code...\"",
+              "rm -rf lithosphere",
+              "git clone --depth 1 https://github.com/KaJLabs/lithosphere.git",
+              "mkdir -p Makulu",
+              "cp -r lithosphere/Makulu/. Makulu/",
+              "rm -rf lithosphere",
+              "",
+              "echo \"── Configuring environment...\"",
+              "cd Makulu",
+              "if [ -f .env.'"$ENV_NAME"' ] && [ ! -f .env ]; then cp .env.'"$ENV_NAME"' .env && echo \"Using .env.'"$ENV_NAME"'\"; fi",
+              "",
+              "echo \"── Fixing RPC endpoints...\"",
+              "sed -i '\"'\"'s|testnet-rpc\\.lithosphere\\.network|rpc.litho.ai|g'\"'\"' .env 2>/dev/null || true",
+              "grep -q '\"'\"'^RPC_URL='\"'\"' .env || echo '\"'\"'RPC_URL=https://rpc.litho.ai'\"'\"' >> .env",
+              "grep -q '\"'\"'^LCD_URL='\"'\"' .env || echo '\"'\"'LCD_URL=https://api.litho.ai'\"'\"' >> .env",
+              "",
+              "echo \"── Stopping conflicting lithoscan services...\"",
+              "if [ -f /opt/lithoscan/docker-compose.yml ]; then for SVC in $(sudo docker compose -f /opt/lithoscan/docker-compose.yml ps --services 2>/dev/null); do case $SVC in *index*|*redis*|*postgres*|*db*) echo \"  Keeping: $SVC\" ;; *) echo \"  Stopping: $SVC\" && sudo docker compose -f /opt/lithoscan/docker-compose.yml stop $SVC 2>/dev/null && sudo docker compose -f /opt/lithoscan/docker-compose.yml rm -f $SVC 2>/dev/null || true ;; esac; done; fi",
+              "",
+              "echo \"── Cleaning up ports 3100/8080...\"",
+              "for PORT in 3100 8080; do CIDS=$(sudo docker ps -aq --filter publish=$PORT 2>/dev/null); [ -n \"$CIDS\" ] && sudo docker rm -f $CIDS 2>/dev/null || true; done",
+              "",
+              "echo \"── Building and starting services...\"",
+              "sudo docker compose up -d redis",
+              "sudo docker compose up -d --build --force-recreate explorer api indexer",
+              "",
+              "echo \"Deployment complete!\""
+            ]' \
+            --query "Command.CommandId" --output text)
+
+          echo "Command ID: $COMMAND_ID"
+          echo "command_id=$COMMAND_ID" >> $GITHUB_OUTPUT
+
+          # Wait for completion (up to 10 minutes)
+          echo "Waiting for deployment to complete..."
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" || true
+
+          # Get results
+          RESULT=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query "[Status,StandardOutputContent,StandardErrorContent]" --output json)
+
+          STATUS=$(echo "$RESULT" | jq -r '.[0]')
+          echo "Deploy status: $STATUS"
+          echo "$RESULT" | jq -r '.[1]' | tail -50
+          STDERR=$(echo "$RESULT" | jq -r '.[2]')
+          [ -n "$STDERR" ] && echo "STDERR: $STDERR" | tail -20
+
+          if [ "$STATUS" != "Success" ]; then
+            echo "Deployment failed with status: $STATUS"
+            exit 1
           fi
 
-      - name: Start API + Indexer
+      # ── Inject DATABASE_URL ─────────────────────────────────────────────────
+      - name: Inject RDS DATABASE_URL
+        if: steps.db-url.outputs.url != ''
+        env:
+          DATABASE_URL: ${{ steps.db-url.outputs.url }}
         run: |
-          echo "🐳 Building & starting api + indexer..."
-          ssh -o StrictHostKeyChecking=no \
-              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-              "$SERVER_USER@$INDEXER_IP" \
-              'cd /opt/lithosphere/Makulu && sudo docker compose up -d --build --force-recreate api indexer && echo "✅ api + indexer started"'
+          echo "Injecting DATABASE_URL into .env..."
+          # Use SSM to update the DATABASE_URL on the server
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --timeout-seconds 120 \
+            --parameters commands="[
+              \"cd /opt/lithosphere/Makulu\",
+              \"if grep -q '^DATABASE_URL=' .env; then sed -i 's|^DATABASE_URL=.*|DATABASE_URL=$DATABASE_URL|' .env; else echo 'DATABASE_URL=$DATABASE_URL' >> .env; fi\",
+              \"echo 'DATABASE_URL injected'\",
+              \"sudo docker compose up -d --force-recreate api indexer\",
+              \"echo 'API + Indexer restarted with new DATABASE_URL'\"
+            ]" \
+            --query "Command.CommandId" --output text)
 
-      - name: Update Nginx to route /api to Makulu API (:4000)
-        run: |
-          echo "🔧 Updating nginx to route /api/ to our API on port 4000..."
-          ssh -o StrictHostKeyChecking=no \
-              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
-            set -e
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" || true
 
-            echo "── Current nginx config locations:"
-            sudo find /etc/nginx -name '*.conf' -type f 2>/dev/null | head -20 || echo "(no /etc/nginx)"
-            sudo find /opt -name 'nginx.conf' -type f 2>/dev/null | head -10 || true
+          RESULT=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query "[Status,StandardOutputContent]" --output json)
+          echo "Status: $(echo "$RESULT" | jq -r '.[0]')"
+          echo "$RESULT" | jq -r '.[1]'
 
-            # Find the nginx config that handles makalu.litho.ai
-            NGINX_CONF=""
-            for f in /etc/nginx/conf.d/makalu.conf \
-                     /etc/nginx/sites-enabled/makalu \
-                     /etc/nginx/sites-enabled/default \
-                     /etc/nginx/conf.d/default.conf \
-                     /etc/nginx/conf.d/lithoscan.conf \
-                     /etc/nginx/nginx.conf; do
-              if [ -f "$f" ]; then
-                if grep -q 'makalu\|litho\|8080\|3100' "$f" 2>/dev/null; then
-                  NGINX_CONF="$f"
-                  break
-                fi
-              fi
-            done
-
-            if [ -z "$NGINX_CONF" ]; then
-              echo "⚠️  Could not find relevant nginx config — listing all configs:"
-              sudo grep -rl 'proxy_pass\|upstream' /etc/nginx/ 2>/dev/null | head -10
-              echo "── Trying nginx -T to dump full config:"
-              sudo nginx -T 2>&1 | grep -A5 'location.*api\|proxy_pass.*8080\|proxy_pass.*4000\|server_name.*makalu\|server_name.*litho' || true
-              echo "⚠️  Manual nginx config update may be needed"
-              exit 0
-            fi
-
-            echo "── Found config: $NGINX_CONF"
-            echo "── Current /api/ routing:"
-            sudo grep -n 'api\|8080\|4000' "$NGINX_CONF" || true
-
-            # Back up before modifying
-            sudo cp "$NGINX_CONF" "${NGINX_CONF}.bak.$(date +%s)"
-
-            # If there's already a location /api/ block pointing to 8080, change it to 4000
-            if sudo grep -q 'proxy_pass.*8080' "$NGINX_CONF"; then
-              echo "── Updating proxy_pass from 8080 to 4000 for /api/ routes..."
-              sudo sed -i 's|proxy_pass\s\+http://\(127\.0\.0\.1\|localhost\):8080|proxy_pass http://127.0.0.1:4000|g' "$NGINX_CONF"
-              echo "── Updated. Testing nginx config..."
-              sudo nginx -t && sudo systemctl reload nginx && echo "✅ Nginx reloaded — /api/ now routes to port 4000"
-            else
-              echo "── No 8080 proxy_pass found. Current proxy_pass lines:"
-              sudo grep 'proxy_pass' "$NGINX_CONF" || true
-              echo "⚠️  Nginx may need manual update"
-            fi
-          ENDSSH
-
-      # ── Health checks ──────────────────────────────────────────────────────
+      # ── Health Checks ───────────────────────────────────────────────────────
       - name: Wait for Services
         run: sleep 30
 
-      - name: Health Check — API Service
+      - name: Health Checks
         run: |
-          echo "🏥 Checking API on indexer (localhost:4000/health via SSH)..."
-          ssh -o StrictHostKeyChecking=no \
-              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
-            MAX_RETRIES=5; RETRY_DELAY=10
-            for i in $(seq 1 $MAX_RETRIES); do
-              HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
-                --connect-timeout 10 --max-time 30 \
-                "http://localhost:4000/health" || echo "000")
-              if [ "$HTTP_CODE" = "200" ]; then
-                echo "✅ API health check passed!"; cat /tmp/response.txt; break
-              fi
-              echo "⚠️  Attempt $i: HTTP $HTTP_CODE"
-              [ $i -lt $MAX_RETRIES ] && sleep $RETRY_DELAY
-            done
-            [ "$HTTP_CODE" != "200" ] && { echo "❌ API health check failed"; exit 1; } || true
-          ENDSSH
+          echo "Running health checks via SSM..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --timeout-seconds 120 \
+            --parameters 'commands=[
+              "echo \"── Container Status:\"",
+              "sudo docker ps -a --format \"table {{.Names}}\t{{.Status}}\t{{.Ports}}\" | grep -E \"litho-|NAME\"",
+              "",
+              "echo \"\"",
+              "echo \"── API Health:\"",
+              "curl -sf http://localhost:4000/health || echo \"API health check FAILED\"",
+              "",
+              "echo \"\"",
+              "echo \"── Explorer Health:\"",
+              "curl -sf -o /dev/null -w \"HTTP %{http_code}\" http://localhost:3100 || echo \"Explorer health check FAILED\"",
+              "",
+              "echo \"\"",
+              "echo \"── API Debug (DB state):\"",
+              "curl -sf http://localhost:4000/api/debug | head -c 1000 || echo \"Debug endpoint unavailable\"",
+              "",
+              "echo \"\"",
+              "echo \"── Indexer Logs (last 20):\"",
+              "sudo docker logs litho-indexer --tail 20 2>&1"
+            ]' \
+            --query "Command.CommandId" --output text)
 
-      - name: Health Check — Explorer Frontend (:3100)
-        run: |
-          echo "🌐 Checking Explorer on indexer (localhost:3100 via SSH)..."
-          ssh -o StrictHostKeyChecking=no \
-              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
-            MAX_RETRIES=8; RETRY_DELAY=20
-            for i in $(seq 1 $MAX_RETRIES); do
-              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-                --connect-timeout 10 --max-time 30 \
-                "http://localhost:3100" || echo "000")
-              echo "  Attempt $i: HTTP $HTTP_CODE"
-              case "$HTTP_CODE" in 2*|3*) echo "✅ Explorer responding (HTTP $HTTP_CODE)"; break ;; esac
-              [ $i -lt $MAX_RETRIES ] && sleep $RETRY_DELAY
-            done
-            case "$HTTP_CODE" in
-              2*|3*) true ;;
-              *)
-                echo "❌ Explorer health check failed — diagnostics:"
-                echo "── All containers:"
-                sudo docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-                echo "── Explorer logs (last 80 lines):"
-                sudo docker logs litho-explorer --tail 80 2>&1 || \
-                  echo "(litho-explorer container not found)"
-                exit 1
-              ;;
-            esac
-          ENDSSH
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" || true
 
-      - name: Test API Endpoints
-        run: |
-          echo "🧪 Testing API endpoints on indexer via SSH..."
-          ssh -o StrictHostKeyChecking=no \
-              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
-            curl -f "http://localhost:4000/health"
-            curl -f "http://localhost:4000/api/litho"
-            curl -sf "http://localhost:4000/api/config" | head -c 200
-            curl -sf "http://localhost:4000/api/stats/summary" | head -c 200
-            curl -sf "http://localhost:4000/api/blocks?limit=1" | head -c 200
-            curl -sf "http://localhost:4000/api/validators" | head -c 200
-            echo ""
-            echo "── Testing /api/debug (diagnostics):"
-            curl -sf "http://localhost:4000/api/debug" | head -c 1000
-            echo ""
-            echo "── Testing /api/txs (paginated format):"
-            curl -sf "http://localhost:4000/api/txs?limit=1" | head -c 500
-            echo ""
-            curl -f -X POST -H "Content-Type: application/json" \
-              -d '{"query":"{ __typename }"}' \
-              "http://localhost:4000/graphql"
-            echo ""
-            echo "✅ All endpoint tests passed!"
-          ENDSSH
+          RESULT=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query "[Status,StandardOutputContent,StandardErrorContent]" --output json)
 
-      - name: Indexer Diagnostics
-        if: always()
-        run: |
-          echo "🔍 Collecting indexer diagnostics..."
-          ssh -o StrictHostKeyChecking=no \
-              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
-            echo "══════════════════════════════════════════"
-            echo "  CONTAINER STATUS"
-            echo "══════════════════════════════════════════"
-            sudo docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "litho-|NAME"
+          STATUS=$(echo "$RESULT" | jq -r '.[0]')
+          echo "$RESULT" | jq -r '.[1]'
 
-            echo ""
-            echo "══════════════════════════════════════════"
-            echo "  INDEXER LOGS (last 120 lines)"
-            echo "══════════════════════════════════════════"
-            sudo docker logs litho-indexer --tail 120 2>&1 || echo "(no litho-indexer container)"
+          if [ "$STATUS" != "Success" ]; then
+            echo "Health checks had issues (status: $STATUS)"
+            echo "$RESULT" | jq -r '.[2]' | tail -20
+          fi
 
-            echo ""
-            echo "══════════════════════════════════════════"
-            echo "  API LOGS (last 40 lines)"
-            echo "══════════════════════════════════════════"
-            sudo docker logs litho-api --tail 40 2>&1 || echo "(no litho-api container)"
-
-            echo ""
-            echo "══════════════════════════════════════════"
-            echo "  DEBUG ENDPOINT (DB state)"
-            echo "══════════════════════════════════════════"
-            curl -sf "http://localhost:4000/api/debug" 2>&1 | head -c 2000 || echo "(debug endpoint not available)"
-
-            echo ""
-            echo "══════════════════════════════════════════"
-            echo "  DATABASE SCHEMA CHECK"
-            echo "══════════════════════════════════════════"
-            sudo docker exec litho-api node -e "
-              const pg = require('pg');
-              const pool = new pg.Pool({connectionString: process.env.DATABASE_URL});
-              Promise.all([
-                pool.query('SELECT * FROM indexer_state').catch(e => ({rows:[{error:e.message}]})),
-                pool.query('SELECT COUNT(*) AS c FROM transactions').catch(e => ({rows:[{error:e.message}]})),
-                pool.query('SELECT COUNT(*) AS c FROM evm_transactions').catch(e => ({rows:[{error:e.message}]})),
-                pool.query(\"SELECT column_name, data_type FROM information_schema.columns WHERE table_name='blocks' ORDER BY ordinal_position\").catch(e => ({rows:[{error:e.message}]})),
-                pool.query(\"SELECT column_name, data_type FROM information_schema.columns WHERE table_name='transactions' ORDER BY ordinal_position\").catch(e => ({rows:[{error:e.message}]}))
-              ]).then(([a,b,c,d,e]) => {
-                console.log('indexer_state:', JSON.stringify(a.rows));
-                console.log('tx_count:', JSON.stringify(b.rows[0]));
-                console.log('evm_tx_count:', JSON.stringify(c.rows[0]));
-                console.log('blocks_columns:', JSON.stringify(d.rows));
-                console.log('transactions_columns:', JSON.stringify(e.rows));
-              }).catch(err => console.error('DB error:', err.message))
-              .finally(() => pool.end());
-            " 2>&1 || echo "(could not exec into litho-api)"
-
-            echo ""
-            echo "══════════════════════════════════════════"
-            echo "  ENV CHECK (non-secret)"
-            echo "══════════════════════════════════════════"
-            cd /opt/lithosphere/Makulu
-            grep -E '^(RPC_URL|LCD_URL|EVM_RPC_URL|FORCE_REINDEX|CHAIN_ID|LITHO_CHAIN_ID)=' .env 2>/dev/null || echo "(no .env or vars not set)"
-            echo "DATABASE_URL set: $(grep -c '^DATABASE_URL=' .env 2>/dev/null || echo 0)"
-          ENDSSH
-
+      # ── Summary ─────────────────────────────────────────────────────────────
       - name: Generate Deployment Summary
         if: always()
         run: |
-          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Environment | ${{ github.event.inputs.environment || 'mainnet' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Indexer EC2 | $INDEXER_IP |" >> $GITHUB_STEP_SUMMARY
+          echo "| Instance | \`$INSTANCE_ID\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployed At | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
           echo "| Triggered By | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Method | AWS SSM (no SSH) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Service URLs" >> $GITHUB_STEP_SUMMARY
           echo "- Explorer: https://makalu.litho.ai" >> $GITHUB_STEP_SUMMARY
-          echo "- API: http://$INDEXER_IP:4000" >> $GITHUB_STEP_SUMMARY
-          echo "- GraphQL: http://$INDEXER_IP:4000/graphql" >> $GITHUB_STEP_SUMMARY
-          echo "- Health: http://$INDEXER_IP:4000/health" >> $GITHUB_STEP_SUMMARY
+          echo "- API: https://makalu.litho.ai/api" >> $GITHUB_STEP_SUMMARY
+          echo "- Health: https://makalu.litho.ai/api/debug" >> $GITHUB_STEP_SUMMARY
 
   rollback:
     name: Rollback on Failure
@@ -521,45 +286,45 @@ jobs:
     needs: deploy
     if: failure()
 
-    env:
-      INDEXER_IP: ${{ secrets.INDEXER_IP }}
-      BASTION_HOST: ${{ secrets.BASTION_HOST }}
-      SERVER_USER: ${{ secrets.SERVER_USER }}
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
-      - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.9.0
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          ssh-private-key: |
-            ${{ secrets.BASTION_SSH_KEY }}
-            ${{ secrets.INDEXER_SSH_KEY }}
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
 
-      - name: Add Bastion to Known Hosts
+      - name: Rollback via SSM
+        env:
+          INSTANCE_ID: i-057bf8e4baabd9f31
         run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          ssh-keyscan -T 10 -H "$BASTION_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "Deployment failed — rolling back..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --timeout-seconds 300 \
+            --parameters 'commands=[
+              "cd /opt/lithosphere/Makulu",
+              "ROLLBACK_DIR=.rollback",
+              "if [ -f ${ROLLBACK_DIR}/docker-compose.yaml.bak ]; then cp ${ROLLBACK_DIR}/docker-compose.yaml.bak docker-compose.yaml && echo \"Restored docker-compose.yaml\"; fi",
+              "if [ -f ${ROLLBACK_DIR}/.env.bak ]; then cp ${ROLLBACK_DIR}/.env.bak .env && echo \"Restored .env\"; fi",
+              "sudo docker compose down --timeout 30",
+              "sudo docker compose up -d --remove-orphans",
+              "echo \"Rollback complete\""
+            ]' \
+            --query "Command.CommandId" --output text)
 
-      - name: Rollback
-        run: |
-          echo "Deployment failed — rolling back to previous state..."
-          ssh -o StrictHostKeyChecking=no \
-              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
-            cd /opt/lithosphere/Makulu
-            ROLLBACK_DIR=".rollback"
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" || true
 
-            # Restore previous config if snapshot exists
-            if [ -f "${ROLLBACK_DIR}/docker-compose.yaml.bak" ]; then
-              echo "Restoring previous docker-compose.yaml..."
-              cp "${ROLLBACK_DIR}/docker-compose.yaml.bak" docker-compose.yaml
-            fi
-            if [ -f "${ROLLBACK_DIR}/.env.bak" ]; then
-              echo "Restoring previous .env..."
-              cp "${ROLLBACK_DIR}/.env.bak" .env
-            fi
-
-            sudo docker compose down --timeout 30
-            sudo docker compose up -d --remove-orphans
-            echo "Rollback complete — previous state restored"
-          ENDSSH
-          echo "::warning::Deployment was rolled back due to health check failure"
+          RESULT=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query "[Status,StandardOutputContent]" --output json)
+          echo "Rollback status: $(echo "$RESULT" | jq -r '.[0]')"
+          echo "$RESULT" | jq -r '.[1]'
+          echo "::warning::Deployment was rolled back due to failure"
