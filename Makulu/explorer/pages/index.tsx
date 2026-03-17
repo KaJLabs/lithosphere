@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
 import { formatNumber, timeAgo, truncateHash } from '@/lib/format';
-import type { StatsSummary, ApiBlock, ApiTx, ApiValidator } from '@/lib/types';
+import type { StatsSummary, ApiBlock, ApiTx, ApiTxList, ApiValidator } from '@/lib/types';
 import SearchBar from '@/components/SearchBar';
 
 const AI_STATS = [
@@ -27,12 +27,13 @@ export default function Home() {
   const { data: blocks, loading: blocksLoading } = useApi<ApiBlock[]>('/blocks?limit=4', {
     pollInterval: POLL_INTERVAL,
   });
-  const { data: txs, loading: txsLoading } = useApi<ApiTx[]>('/txs?limit=4', {
+  const { data: txsData, loading: txsLoading } = useApi<ApiTxList>('/txs?limit=4', {
     pollInterval: POLL_INTERVAL,
   });
+  const txs = txsData?.txs ?? [];
   const { data: validators } = useApi<ApiValidator[]>('/validators');
 
-  const topValidators = validators?.slice(0, 4) ?? [];
+  const topValidators = Array.isArray(validators) ? validators.slice(0, 4) : [];
 
   const summaryStats = [
     {
@@ -42,7 +43,7 @@ export default function Home() {
     { label: 'TPS', value: statsLoading ? '—' : String(stats?.tps1m ?? 0) },
     {
       label: 'Validators',
-      value: validators ? String(validators.length) : '—',
+      value: Array.isArray(validators) ? String(validators.length) : '—',
     },
     { label: 'Gas Price', value: '0.0001 LITHO' },
   ];
@@ -150,7 +151,7 @@ export default function Home() {
                         <div className="h-3 rounded bg-white/10 w-2/3" />
                       </div>
                     ))
-                  : (blocks ?? []).map((block) => (
+                  : (Array.isArray(blocks) ? blocks : []).map((block) => (
                       <div
                         key={block.height}
                         className="grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 md:grid-cols-4 md:items-center"
@@ -209,7 +210,7 @@ export default function Home() {
                         <div className="h-3 rounded bg-white/10 w-full" />
                       </div>
                     ))
-                  : (txs ?? []).map((tx) => (
+                  : txs.map((tx) => (
                       <div
                         key={tx.hash}
                         className="rounded-2xl border border-white/10 bg-black/25 p-4"
