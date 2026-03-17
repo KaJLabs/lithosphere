@@ -41,7 +41,7 @@ jobs:
 
     permissions:
       contents: read
-      id-token: write   # Required for OIDC → AWS role assumption
+      id-token: write
 
     steps:
       - name: Checkout Repository
@@ -51,7 +51,6 @@ jobs:
         id: resolve-env
         run: echo "name=${{ github.event.inputs.environment || 'mainnet' }}" >> $GITHUB_OUTPUT
 
-      # ── AWS Authentication ──────────────────────────────────────────────────
       - name: Configure AWS Credentials (OIDC)
         id: aws-creds
         uses: aws-actions/configure-aws-credentials@v4
@@ -61,14 +60,13 @@ jobs:
 
       - name: Verify SSM Connectivity
         run: |
-          echo "Checking SSM agent on instance $INSTANCE_ID..."
-          aws ssm describe-instance-information \
+          STATUS=$(aws ssm describe-instance-information \
             --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
-            --query "InstanceInformationList[0].PingStatus" --output text
-          echo "SSM connectivity verified"
+            --query "InstanceInformationList[0].PingStatus" --output text)
+          echo "SSM agent status: $STATUS"
+          [ "$STATUS" = "Online" ] || { echo "SSM agent not online"; exit 1; }
 
-      # ── Fetch RDS Credentials ───────────────────────────────────────────────
-      - name: Fetch RDS Credentials from Secrets Manager
+      - name: Fetch RDS Credentials
         if: steps.resolve-env.outputs.name == 'mainnet'
         id: rds-creds
         run: |
@@ -80,7 +78,6 @@ jobs:
           echo "rds_username=$(echo "$SECRET_JSON" | jq -r '.username')" >> $GITHUB_OUTPUT
           echo "rds_password=$(echo "$SECRET_JSON" | jq -r '.password')" >> $GITHUB_OUTPUT
 
-      # ── Build DATABASE_URL ──────────────────────────────────────────────────
       - name: Build DATABASE_URL
         if: steps.resolve-env.outputs.name == 'mainnet' && steps.rds-creds.outcome == 'success'
         id: db-url
@@ -97,72 +94,104 @@ jobs:
           host = os.environ.get('RDS_ENDPOINT', '')
           if user and pw and host:
               url = f"postgresql://{user}:{pw}@{host}:5432/lithoscan?sslmode=require"
-              # Mask the full URL in logs
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   f.write(f"url={url}\n")
               print(f"DATABASE_URL built for host: {host}")
           else:
-              print("::warning::RDS credentials incomplete — DATABASE_URL not built")
+              print("::warning::RDS credentials incomplete")
 
-      # ── Deploy Code ─────────────────────────────────────────────────────────
+      # ── Deploy ──────────────────────────────────────────────────────────────
       - name: Deploy Code to Server
         run: |
           ENV_NAME="${{ github.event.inputs.environment || 'mainnet' }}"
-          echo "Deploying to $INSTANCE_ID (env: $ENV_NAME)..."
+
+          # Write deploy script to a temp file — avoids nested quoting issues
+          cat > /tmp/deploy.sh << 'DEPLOY_SCRIPT'
+          #!/bin/bash
+          set -e
+
+          echo "── Preparing deployment..."
+          sudo mkdir -p /opt/lithosphere
+          sudo chown ec2-user:ec2-user /opt/lithosphere
+          cd /opt/lithosphere
+
+          echo "── Saving rollback snapshot..."
+          if [ -d Makulu ]; then
+            mkdir -p Makulu/.rollback
+            cp Makulu/docker-compose.yaml Makulu/.rollback/docker-compose.yaml.bak 2>/dev/null || true
+            cp Makulu/.env Makulu/.rollback/.env.bak 2>/dev/null || true
+          fi
+
+          echo "── Pulling latest code..."
+          rm -rf lithosphere
+          git clone --depth 1 https://github.com/KaJLabs/lithosphere.git
+          mkdir -p Makulu
+          cp -r lithosphere/Makulu/. Makulu/
+          rm -rf lithosphere
+
+          echo "── Configuring environment..."
+          cd Makulu
+          ENV_FILE=".env.DEPLOY_ENV"
+          if [ -f "$ENV_FILE" ] && [ ! -f .env ]; then
+            cp "$ENV_FILE" .env
+            echo "Using $ENV_FILE"
+          fi
+
+          echo "── Fixing RPC endpoints..."
+          sed -i 's|testnet-rpc\.lithosphere\.network|rpc.litho.ai|g' .env 2>/dev/null || true
+          grep -q '^RPC_URL=' .env || echo 'RPC_URL=https://rpc.litho.ai' >> .env
+          grep -q '^LCD_URL=' .env || echo 'LCD_URL=https://api.litho.ai' >> .env
+
+          echo "── Stopping conflicting lithoscan services..."
+          if [ -f /opt/lithoscan/docker-compose.yml ]; then
+            for SVC in $(sudo docker compose -f /opt/lithoscan/docker-compose.yml ps --services 2>/dev/null); do
+              case "$SVC" in
+                *index*|*redis*|*postgres*|*db*) echo "  Keeping: $SVC" ;;
+                *) echo "  Stopping: $SVC"
+                   sudo docker compose -f /opt/lithoscan/docker-compose.yml stop "$SVC" 2>/dev/null || true
+                   sudo docker compose -f /opt/lithoscan/docker-compose.yml rm -f "$SVC" 2>/dev/null || true ;;
+              esac
+            done
+          fi
+
+          echo "── Cleaning up ports..."
+          for PORT in 3100 8080; do
+            CIDS=$(sudo docker ps -aq --filter "publish=$PORT" 2>/dev/null)
+            [ -n "$CIDS" ] && sudo docker rm -f $CIDS 2>/dev/null || true
+          done
+
+          echo "── Building and starting services..."
+          sudo docker compose up -d redis
+          sudo docker compose up -d --build --force-recreate explorer api indexer
+
+          echo "Deployment complete!"
+          DEPLOY_SCRIPT
+
+          # Replace placeholder with actual env name
+          sed -i "s/DEPLOY_ENV/$ENV_NAME/g" /tmp/deploy.sh
+
+          # Read script as a single command string for SSM
+          SCRIPT=$(cat /tmp/deploy.sh)
+
+          # Send via SSM using cli-input-json for clean quoting
+          jq -n --arg instance "$INSTANCE_ID" --arg script "$SCRIPT" '{
+            InstanceIds: [$instance],
+            DocumentName: "AWS-RunShellScript",
+            TimeoutSeconds: 600,
+            Parameters: { commands: [$script] }
+          }' > /tmp/ssm-input.json
 
           COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
-            --document-name "AWS-RunShellScript" \
-            --timeout-seconds 600 \
-            --parameters commands='[
-              "set -e",
-              "echo \"── Preparing deployment...\"",
-              "sudo mkdir -p /opt/lithosphere && sudo chown ec2-user:ec2-user /opt/lithosphere",
-              "cd /opt/lithosphere",
-              "",
-              "echo \"── Saving rollback snapshot...\"",
-              "if [ -d Makulu ]; then mkdir -p Makulu/.rollback && cp Makulu/docker-compose.yaml Makulu/.rollback/docker-compose.yaml.bak 2>/dev/null || true && cp Makulu/.env Makulu/.rollback/.env.bak 2>/dev/null || true; fi",
-              "",
-              "echo \"── Pulling latest code...\"",
-              "rm -rf lithosphere",
-              "git clone --depth 1 https://github.com/KaJLabs/lithosphere.git",
-              "mkdir -p Makulu",
-              "cp -r lithosphere/Makulu/. Makulu/",
-              "rm -rf lithosphere",
-              "",
-              "echo \"── Configuring environment...\"",
-              "cd Makulu",
-              "if [ -f .env.'"$ENV_NAME"' ] && [ ! -f .env ]; then cp .env.'"$ENV_NAME"' .env && echo \"Using .env.'"$ENV_NAME"'\"; fi",
-              "",
-              "echo \"── Fixing RPC endpoints...\"",
-              "sed -i '\"'\"'s|testnet-rpc\\.lithosphere\\.network|rpc.litho.ai|g'\"'\"' .env 2>/dev/null || true",
-              "grep -q '\"'\"'^RPC_URL='\"'\"' .env || echo '\"'\"'RPC_URL=https://rpc.litho.ai'\"'\"' >> .env",
-              "grep -q '\"'\"'^LCD_URL='\"'\"' .env || echo '\"'\"'LCD_URL=https://api.litho.ai'\"'\"' >> .env",
-              "",
-              "echo \"── Stopping conflicting lithoscan services...\"",
-              "if [ -f /opt/lithoscan/docker-compose.yml ]; then for SVC in $(sudo docker compose -f /opt/lithoscan/docker-compose.yml ps --services 2>/dev/null); do case $SVC in *index*|*redis*|*postgres*|*db*) echo \"  Keeping: $SVC\" ;; *) echo \"  Stopping: $SVC\" && sudo docker compose -f /opt/lithoscan/docker-compose.yml stop $SVC 2>/dev/null && sudo docker compose -f /opt/lithoscan/docker-compose.yml rm -f $SVC 2>/dev/null || true ;; esac; done; fi",
-              "",
-              "echo \"── Cleaning up ports 3100/8080...\"",
-              "for PORT in 3100 8080; do CIDS=$(sudo docker ps -aq --filter publish=$PORT 2>/dev/null); [ -n \"$CIDS\" ] && sudo docker rm -f $CIDS 2>/dev/null || true; done",
-              "",
-              "echo \"── Building and starting services...\"",
-              "sudo docker compose up -d redis",
-              "sudo docker compose up -d --build --force-recreate explorer api indexer",
-              "",
-              "echo \"Deployment complete!\""
-            ]' \
+            --cli-input-json file:///tmp/ssm-input.json \
             --query "Command.CommandId" --output text)
 
           echo "Command ID: $COMMAND_ID"
-          echo "command_id=$COMMAND_ID" >> $GITHUB_OUTPUT
 
-          # Wait for completion (up to 10 minutes)
-          echo "Waiting for deployment to complete..."
+          echo "Waiting for deployment..."
           aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
             --instance-id "$INSTANCE_ID" || true
 
-          # Get results
           RESULT=$(aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$INSTANCE_ID" \
@@ -170,34 +199,83 @@ jobs:
 
           STATUS=$(echo "$RESULT" | jq -r '.[0]')
           echo "Deploy status: $STATUS"
-          echo "$RESULT" | jq -r '.[1]' | tail -50
+          echo "$RESULT" | jq -r '.[1]' | tail -80
           STDERR=$(echo "$RESULT" | jq -r '.[2]')
-          [ -n "$STDERR" ] && echo "STDERR: $STDERR" | tail -20
+          [ -n "$STDERR" ] && [ "$STDERR" != "null" ] && echo "STDERR:" && echo "$STDERR" | tail -20
 
-          if [ "$STATUS" != "Success" ]; then
-            echo "Deployment failed with status: $STATUS"
-            exit 1
-          fi
+          [ "$STATUS" = "Success" ] || { echo "Deploy failed: $STATUS"; exit 1; }
 
       # ── Inject DATABASE_URL ─────────────────────────────────────────────────
       - name: Inject RDS DATABASE_URL
         if: steps.db-url.outputs.url != ''
-        env:
-          DATABASE_URL: ${{ steps.db-url.outputs.url }}
         run: |
-          echo "Injecting DATABASE_URL into .env..."
-          # Use SSM to update the DATABASE_URL on the server
+          DB_URL="${{ steps.db-url.outputs.url }}"
+
+          jq -n --arg instance "$INSTANCE_ID" --arg dburl "$DB_URL" '{
+            InstanceIds: [$instance],
+            DocumentName: "AWS-RunShellScript",
+            TimeoutSeconds: 120,
+            Parameters: { commands: [
+              "cd /opt/lithosphere/Makulu",
+              "if grep -q '\''^DATABASE_URL='\'' .env; then sed -i '\''s|^DATABASE_URL=.*|DATABASE_URL=" + $dburl + "|'\'' .env; else echo '\''DATABASE_URL=" + $dburl + "'\'' >> .env; fi",
+              "echo DATABASE_URL injected",
+              "sudo docker compose up -d --force-recreate api indexer",
+              "echo API + Indexer restarted"
+            ]}
+          }' > /tmp/ssm-inject.json
+
           COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
-            --document-name "AWS-RunShellScript" \
-            --timeout-seconds 120 \
-            --parameters commands="[
-              \"cd /opt/lithosphere/Makulu\",
-              \"if grep -q '^DATABASE_URL=' .env; then sed -i 's|^DATABASE_URL=.*|DATABASE_URL=$DATABASE_URL|' .env; else echo 'DATABASE_URL=$DATABASE_URL' >> .env; fi\",
-              \"echo 'DATABASE_URL injected'\",
-              \"sudo docker compose up -d --force-recreate api indexer\",
-              \"echo 'API + Indexer restarted with new DATABASE_URL'\"
-            ]" \
+            --cli-input-json file:///tmp/ssm-inject.json \
+            --query "Command.CommandId" --output text)
+
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" || true
+
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query "Status" --output text)
+          echo "Inject status: $STATUS"
+
+      # ── Health Checks ───────────────────────────────────────────────────────
+      - name: Wait for Services
+        run: sleep 30
+
+      - name: Health Checks
+        run: |
+          SCRIPT=$(cat << 'HEALTHCHECK'
+          #!/bin/bash
+          echo "── Container Status:"
+          sudo docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "litho-|NAME"
+
+          echo ""
+          echo "── API Health:"
+          curl -sf http://localhost:4000/health || echo "API health FAILED"
+
+          echo ""
+          echo "── Explorer:"
+          curl -sf -o /dev/null -w "HTTP %{http_code}" http://localhost:3100 || echo "Explorer FAILED"
+
+          echo ""
+          echo "── API Debug:"
+          curl -sf http://localhost:4000/api/debug | head -c 500 || echo "Debug unavailable"
+
+          echo ""
+          echo "── Indexer Logs (last 15):"
+          sudo docker logs litho-indexer --tail 15 2>&1
+          HEALTHCHECK
+          )
+
+          jq -n --arg instance "$INSTANCE_ID" --arg script "$SCRIPT" '{
+            InstanceIds: [$instance],
+            DocumentName: "AWS-RunShellScript",
+            TimeoutSeconds: 120,
+            Parameters: { commands: [$script] }
+          }' > /tmp/ssm-health.json
+
+          COMMAND_ID=$(aws ssm send-command \
+            --cli-input-json file:///tmp/ssm-health.json \
             --query "Command.CommandId" --output text)
 
           aws ssm wait command-executed \
@@ -208,61 +286,10 @@ jobs:
             --command-id "$COMMAND_ID" \
             --instance-id "$INSTANCE_ID" \
             --query "[Status,StandardOutputContent]" --output json)
-          echo "Status: $(echo "$RESULT" | jq -r '.[0]')"
-          echo "$RESULT" | jq -r '.[1]'
 
-      # ── Health Checks ───────────────────────────────────────────────────────
-      - name: Wait for Services
-        run: sleep 30
+          echo "$(echo "$RESULT" | jq -r '.[1]')"
 
-      - name: Health Checks
-        run: |
-          echo "Running health checks via SSM..."
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
-            --document-name "AWS-RunShellScript" \
-            --timeout-seconds 120 \
-            --parameters 'commands=[
-              "echo \"── Container Status:\"",
-              "sudo docker ps -a --format \"table {{.Names}}\t{{.Status}}\t{{.Ports}}\" | grep -E \"litho-|NAME\"",
-              "",
-              "echo \"\"",
-              "echo \"── API Health:\"",
-              "curl -sf http://localhost:4000/health || echo \"API health check FAILED\"",
-              "",
-              "echo \"\"",
-              "echo \"── Explorer Health:\"",
-              "curl -sf -o /dev/null -w \"HTTP %{http_code}\" http://localhost:3100 || echo \"Explorer health check FAILED\"",
-              "",
-              "echo \"\"",
-              "echo \"── API Debug (DB state):\"",
-              "curl -sf http://localhost:4000/api/debug | head -c 1000 || echo \"Debug endpoint unavailable\"",
-              "",
-              "echo \"\"",
-              "echo \"── Indexer Logs (last 20):\"",
-              "sudo docker logs litho-indexer --tail 20 2>&1"
-            ]' \
-            --query "Command.CommandId" --output text)
-
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" || true
-
-          RESULT=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --query "[Status,StandardOutputContent,StandardErrorContent]" --output json)
-
-          STATUS=$(echo "$RESULT" | jq -r '.[0]')
-          echo "$RESULT" | jq -r '.[1]'
-
-          if [ "$STATUS" != "Success" ]; then
-            echo "Health checks had issues (status: $STATUS)"
-            echo "$RESULT" | jq -r '.[2]' | tail -20
-          fi
-
-      # ── Summary ─────────────────────────────────────────────────────────────
-      - name: Generate Deployment Summary
+      - name: Deployment Summary
         if: always()
         run: |
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
@@ -272,13 +299,7 @@ jobs:
           echo "| Instance | \`$INSTANCE_ID\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployed At | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
-          echo "| Triggered By | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Method | AWS SSM (no SSH) |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Service URLs" >> $GITHUB_STEP_SUMMARY
-          echo "- Explorer: https://makalu.litho.ai" >> $GITHUB_STEP_SUMMARY
-          echo "- API: https://makalu.litho.ai/api" >> $GITHUB_STEP_SUMMARY
-          echo "- Health: https://makalu.litho.ai/api/debug" >> $GITHUB_STEP_SUMMARY
+          echo "| Method | AWS SSM |" >> $GITHUB_STEP_SUMMARY
 
   rollback:
     name: Rollback on Failure
@@ -291,7 +312,7 @@ jobs:
       contents: read
 
     steps:
-      - name: Configure AWS Credentials (OIDC)
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
@@ -301,30 +322,41 @@ jobs:
         env:
           INSTANCE_ID: i-057bf8e4baabd9f31
         run: |
-          echo "Deployment failed — rolling back..."
+          SCRIPT=$(cat << 'ROLLBACK'
+          #!/bin/bash
+          cd /opt/lithosphere/Makulu
+          if [ -f .rollback/.env.bak ]; then
+            cp .rollback/.env.bak .env
+            echo "Restored .env"
+          fi
+          if [ -f .rollback/docker-compose.yaml.bak ]; then
+            cp .rollback/docker-compose.yaml.bak docker-compose.yaml
+            echo "Restored docker-compose.yaml"
+          fi
+          sudo docker compose down --timeout 30
+          sudo docker compose up -d --remove-orphans
+          echo "Rollback complete"
+          ROLLBACK
+          )
+
+          jq -n --arg instance "$INSTANCE_ID" --arg script "$SCRIPT" '{
+            InstanceIds: [$instance],
+            DocumentName: "AWS-RunShellScript",
+            TimeoutSeconds: 300,
+            Parameters: { commands: [$script] }
+          }' > /tmp/ssm-rollback.json
+
           COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
-            --document-name "AWS-RunShellScript" \
-            --timeout-seconds 300 \
-            --parameters 'commands=[
-              "cd /opt/lithosphere/Makulu",
-              "ROLLBACK_DIR=.rollback",
-              "if [ -f ${ROLLBACK_DIR}/docker-compose.yaml.bak ]; then cp ${ROLLBACK_DIR}/docker-compose.yaml.bak docker-compose.yaml && echo \"Restored docker-compose.yaml\"; fi",
-              "if [ -f ${ROLLBACK_DIR}/.env.bak ]; then cp ${ROLLBACK_DIR}/.env.bak .env && echo \"Restored .env\"; fi",
-              "sudo docker compose down --timeout 30",
-              "sudo docker compose up -d --remove-orphans",
-              "echo \"Rollback complete\""
-            ]' \
+            --cli-input-json file:///tmp/ssm-rollback.json \
             --query "Command.CommandId" --output text)
 
           aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
             --instance-id "$INSTANCE_ID" || true
 
-          RESULT=$(aws ssm get-command-invocation \
+          STATUS=$(aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$INSTANCE_ID" \
-            --query "[Status,StandardOutputContent]" --output json)
-          echo "Rollback status: $(echo "$RESULT" | jq -r '.[0]')"
-          echo "$RESULT" | jq -r '.[1]'
-          echo "::warning::Deployment was rolled back due to failure"
+            --query "Status" --output text)
+          echo "Rollback status: $STATUS"
+          echo "::warning::Deployment was rolled back"
