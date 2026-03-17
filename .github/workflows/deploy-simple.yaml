@@ -224,11 +224,9 @@ jobs:
             echo "── After cleanup:"
             sudo ss -tlnp | grep -E ':3100|:8080' || echo "  (ports free)"
 
-            echo "🐳 Building all images..."
-            sudo docker compose build api indexer explorer
-
-            echo "🐳 Starting redis + explorer..."
-            sudo docker compose up -d redis explorer
+            echo "🐳 Starting redis + building & starting explorer..."
+            sudo docker compose up -d redis
+            sudo docker compose up -d --build --force-recreate explorer
 
             echo "🧹 Cleaning up..."
             cd /opt/lithosphere
@@ -288,18 +286,18 @@ jobs:
             ssh -o StrictHostKeyChecking=no \
                 -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
                 "$SERVER_USER@$INDEXER_IP" \
-                'sudo python3 /tmp/inject_db.py && cd /opt/lithosphere/Makulu && sudo docker compose up -d --force-recreate api indexer && echo "✅ Containers restarted with new DATABASE_URL"'
+                'sudo python3 /tmp/inject_db.py && cd /opt/lithosphere/Makulu && sudo docker compose up -d --build --force-recreate api indexer && echo "✅ Containers restarted with new DATABASE_URL"'
           else
             echo "::warning::No inject script found — skipping DATABASE_URL injection"
           fi
 
       - name: Start API + Indexer
         run: |
-          echo "🐳 Starting api + indexer (uses current .env on server)..."
+          echo "🐳 Building & starting api + indexer..."
           ssh -o StrictHostKeyChecking=no \
               -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
               "$SERVER_USER@$INDEXER_IP" \
-              'cd /opt/lithosphere/Makulu && sudo docker compose up -d --force-recreate api indexer && echo "✅ api + indexer started"'
+              'cd /opt/lithosphere/Makulu && sudo docker compose up -d --build --force-recreate api indexer && echo "✅ api + indexer started"'
 
       - name: Update Nginx to route /api to Makulu API (:4000)
         run: |
