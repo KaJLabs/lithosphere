@@ -125,22 +125,41 @@ jobs:
           echo "── Pulling latest code..."
           rm -rf lithosphere
           git clone --depth 1 https://github.com/KaJLabs/lithosphere.git
+
+          # Preserve server-side .env before copying new code
+          # (git clone brings .env.mainnet with placeholder secrets;
+          #  the server .env has real DATABASE_URL, RPC_URL, BATCH_SIZE, etc.)
+          if [ -f Makulu/.env ]; then
+            cp Makulu/.env /tmp/.env.preserve
+            echo "Preserved existing .env"
+          fi
+
           mkdir -p Makulu
           cp -r lithosphere/Makulu/. Makulu/
           rm -rf lithosphere
 
+          # Restore preserved .env (takes priority over repo defaults)
+          if [ -f /tmp/.env.preserve ]; then
+            cp /tmp/.env.preserve Makulu/.env
+            rm -f /tmp/.env.preserve
+            echo "Restored server .env"
+          fi
+
           echo "── Configuring environment..."
           cd Makulu
           ENV_FILE=".env.DEPLOY_ENV"
-          if [ -f "$ENV_FILE" ] && [ ! -f .env ]; then
+          if [ ! -f .env ] && [ -f "$ENV_FILE" ]; then
             cp "$ENV_FILE" .env
-            echo "Using $ENV_FILE"
+            echo "Using $ENV_FILE (no existing .env found)"
           fi
 
-          echo "── Fixing RPC endpoints..."
+          echo "── Ensuring critical env vars..."
           sed -i 's|testnet-rpc\.lithosphere\.network|rpc.litho.ai|g' .env 2>/dev/null || true
           grep -q '^RPC_URL=' .env || echo 'RPC_URL=https://rpc.litho.ai' >> .env
           grep -q '^LCD_URL=' .env || echo 'LCD_URL=https://api.litho.ai' >> .env
+          # Prevent full re-index on every deploy/restart
+          sed -i 's/^FORCE_REINDEX=1/FORCE_REINDEX=0/' .env 2>/dev/null || true
+          grep -q '^FORCE_REINDEX=' .env || echo 'FORCE_REINDEX=0' >> .env
 
           echo "── Stopping conflicting lithoscan services..."
           if [ -f /opt/lithoscan/docker-compose.yml ]; then
