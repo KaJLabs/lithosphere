@@ -152,7 +152,7 @@ export default function FaucetPage() {
         }
       }
 
-      const res = await fetch('/api/faucet/claim', {
+      const res = await fetch('/_api/faucet/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address, walletType, amount, reason, signature }),

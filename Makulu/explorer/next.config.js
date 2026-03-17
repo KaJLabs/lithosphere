@@ -27,6 +27,15 @@ const nextConfig = {
   async rewrites() {
     const apiUrl = process.env.API_INTERNAL_URL || 'http://api:4000';
     return [
+      // /_api/* is our internal proxy path. External nginx intercepts /api/*
+      // and routes it to the validator's Fastify API on :8080. By using /_api/*
+      // from the frontend, requests reach the Next.js server first (via nginx
+      // routing / → :3100), which then rewrites them to our Express API on :4000.
+      {
+        source: '/_api/:path*',
+        destination: `${apiUrl}/api/:path*`,
+      },
+      // Also keep /api/* rewrite as fallback (works when nginx doesn't intercept)
       {
         source: '/api/:path*',
         destination: `${apiUrl}/api/:path*`,
