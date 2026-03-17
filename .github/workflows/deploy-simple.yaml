@@ -224,8 +224,8 @@ jobs:
             echo "── After cleanup:"
             sudo ss -tlnp | grep -E ':3100|:8080' || echo "  (ports free)"
 
-            echo "🐳 Building all images (no cache)..."
-            sudo docker compose build --no-cache api indexer explorer
+            echo "🐳 Building all images..."
+            sudo docker compose build api indexer explorer
 
             echo "🐳 Starting redis + explorer..."
             sudo docker compose up -d redis explorer
