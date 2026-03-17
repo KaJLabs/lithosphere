@@ -20,6 +20,7 @@ type ClaimResponse = {
 const NETWORK = {
   networkName: 'Lithosphere Makalu',
   rpcUrl: 'https://rpc.litho.ai',
+  evmRpcUrl: 'https://rpc.litho.ai',
   cosmosChainId: 'lithosphere_700777-1',
   evmChainIdDecimal: 700777,
   evmChainIdHex: '0xab169',
@@ -43,6 +44,7 @@ export default function FaucetPage() {
   const [connecting, setConnecting] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [status, setStatus] = useState<string>('');
+  const [statusType, setStatusType] = useState<'info' | 'error' | 'success'>('info');
   const [txHash, setTxHash] = useState<string>('');
   const [cooldown, setCooldown] = useState<number | null>(null);
 
@@ -51,12 +53,17 @@ export default function FaucetPage() {
     return `${NETWORK.explorer}/tx/${txHash}`;
   }, [txHash]);
 
+  function showStatus(msg: string, type: 'info' | 'error' | 'success' = 'info') {
+    setStatus(msg);
+    setStatusType(type);
+  }
+
   async function connectEvmWallet() {
-    setStatus('');
+    showStatus('');
     setConnecting(true);
     try {
       if (!window.ethereum) {
-        setStatus('No injected EVM wallet found. Install MetaMask or another compatible wallet.');
+        showStatus('No EVM wallet detected. Please install MetaMask or a compatible browser wallet extension.', 'error');
         return;
       }
 
@@ -71,22 +78,26 @@ export default function FaucetPage() {
 
       const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
       if (currentChainId?.toLowerCase() !== NETWORK.evmChainIdHex.toLowerCase()) {
-        setStatus('Wallet connected. Switch to Lithosphere Makalu to continue.');
+        showStatus(`Wallet connected (${shortenAddress(selected)}). Please switch to Lithosphere Makalu network.`, 'info');
       } else {
-        setStatus('Wallet connected to Makalu.');
+        showStatus(`Wallet connected to Makalu: ${shortenAddress(selected)}`, 'success');
       }
     } catch (err: any) {
-      setStatus(err?.message || 'Failed to connect wallet.');
+      if (err?.code === 4001) {
+        showStatus('Connection request rejected by user.', 'error');
+      } else {
+        showStatus(err?.message || 'Failed to connect wallet.', 'error');
+      }
     } finally {
       setConnecting(false);
     }
   }
 
   async function addOrSwitchMakalu() {
-    setStatus('');
+    showStatus('');
     try {
       if (!window.ethereum) {
-        setStatus('No injected EVM wallet found.');
+        showStatus('No EVM wallet detected. Please install MetaMask or a compatible browser wallet extension.', 'error');
         return;
       }
 
@@ -95,28 +106,38 @@ export default function FaucetPage() {
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: NETWORK.evmChainIdHex }],
         });
-        setStatus('Switched to Lithosphere Makalu.');
+        showStatus('Switched to Lithosphere Makalu.', 'success');
       } catch (switchError: any) {
-        await window.ethereum.request({
-          method: 'wallet_addEthereumChain',
-          params: [
-            {
-              chainId: NETWORK.evmChainIdHex,
-              chainName: NETWORK.networkName,
-              rpcUrls: [NETWORK.rpcUrl],
-              nativeCurrency: {
-                name: 'LITHO',
-                symbol: NETWORK.symbol,
-                decimals: NETWORK.decimals,
+        if (switchError?.code === 4902) {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [
+              {
+                chainId: NETWORK.evmChainIdHex,
+                chainName: NETWORK.networkName,
+                rpcUrls: [NETWORK.evmRpcUrl],
+                nativeCurrency: {
+                  name: 'LITHO',
+                  symbol: NETWORK.symbol,
+                  decimals: NETWORK.decimals,
+                },
+                blockExplorerUrls: [NETWORK.explorer],
               },
-              blockExplorerUrls: [NETWORK.explorer],
-            },
-          ],
-        });
-        setStatus('Makalu network added to wallet.');
+            ],
+          });
+          showStatus('Makalu network added to wallet.', 'success');
+        } else if (switchError?.code === 4001) {
+          showStatus('Network switch rejected by user.', 'error');
+        } else {
+          showStatus(switchError?.message || 'Failed to switch network.', 'error');
+        }
       }
     } catch (err: any) {
-      setStatus(err?.message || 'Failed to add or switch network.');
+      if (err?.code === 4001) {
+        showStatus('Request rejected by user.', 'error');
+      } else {
+        showStatus(err?.message || 'Failed to add or switch network.', 'error');
+      }
     }
   }
 
@@ -133,7 +154,7 @@ export default function FaucetPage() {
 
   async function submitClaim(e: React.FormEvent) {
     e.preventDefault();
-    setStatus('');
+    showStatus('');
     setTxHash('');
     setCooldown(null);
     setClaiming(true);
@@ -161,22 +182,28 @@ export default function FaucetPage() {
       const data: ClaimResponse = await res.json();
 
       if (!res.ok || !data.ok) {
-        setStatus(data.message || 'Faucet claim failed.');
+        showStatus(data.message || 'Faucet claim failed.', 'error');
         if (typeof data.cooldownSeconds === 'number') {
           setCooldown(data.cooldownSeconds);
         }
         return;
       }
 
-      setStatus(data.message || 'Claim submitted successfully.');
+      showStatus(data.message || 'Claim submitted successfully.', 'success');
       if (data.txHash) setTxHash(data.txHash);
       if (typeof data.cooldownSeconds === 'number') setCooldown(data.cooldownSeconds);
     } catch (err: any) {
-      setStatus(err?.message || 'Failed to submit faucet claim.');
+      showStatus(err?.message || 'Failed to submit faucet claim.', 'error');
     } finally {
       setClaiming(false);
     }
   }
+
+  const statusColors = {
+    info: 'border-blue-400/20 bg-blue-400/10 text-blue-200',
+    error: 'border-red-400/20 bg-red-400/10 text-red-200',
+    success: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200',
+  };
 
   return (
     <>
@@ -186,6 +213,14 @@ export default function FaucetPage() {
 
       <div className="text-white">
         <div className="mx-auto max-w-6xl">
+
+          {/* Status banner — visible at top so feedback is always seen */}
+          {status && (
+            <div className={`mb-6 rounded-2xl border p-4 text-sm ${statusColors[statusType]}`}>
+              {status}
+            </div>
+          )}
+
           {/* Hero */}
           <div className="mb-10 grid gap-6 lg:grid-cols-2 lg:items-center">
             <div>
@@ -230,7 +265,7 @@ export default function FaucetPage() {
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
                   <div className="text-white/50">RPC</div>
-                  <div className="mt-1 break-all font-medium text-white">{NETWORK.rpcUrl}</div>
+                  <div className="mt-1 break-all font-medium text-white">{NETWORK.evmRpcUrl}</div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
@@ -262,8 +297,7 @@ export default function FaucetPage() {
                 <div className="text-sm font-medium text-white/80">Faucet</div>
                 <h2 className="mt-2 text-2xl font-semibold">Claim LITHO testnet coins</h2>
                 <p className="mt-2 text-sm leading-6 text-white/65">
-                  Enter your wallet address and submit a faucet request. The page signs an
-                  ownership proof for connected EVM wallets when available.
+                  Enter your wallet address and select an amount. Maximum one claim per wallet every 24 hours.
                 </p>
               </div>
 
@@ -274,7 +308,7 @@ export default function FaucetPage() {
                     type="text"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    placeholder="0x... or cosmos wallet address"
+                    placeholder="0x... or litho1... wallet address"
                     className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/25"
                   />
                 </div>
@@ -305,22 +339,11 @@ export default function FaucetPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm text-white/70">Reason for Request</label>
-                  <textarea
-                    rows={4}
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="Development, contract deployment, app testing, validator setup, etc."
-                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/25"
-                  />
-                </div>
-
                 <div className="flex flex-wrap gap-3 pt-2">
                   <button
                     type="submit"
-                    disabled={claiming}
-                    className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-white/90 disabled:opacity-60"
+                    disabled={claiming || !address}
+                    className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-white/90 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {claiming ? 'Submitting...' : 'Claim Testnet LITHO'}
                   </button>
@@ -330,35 +353,30 @@ export default function FaucetPage() {
                     disabled={connecting}
                     className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10 disabled:opacity-60"
                   >
-                    {connecting ? 'Connecting...' : 'Connect Wallet'}
+                    {connecting ? 'Connecting...' : connectedAddress ? `${shortenAddress(connectedAddress)}` : 'Connect Wallet'}
                   </button>
                 </div>
               </form>
 
-              {(status || txHash || cooldown !== null) && (
-                <div className="mt-6 space-y-3 rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/80">
-                  {status && <div>{status}</div>}
-                  {txHash && (
-                    <div>
-                      Tx:{' '}
-                      <a
-                        href={explorerTxUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-white underline underline-offset-4"
-                      >
-                        {txHash}
-                      </a>
-                    </div>
-                  )}
-                  {cooldown !== null && <div>Cooldown: {cooldown} seconds</div>}
+              {txHash && (
+                <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
+                  <div className="font-medium">Transaction Submitted</div>
+                  <a
+                    href={explorerTxUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 block break-all text-white underline underline-offset-4"
+                  >
+                    {txHash}
+                  </a>
                 </div>
               )}
 
-              <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
-                Recommended backend protections: rate limiting, per-wallet cooldowns, IP
-                throttling, CAPTCHA, and signature verification for connected wallets.
-              </div>
+              {cooldown !== null && cooldown > 0 && (
+                <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/70">
+                  Cooldown: {Math.ceil(cooldown / 3600)}h remaining before next claim
+                </div>
+              )}
             </section>
 
             {/* Network setup panel */}
@@ -378,8 +396,8 @@ export default function FaucetPage() {
                   <div className="mt-1 font-medium text-white">{NETWORK.networkName}</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                  <div className="text-white/50">RPC</div>
-                  <div className="mt-1 break-all font-medium text-white">{NETWORK.rpcUrl}</div>
+                  <div className="text-white/50">EVM RPC</div>
+                  <div className="mt-1 break-all font-medium text-white">{NETWORK.evmRpcUrl}</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
                   <div className="text-white/50">Cosmos Chain ID</div>
@@ -420,9 +438,10 @@ export default function FaucetPage() {
               <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4">
                 <div className="text-sm font-medium text-white">Suggested usage</div>
                 <ul className="mt-3 space-y-2 text-sm text-white/65">
-                  <li>• Connect an injected EVM wallet and switch to chain ID 700777.</li>
-                  <li>• Use the Cosmos chain ID for Cosmos-native clients and relayers.</li>
-                  <li>• Track faucet transfers and balances on the Makalu explorer.</li>
+                  <li>• Install MetaMask or a compatible EVM wallet extension.</li>
+                  <li>• Click &quot;Connect EVM Wallet&quot; then &quot;Add / Switch Makalu&quot;.</li>
+                  <li>• Enter your address and select an amount (10, 25, or 50 LITHO).</li>
+                  <li>• One claim per wallet every 24 hours.</li>
                 </ul>
               </div>
             </section>
