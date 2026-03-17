@@ -181,7 +181,7 @@ jobs:
 
           echo "── Building and starting services..."
           sudo docker compose up -d redis
-          sudo docker compose up -d --build --force-recreate explorer api indexer
+          sudo docker compose up -d --build --force-recreate explorer api indexer faucet
 
           echo "Deployment complete!"
           DEPLOY_SCRIPT

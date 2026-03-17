@@ -448,5 +448,49 @@ export function explorerRouter(): Router {
     }
   });
 
+  // ── Faucet proxy (forwards to faucet service on :8081) ─────────────
+
+  r.post('/faucet/claim', async (req: Request, res: Response) => {
+    try {
+      const { address, amount } = req.body ?? {};
+
+      if (!address) {
+        res.status(400).json({ ok: false, message: 'Wallet address is required.' });
+        return;
+      }
+
+      const faucetUrl = process.env.FAUCET_INTERNAL_URL || 'http://faucet:8081';
+      const upstream = await fetch(`${faucetUrl}/drip`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, amount }),
+      });
+
+      const data = await upstream.json() as Record<string, unknown>;
+
+      if (!upstream.ok) {
+        res.status(upstream.status).json({
+          ok: false,
+          message: (data.message as string) || 'Faucet request failed.',
+          cooldownSeconds: data.retryAfterSeconds ?? null,
+        });
+        return;
+      }
+
+      res.json({
+        ok: true,
+        txHash: data.txHash ?? null,
+        message: `Sent ${data.amount ?? amount} to ${address}`,
+        cooldownSeconds: ((data.cooldownHours as number) ?? 24) * 3600,
+      });
+    } catch (err) {
+      console.error('[api] /faucet/claim error:', err);
+      res.status(502).json({
+        ok: false,
+        message: 'Faucet service is unavailable. Please try again later.',
+      });
+    }
+  });
+
   return r;
 }

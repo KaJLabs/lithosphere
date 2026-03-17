@@ -4,19 +4,37 @@ import { drip } from '../services/wallet.js';
 import { checkCooldown } from '../services/rateLimit.js';
 import { config } from '../config.js';
 
+const ALLOWED_AMOUNTS = ['10', '25', '50'];
+
 interface DripBody {
   address: string;
+  amount?: string;
 }
 
 export async function dripRoutes(app: FastifyInstance) {
   app.post<{ Body: DripBody }>('/drip', async (request, reply) => {
-    const { address } = request.body ?? {};
+    const { address, amount: requestedAmount } = request.body ?? {};
 
     if (!address || !isAddress(address)) {
       return reply.status(400).send({
         error: 'Invalid address',
         message: 'Provide a valid Ethereum address in the request body: { "address": "0x..." }',
       });
+    }
+
+    // Parse and validate amount (default to config drip amount)
+    let dripAmount = config.dripAmount;
+    if (requestedAmount) {
+      // Extract numeric part from strings like "10 LITHO" or "10"
+      const numeric = requestedAmount.replace(/[^0-9.]/g, '');
+      if (ALLOWED_AMOUNTS.includes(numeric)) {
+        dripAmount = numeric;
+      } else {
+        return reply.status(400).send({
+          error: 'Invalid amount',
+          message: `Allowed amounts: ${ALLOWED_AMOUNTS.map(a => `${a} LITHO`).join(', ')}`,
+        });
+      }
     }
 
     // Check cooldown
@@ -31,7 +49,7 @@ export async function dripRoutes(app: FastifyInstance) {
     }
 
     try {
-      const result = await drip(address as `0x${string}`);
+      const result = await drip(address as `0x${string}`, dripAmount);
       return reply.send({
         success: true,
         txHash: result.txHash,

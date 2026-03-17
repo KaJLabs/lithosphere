@@ -32,10 +32,11 @@ function getAccount(): PrivateKeyAccount {
   return account;
 }
 
-export async function drip(recipient: Address): Promise<{ txHash: string; amount: string }> {
+export async function drip(recipient: Address, dripAmount?: string): Promise<{ txHash: string; amount: string }> {
   const acc = getAccount();
   const client = createWalletClient({ account: acc, chain, transport });
-  const amount = parseEther(config.dripAmount);
+  const amountStr = dripAmount ?? config.dripAmount;
+  const amount = parseEther(amountStr);
 
   const txHash = await client.sendTransaction({
     account: acc,
@@ -44,7 +45,7 @@ export async function drip(recipient: Address): Promise<{ txHash: string; amount
     chain,
   });
 
-  return { txHash, amount: config.dripAmount };
+  return { txHash, amount: amountStr };
 }
 
 export async function getFaucetBalance(): Promise<string> {
