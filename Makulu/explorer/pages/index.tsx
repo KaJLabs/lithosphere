@@ -7,10 +7,10 @@ import type { StatsSummary, ApiBlock, ApiTxList, ApiValidator } from '@/lib/type
 import SearchBar from '@/components/SearchBar';
 
 const TOKENS = [
-  { symbol: 'LITHO', supply: '1.2B', holders: '12,441' },
-  { symbol: 'wLITHO', supply: '18.4M', holders: '1,221' },
-  { symbol: 'USDL', supply: '5.1M', holders: '922' },
-  { symbol: 'mBTC', supply: '184', holders: '76' },
+  { symbol: 'LITHO', supply: '1B', holders: '—' },
+  { symbol: 'wLITHO', supply: '—', holders: '—' },
+  { symbol: 'USDL', supply: '—', holders: '—' },
+  { symbol: 'mBTC', supply: '—', holders: '—' },
 ];
 
 export default function Home() {
