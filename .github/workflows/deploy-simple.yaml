@@ -188,24 +188,32 @@ jobs:
             grep -q '^RPC_URL=' .env || echo 'RPC_URL=https://rpc.litho.ai' >> .env
             grep -q '^LCD_URL=' .env || echo 'LCD_URL=https://api.litho.ai' >> .env
 
-            echo "🔴 Stopping only the explorer container on port 3100..."
-            # 1. Stop ONLY the explorer-web service from LITHOSCAN (keep API/indexer/redis!)
-            #    The Fastify API on port 8080 and its indexer MUST stay running.
+            echo "🔴 Stopping lithoscan containers that conflict with Makulu..."
+            # 1. Stop the lithoscan explorer-web AND API (we take over port 8080).
+            #    Keep their indexer + redis running — indexer writes blocks to DB.
             if [ -f /opt/lithoscan/docker-compose.yml ]; then
               sudo docker compose -f /opt/lithoscan/docker-compose.yml stop explorer-web 2>/dev/null || true
               sudo docker compose -f /opt/lithoscan/docker-compose.yml rm -f explorer-web 2>/dev/null || true
+              # Stop the Fastify API on 8080 — our Express API will take over this port
+              sudo docker compose -f /opt/lithoscan/docker-compose.yml stop api 2>/dev/null || true
+              sudo docker compose -f /opt/lithoscan/docker-compose.yml rm -f api 2>/dev/null || true
             fi
+            # Also stop any container holding port 8080
+            CIDS_8080=$(sudo docker ps -aq --filter "publish=8080" 2>/dev/null)
+            [ -n "$CIDS_8080" ] && sudo docker rm -f $CIDS_8080 2>/dev/null || true
             # 2. Stop the existing Makulu explorer container
             sudo docker compose stop explorer 2>/dev/null || true
             sudo docker compose rm -f explorer 2>/dev/null || true
-            # 3. Force-remove any remaining container on port 3100 (nginx routes here)
-            for PORT in 3100; do
+            # 3. Force-remove any remaining container on ports 3100 or 8080
+            for PORT in 3100 8080; do
               CIDS=$(sudo docker ps -aq --filter "publish=${PORT}" 2>/dev/null)
               [ -n "$CIDS" ] && sudo docker rm -f $CIDS 2>/dev/null || true
             done
-            # 4. Kill any process still holding port 3100
-            sudo ss -Htlnp | grep -w ":3100" | grep -oP 'pid=\K[0-9]+' \
-              | sort -u | xargs -r sudo kill -9 2>/dev/null || true
+            # 4. Kill any process still holding ports 3100 or 8080
+            for PORT in 3100 8080; do
+              sudo ss -Htlnp | grep -w ":${PORT}" | grep -oP 'pid=\K[0-9]+' \
+                | sort -u | xargs -r sudo kill -9 2>/dev/null || true
+            done
 
             echo "🐳 Building all images (no cache)..."
             sudo docker compose build --no-cache api indexer explorer
