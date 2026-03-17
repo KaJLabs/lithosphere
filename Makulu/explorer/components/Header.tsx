@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState } from 'react';
-import ThemeToggle from './ThemeToggle';
 import SearchBar from './SearchBar';
 import { EXPLORER_TITLE } from '@/lib/constants';
 
@@ -77,12 +76,11 @@ export default function Header() {
             )}
           </nav>
 
-          {/* Search + theme */}
+          {/* Search */}
           <div className="flex items-center gap-2">
             <div className="hidden md:block">
               <SearchBar />
             </div>
-            <ThemeToggle />
             {/* Mobile menu button */}
             <button
               onClick={() => setMenuOpen(!menuOpen)}
