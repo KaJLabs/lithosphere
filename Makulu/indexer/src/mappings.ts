@@ -158,8 +158,17 @@ async function indexBlock(height: number): Promise<void> {
     }
 
     await client.query('COMMIT');
+    if (rawTxs.length > 0) {
+      console.log(`[indexer] Block ${height}: ${rawTxs.length} tx(s) indexed`);
+    }
   } catch (err) {
     await client.query('ROLLBACK');
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[indexer] Block ${height} FAILED: ${msg}`);
+    // Log the first block failure in detail to help diagnose schema mismatches
+    if (height <= 10 || rawTxs.length > 0) {
+      console.error(`[indexer] Block ${height} detail — txs: ${rawTxs.length}, hash: ${blockData.block_id.hash.substring(0, 16)}…`);
+    }
     throw err;
   } finally {
     client.release();
@@ -452,6 +461,24 @@ async function main(): Promise<void> {
     res.end(await register.metrics());
   });
   metricsApp.listen(process.env.METRICS_PORT ?? 9090, () => console.log('[indexer] Metrics: :9090'));
+
+  // Log database schema for diagnostics
+  try {
+    const tables = ['blocks', 'transactions', 'evm_transactions', 'accounts', 'indexer_state'];
+    for (const t of tables) {
+      const cols = await pool.query(
+        `SELECT column_name, data_type, character_maximum_length FROM information_schema.columns WHERE table_name = $1 ORDER BY ordinal_position`,
+        [t]
+      );
+      if (cols.rows.length > 0) {
+        console.log(`[schema] ${t}: ${cols.rows.map((c: Record<string, unknown>) => `${c.column_name}(${c.data_type}${c.character_maximum_length ? ':' + c.character_maximum_length : ''})`).join(', ')}`);
+      } else {
+        console.warn(`[schema] Table '${t}' NOT FOUND in database`);
+      }
+    }
+  } catch (err) {
+    console.warn('[schema] Could not inspect schema:', err instanceof Error ? err.message : String(err));
+  }
 
   // Ensure indexer_state table exists (RDS may have been created by another indexer)
   await pool.query(`

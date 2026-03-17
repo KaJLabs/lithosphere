@@ -207,8 +207,8 @@ jobs:
             sudo ss -Htlnp | grep -w ":3100" | grep -oP 'pid=\K[0-9]+' \
               | sort -u | xargs -r sudo kill -9 2>/dev/null || true
 
-            echo "🐳 Building all images..."
-            sudo docker compose build redis api indexer explorer
+            echo "🐳 Building all images (no cache)..."
+            sudo docker compose build --no-cache api indexer explorer
 
             echo "🐳 Starting redis + explorer..."
             sudo docker compose up -d redis explorer
@@ -284,6 +284,63 @@ jobs:
               "$SERVER_USER@$INDEXER_IP" \
               'cd /opt/lithosphere/Makulu && sudo docker compose up -d --force-recreate api indexer && echo "✅ api + indexer started"'
 
+      - name: Update Nginx to route /api to Makulu API (:4000)
+        run: |
+          echo "🔧 Updating nginx to route /api/ to our API on port 4000..."
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+            set -e
+
+            echo "── Current nginx config locations:"
+            sudo find /etc/nginx -name '*.conf' -type f 2>/dev/null | head -20 || echo "(no /etc/nginx)"
+            sudo find /opt -name 'nginx.conf' -type f 2>/dev/null | head -10 || true
+
+            # Find the nginx config that handles makalu.litho.ai
+            NGINX_CONF=""
+            for f in /etc/nginx/conf.d/makalu.conf \
+                     /etc/nginx/sites-enabled/makalu \
+                     /etc/nginx/sites-enabled/default \
+                     /etc/nginx/conf.d/default.conf \
+                     /etc/nginx/conf.d/lithoscan.conf \
+                     /etc/nginx/nginx.conf; do
+              if [ -f "$f" ]; then
+                if grep -q 'makalu\|litho\|8080\|3100' "$f" 2>/dev/null; then
+                  NGINX_CONF="$f"
+                  break
+                fi
+              fi
+            done
+
+            if [ -z "$NGINX_CONF" ]; then
+              echo "⚠️  Could not find relevant nginx config — listing all configs:"
+              sudo grep -rl 'proxy_pass\|upstream' /etc/nginx/ 2>/dev/null | head -10
+              echo "── Trying nginx -T to dump full config:"
+              sudo nginx -T 2>&1 | grep -A5 'location.*api\|proxy_pass.*8080\|proxy_pass.*4000\|server_name.*makalu\|server_name.*litho' || true
+              echo "⚠️  Manual nginx config update may be needed"
+              exit 0
+            fi
+
+            echo "── Found config: $NGINX_CONF"
+            echo "── Current /api/ routing:"
+            sudo grep -n 'api\|8080\|4000' "$NGINX_CONF" || true
+
+            # Back up before modifying
+            sudo cp "$NGINX_CONF" "${NGINX_CONF}.bak.$(date +%s)"
+
+            # If there's already a location /api/ block pointing to 8080, change it to 4000
+            if sudo grep -q 'proxy_pass.*8080' "$NGINX_CONF"; then
+              echo "── Updating proxy_pass from 8080 to 4000 for /api/ routes..."
+              sudo sed -i 's|proxy_pass\s\+http://\(127\.0\.0\.1\|localhost\):8080|proxy_pass http://127.0.0.1:4000|g' "$NGINX_CONF"
+              echo "── Updated. Testing nginx config..."
+              sudo nginx -t && sudo systemctl reload nginx && echo "✅ Nginx reloaded — /api/ now routes to port 4000"
+            else
+              echo "── No 8080 proxy_pass found. Current proxy_pass lines:"
+              sudo grep 'proxy_pass' "$NGINX_CONF" || true
+              echo "⚠️  Nginx may need manual update"
+            fi
+          ENDSSH
+
       # ── Health checks ──────────────────────────────────────────────────────
       - name: Wait for Services
         run: sleep 30
@@ -349,11 +406,80 @@ jobs:
             curl -sf "http://localhost:4000/api/stats/summary" | head -c 200
             curl -sf "http://localhost:4000/api/blocks?limit=1" | head -c 200
             curl -sf "http://localhost:4000/api/validators" | head -c 200
+            echo ""
+            echo "── Testing /api/debug (diagnostics):"
+            curl -sf "http://localhost:4000/api/debug" | head -c 1000
+            echo ""
+            echo "── Testing /api/txs (paginated format):"
+            curl -sf "http://localhost:4000/api/txs?limit=1" | head -c 500
+            echo ""
             curl -f -X POST -H "Content-Type: application/json" \
               -d '{"query":"{ __typename }"}' \
               "http://localhost:4000/graphql"
             echo ""
             echo "✅ All endpoint tests passed!"
+          ENDSSH
+
+      - name: Indexer Diagnostics
+        if: always()
+        run: |
+          echo "🔍 Collecting indexer diagnostics..."
+          ssh -o StrictHostKeyChecking=no \
+              -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
+              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+            echo "══════════════════════════════════════════"
+            echo "  CONTAINER STATUS"
+            echo "══════════════════════════════════════════"
+            sudo docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "litho-|NAME"
+
+            echo ""
+            echo "══════════════════════════════════════════"
+            echo "  INDEXER LOGS (last 120 lines)"
+            echo "══════════════════════════════════════════"
+            sudo docker logs litho-indexer --tail 120 2>&1 || echo "(no litho-indexer container)"
+
+            echo ""
+            echo "══════════════════════════════════════════"
+            echo "  API LOGS (last 40 lines)"
+            echo "══════════════════════════════════════════"
+            sudo docker logs litho-api --tail 40 2>&1 || echo "(no litho-api container)"
+
+            echo ""
+            echo "══════════════════════════════════════════"
+            echo "  DEBUG ENDPOINT (DB state)"
+            echo "══════════════════════════════════════════"
+            curl -sf "http://localhost:4000/api/debug" 2>&1 | head -c 2000 || echo "(debug endpoint not available)"
+
+            echo ""
+            echo "══════════════════════════════════════════"
+            echo "  DATABASE SCHEMA CHECK"
+            echo "══════════════════════════════════════════"
+            sudo docker exec litho-api node -e "
+              const pg = require('pg');
+              const pool = new pg.Pool({connectionString: process.env.DATABASE_URL});
+              Promise.all([
+                pool.query('SELECT * FROM indexer_state').catch(e => ({rows:[{error:e.message}]})),
+                pool.query('SELECT COUNT(*) AS c FROM transactions').catch(e => ({rows:[{error:e.message}]})),
+                pool.query('SELECT COUNT(*) AS c FROM evm_transactions').catch(e => ({rows:[{error:e.message}]})),
+                pool.query(\"SELECT column_name, data_type FROM information_schema.columns WHERE table_name='blocks' ORDER BY ordinal_position\").catch(e => ({rows:[{error:e.message}]})),
+                pool.query(\"SELECT column_name, data_type FROM information_schema.columns WHERE table_name='transactions' ORDER BY ordinal_position\").catch(e => ({rows:[{error:e.message}]}))
+              ]).then(([a,b,c,d,e]) => {
+                console.log('indexer_state:', JSON.stringify(a.rows));
+                console.log('tx_count:', JSON.stringify(b.rows[0]));
+                console.log('evm_tx_count:', JSON.stringify(c.rows[0]));
+                console.log('blocks_columns:', JSON.stringify(d.rows));
+                console.log('transactions_columns:', JSON.stringify(e.rows));
+              }).catch(err => console.error('DB error:', err.message))
+              .finally(() => pool.end());
+            " 2>&1 || echo "(could not exec into litho-api)"
+
+            echo ""
+            echo "══════════════════════════════════════════"
+            echo "  ENV CHECK (non-secret)"
+            echo "══════════════════════════════════════════"
+            cd /opt/lithosphere/Makulu
+            grep -E '^(RPC_URL|LCD_URL|EVM_RPC_URL|FORCE_REINDEX|CHAIN_ID|LITHO_CHAIN_ID)=' .env 2>/dev/null || echo "(no .env or vars not set)"
+            echo "DATABASE_URL set: $(grep -c '^DATABASE_URL=' .env 2>/dev/null || echo 0)"
           ENDSSH
 
       - name: Generate Deployment Summary
