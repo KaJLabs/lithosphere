@@ -189,31 +189,40 @@ jobs:
             grep -q '^LCD_URL=' .env || echo 'LCD_URL=https://api.litho.ai' >> .env
 
             echo "🔴 Stopping lithoscan containers that conflict with Makulu..."
-            # 1. Stop the lithoscan explorer-web AND API (we take over port 8080).
-            #    Keep their indexer + redis running — indexer writes blocks to DB.
+            # Stop the lithoscan explorer-web AND API (we take over port 8080).
+            # Keep their indexer + redis running — indexer writes blocks to DB.
             if [ -f /opt/lithoscan/docker-compose.yml ]; then
-              sudo docker compose -f /opt/lithoscan/docker-compose.yml stop explorer-web 2>/dev/null || true
-              sudo docker compose -f /opt/lithoscan/docker-compose.yml rm -f explorer-web 2>/dev/null || true
-              # Stop the Fastify API on 8080 — our Express API will take over this port
-              sudo docker compose -f /opt/lithoscan/docker-compose.yml stop api 2>/dev/null || true
-              sudo docker compose -f /opt/lithoscan/docker-compose.yml rm -f api 2>/dev/null || true
+              echo "── Lithoscan services:"
+              sudo docker compose -f /opt/lithoscan/docker-compose.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+              # Stop ALL services except indexer and redis (we don't know exact service names)
+              for SVC in $(sudo docker compose -f /opt/lithoscan/docker-compose.yml ps --services 2>/dev/null); do
+                case "$SVC" in
+                  *index*|*redis*|*postgres*|*db*) echo "  Keeping: $SVC" ;;
+                  *) echo "  Stopping: $SVC"
+                     sudo docker compose -f /opt/lithoscan/docker-compose.yml stop "$SVC" 2>/dev/null || true
+                     sudo docker compose -f /opt/lithoscan/docker-compose.yml rm -f "$SVC" 2>/dev/null || true
+                     ;;
+                esac
+              done
             fi
-            # Also stop any container holding port 8080
-            CIDS_8080=$(sudo docker ps -aq --filter "publish=8080" 2>/dev/null)
-            [ -n "$CIDS_8080" ] && sudo docker rm -f $CIDS_8080 2>/dev/null || true
             # 2. Stop the existing Makulu explorer container
             sudo docker compose stop explorer 2>/dev/null || true
             sudo docker compose rm -f explorer 2>/dev/null || true
             # 3. Force-remove any remaining container on ports 3100 or 8080
+            echo "── Checking what's on ports 3100 and 8080:"
+            sudo ss -tlnp | grep -E ':3100|:8080' || echo "  (nothing)"
+            sudo docker ps --format "{{.Names}} {{.Ports}}" | grep -E '3100|8080' || echo "  (no docker containers)"
             for PORT in 3100 8080; do
               CIDS=$(sudo docker ps -aq --filter "publish=${PORT}" 2>/dev/null)
-              [ -n "$CIDS" ] && sudo docker rm -f $CIDS 2>/dev/null || true
+              [ -n "$CIDS" ] && echo "  Removing containers on :${PORT}: $CIDS" && sudo docker rm -f $CIDS 2>/dev/null || true
             done
             # 4. Kill any process still holding ports 3100 or 8080
             for PORT in 3100 8080; do
-              sudo ss -Htlnp | grep -w ":${PORT}" | grep -oP 'pid=\K[0-9]+' \
-                | sort -u | xargs -r sudo kill -9 2>/dev/null || true
+              PIDS=$(sudo ss -Htlnp | grep -w ":${PORT}" | grep -oP 'pid=\K[0-9]+' | sort -u)
+              [ -n "$PIDS" ] && echo "  Killing PIDs on :${PORT}: $PIDS" && echo "$PIDS" | xargs -r sudo kill -9 2>/dev/null || true
             done
+            echo "── After cleanup:"
+            sudo ss -tlnp | grep -E ':3100|:8080' || echo "  (ports free)"
 
             echo "🐳 Building all images (no cache)..."
             sudo docker compose build --no-cache api indexer explorer
