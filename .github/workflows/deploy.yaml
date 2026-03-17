@@ -1,19 +1,12 @@
 # ============================================================================
-# Lithosphere Deployment Pipeline - Phase 4
-# Push-based CD with SLSA signature verification
+# Lithosphere Deployment Pipeline - Phase 4 (DEPRECATED)
+# Replaced by deploy-simple.yaml which uses AWS SSM instead of SSH/bastion.
+# Automatic triggers removed — manual dispatch only for emergency use.
 # ============================================================================
 
-name: Deploy
+name: Deploy (legacy SSH)
 
 on:
-  # Trigger after successful release workflow
-  workflow_run:
-    workflows: ["Release"]
-    types:
-      - completed
-    branches:
-      - main
-
   # Manual deployment trigger with environment selection
   workflow_dispatch:
     inputs:
