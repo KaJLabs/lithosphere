@@ -99,6 +99,8 @@ function mapBlockDetail(r: BlockRow, txs: Array<TxRow & { evm_hash?: string | nu
   return {
     ...mapBlock(r),
     parentHash: null,
+    proposerAddress: r.proposer_address ?? null,
+    gasUsed: r.total_gas ?? '0',
     txs: txs.map((t) => mapTx(t, t.evm_hash)),
   };
 }

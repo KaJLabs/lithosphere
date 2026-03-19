@@ -18,6 +18,8 @@ export interface ApiBlock {
   height: number;
   hash: string;
   parentHash?: string;
+  proposerAddress?: string | null;
+  gasUsed?: string;
   timestamp: string;
   txCount: number;
   txs?: ApiTx[];

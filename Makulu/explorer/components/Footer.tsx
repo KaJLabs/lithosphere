@@ -15,7 +15,7 @@ export default function Footer() {
         </div>
         <div className="flex items-center gap-4">
           <a href="https://litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
-            Website
+            LITHO.ai
           </a>
           <a href="https://access.litho.ai/" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
             ACCESS
