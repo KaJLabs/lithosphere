@@ -155,12 +155,16 @@ export default function TransactionsPage() {
                   {/* To */}
                   <div className="flex items-center md:block">
                     <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">To</span>
-                    <Link
-                      href={`/address/${tx.toAddr}`}
-                      className="font-mono text-sm text-white/70 hover:text-white transition truncate"
-                    >
-                      {tx.toAddr ? truncateHash(tx.toAddr, 10, 6) : '—'}
-                    </Link>
+                    {tx.toAddr ? (
+                      <Link
+                        href={`/address/${tx.toAddr}`}
+                        className="font-mono text-sm text-white/70 hover:text-white transition truncate"
+                      >
+                        {truncateHash(tx.toAddr, 10, 6)}
+                      </Link>
+                    ) : (
+                      <span className="text-sm text-white/30">&mdash;</span>
+                    )}
                   </div>
 
                   {/* Value */}

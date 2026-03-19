@@ -248,7 +248,7 @@ export default function Home() {
                           <div>
                             To:{' '}
                             <span className="text-white font-mono">
-                              {truncateHash(tx.toAddr)}
+                              {tx.toAddr ? truncateHash(tx.toAddr) : '—'}
                             </span>
                           </div>
                           <div>

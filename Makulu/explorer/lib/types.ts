@@ -30,7 +30,7 @@ export interface ApiTx {
   evmHash?: string;
   blockHeight: number;
   fromAddr: string;
-  toAddr: string;
+  toAddr: string | null;
   value: string;
   denom?: string;
   feePaid: string;

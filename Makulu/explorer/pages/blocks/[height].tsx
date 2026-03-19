@@ -77,11 +77,11 @@ export default function BlockDetailPage() {
     {
       key: 'to',
       header: 'To',
-      render: (tx) => (
+      render: (tx) => tx.toAddr ? (
         <Link href={`/address/${tx.toAddr}`} className="font-mono text-sm text-emerald-300 hover:text-emerald-200">
           {truncateHash(tx.toAddr)}
         </Link>
-      ),
+      ) : <span className="text-white/30">&mdash;</span>,
     },
     {
       key: 'value',

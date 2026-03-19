@@ -420,7 +420,7 @@ export function explorerRouter(): Router {
         created_at: Date;
       }>(
         `SELECT address, name, symbol, decimals, total_supply, creator, created_at
-         FROM contracts WHERE is_token = true ORDER BY created_at DESC LIMIT 100`
+         FROM contracts WHERE contract_type = 'token' OR symbol IS NOT NULL ORDER BY created_at DESC LIMIT 100`
       ).catch(() => []);
 
       const tokens = [
