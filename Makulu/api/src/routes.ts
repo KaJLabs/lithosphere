@@ -92,6 +92,7 @@ function mapBlock(r: BlockRow) {
     hash: r.hash,
     timestamp: r.block_time instanceof Date ? r.block_time.toISOString() : String(r.block_time),
     txCount: r.num_txs ?? 0,
+    gasUsed: r.total_gas ?? '0',
   };
 }
 
