@@ -44,6 +44,17 @@ export interface ApiTx {
   nonce?: number;
   gasPrice?: string;
   inputData?: string;
+  rawLog?: string;
+}
+
+export interface ApiToken {
+  symbol: string;
+  name: string;
+  decimals: number;
+  contractAddress?: string;
+  totalSupply?: string;
+  holders?: number;
+  type: 'native' | 'LEP100';
 }
 
 export interface ApiTxList {

@@ -121,6 +121,7 @@ function mapTx(r: TxRow, evmHash?: string | null) {
     method: r.tx_type ?? undefined,
     memo: r.memo ?? undefined,
     timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
+    rawLog: r.raw_log ?? undefined,
   };
 }
 
@@ -400,6 +401,79 @@ export function explorerRouter(): Router {
       res.json(rows.map(mapValidator));
     } catch (err) {
       console.error('[api] /validators error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Tokens ─────────────────────────────────────────────────────────
+
+  r.get('/tokens', async (_req: Request, res: Response) => {
+    try {
+      // Query contracts table for deployed tokens, fall back to known tokens
+      const contractTokens = await query<{
+        address: string;
+        name: string | null;
+        symbol: string | null;
+        decimals: number | null;
+        total_supply: string | null;
+        creator: string | null;
+        created_at: Date;
+      }>(
+        `SELECT address, name, symbol, decimals, total_supply, creator, created_at
+         FROM contracts WHERE is_token = true ORDER BY created_at DESC LIMIT 100`
+      ).catch(() => []);
+
+      const tokens = [
+        {
+          symbol: 'LITHO',
+          name: 'Lithosphere',
+          decimals: 18,
+          totalSupply: '1000000000',
+          type: 'native',
+          holders: null,
+          contractAddress: null,
+        },
+        {
+          symbol: 'wLITHO',
+          name: 'Wrapped LITHO',
+          decimals: 18,
+          totalSupply: null,
+          type: 'LEP100',
+          holders: null,
+          contractAddress: null,
+        },
+        {
+          symbol: 'USDL',
+          name: 'USD Lithosphere',
+          decimals: 18,
+          totalSupply: null,
+          type: 'LEP100',
+          holders: null,
+          contractAddress: null,
+        },
+        {
+          symbol: 'mBTC',
+          name: 'Micro Bitcoin (Lithosphere)',
+          decimals: 18,
+          totalSupply: null,
+          type: 'LEP100',
+          holders: null,
+          contractAddress: null,
+        },
+        ...contractTokens.map((c) => ({
+          symbol: c.symbol ?? 'Unknown',
+          name: c.name ?? 'Unknown Token',
+          decimals: c.decimals ?? 18,
+          totalSupply: c.total_supply,
+          type: 'LEP100' as const,
+          holders: null,
+          contractAddress: c.address,
+        })),
+      ];
+
+      res.json(tokens);
+    } catch (err) {
+      console.error('[api] /tokens error:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
   });

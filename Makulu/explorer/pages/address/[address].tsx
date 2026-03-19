@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -6,25 +7,36 @@ import { EXPLORER_TITLE } from '@/lib/constants';
 import { formatNumber, truncateHash, timeAgo, formatTimestamp } from '@/lib/format';
 import type { ApiAddress, ApiTx } from '@/lib/types';
 
+/* ── Tabs ─────────────────────────────────────────────────────────────── */
+
+const TABS = [
+  { key: 'transactions', label: 'Transactions' },
+  { key: 'transfers', label: 'Transfers' },
+  { key: 'tokens', label: 'Tokens' },
+] as const;
+
+type TabKey = (typeof TABS)[number]['key'];
+
+/* ── Small helpers ────────────────────────────────────────────────────── */
+
 function CopyBtn({ text }: { text: string }) {
-  const copy = () => navigator.clipboard?.writeText(text).catch(() => {});
+  const [copied, setCopied] = useState(false);
+
+  const copy = useCallback(() => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {});
+  }, [text]);
+
   return (
     <button
       onClick={copy}
       className="ml-2 rounded-lg border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/50 hover:text-white/80 transition"
-      title="Copy"
+      title="Copy to clipboard"
     >
-      copy
+      {copied ? 'copied!' : 'copy'}
     </button>
-  );
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 py-4 border-b border-white/5 last:border-0">
-      <div className="sm:w-44 shrink-0 text-sm text-white/45">{label}</div>
-      <div className="flex-1 text-sm text-white break-all">{children}</div>
-    </div>
   );
 }
 
@@ -37,10 +49,217 @@ function StatusDot({ success }: { success: boolean }) {
   );
 }
 
+/* ── Skeleton loaders ─────────────────────────────────────────────────── */
+
+function PageSkeleton() {
+  return (
+    <div className="text-white animate-pulse space-y-6">
+      {/* Header skeleton */}
+      <div className="space-y-3">
+        <div className="h-5 rounded bg-white/10 w-24" />
+        <div className="h-8 rounded-xl bg-white/10 w-2/3" />
+      </div>
+      {/* Cards skeleton */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
+            <div className="h-3 rounded bg-white/10 w-20" />
+            <div className="h-6 rounded bg-white/10 w-28" />
+          </div>
+        ))}
+      </div>
+      {/* Tab bar skeleton */}
+      <div className="flex gap-6 border-b border-white/10 pb-0">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="h-4 rounded bg-white/10 w-24 mb-3" />
+        ))}
+      </div>
+      {/* Table skeleton */}
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-4 space-y-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex gap-4">
+            <div className="h-4 rounded bg-white/10 w-1/3" />
+            <div className="h-4 rounded bg-white/10 w-1/4" />
+            <div className="h-4 rounded bg-white/10 w-1/4" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TableSkeleton({ rows = 8 }: { rows?: number }) {
+  return (
+    <div>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex gap-4 px-5 py-4 border-b border-white/5 animate-pulse">
+          <div className="h-4 rounded bg-white/10 w-1/3" />
+          <div className="h-4 rounded bg-white/10 w-1/6" />
+          <div className="h-4 rounded bg-white/10 w-1/4" />
+          <div className="h-4 rounded bg-white/10 w-1/4" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Transaction table (shared between Transactions & Transfers tabs) ── */
+
+function TxTable({
+  txs,
+  loading,
+  currentAddr,
+  emptyLabel,
+}: {
+  txs: ApiTx[] | null;
+  loading: boolean;
+  currentAddr: string;
+  emptyLabel: string;
+}) {
+  if (loading) {
+    return <TableSkeleton />;
+  }
+
+  if (!txs || txs.length === 0) {
+    return (
+      <div className="py-16 text-center text-white/40">
+        <div className="text-base font-medium mb-1">{emptyLabel}</div>
+        <div className="text-sm">This address has no indexed activity yet.</div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Desktop header */}
+      <div className="hidden md:grid grid-cols-[1.8fr_0.8fr_1.4fr_1.4fr_1fr_0.7fr_0.8fr] gap-4 px-5 py-3 border-b border-white/10 text-xs font-medium text-white/40 uppercase tracking-wide">
+        <div>Tx Hash</div>
+        <div>Block</div>
+        <div>From</div>
+        <div>To</div>
+        <div>Value</div>
+        <div>Method</div>
+        <div>Age</div>
+      </div>
+
+      {/* Rows */}
+      <div>
+        {txs.map((tx) => (
+          <div
+            key={tx.hash}
+            className="grid grid-cols-1 md:grid-cols-[1.8fr_0.8fr_1.4fr_1.4fr_1fr_0.7fr_0.8fr] gap-3 md:gap-4 px-5 py-4 border-b border-white/5 hover:bg-white/[0.03] transition"
+          >
+            {/* Hash */}
+            <div className="flex items-center gap-2">
+              <StatusDot success={tx.success} />
+              <Link
+                href={`/txs/${tx.evmHash || tx.hash}`}
+                className="font-mono text-sm text-emerald-300 hover:text-emerald-200 transition truncate"
+              >
+                {truncateHash(tx.evmHash || tx.hash)}
+              </Link>
+            </div>
+
+            {/* Block */}
+            <div className="flex items-center md:block">
+              <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Block</span>
+              <Link
+                href={`/blocks/${tx.blockHeight}`}
+                className="font-mono text-sm text-white/80 hover:text-white transition"
+              >
+                #{formatNumber(tx.blockHeight)}
+              </Link>
+            </div>
+
+            {/* From */}
+            <div className="flex items-center md:block">
+              <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">From</span>
+              <Link
+                href={`/address/${tx.fromAddr}`}
+                className={`font-mono text-sm transition truncate ${
+                  tx.fromAddr === currentAddr
+                    ? 'text-white/50'
+                    : 'text-emerald-300 hover:text-emerald-200'
+                }`}
+              >
+                {truncateHash(tx.fromAddr, 10, 6)}
+              </Link>
+            </div>
+
+            {/* To */}
+            <div className="flex items-center md:block">
+              <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">To</span>
+              {tx.toAddr ? (
+                <Link
+                  href={`/address/${tx.toAddr}`}
+                  className={`font-mono text-sm transition truncate ${
+                    tx.toAddr === currentAddr
+                      ? 'text-white/50'
+                      : 'text-emerald-300 hover:text-emerald-200'
+                  }`}
+                >
+                  {truncateHash(tx.toAddr, 10, 6)}
+                </Link>
+              ) : (
+                <span className="text-sm text-white/30">&mdash;</span>
+              )}
+            </div>
+
+            {/* Value */}
+            <div className="flex items-center md:block">
+              <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Value</span>
+              <span className="text-sm font-mono text-white/80">
+                {tx.value && tx.value !== '0' ? `${tx.value} ${tx.denom ?? 'ulitho'}` : '0'}
+              </span>
+            </div>
+
+            {/* Method */}
+            <div className="flex items-center md:block">
+              <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Method</span>
+              {tx.method ? (
+                <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">
+                  {tx.method}
+                </span>
+              ) : (
+                <span className="text-sm text-white/30">&mdash;</span>
+              )}
+            </div>
+
+            {/* Age */}
+            <div className="flex items-center md:block">
+              <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Age</span>
+              <span className="text-sm text-white/50">
+                {tx.timestamp ? timeAgo(tx.timestamp) : '—'}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/* ── Tokens tab placeholder ───────────────────────────────────────────── */
+
+function TokensTab() {
+  return (
+    <div className="py-16 text-center text-white/40">
+      <div className="text-base font-medium mb-1">No token balances found</div>
+      <div className="text-sm">Token balance tracking is not yet available for this address.</div>
+    </div>
+  );
+}
+
+/* ── Main page ────────────────────────────────────────────────────────── */
+
 export default function AddressPage() {
   const router = useRouter();
-  const { address } = router.query;
+  const { address, tab } = router.query;
   const addr = typeof address === 'string' ? address : '';
+  const activeTab: TabKey =
+    typeof tab === 'string' && TABS.some((t) => t.key === tab)
+      ? (tab as TabKey)
+      : 'transactions';
 
   const { data: account, loading: accountLoading, error: accountError } =
     useApi<ApiAddress>(addr ? `/address/${addr}` : null);
@@ -48,18 +267,24 @@ export default function AddressPage() {
   const { data: txs, loading: txsLoading } =
     useApi<ApiTx[]>(addr ? `/address/${addr}/txs?limit=25` : null);
 
+  const setTab = useCallback(
+    (key: TabKey) => {
+      router.push(
+        { pathname: router.pathname, query: { address: addr, tab: key } },
+        undefined,
+        { shallow: true },
+      );
+    },
+    [router, addr],
+  );
+
+  /* ── Loading state ─────────────────────────────────────────────────── */
+
   if (accountLoading) {
-    return (
-      <div className="text-white animate-pulse space-y-4">
-        <div className="h-8 rounded-2xl bg-white/10 w-1/3" />
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 space-y-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-4 rounded bg-white/10 w-full" />
-          ))}
-        </div>
-      </div>
-    );
+    return <PageSkeleton />;
   }
+
+  /* ── Error / not found ─────────────────────────────────────────────── */
 
   if (accountError || !account) {
     return (
@@ -70,12 +295,14 @@ export default function AddressPage() {
             {accountError ?? 'This address has no indexed activity yet.'}
           </div>
           <Link href="/" className="text-sm text-emerald-300 hover:text-emerald-200">
-            ← Back to Explorer
+            &larr; Back to Explorer
           </Link>
         </div>
       </div>
     );
   }
+
+  /* ── Render ─────────────────────────────────────────────────────────── */
 
   return (
     <>
@@ -83,18 +310,30 @@ export default function AddressPage() {
         <title>Address {truncateHash(account.address, 12, 6)} | {EXPLORER_TITLE}</title>
       </Head>
 
-      <div className="text-white">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-white/40 mb-6">
-          <Link href="/" className="hover:text-white/70 transition">Home</Link>
-          <span>/</span>
-          <span className="text-white/70">Address</span>
+      <div className="text-white space-y-6">
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <div>
+          <div className="flex items-center gap-2 text-sm text-white/40 mb-4">
+            <Link href="/" className="hover:text-white/70 transition">Home</Link>
+            <span>/</span>
+            <span className="text-white/70">Address</span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <h1 className="text-2xl font-semibold break-all">
+              <span className="font-mono">{account.address}</span>
+            </h1>
+            <div className="flex items-center gap-2 shrink-0">
+              <CopyBtn text={account.address} />
+              <span className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
+                {account.txCount > 0 ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <h1 className="text-2xl font-semibold mb-6">Address Details</h1>
-
-        {/* Summary cards */}
-        <div className="grid gap-4 sm:grid-cols-3 mb-6">
+        {/* ── Overview cards ──────────────────────────────────────────── */}
+        <div className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
             <div className="text-sm text-white/45 mb-1">Balance</div>
             <div className="text-xl font-semibold">
@@ -113,152 +352,54 @@ export default function AddressPage() {
           </div>
         </div>
 
-        {/* Detail card */}
-        <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-2 mb-8">
-          <Row label="Address">
-            <span className="font-mono">{account.address}</span>
-            <CopyBtn text={account.address} />
-          </Row>
-          <Row label="Balance">
-            <span className="font-mono">
-              {account.balance && account.balance !== '0' ? account.balance : '0'}
-            </span>
-          </Row>
-          <Row label="Transactions">
-            {formatNumber(account.txCount)}
-          </Row>
-          {account.lastSeen && (
-            <Row label="Last Active">
-              {formatTimestamp(account.lastSeen)}
-            </Row>
-          )}
+        {/* ── Tab bar ─────────────────────────────────────────────────── */}
+        <div className="border-b border-white/10">
+          <nav className="flex gap-6 -mb-px" aria-label="Address tabs">
+            {TABS.map((t) => {
+              const isActive = activeTab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`pb-3 text-sm font-medium transition border-b-2 ${
+                    isActive
+                      ? 'border-emerald-400 text-white'
+                      : 'border-transparent text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  {t.label}
+                  {t.key === 'transactions' && account.txCount > 0 && (
+                    <span className="ml-1.5 text-xs text-white/35">
+                      ({formatNumber(account.txCount)})
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* Transactions */}
-        <div>
-          <div className="mb-4">
-            <div className="text-sm text-white/55">Transaction History</div>
-            <h2 className="text-xl font-semibold">Latest Transactions</h2>
-          </div>
+        {/* ── Tab content ─────────────────────────────────────────────── */}
+        <div className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
+          {activeTab === 'transactions' && (
+            <TxTable
+              txs={txs}
+              loading={txsLoading}
+              currentAddr={addr}
+              emptyLabel="No transactions found"
+            />
+          )}
 
-          <div className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
-            {/* Table header */}
-            <div className="hidden md:grid grid-cols-[1.8fr_0.8fr_1.4fr_1.4fr_1fr_0.7fr_0.8fr] gap-4 px-5 py-3 border-b border-white/10 text-xs font-medium text-white/40 uppercase tracking-wide">
-              <div>Tx Hash</div>
-              <div>Block</div>
-              <div>From</div>
-              <div>To</div>
-              <div>Value</div>
-              <div>Method</div>
-              <div>Age</div>
-            </div>
+          {activeTab === 'transfers' && (
+            <TxTable
+              txs={txs}
+              loading={txsLoading}
+              currentAddr={addr}
+              emptyLabel="No transfers found"
+            />
+          )}
 
-            {txsLoading ? (
-              <div>
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="flex gap-4 px-5 py-4 border-b border-white/5 animate-pulse">
-                    <div className="h-4 rounded bg-white/10 w-1/3" />
-                    <div className="h-4 rounded bg-white/10 w-1/4" />
-                    <div className="h-4 rounded bg-white/10 w-1/4" />
-                  </div>
-                ))}
-              </div>
-            ) : !txs || txs.length === 0 ? (
-              <div className="py-16 text-center text-white/40">
-                <div className="text-base font-medium mb-1">No transactions found</div>
-                <div className="text-sm">This address has no indexed transactions yet.</div>
-              </div>
-            ) : (
-              <div>
-                {txs.map((tx) => (
-                  <div
-                    key={tx.hash}
-                    className="grid grid-cols-1 md:grid-cols-[1.8fr_0.8fr_1.4fr_1.4fr_1fr_0.7fr_0.8fr] gap-3 md:gap-4 px-5 py-4 border-b border-white/5 hover:bg-white/[0.03] transition"
-                  >
-                    {/* Hash */}
-                    <div className="flex items-center gap-2">
-                      <StatusDot success={tx.success} />
-                      <Link
-                        href={`/txs/${tx.evmHash || tx.hash}`}
-                        className="font-mono text-sm text-emerald-300 hover:text-emerald-200 transition truncate"
-                      >
-                        {truncateHash(tx.evmHash || tx.hash)}
-                      </Link>
-                    </div>
-
-                    {/* Block */}
-                    <div className="flex items-center md:block">
-                      <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Block</span>
-                      <Link
-                        href={`/blocks/${tx.blockHeight}`}
-                        className="font-mono text-sm text-white/80 hover:text-white transition"
-                      >
-                        #{formatNumber(tx.blockHeight)}
-                      </Link>
-                    </div>
-
-                    {/* From */}
-                    <div className="flex items-center md:block">
-                      <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">From</span>
-                      <Link
-                        href={`/address/${tx.fromAddr}`}
-                        className={`font-mono text-sm transition truncate ${
-                          tx.fromAddr === addr
-                            ? 'text-white/50'
-                            : 'text-emerald-300 hover:text-emerald-200'
-                        }`}
-                      >
-                        {truncateHash(tx.fromAddr, 10, 6)}
-                      </Link>
-                    </div>
-
-                    {/* To */}
-                    <div className="flex items-center md:block">
-                      <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">To</span>
-                      <Link
-                        href={`/address/${tx.toAddr}`}
-                        className={`font-mono text-sm transition truncate ${
-                          tx.toAddr === addr
-                            ? 'text-white/50'
-                            : 'text-emerald-300 hover:text-emerald-200'
-                        }`}
-                      >
-                        {tx.toAddr ? truncateHash(tx.toAddr, 10, 6) : '—'}
-                      </Link>
-                    </div>
-
-                    {/* Value */}
-                    <div className="flex items-center md:block">
-                      <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Value</span>
-                      <span className="text-sm font-mono text-white/80">
-                        {tx.value && tx.value !== '0' ? `${tx.value} ${tx.denom ?? 'ulitho'}` : '0'}
-                      </span>
-                    </div>
-
-                    {/* Method */}
-                    <div className="flex items-center md:block">
-                      <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Method</span>
-                      {tx.method ? (
-                        <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">
-                          {tx.method}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-white/30">—</span>
-                      )}
-                    </div>
-
-                    {/* Age */}
-                    <div className="flex items-center md:block">
-                      <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Age</span>
-                      <span className="text-sm text-white/50">
-                        {tx.timestamp ? timeAgo(tx.timestamp) : '—'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {activeTab === 'tokens' && <TokensTab />}
         </div>
       </div>
     </>
