@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
 import { formatNumber, truncateHash } from '@/lib/format';
@@ -51,10 +52,12 @@ function SkeletonRow() {
       <td className="px-4 py-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse" />
-          <div className="h-4 w-16 bg-white/10 rounded animate-pulse" />
+          <div className="space-y-1">
+            <div className="h-4 w-16 bg-white/10 rounded animate-pulse" />
+            <div className="h-3 w-24 bg-white/10 rounded animate-pulse" />
+          </div>
         </div>
       </td>
-      <td className="px-4 py-4"><div className="h-4 w-28 bg-white/10 rounded animate-pulse" /></td>
       <td className="px-4 py-4"><div className="h-5 w-16 bg-white/10 rounded-full animate-pulse" /></td>
       <td className="px-4 py-4"><div className="h-4 w-24 bg-white/10 rounded animate-pulse" /></td>
       <td className="px-4 py-4"><div className="h-4 w-12 bg-white/10 rounded animate-pulse" /></td>
@@ -82,6 +85,7 @@ function SkeletonCard() {
 }
 
 export default function TokensPage() {
+  const router = useRouter();
   const { data: tokens, loading, error } = useApi<ApiToken[]>('/tokens');
   const [page, setPage] = useState(1);
 
@@ -129,11 +133,10 @@ export default function TokensPage() {
                     <tr className="border-b border-white/10">
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">#</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Token</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Name</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Type</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Total Supply</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Holders</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Contract Address</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Address</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -172,28 +175,32 @@ export default function TokensPage() {
                     <tr className="border-b border-white/10">
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide w-12">#</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Token</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Name</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Type</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-white/40 uppercase tracking-wide">Total Supply</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-white/40 uppercase tracking-wide">Holders</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Contract Address</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Address</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pageTokens.map((token, idx) => (
-                      <tr
-                        key={token.contractAddress ?? token.symbol}
-                        className="border-b border-white/5 hover:bg-white/[0.03] transition"
-                      >
-                        {/* # */}
-                        <td className="px-4 py-4 text-sm text-white/40">
-                          {startIdx + idx + 1}
-                        </td>
+                    {pageTokens.map((token, idx) => {
+                      const tokenHref = token.contractAddress
+                        ? `/address/${token.contractAddress}`
+                        : `/token/${token.symbol}`;
 
-                        {/* Token (avatar + symbol + name) */}
-                        <td className="px-4 py-4">
-                          {token.contractAddress ? (
-                            <Link href={`/address/${token.contractAddress}`} className="flex items-center gap-3 group">
+                      return (
+                        <tr
+                          key={token.contractAddress ?? token.symbol}
+                          className="border-b border-white/5 hover:bg-white/[0.03] transition cursor-pointer"
+                          onClick={() => router.push(tokenHref)}
+                        >
+                          {/* # */}
+                          <td className="px-4 py-4 text-sm text-white/40">
+                            {startIdx + idx + 1}
+                          </td>
+
+                          {/* Token (avatar + symbol + name) */}
+                          <td className="px-4 py-4">
+                            <Link href={tokenHref} className="flex items-center gap-3 group">
                               <div
                                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${getAvatarColor(token.symbol)}`}
                               >
@@ -206,113 +213,100 @@ export default function TokensPage() {
                                 <div className="text-xs text-white/40">{token.name}</div>
                               </div>
                             </Link>
-                          ) : (
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${getAvatarColor(token.symbol)}`}
+                          </td>
+
+                          {/* Type */}
+                          <td className="px-4 py-4">
+                            <TokenTypeBadge type={token.type} />
+                          </td>
+
+                          {/* Total Supply */}
+                          <td className="px-4 py-4 text-sm text-white/70 text-right tabular-nums">
+                            {token.totalSupply ? formatNumber(token.totalSupply) : '-'}
+                          </td>
+
+                          {/* Holders */}
+                          <td className="px-4 py-4 text-sm text-white/70 text-right tabular-nums">
+                            {token.holders != null ? formatNumber(token.holders) : '-'}
+                          </td>
+
+                          {/* Contract Address */}
+                          <td className="px-4 py-4 text-sm">
+                            {token.contractAddress ? (
+                              <Link
+                                href={`/address/${token.contractAddress}`}
+                                className="text-emerald-300 hover:text-emerald-200 font-mono transition"
                               >
-                                {token.symbol.charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <span className="text-sm font-semibold text-white">{token.symbol}</span>
-                                <div className="text-xs text-white/40">{token.name}</div>
-                              </div>
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Name */}
-                        <td className="px-4 py-4 text-sm text-white/70">
-                          {token.name}
-                        </td>
-
-                        {/* Type */}
-                        <td className="px-4 py-4">
-                          <TokenTypeBadge type={token.type} />
-                        </td>
-
-                        {/* Total Supply */}
-                        <td className="px-4 py-4 text-sm text-white/70 text-right tabular-nums">
-                          {token.totalSupply ? formatNumber(token.totalSupply) : '-'}
-                        </td>
-
-                        {/* Holders */}
-                        <td className="px-4 py-4 text-sm text-white/70 text-right tabular-nums">
-                          {token.holders != null ? formatNumber(token.holders) : '-'}
-                        </td>
-
-                        {/* Contract Address */}
-                        <td className="px-4 py-4 text-sm">
-                          {token.contractAddress ? (
-                            <Link
-                              href={`/address/${token.contractAddress}`}
-                              className="text-emerald-300 hover:text-emerald-200 font-mono transition"
-                            >
-                              {truncateHash(token.contractAddress)}
-                            </Link>
-                          ) : (
-                            <span className="text-white/30">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                                {truncateHash(token.contractAddress)}
+                              </Link>
+                            ) : (
+                              <span className="text-white/30">Native</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
 
               {/* Mobile cards */}
               <div className="md:hidden p-4 space-y-3">
-                {pageTokens.map((token, idx) => (
-                  <div
-                    key={token.contractAddress ?? token.symbol}
-                    className="bg-white/[0.03] rounded-2xl p-4 border border-white/5"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white ${getAvatarColor(token.symbol)}`}
-                        >
-                          {token.symbol.charAt(0).toUpperCase()}
+                {pageTokens.map((token, idx) => {
+                  const cardHref = token.contractAddress
+                    ? `/address/${token.contractAddress}`
+                    : `/token/${token.symbol}`;
+
+                  return (
+                    <Link
+                      key={token.contractAddress ?? token.symbol}
+                      href={cardHref}
+                      className="block bg-white/[0.03] rounded-2xl p-4 border border-white/5 hover:bg-white/[0.06] transition"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white ${getAvatarColor(token.symbol)}`}
+                          >
+                            {token.symbol.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-white">{token.symbol}</div>
+                            <div className="text-xs text-white/40">{token.name}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-white/30">#{startIdx + idx + 1}</span>
+                          <TokenTypeBadge type={token.type} />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <div className="text-xs text-white/30 mb-0.5">Total Supply</div>
+                          <div className="text-white/70 tabular-nums">
+                            {token.totalSupply ? formatNumber(token.totalSupply) : '-'}
+                          </div>
                         </div>
                         <div>
-                          <div className="text-sm font-semibold text-white">{token.symbol}</div>
-                          <div className="text-xs text-white/40">{token.name}</div>
+                          <div className="text-xs text-white/30 mb-0.5">Holders</div>
+                          <div className="text-white/70 tabular-nums">
+                            {token.holders != null ? formatNumber(token.holders) : '-'}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-white/30">#{startIdx + idx + 1}</span>
-                        <TokenTypeBadge type={token.type} />
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <div className="text-xs text-white/30 mb-0.5">Total Supply</div>
-                        <div className="text-white/70 tabular-nums">
-                          {token.totalSupply ? formatNumber(token.totalSupply) : '-'}
+                      {token.contractAddress && (
+                        <div className="mt-3 pt-3 border-t border-white/5">
+                          <div className="text-xs text-white/30 mb-0.5">Contract</div>
+                          <span className="text-emerald-300 text-sm font-mono">
+                            {truncateHash(token.contractAddress, 16, 8)}
+                          </span>
                         </div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-white/30 mb-0.5">Holders</div>
-                        <div className="text-white/70 tabular-nums">
-                          {token.holders != null ? formatNumber(token.holders) : '-'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {token.contractAddress && (
-                      <div className="mt-3 pt-3 border-t border-white/5">
-                        <div className="text-xs text-white/30 mb-0.5">Contract</div>
-                        <Link
-                          href={`/address/${token.contractAddress}`}
-                          className="text-emerald-300 hover:text-emerald-200 text-sm font-mono transition"
-                        >
-                          {truncateHash(token.contractAddress, 16, 8)}
-                        </Link>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </Link>
+                  );
+                })}
               </div>
 
               {/* Pagination */}
