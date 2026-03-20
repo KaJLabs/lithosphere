@@ -29,6 +29,9 @@ export default function Footer() {
           <a href="https://vote.litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
             Governance
           </a>
+          <a href="https://lithiclang.ai/verifier" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
+            Contracts
+          </a>
           <a href="https://status.litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
             Status
           </a>

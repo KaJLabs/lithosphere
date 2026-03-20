@@ -14,12 +14,9 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Home', href: '/' },
   { label: 'Blocks', href: '/blocks' },
   { label: 'Transactions', href: '/txs' },
-  { label: 'Validators', href: 'https://validator.litho.ai', external: true },
-  { label: 'Contracts', href: 'https://lithiclang.ai/verifier', external: true },
   { label: 'Tokens', href: '/tokens' },
-  { label: 'Governance', href: 'https://vote.litho.ai', external: true },
-  { label: 'LITHO TGE', href: 'https://portal.litho.ai', external: true },
   { label: 'Faucet', href: '/faucet' },
+  { label: 'LITHO TGE', href: 'https://portal.litho.ai', external: true },
 ];
 
 export default function Header() {
