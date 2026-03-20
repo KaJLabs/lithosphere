@@ -66,6 +66,8 @@ export interface ApiTxList {
 
 export interface ApiAddress {
   address: string;
+  evmAddress?: string;
+  cosmosAddress?: string;
   balance: string;
   txCount: number;
   lastSeen: string;

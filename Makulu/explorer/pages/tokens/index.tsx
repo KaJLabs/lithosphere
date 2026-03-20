@@ -190,18 +190,35 @@ export default function TokensPage() {
                           {startIdx + idx + 1}
                         </td>
 
-                        {/* Token (avatar + symbol) */}
+                        {/* Token (avatar + symbol + name) */}
                         <td className="px-4 py-4">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${getAvatarColor(token.symbol)}`}
-                            >
-                              {token.symbol.charAt(0).toUpperCase()}
+                          {token.contractAddress ? (
+                            <Link href={`/address/${token.contractAddress}`} className="flex items-center gap-3 group">
+                              <div
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${getAvatarColor(token.symbol)}`}
+                              >
+                                {token.symbol.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <span className="text-sm font-semibold text-white group-hover:text-emerald-300 transition">
+                                  {token.symbol}
+                                </span>
+                                <div className="text-xs text-white/40">{token.name}</div>
+                              </div>
+                            </Link>
+                          ) : (
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${getAvatarColor(token.symbol)}`}
+                              >
+                                {token.symbol.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <span className="text-sm font-semibold text-white">{token.symbol}</span>
+                                <div className="text-xs text-white/40">{token.name}</div>
+                              </div>
                             </div>
-                            <span className="text-sm font-semibold text-white">
-                              {token.symbol}
-                            </span>
-                          </div>
+                          )}
                         </td>
 
                         {/* Name */}

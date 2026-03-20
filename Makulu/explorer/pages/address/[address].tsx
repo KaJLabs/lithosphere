@@ -510,6 +510,13 @@ function WalletLayout({
 }) {
   const resolvedTab = WALLET_TABS.some((t) => t.key === activeTab) ? activeTab : 'transactions';
 
+  // Show alternate address format if available
+  const altAddress = account.evmAddress && account.evmAddress !== account.address
+    ? account.evmAddress
+    : account.cosmosAddress && account.cosmosAddress !== account.address
+      ? account.cosmosAddress
+      : null;
+
   return (
     <div className="text-white space-y-6">
       {/* ── Header ──────────────────────────────────────────────────── */}
@@ -537,6 +544,15 @@ function WalletLayout({
             </span>
           </div>
         </div>
+
+        {/* Show alternate address format */}
+        {altAddress && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-white/40">
+            <span>{altAddress.startsWith('0x') ? 'EVM' : 'Cosmos'}:</span>
+            <span className="font-mono text-white/55">{altAddress}</span>
+            <CopyBtn text={altAddress} />
+          </div>
+        )}
       </div>
 
       {/* ── Overview cards ──────────────────────────────────────────── */}

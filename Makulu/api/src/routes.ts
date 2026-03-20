@@ -84,6 +84,14 @@ interface EvmTxRow {
 
 interface CountRow { count: string }
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Strip Ethereum branding from Cosmos SDK method names */
+function cleanMethod(m: string | null | undefined): string | undefined {
+  if (!m) return undefined;
+  return m.replace(/MsgEthereumTx/g, 'MsgTx');
+}
+
 // ── Mappers → Explorer-expected shapes ──────────────────────────────────────
 
 function mapBlock(r: BlockRow) {
@@ -119,7 +127,7 @@ function mapTx(r: TxRow, evmHash?: string | null) {
     gasUsed: r.gas_used ?? null,
     gasWanted: r.gas_wanted ?? null,
     success: r.success,
-    method: r.tx_type ?? undefined,
+    method: cleanMethod(r.tx_type),
     memo: r.memo ?? undefined,
     timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
     rawLog: r.raw_log ?? undefined,
@@ -139,7 +147,7 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
     gasUsed: evm.gas_used != null ? String(evm.gas_used) : cosmosTx?.gas_used ?? null,
     gasWanted: evm.gas_limit != null ? String(evm.gas_limit) : cosmosTx?.gas_wanted ?? null,
     success: evm.status,
-    method: cosmosTx?.tx_type ?? 'MsgTx',
+    method: cleanMethod(cosmosTx?.tx_type) ?? 'MsgTx',
     memo: cosmosTx?.memo ?? undefined,
     timestamp: evm.timestamp instanceof Date ? evm.timestamp.toISOString() : String(evm.timestamp),
     contractAddress: evm.contract_address ?? undefined,
@@ -149,9 +157,14 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
   };
 }
 
-function mapAddress(r: AccountRow) {
+function mapAddress(r: AccountRow, queriedAddr?: string) {
+  // If user queried by EVM address, show that as primary
+  const isEvmQuery = queriedAddr?.startsWith('0x');
+  const evmAddr = r.evm_address ?? (r.address.startsWith('0x') ? r.address : undefined);
   return {
-    address: r.address,
+    address: isEvmQuery && evmAddr ? evmAddr : r.address,
+    evmAddress: evmAddr ?? undefined,
+    cosmosAddress: r.address.startsWith('litho') ? r.address : undefined,
     balance: r.balance ?? '0',
     txCount: Number(r.tx_count ?? 0),
     lastSeen: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at),
@@ -369,7 +382,7 @@ export function explorerRouter(): Router {
           [addrLower]
         ).catch(() => []);
 
-        const result: Record<string, unknown> = mapAddress(rows[0]);
+        const result: Record<string, unknown> = mapAddress(rows[0], address);
         if (tokenInfo[0]) {
           result.isContract = true;
           result.isToken = !!(tokenInfo[0].symbol || tokenInfo[0].contract_type === 'token');
@@ -448,17 +461,30 @@ export function explorerRouter(): Router {
       const limit = clamp(req.query.limit, 25);
       const addrLower = address.toLowerCase();
 
+      // Resolve linked addresses: if querying by 0x, also search by litho1... and vice versa
+      const linkedAddrs = await query<AccountRow>(
+        'SELECT * FROM accounts WHERE address = $1 OR evm_address = $1 OR LOWER(address) = $2 OR LOWER(evm_address) = $2',
+        [address, addrLower]
+      ).catch(() => []);
+      const cosmosAddr = linkedAddrs[0]?.address?.toLowerCase() ?? null;
+      const evmAddr = linkedAddrs[0]?.evm_address?.toLowerCase() ?? null;
+
+      // Build array of all address forms to search
+      const searchAddrs = new Set([addrLower]);
+      if (cosmosAddr) searchAddrs.add(cosmosAddr);
+      if (evmAddr) searchAddrs.add(evmAddr);
+      const addrs = [...searchAddrs];
+
       // Search both Cosmos transactions (sender/receiver) and EVM transactions (from/to)
       const rows = await query<TxRow & { evm_hash: string | null }>(
         `SELECT DISTINCT ON (t.hash) t.*, e.hash AS evm_hash
          FROM transactions t
          LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
-         WHERE t.sender = $1 OR t.receiver = $1
-            OR LOWER(t.sender) = $2 OR LOWER(t.receiver) = $2
-            OR LOWER(e.from_address) = $2 OR LOWER(e.to_address) = $2
+         WHERE LOWER(t.sender) = ANY($1) OR LOWER(t.receiver) = ANY($1)
+            OR LOWER(e.from_address) = ANY($1) OR LOWER(e.to_address) = ANY($1)
          ORDER BY t.hash, t.timestamp DESC
-         LIMIT $3`,
-        [address, addrLower, limit]
+         LIMIT $2`,
+        [addrs, limit]
       );
       res.json(rows.map((r) => mapTx(r, r.evm_hash)));
     } catch (err) {
