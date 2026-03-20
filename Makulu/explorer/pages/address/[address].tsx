@@ -4,18 +4,45 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, truncateHash, timeAgo, formatTimestamp } from '@/lib/format';
+import { formatNumber, truncateHash, timeAgo, formatTimestamp, formatLitho } from '@/lib/format';
 import type { ApiAddress, ApiTx } from '@/lib/types';
 
 /* ── Tabs ─────────────────────────────────────────────────────────────── */
 
-const TABS = [
+const WALLET_TABS = [
   { key: 'transactions', label: 'Transactions' },
   { key: 'transfers', label: 'Transfers' },
   { key: 'tokens', label: 'Tokens' },
 ] as const;
 
-type TabKey = (typeof TABS)[number]['key'];
+const TOKEN_TABS = [
+  { key: 'transfers', label: 'Transfers' },
+  { key: 'holders', label: 'Holders' },
+  { key: 'contract', label: 'Contract' },
+] as const;
+
+type WalletTabKey = (typeof WALLET_TABS)[number]['key'];
+type TokenTabKey = (typeof TOKEN_TABS)[number]['key'];
+type TabKey = WalletTabKey | TokenTabKey;
+
+/* ── Address type detection ──────────────────────────────────────────── */
+
+function detectIsContract(account: ApiAddress): boolean {
+  // If the API provides an isContract field in the future, use it directly.
+  if ('isContract' in account && typeof (account as any).isContract === 'boolean') {
+    return (account as any).isContract;
+  }
+  // Heuristic: EVM address with zero balance and zero transactions is likely a contract.
+  // This is a best-effort guess until the API exposes a proper flag.
+  if (
+    account.address.startsWith('0x') &&
+    account.txCount === 0 &&
+    (!account.balance || account.balance === '0')
+  ) {
+    return true;
+  }
+  return false;
+}
 
 /* ── Small helpers ────────────────────────────────────────────────────── */
 
@@ -67,6 +94,11 @@ function PageSkeleton() {
             <div className="h-6 rounded bg-white/10 w-28" />
           </div>
         ))}
+      </div>
+      {/* Holdings skeleton */}
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
+        <div className="h-4 rounded bg-white/10 w-24" />
+        <div className="h-10 rounded bg-white/10 w-full" />
       </div>
       {/* Tab bar skeleton */}
       <div className="flex gap-6 border-b border-white/10 pb-0">
@@ -239,13 +271,287 @@ function TxTable({
   );
 }
 
-/* ── Tokens tab placeholder ───────────────────────────────────────────── */
+/* ── Holdings table ──────────────────────────────────────────────────── */
+
+function HoldingsSection({ balance }: { balance: string }) {
+  const hasBalance = balance && balance !== '0';
+
+  return (
+    <div className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
+      <div className="px-5 py-4 border-b border-white/10">
+        <h2 className="text-sm font-medium text-white/70 uppercase tracking-wide">Holdings</h2>
+      </div>
+
+      {hasBalance ? (
+        <>
+          {/* Table header */}
+          <div className="grid grid-cols-3 gap-4 px-5 py-3 border-b border-white/10 text-xs font-medium text-white/40 uppercase tracking-wide">
+            <div>Name</div>
+            <div>Ticker</div>
+            <div className="text-right">Amount</div>
+          </div>
+          {/* LITHO row */}
+          <div className="grid grid-cols-3 gap-4 px-5 py-4 hover:bg-white/[0.03] transition">
+            <div className="text-sm text-white">Lithosphere</div>
+            <div className="text-sm text-white/70 font-mono">LITHO</div>
+            <div className="text-sm text-white/80 font-mono text-right">
+              {formatLitho(balance)}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="py-10 text-center text-white/40">
+          <div className="text-sm">No holdings found</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Tokens tab placeholder ──────────────────────────────────────────── */
 
 function TokensTab() {
   return (
     <div className="py-16 text-center text-white/40">
       <div className="text-base font-medium mb-1">No token balances found</div>
       <div className="text-sm">Token balance tracking is not yet available for this address.</div>
+    </div>
+  );
+}
+
+/* ── Token contract layout ───────────────────────────────────────────── */
+
+function TokenContractLayout({
+  account,
+  txs,
+  txsLoading,
+  addr,
+  activeTab,
+  setTab,
+}: {
+  account: ApiAddress;
+  txs: ApiTx[] | null;
+  txsLoading: boolean;
+  addr: string;
+  activeTab: TabKey;
+  setTab: (key: TabKey) => void;
+}) {
+  const resolvedTab = TOKEN_TABS.some((t) => t.key === activeTab) ? activeTab : 'transfers';
+
+  return (
+    <div className="text-white space-y-6">
+      {/* ── Header ──────────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-2 text-sm text-white/40 mb-4">
+          <Link href="/" className="hover:text-white/70 transition">Home</Link>
+          <span>/</span>
+          <span className="text-white/70">Token Contract</span>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <h1 className="text-2xl font-semibold break-all">
+            <span className="font-mono">{account.address}</span>
+          </h1>
+          <div className="flex items-center gap-2 shrink-0">
+            <CopyBtn text={account.address} />
+            <span className="inline-flex items-center rounded-full border border-blue-400/30 bg-blue-400/10 px-2.5 py-0.5 text-xs font-medium text-blue-300">
+              Contract
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Overview cards ──────────────────────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm text-white/45 mb-1">Balance</div>
+          <div className="text-xl font-semibold">
+            {account.balance && account.balance !== '0' ? formatLitho(account.balance) : '0 LITHO'}
+          </div>
+        </div>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm text-white/45 mb-1">Transactions</div>
+          <div className="text-xl font-semibold">{formatNumber(account.txCount)}</div>
+        </div>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm text-white/45 mb-1">Last Active</div>
+          <div className="text-xl font-semibold">
+            {account.lastSeen ? timeAgo(account.lastSeen) : '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Tab bar ─────────────────────────────────────────────────── */}
+      <div className="border-b border-white/10">
+        <nav className="flex gap-6 -mb-px" aria-label="Token contract tabs">
+          {TOKEN_TABS.map((t) => {
+            const isActive = resolvedTab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`pb-3 text-sm font-medium transition border-b-2 ${
+                  isActive
+                    ? 'border-emerald-400 text-white'
+                    : 'border-transparent text-white/50 hover:text-white/70'
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* ── Tab content ─────────────────────────────────────────────── */}
+      <div className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
+        {resolvedTab === 'transfers' && (
+          <TxTable
+            txs={txs}
+            loading={txsLoading}
+            currentAddr={addr}
+            emptyLabel="No transfers found"
+          />
+        )}
+
+        {resolvedTab === 'holders' && (
+          <div className="py-16 text-center text-white/40">
+            <div className="text-base font-medium mb-1">No holder data available</div>
+            <div className="text-sm">Token holder tracking is not yet available.</div>
+          </div>
+        )}
+
+        {resolvedTab === 'contract' && (
+          <div className="py-16 text-center text-white/40">
+            <div className="text-base font-medium mb-1">Contract details unavailable</div>
+            <div className="text-sm">Contract source and ABI are not indexed yet.</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Wallet address layout ───────────────────────────────────────────── */
+
+function WalletLayout({
+  account,
+  txs,
+  txsLoading,
+  addr,
+  activeTab,
+  setTab,
+}: {
+  account: ApiAddress;
+  txs: ApiTx[] | null;
+  txsLoading: boolean;
+  addr: string;
+  activeTab: TabKey;
+  setTab: (key: TabKey) => void;
+}) {
+  const resolvedTab = WALLET_TABS.some((t) => t.key === activeTab) ? activeTab : 'transactions';
+
+  return (
+    <div className="text-white space-y-6">
+      {/* ── Header ──────────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-2 text-sm text-white/40 mb-4">
+          <Link href="/" className="hover:text-white/70 transition">Home</Link>
+          <span>/</span>
+          <span className="text-white/70">Address</span>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <h1 className="text-2xl font-semibold break-all">
+            <span className="font-mono">{account.address}</span>
+          </h1>
+          <div className="flex items-center gap-2 shrink-0">
+            <CopyBtn text={account.address} />
+            <span
+              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                account.txCount > 0
+                  ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
+                  : 'border-white/20 bg-white/5 text-white/50'
+              }`}
+            >
+              {account.txCount > 0 ? 'Active' : 'Inactive'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Overview cards ──────────────────────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm text-white/45 mb-1">Balance</div>
+          <div className="text-xl font-semibold">
+            {account.balance && account.balance !== '0' ? formatLitho(account.balance) : '0 LITHO'}
+          </div>
+        </div>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm text-white/45 mb-1">Transactions</div>
+          <div className="text-xl font-semibold">{formatNumber(account.txCount)}</div>
+        </div>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm text-white/45 mb-1">Last Active</div>
+          <div className="text-xl font-semibold">
+            {account.lastSeen ? timeAgo(account.lastSeen) : '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Holdings ────────────────────────────────────────────────── */}
+      <HoldingsSection balance={account.balance} />
+
+      {/* ── Tab bar ─────────────────────────────────────────────────── */}
+      <div className="border-b border-white/10">
+        <nav className="flex gap-6 -mb-px" aria-label="Address tabs">
+          {WALLET_TABS.map((t) => {
+            const isActive = resolvedTab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`pb-3 text-sm font-medium transition border-b-2 ${
+                  isActive
+                    ? 'border-emerald-400 text-white'
+                    : 'border-transparent text-white/50 hover:text-white/70'
+                }`}
+              >
+                {t.label}
+                {t.key === 'transactions' && account.txCount > 0 && (
+                  <span className="ml-1.5 text-xs text-white/35">
+                    ({formatNumber(account.txCount)})
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* ── Tab content ─────────────────────────────────────────────── */}
+      <div className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
+        {resolvedTab === 'transactions' && (
+          <TxTable
+            txs={txs}
+            loading={txsLoading}
+            currentAddr={addr}
+            emptyLabel="No transactions found"
+          />
+        )}
+
+        {resolvedTab === 'transfers' && (
+          <TxTable
+            txs={txs}
+            loading={txsLoading}
+            currentAddr={addr}
+            emptyLabel="No transfers found"
+          />
+        )}
+
+        {resolvedTab === 'tokens' && <TokensTab />}
+      </div>
     </div>
   );
 }
@@ -257,9 +563,7 @@ export default function AddressPage() {
   const { address, tab } = router.query;
   const addr = typeof address === 'string' ? address : '';
   const activeTab: TabKey =
-    typeof tab === 'string' && TABS.some((t) => t.key === tab)
-      ? (tab as TabKey)
-      : 'transactions';
+    typeof tab === 'string' ? (tab as TabKey) : 'transactions';
 
   const { data: account, loading: accountLoading, error: accountError } =
     useApi<ApiAddress>(addr ? `/address/${addr}` : null);
@@ -302,106 +606,37 @@ export default function AddressPage() {
     );
   }
 
-  /* ── Render ─────────────────────────────────────────────────────────── */
+  /* ── Detect address type and render appropriate layout ──────────── */
+
+  const isContract = detectIsContract(account);
 
   return (
     <>
       <Head>
-        <title>Address {truncateHash(account.address, 12, 6)} | {EXPLORER_TITLE}</title>
+        <title>
+          {isContract ? 'Contract' : 'Address'} {truncateHash(account.address, 12, 6)} | {EXPLORER_TITLE}
+        </title>
       </Head>
 
-      <div className="text-white space-y-6">
-        {/* ── Header ──────────────────────────────────────────────────── */}
-        <div>
-          <div className="flex items-center gap-2 text-sm text-white/40 mb-4">
-            <Link href="/" className="hover:text-white/70 transition">Home</Link>
-            <span>/</span>
-            <span className="text-white/70">Address</span>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <h1 className="text-2xl font-semibold break-all">
-              <span className="font-mono">{account.address}</span>
-            </h1>
-            <div className="flex items-center gap-2 shrink-0">
-              <CopyBtn text={account.address} />
-              <span className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
-                {account.txCount > 0 ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Overview cards ──────────────────────────────────────────── */}
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <div className="text-sm text-white/45 mb-1">Balance</div>
-            <div className="text-xl font-semibold">
-              {account.balance && account.balance !== '0' ? account.balance : '0 LITHO'}
-            </div>
-          </div>
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <div className="text-sm text-white/45 mb-1">Transactions</div>
-            <div className="text-xl font-semibold">{formatNumber(account.txCount)}</div>
-          </div>
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <div className="text-sm text-white/45 mb-1">Last Active</div>
-            <div className="text-xl font-semibold">
-              {account.lastSeen ? timeAgo(account.lastSeen) : '—'}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Tab bar ─────────────────────────────────────────────────── */}
-        <div className="border-b border-white/10">
-          <nav className="flex gap-6 -mb-px" aria-label="Address tabs">
-            {TABS.map((t) => {
-              const isActive = activeTab === t.key;
-              return (
-                <button
-                  key={t.key}
-                  onClick={() => setTab(t.key)}
-                  className={`pb-3 text-sm font-medium transition border-b-2 ${
-                    isActive
-                      ? 'border-emerald-400 text-white'
-                      : 'border-transparent text-white/50 hover:text-white/70'
-                  }`}
-                >
-                  {t.label}
-                  {t.key === 'transactions' && account.txCount > 0 && (
-                    <span className="ml-1.5 text-xs text-white/35">
-                      ({formatNumber(account.txCount)})
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* ── Tab content ─────────────────────────────────────────────── */}
-        <div className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
-          {activeTab === 'transactions' && (
-            <TxTable
-              txs={txs}
-              loading={txsLoading}
-              currentAddr={addr}
-              emptyLabel="No transactions found"
-            />
-          )}
-
-          {activeTab === 'transfers' && (
-            <TxTable
-              txs={txs}
-              loading={txsLoading}
-              currentAddr={addr}
-              emptyLabel="No transfers found"
-            />
-          )}
-
-          {activeTab === 'tokens' && <TokensTab />}
-        </div>
-      </div>
+      {isContract ? (
+        <TokenContractLayout
+          account={account}
+          txs={txs}
+          txsLoading={txsLoading}
+          addr={addr}
+          activeTab={activeTab}
+          setTab={setTab}
+        />
+      ) : (
+        <WalletLayout
+          account={account}
+          txs={txs}
+          txsLoading={txsLoading}
+          addr={addr}
+          activeTab={activeTab}
+          setTab={setTab}
+        />
+      )}
     </>
   );
 }

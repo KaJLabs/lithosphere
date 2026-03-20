@@ -70,6 +70,7 @@ export default function TransactionDetailPage() {
   const router = useRouter();
   const { hash } = router.query;
   const [inputExpanded, setInputExpanded] = useState(false);
+  const [rightTab, setRightTab] = useState<'overview' | 'events'>('overview');
 
   const { data: tx, loading, error } = useApi<ApiTx>(
     hash ? `/txs/${hash}` : null,
@@ -266,128 +267,168 @@ export default function TransactionDetailPage() {
           {/* ---------------------------------------------------------- */}
           <div className="lg:col-span-3 rounded-3xl border border-white/10 bg-white/5">
             {/* Tab header */}
-            <div className="border-b border-white/10 px-6 pt-5 pb-0">
-              <div className="inline-flex items-center border-b-2 border-emerald-400 pb-3">
-                <span className="text-sm font-medium text-white">Overview</span>
-              </div>
+            <div className="border-b border-white/10 px-6 pt-5 pb-0 flex gap-6">
+              <button
+                onClick={() => setRightTab('overview')}
+                className={`pb-3 text-sm font-medium transition ${
+                  rightTab === 'overview'
+                    ? 'border-b-2 border-emerald-400 text-white'
+                    : 'text-white/50 hover:text-white/70'
+                }`}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setRightTab('events')}
+                className={`pb-3 text-sm font-medium transition ${
+                  rightTab === 'events'
+                    ? 'border-b-2 border-emerald-400 text-white'
+                    : 'text-white/50 hover:text-white/70'
+                }`}
+              >
+                Events
+              </button>
             </div>
 
             <div className="px-6 py-2">
-              {/* Value */}
-              <InfoRow label="Value">
-                <span className="font-mono">
-                  {tx.value && tx.value !== '0'
-                    ? `${tx.value} ${tx.denom ?? 'ulitho'}`
-                    : '0'}
-                </span>
-              </InfoRow>
-
-              {/* Transaction Fee */}
-              <InfoRow label="Transaction Fee">
-                <span className="font-mono">
-                  {tx.feePaid && tx.feePaid !== '0'
-                    ? `${tx.feePaid} ${tx.denom ?? 'ulitho'}`
-                    : '0'}
-                </span>
-              </InfoRow>
-
-              {/* Gas Used */}
-              {(gasUsed != null || gasWanted != null) && (
-                <InfoRow label="Gas Used">
-                  <span className="font-mono">
-                    {gasUsed != null ? formatNumber(gasUsed) : '---'}
-                    {' / '}
-                    {gasWanted != null ? formatNumber(gasWanted) : '---'}
-                  </span>
-                  {gasPercent && (
-                    <span className="ml-2 inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/50">
-                      {gasPercent}%
+              {/* ---- Overview tab content ---- */}
+              {rightTab === 'overview' && (
+                <>
+                  {/* Value */}
+                  <InfoRow label="Value">
+                    <span className="font-mono">
+                      {tx.value && tx.value !== '0'
+                        ? `${tx.value} ${tx.denom ?? 'ulitho'}`
+                        : '0'}
                     </span>
+                  </InfoRow>
+
+                  {/* Transaction Fee */}
+                  <InfoRow label="Transaction Fee">
+                    <span className="font-mono">
+                      {tx.feePaid && tx.feePaid !== '0'
+                        ? `${tx.feePaid} ${tx.denom ?? 'ulitho'}`
+                        : '0'}
+                    </span>
+                  </InfoRow>
+
+                  {/* Gas Used */}
+                  {(gasUsed != null || gasWanted != null) && (
+                    <InfoRow label="Gas Used">
+                      <span className="font-mono">
+                        {gasUsed != null ? formatNumber(gasUsed) : '---'}
+                        {' / '}
+                        {gasWanted != null ? formatNumber(gasWanted) : '---'}
+                      </span>
+                      {gasPercent && (
+                        <span className="ml-2 inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/50">
+                          {gasPercent}%
+                        </span>
+                      )}
+                    </InfoRow>
                   )}
-                </InfoRow>
-              )}
 
-              {/* Gas Price */}
-              {tx.gasPrice && (
-                <InfoRow label="Gas Price">
-                  <span className="font-mono">{tx.gasPrice} ulitho</span>
-                </InfoRow>
-              )}
+                  {/* Gas Price */}
+                  {tx.gasPrice && (
+                    <InfoRow label="Gas Price">
+                      <span className="font-mono">{tx.gasPrice} ulitho</span>
+                    </InfoRow>
+                  )}
 
-              {/* Nonce */}
-              {tx.nonce != null && (
-                <InfoRow label="Nonce">
-                  <span className="font-mono">{tx.nonce}</span>
-                </InfoRow>
-              )}
+                  {/* Nonce */}
+                  {tx.nonce != null && (
+                    <InfoRow label="Nonce">
+                      <span className="font-mono">{tx.nonce}</span>
+                    </InfoRow>
+                  )}
 
-              {/* Transaction Type / Method */}
-              {tx.method && (
-                <InfoRow label="Transaction Type">
-                  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-0.5 text-xs font-mono text-white/70">
-                    {tx.method}
-                  </span>
-                </InfoRow>
-              )}
+                  {/* Transaction Type / Method */}
+                  {tx.method && (
+                    <InfoRow label="Transaction Type">
+                      <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-0.5 text-xs font-mono text-white/70">
+                        {tx.method}
+                      </span>
+                    </InfoRow>
+                  )}
 
-              {/* Memo */}
-              {tx.memo && (
-                <InfoRow label="Memo">
-                  <span className="text-white/70">{tx.memo}</span>
-                </InfoRow>
-              )}
+                  {/* Memo */}
+                  {tx.memo && (
+                    <InfoRow label="Memo">
+                      <span className="text-white/70">{tx.memo}</span>
+                    </InfoRow>
+                  )}
 
-              {/* Input Data (collapsible) */}
-              {tx.inputData && tx.inputData !== '0x' && (
-                <div className="py-3.5 border-b border-white/5 last:border-0">
-                  <button
-                    onClick={() => setInputExpanded((v) => !v)}
-                    className="flex items-center gap-2 text-sm text-white/45 hover:text-white/70 transition w-full text-left"
-                  >
-                    <svg
-                      className={`h-3.5 w-3.5 transition-transform ${inputExpanded ? 'rotate-90' : ''}`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                    Input Data
-                  </button>
-                  {inputExpanded && (
-                    <div className="mt-3 rounded-2xl border border-white/10 bg-black/30 p-4 font-mono text-xs text-white/60 max-h-60 overflow-auto whitespace-pre-wrap">
-                      {tx.inputData}
+                  {/* Input Data (collapsible) */}
+                  {tx.inputData && tx.inputData !== '0x' && (
+                    <div className="py-3.5 border-b border-white/5 last:border-0">
+                      <button
+                        onClick={() => setInputExpanded((v) => !v)}
+                        className="flex items-center gap-2 text-sm text-white/45 hover:text-white/70 transition w-full text-left"
+                      >
+                        <svg
+                          className={`h-3.5 w-3.5 transition-transform ${inputExpanded ? 'rotate-90' : ''}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                        Input Data
+                      </button>
+                      {inputExpanded && (
+                        <div className="mt-3 rounded-2xl border border-white/10 bg-black/30 p-4 font-mono text-xs text-white/60 max-h-60 overflow-auto whitespace-pre-wrap">
+                          {tx.inputData}
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
 
-              {/* Raw Log Events */}
-              {logEvents && logEvents.length > 0 && (
-                <div className="py-3.5">
-                  <div className="text-sm text-white/45 mb-3">Events</div>
-                  <div className="space-y-2">
-                    {logEvents.map((evt, idx) => (
-                      <div
-                        key={idx}
-                        className="rounded-2xl border border-white/10 bg-black/20 p-3"
-                      >
-                        <div className="text-xs font-medium text-emerald-300 mb-1.5">
-                          {evt.type}
-                        </div>
-                        <div className="space-y-1">
-                          {evt.attributes.map((attr, aidx) => (
-                            <div key={aidx} className="flex gap-2 text-xs">
-                              <span className="text-white/40 shrink-0">{attr.key}:</span>
-                              <span className="font-mono text-white/60 break-all">{attr.value}</span>
-                            </div>
-                          ))}
-                        </div>
+              {/* ---- Events tab content ---- */}
+              {rightTab === 'events' && (
+                <>
+                  {logEvents && logEvents.length > 0 ? (
+                    <div className="py-3.5">
+                      <div className="text-sm text-white/45 mb-3">
+                        {logEvents.length} event{logEvents.length !== 1 ? 's' : ''} emitted
                       </div>
-                    ))}
-                  </div>
-                </div>
+                      <div className="space-y-2">
+                        {logEvents.map((evt, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-2xl border border-white/10 bg-black/20 p-3"
+                          >
+                            <div className="text-xs font-medium text-emerald-300 mb-1.5">
+                              {evt.type}
+                            </div>
+                            <div className="space-y-1">
+                              {evt.attributes.map((attr, aidx) => (
+                                <div key={aidx} className="flex gap-2 text-xs">
+                                  <span className="text-white/40 shrink-0">{attr.key}:</span>
+                                  <span className="font-mono text-white/60 break-all">{attr.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center">
+                      <div className="text-sm text-white/40">No parsed events available.</div>
+                      {tx.rawLog && (
+                        <div className="mt-4 text-left">
+                          <div className="text-sm text-white/45 mb-2">Raw Log</div>
+                          <div className="rounded-2xl border border-white/10 bg-black/30 p-4 font-mono text-xs text-white/60 max-h-60 overflow-auto whitespace-pre-wrap">
+                            {tx.rawLog}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { isAddress } from 'viem';
 import { drip } from '../services/wallet.js';
-import { checkCooldown } from '../services/rateLimit.js';
+import { checkCooldown, setCooldown } from '../services/rateLimit.js';
 import { config } from '../config.js';
 
 const ALLOWED_AMOUNTS = ['10', '25', '50'];
@@ -37,7 +37,7 @@ export async function dripRoutes(app: FastifyInstance) {
       }
     }
 
-    // Check cooldown
+    // Check cooldown (does NOT set it — that happens after successful drip)
     const { allowed, retryAfterSeconds } = await checkCooldown(address);
     if (!allowed) {
       const hours = Math.ceil(retryAfterSeconds / 3600);
@@ -50,6 +50,10 @@ export async function dripRoutes(app: FastifyInstance) {
 
     try {
       const result = await drip(address as `0x${string}`, dripAmount);
+
+      // Only set cooldown AFTER successful drip
+      await setCooldown(address);
+
       return reply.send({
         success: true,
         txHash: result.txHash,
@@ -62,7 +66,7 @@ export async function dripRoutes(app: FastifyInstance) {
       console.error(`[faucet] Drip failed for ${address}:`, message);
       return reply.status(500).send({
         error: 'Drip failed',
-        message: 'Could not send tokens. The faucet wallet may be empty or the chain may be down.',
+        message: 'Could not send tokens. The faucet wallet may not be configured or the chain may be down.',
       });
     }
   });

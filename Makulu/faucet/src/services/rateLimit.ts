@@ -18,6 +18,10 @@ function getRedis(): Redis {
 
 const KEY_PREFIX = 'faucet:cooldown:';
 
+/**
+ * Check if an address is on cooldown. Does NOT set the cooldown.
+ * Call setCooldown() only after a successful drip.
+ */
 export async function checkCooldown(address: string): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
   const key = `${KEY_PREFIX}${address.toLowerCase()}`;
   const r = getRedis();
@@ -36,11 +40,23 @@ export async function checkCooldown(address: string): Promise<{ allowed: boolean
     return { allowed: false, retryAfterSeconds: ttl };
   }
 
-  // Set cooldown
-  const cooldownSeconds = config.cooldownHours * 3600;
-  await r.set(key, Date.now().toString(), 'EX', cooldownSeconds);
-
   return { allowed: true, retryAfterSeconds: 0 };
+}
+
+/**
+ * Record a successful drip — sets the cooldown timer.
+ * Only call this AFTER drip() succeeds.
+ */
+export async function setCooldown(address: string): Promise<void> {
+  const key = `${KEY_PREFIX}${address.toLowerCase()}`;
+  const r = getRedis();
+
+  try {
+    const cooldownSeconds = config.cooldownHours * 3600;
+    await r.set(key, Date.now().toString(), 'EX', cooldownSeconds);
+  } catch (err) {
+    console.error('[faucet] Failed to set cooldown:', err);
+  }
 }
 
 export async function closeRedis(): Promise<void> {

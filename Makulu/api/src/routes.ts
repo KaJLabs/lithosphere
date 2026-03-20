@@ -424,6 +424,11 @@ export function explorerRouter(): Router {
          FROM contracts WHERE contract_type = 'token' OR symbol IS NOT NULL ORDER BY created_at DESC LIMIT 100`
       ).catch(() => []);
 
+      // Get holder count for native LITHO
+      const holderCount = await query<CountRow>(
+        'SELECT COUNT(*) AS count FROM accounts WHERE balance != \'0\''
+      ).catch(() => [{ count: '0' }]);
+
       const tokens = [
         {
           symbol: 'LITHO',
@@ -431,34 +436,7 @@ export function explorerRouter(): Router {
           decimals: 18,
           totalSupply: '1000000000',
           type: 'native',
-          holders: null,
-          contractAddress: null,
-        },
-        {
-          symbol: 'wLITHO',
-          name: 'Wrapped LITHO',
-          decimals: 18,
-          totalSupply: null,
-          type: 'LEP100',
-          holders: null,
-          contractAddress: null,
-        },
-        {
-          symbol: 'USDL',
-          name: 'USD Lithosphere',
-          decimals: 18,
-          totalSupply: null,
-          type: 'LEP100',
-          holders: null,
-          contractAddress: null,
-        },
-        {
-          symbol: 'mBTC',
-          name: 'Micro Bitcoin (Lithosphere)',
-          decimals: 18,
-          totalSupply: null,
-          type: 'LEP100',
-          holders: null,
+          holders: parseInt(holderCount[0]?.count ?? '0'),
           contractAddress: null,
         },
         ...contractTokens.map((c) => ({
