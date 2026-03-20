@@ -139,7 +139,7 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
     gasUsed: evm.gas_used != null ? String(evm.gas_used) : cosmosTx?.gas_used ?? null,
     gasWanted: evm.gas_limit != null ? String(evm.gas_limit) : cosmosTx?.gas_wanted ?? null,
     success: evm.status,
-    method: cosmosTx?.tx_type ?? 'MsgEthereumTx',
+    method: cosmosTx?.tx_type ?? 'MsgTx',
     memo: cosmosTx?.memo ?? undefined,
     timestamp: evm.timestamp instanceof Date ? evm.timestamp.toISOString() : String(evm.timestamp),
     contractAddress: evm.contract_address ?? undefined,
@@ -352,15 +352,90 @@ export function explorerRouter(): Router {
   r.get('/address/:address', async (req: Request, res: Response) => {
     try {
       const { address } = req.params;
+      const addrLower = address.toLowerCase();
+
+      // 1. Try accounts table (both cosmos and evm address columns)
       const rows = await query<AccountRow>(
-        'SELECT * FROM accounts WHERE address = $1 OR evm_address = $1',
-        [address]
+        'SELECT * FROM accounts WHERE address = $1 OR evm_address = $1 OR LOWER(address) = $2 OR LOWER(evm_address) = $2',
+        [address, addrLower]
       );
-      if (!rows[0]) {
-        res.status(404).json({ message: 'Account not found' });
+      if (rows[0]) {
+        // Check if this address is a token contract
+        const tokenInfo = await query<{
+          name: string | null; symbol: string | null; decimals: number | null;
+          total_supply: string | null; contract_type: string | null;
+        }>(
+          'SELECT name, symbol, decimals, total_supply, contract_type FROM contracts WHERE LOWER(address) = $1',
+          [addrLower]
+        ).catch(() => []);
+
+        const result: Record<string, unknown> = mapAddress(rows[0]);
+        if (tokenInfo[0]) {
+          result.isContract = true;
+          result.isToken = !!(tokenInfo[0].symbol || tokenInfo[0].contract_type === 'token');
+          result.tokenName = tokenInfo[0].name;
+          result.tokenSymbol = tokenInfo[0].symbol;
+          result.tokenDecimals = tokenInfo[0].decimals;
+          result.totalSupply = tokenInfo[0].total_supply;
+        }
+        res.json(result);
         return;
       }
-      res.json(mapAddress(rows[0]));
+
+      // 2. Check if it's a known contract address
+      const contractRows = await query<{
+        address: string; name: string | null; symbol: string | null;
+        decimals: number | null; total_supply: string | null; contract_type: string | null;
+      }>(
+        'SELECT address, name, symbol, decimals, total_supply, contract_type FROM contracts WHERE LOWER(address) = $1',
+        [addrLower]
+      ).catch(() => []);
+
+      if (contractRows[0]) {
+        const c = contractRows[0];
+        res.json({
+          address: c.address,
+          balance: '0',
+          txCount: 0,
+          lastSeen: new Date().toISOString(),
+          isContract: true,
+          isToken: !!(c.symbol || c.contract_type === 'token'),
+          tokenName: c.name,
+          tokenSymbol: c.symbol,
+          tokenDecimals: c.decimals,
+          totalSupply: c.total_supply,
+        });
+        return;
+      }
+
+      // 3. Build synthetic account from transactions (EVM addresses not yet in accounts table)
+      const txCount = await query<CountRow>(
+        `SELECT COUNT(*) AS count FROM (
+           SELECT hash FROM transactions WHERE LOWER(sender) = $1 OR LOWER(receiver) = $1
+           UNION
+           SELECT cosmos_tx_hash FROM evm_transactions WHERE LOWER(from_address) = $1 OR LOWER(to_address) = $1
+         ) combined`,
+        [addrLower]
+      );
+
+      const count = parseInt(txCount[0]?.count ?? '0');
+      if (count > 0) {
+        const lastTx = await query<{ timestamp: Date }>(
+          `SELECT timestamp FROM transactions
+           WHERE LOWER(sender) = $1 OR LOWER(receiver) = $1
+           ORDER BY timestamp DESC LIMIT 1`,
+          [addrLower]
+        );
+        res.json({
+          address,
+          balance: '0',
+          txCount: count,
+          lastSeen: lastTx[0]?.timestamp instanceof Date ? lastTx[0].timestamp.toISOString() : new Date().toISOString(),
+        });
+        return;
+      }
+
+      res.status(404).json({ message: 'Account not found' });
     } catch (err) {
       console.error('[api] /address/:address error:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -453,6 +528,64 @@ export function explorerRouter(): Router {
       res.json(tokens);
     } catch (err) {
       console.error('[api] /tokens error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Token detail by contract address ─────────────────────────────────
+
+  r.get('/tokens/:address', async (req: Request, res: Response) => {
+    try {
+      const { address } = req.params;
+      const addrLower = address.toLowerCase();
+
+      const rows = await query<{
+        address: string; name: string | null; symbol: string | null;
+        decimals: number | null; total_supply: string | null;
+        contract_type: string | null; creator: string | null; created_at: Date;
+      }>(
+        `SELECT address, name, symbol, decimals, total_supply, contract_type, creator, created_at
+         FROM contracts WHERE LOWER(address) = $1`,
+        [addrLower]
+      );
+
+      if (!rows[0]) {
+        res.status(404).json({ message: 'Token contract not found' });
+        return;
+      }
+
+      const c = rows[0];
+
+      // Get holder count and transfer count
+      const [holderCount, transferCount] = await Promise.all([
+        query<CountRow>(
+          `SELECT COUNT(*) AS count FROM (
+             SELECT DISTINCT sender AS addr FROM transactions WHERE LOWER(receiver) = $1
+             UNION
+             SELECT DISTINCT receiver AS addr FROM transactions WHERE LOWER(sender) = $1
+           ) holders`,
+          [addrLower]
+        ).catch(() => [{ count: '0' }]),
+        query<CountRow>(
+          `SELECT COUNT(*) AS count FROM transactions WHERE LOWER(sender) = $1 OR LOWER(receiver) = $1`,
+          [addrLower]
+        ).catch(() => [{ count: '0' }]),
+      ]);
+
+      res.json({
+        address: c.address,
+        name: c.name ?? 'Unknown Token',
+        symbol: c.symbol ?? 'Unknown',
+        decimals: c.decimals ?? 18,
+        totalSupply: c.total_supply,
+        type: (c.symbol || c.contract_type === 'token') ? 'LEP100' : 'contract',
+        creator: c.creator,
+        createdAt: c.created_at instanceof Date ? c.created_at.toISOString() : String(c.created_at),
+        holders: parseInt(holderCount[0]?.count ?? '0'),
+        transfers: parseInt(transferCount[0]?.count ?? '0'),
+      });
+    } catch (err) {
+      console.error('[api] /tokens/:address error:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
   });

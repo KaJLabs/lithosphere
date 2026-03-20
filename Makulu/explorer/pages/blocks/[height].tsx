@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatTimestamp, timeAgo, truncateHash } from '@/lib/format';
+import { formatNumber, formatTimestamp, timeAgo, truncateHash, cleanMethod } from '@/lib/format';
 import type { ApiBlock, ApiTx, StatsSummary } from '@/lib/types';
 import HashDisplay from '@/components/HashDisplay';
 import DataTable, { type Column } from '@/components/DataTable';
@@ -61,7 +61,7 @@ export default function BlockDetailPage() {
       header: 'Method',
       render: (tx) => (
         <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-mono text-white/70">
-          {tx.method || 'Transfer'}
+          {cleanMethod(tx.method) || 'Transfer'}
         </span>
       ),
     },

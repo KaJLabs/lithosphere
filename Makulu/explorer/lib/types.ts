@@ -69,6 +69,25 @@ export interface ApiAddress {
   balance: string;
   txCount: number;
   lastSeen: string;
+  isContract?: boolean;
+  isToken?: boolean;
+  tokenName?: string;
+  tokenSymbol?: string;
+  tokenDecimals?: number;
+  totalSupply?: string;
+}
+
+export interface ApiTokenDetail {
+  address: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  totalSupply?: string;
+  type: string;
+  creator?: string;
+  createdAt?: string;
+  holders: number;
+  transfers: number;
 }
 
 export interface ApiValidator {

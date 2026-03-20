@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { useState } from 'react';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatTimestamp, truncateHash, timeAgo } from '@/lib/format';
+import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod } from '@/lib/format';
 import type { ApiTx } from '@/lib/types';
 
 /* ---------- tiny helpers ---------- */
@@ -239,7 +239,7 @@ export default function TransactionReceiptPage() {
                 ) : null}
                 {tx.method && (
                   <span className="ml-2 inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs font-mono text-white/50">
-                    {tx.method}
+                    {cleanMethod(tx.method)}
                   </span>
                 )}
               </>

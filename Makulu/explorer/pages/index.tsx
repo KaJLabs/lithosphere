@@ -2,7 +2,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
-import { formatNumber, timeAgo, truncateHash } from '@/lib/format';
+import { formatNumber, timeAgo, truncateHash, cleanMethod } from '@/lib/format';
 import type { StatsSummary, ApiBlock, ApiTxList, ApiValidator } from '@/lib/types';
 import SearchBar from '@/components/SearchBar';
 
@@ -235,7 +235,7 @@ export default function Home() {
                             {truncateHash(tx.hash)}
                           </Link>
                           <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
-                            {tx.method || 'Transfer'}
+                            {cleanMethod(tx.method) || 'Transfer'}
                           </div>
                         </div>
                         <div className="mt-3 grid gap-2 text-sm text-white/65 sm:grid-cols-3">

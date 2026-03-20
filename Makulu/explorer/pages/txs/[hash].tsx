@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatTimestamp, truncateHash, timeAgo } from '@/lib/format';
+import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod } from '@/lib/format';
 import type { ApiTx, StatsSummary } from '@/lib/types';
 
 /* ------------------------------------------------------------------ */
@@ -346,7 +346,7 @@ export default function TransactionDetailPage() {
                   {tx.method && (
                     <InfoRow label="Transaction Type">
                       <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-0.5 text-xs font-mono text-white/70">
-                        {tx.method}
+                        {cleanMethod(tx.method)}
                       </span>
                     </InfoRow>
                   )}

@@ -61,6 +61,12 @@ export function formatTimestamp(isoString: string | null | undefined): string {
   });
 }
 
+/** Strip Ethereum branding from Cosmos SDK method names */
+export function cleanMethod(method: string | undefined): string | undefined {
+  if (!method) return method;
+  return method.replace(/MsgEthereumTx/g, 'MsgTx');
+}
+
 export function isEvmAddress(addr: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(addr);
 }

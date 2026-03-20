@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, truncateHash, timeAgo, formatTimestamp, formatLitho } from '@/lib/format';
-import type { ApiAddress, ApiTx } from '@/lib/types';
+import { formatNumber, truncateHash, timeAgo, formatTimestamp, formatLitho, cleanMethod } from '@/lib/format';
+import type { ApiAddress, ApiTx, ApiTokenDetail } from '@/lib/types';
 
 /* ── Tabs ─────────────────────────────────────────────────────────────── */
 
@@ -28,19 +28,7 @@ type TabKey = WalletTabKey | TokenTabKey;
 /* ── Address type detection ──────────────────────────────────────────── */
 
 function detectIsContract(account: ApiAddress): boolean {
-  // If the API provides an isContract field in the future, use it directly.
-  if ('isContract' in account && typeof (account as any).isContract === 'boolean') {
-    return (account as any).isContract;
-  }
-  // Heuristic: EVM address with zero balance and zero transactions is likely a contract.
-  // This is a best-effort guess until the API exposes a proper flag.
-  if (
-    account.address.startsWith('0x') &&
-    account.txCount === 0 &&
-    (!account.balance || account.balance === '0')
-  ) {
-    return true;
-  }
+  if (account.isContract) return true;
   return false;
 }
 
@@ -250,7 +238,7 @@ function TxTable({
               <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Method</span>
               {tx.method ? (
                 <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">
-                  {tx.method}
+                  {cleanMethod(tx.method)}
                 </span>
               ) : (
                 <span className="text-sm text-white/30">&mdash;</span>
@@ -323,6 +311,7 @@ function TokensTab() {
 
 function TokenContractLayout({
   account,
+  tokenDetail,
   txs,
   txsLoading,
   addr,
@@ -330,6 +319,7 @@ function TokenContractLayout({
   setTab,
 }: {
   account: ApiAddress;
+  tokenDetail: ApiTokenDetail | null;
   txs: ApiTx[] | null;
   txsLoading: boolean;
   addr: string;
@@ -337,6 +327,9 @@ function TokenContractLayout({
   setTab: (key: TabKey) => void;
 }) {
   const resolvedTab = TOKEN_TABS.some((t) => t.key === activeTab) ? activeTab : 'transfers';
+  const tokenName = tokenDetail?.name ?? account.tokenName ?? 'Unknown Token';
+  const tokenSymbol = tokenDetail?.symbol ?? account.tokenSymbol ?? '???';
+  const isToken = account.isToken || !!tokenDetail;
 
   return (
     <div className="text-white space-y-6">
@@ -345,53 +338,119 @@ function TokenContractLayout({
         <div className="flex items-center gap-2 text-sm text-white/40 mb-4">
           <Link href="/" className="hover:text-white/70 transition">Home</Link>
           <span>/</span>
-          <span className="text-white/70">Token Contract</span>
+          {isToken && (
+            <>
+              <Link href="/tokens" className="hover:text-white/70 transition">Tokens</Link>
+              <span>/</span>
+            </>
+          )}
+          <span className="text-white/70">{isToken ? 'Token' : 'Contract'}</span>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <h1 className="text-2xl font-semibold break-all">
-            <span className="font-mono">{account.address}</span>
-          </h1>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-2">
+          {isToken && (
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-violet-500 flex items-center justify-center text-lg font-bold text-white">
+                {tokenSymbol.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold">{tokenName}</h1>
+                <span className="text-sm text-white/50">{tokenSymbol}</span>
+              </div>
+            </div>
+          )}
+          {!isToken && (
+            <h1 className="text-2xl font-semibold break-all">
+              <span className="font-mono">{account.address}</span>
+            </h1>
+          )}
           <div className="flex items-center gap-2 shrink-0">
             <CopyBtn text={account.address} />
-            <span className="inline-flex items-center rounded-full border border-blue-400/30 bg-blue-400/10 px-2.5 py-0.5 text-xs font-medium text-blue-300">
-              Contract
+            <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+              isToken
+                ? 'border-violet-400/30 bg-violet-400/10 text-violet-300'
+                : 'border-blue-400/30 bg-blue-400/10 text-blue-300'
+            }`}>
+              {isToken ? 'LEP-100 Token' : 'Contract'}
             </span>
+          </div>
+        </div>
+
+        {isToken && (
+          <div className="font-mono text-sm text-white/40 break-all">{account.address}</div>
+        )}
+      </div>
+
+      {/* ── Token overview cards ─────────────────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm text-white/45 mb-1">Total Supply</div>
+          <div className="text-xl font-semibold font-mono">
+            {tokenDetail?.totalSupply ?? account.totalSupply ?? '—'}
+          </div>
+          {isToken && <div className="text-xs text-white/30 mt-1">{tokenSymbol}</div>}
+        </div>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm text-white/45 mb-1">Holders</div>
+          <div className="text-xl font-semibold">
+            {tokenDetail?.holders != null ? formatNumber(tokenDetail.holders) : '—'}
+          </div>
+        </div>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm text-white/45 mb-1">Transfers</div>
+          <div className="text-xl font-semibold">
+            {tokenDetail?.transfers != null ? formatNumber(tokenDetail.transfers) : formatNumber(account.txCount)}
+          </div>
+        </div>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm text-white/45 mb-1">Decimals</div>
+          <div className="text-xl font-semibold">
+            {tokenDetail?.decimals ?? account.tokenDecimals ?? 18}
           </div>
         </div>
       </div>
 
-      {/* ── Overview cards ──────────────────────────────────────────── */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <div className="text-sm text-white/45 mb-1">Balance</div>
-          <div className="text-xl font-semibold">
-            {account.balance && account.balance !== '0' ? formatLitho(account.balance) : '0 LITHO'}
+      {/* ── Contract info card ───────────────────────────────────────── */}
+      <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-2">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 py-4 border-b border-white/5">
+          <div className="sm:w-40 shrink-0 text-sm text-white/45">Contract Address</div>
+          <div className="flex-1 text-sm text-white font-mono break-all">
+            {account.address}
+            <CopyBtn text={account.address} />
           </div>
         </div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <div className="text-sm text-white/45 mb-1">Transactions</div>
-          <div className="text-xl font-semibold">{formatNumber(account.txCount)}</div>
-        </div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <div className="text-sm text-white/45 mb-1">Last Active</div>
-          <div className="text-xl font-semibold">
-            {account.lastSeen ? timeAgo(account.lastSeen) : '—'}
+        {tokenDetail?.creator && (
+          <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 py-4 border-b border-white/5">
+            <div className="sm:w-40 shrink-0 text-sm text-white/45">Creator</div>
+            <div className="flex-1 text-sm">
+              <Link href={`/address/${tokenDetail.creator}`} className="font-mono text-emerald-300 hover:text-emerald-200 transition">
+                {truncateHash(tokenDetail.creator)}
+              </Link>
+            </div>
           </div>
-        </div>
+        )}
+        {tokenDetail?.createdAt && (
+          <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 py-4">
+            <div className="sm:w-40 shrink-0 text-sm text-white/45">Created</div>
+            <div className="flex-1 text-sm text-white/70">
+              {formatTimestamp(tokenDetail.createdAt)}
+              <span className="ml-2 text-white/40">({timeAgo(tokenDetail.createdAt)})</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Tab bar ─────────────────────────────────────────────────── */}
       <div className="border-b border-white/10">
         <nav className="flex gap-6 -mb-px" aria-label="Token contract tabs">
           {TOKEN_TABS.map((t) => {
-            const isActive = resolvedTab === t.key;
+            const active = resolvedTab === t.key;
             return (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
                 className={`pb-3 text-sm font-medium transition border-b-2 ${
-                  isActive
+                  active
                     ? 'border-emerald-400 text-white'
                     : 'border-transparent text-white/50 hover:text-white/70'
                 }`}
@@ -571,6 +630,12 @@ export default function AddressPage() {
   const { data: txs, loading: txsLoading } =
     useApi<ApiTx[]>(addr ? `/address/${addr}/txs?limit=25` : null);
 
+  // Fetch token detail if this is a token contract
+  const isContract = account ? detectIsContract(account) : false;
+  const isToken = account?.isToken ?? false;
+  const { data: tokenDetail } =
+    useApi<ApiTokenDetail>((isContract || isToken) && addr ? `/tokens/${addr}` : null);
+
   const setTab = useCallback(
     (key: TabKey) => {
       router.push(
@@ -608,8 +673,6 @@ export default function AddressPage() {
 
   /* ── Detect address type and render appropriate layout ──────────── */
 
-  const isContract = detectIsContract(account);
-
   return (
     <>
       <Head>
@@ -621,6 +684,7 @@ export default function AddressPage() {
       {isContract ? (
         <TokenContractLayout
           account={account}
+          tokenDetail={tokenDetail}
           txs={txs}
           txsLoading={txsLoading}
           addr={addr}

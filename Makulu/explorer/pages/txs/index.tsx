@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
-import { truncateHash, formatNumber, timeAgo } from '@/lib/format';
+import { truncateHash, formatNumber, timeAgo, cleanMethod } from '@/lib/format';
 import type { ApiTxList } from '@/lib/types';
 
 const PAGE_SIZE = 25;
@@ -180,7 +180,7 @@ export default function TransactionsPage() {
                     <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Method</span>
                     {tx.method ? (
                       <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">
-                        {tx.method}
+                        {cleanMethod(tx.method)}
                       </span>
                     ) : (
                       <span className="text-sm text-white/30">—</span>
