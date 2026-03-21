@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, truncateHash, timeAgo, formatTimestamp, formatLitho, cleanMethod } from '@/lib/format';
-import type { ApiAddress, ApiTx, ApiTokenDetail } from '@/lib/types';
+import { formatNumber, truncateHash, timeAgo, formatTimestamp, formatLitho, cleanMethod, txTypeInfo } from '@/lib/format';
+import type { ApiAddress, ApiTx, ApiTokenDetail, ApiPrice } from '@/lib/types';
 
 /* ── Tabs ─────────────────────────────────────────────────────────────── */
 
@@ -158,7 +158,7 @@ function TxTable({
         <div>From</div>
         <div>To</div>
         <div>Value</div>
-        <div>Method</div>
+        <div>Type</div>
         <div>Age</div>
       </div>
 
@@ -233,16 +233,17 @@ function TxTable({
               </span>
             </div>
 
-            {/* Method */}
+            {/* Type */}
             <div className="flex items-center md:block">
-              <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Method</span>
-              {tx.method ? (
-                <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">
-                  {cleanMethod(tx.method)}
-                </span>
-              ) : (
-                <span className="text-sm text-white/30">&mdash;</span>
-              )}
+              <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Type</span>
+              {(() => {
+                const info = txTypeInfo(tx.txType);
+                return (
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${info.color}`}>
+                    {info.label}
+                  </span>
+                );
+              })()}
             </div>
 
             {/* Age */}
@@ -261,8 +262,19 @@ function TxTable({
 
 /* ── Holdings table ──────────────────────────────────────────────────── */
 
-function HoldingsSection({ balance }: { balance: string }) {
+function HoldingsSection({ balance, usdPrice }: { balance: string; usdPrice: number | null }) {
   const hasBalance = balance && balance !== '0';
+
+  // Calculate USD value
+  let usdValue: string | null = null;
+  if (hasBalance && usdPrice != null) {
+    try {
+      const raw = BigInt(balance);
+      const lithoAmount = Number(raw) / 1e18;
+      const usd = lithoAmount * usdPrice;
+      usdValue = usd.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    } catch { /* ignore */ }
+  }
 
   return (
     <div className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
@@ -273,17 +285,21 @@ function HoldingsSection({ balance }: { balance: string }) {
       {hasBalance ? (
         <>
           {/* Table header */}
-          <div className="grid grid-cols-3 gap-4 px-5 py-3 border-b border-white/10 text-xs font-medium text-white/40 uppercase tracking-wide">
+          <div className="grid grid-cols-4 gap-4 px-5 py-3 border-b border-white/10 text-xs font-medium text-white/40 uppercase tracking-wide">
             <div>Name</div>
             <div>Ticker</div>
             <div className="text-right">Amount</div>
+            <div className="text-right">Value (USD)</div>
           </div>
           {/* LITHO row */}
-          <div className="grid grid-cols-3 gap-4 px-5 py-4 hover:bg-white/[0.03] transition">
+          <div className="grid grid-cols-4 gap-4 px-5 py-4 hover:bg-white/[0.03] transition">
             <div className="text-sm text-white">Lithosphere</div>
             <div className="text-sm text-white/70 font-mono">LITHO</div>
             <div className="text-sm text-white/80 font-mono text-right">
               {formatLitho(balance)}
+            </div>
+            <div className="text-sm text-white/60 font-mono text-right">
+              {usdValue ?? '—'}
             </div>
           </div>
         </>
@@ -500,6 +516,7 @@ function WalletLayout({
   addr,
   activeTab,
   setTab,
+  usdPrice,
 }: {
   account: ApiAddress;
   txs: ApiTx[] | null;
@@ -507,6 +524,7 @@ function WalletLayout({
   addr: string;
   activeTab: TabKey;
   setTab: (key: TabKey) => void;
+  usdPrice: number | null;
 }) {
   const resolvedTab = WALLET_TABS.some((t) => t.key === activeTab) ? activeTab : 'transactions';
 
@@ -545,11 +563,15 @@ function WalletLayout({
           </div>
         </div>
 
-        {/* Show alternate address format */}
+        {/* Show alternate address format (clickable) */}
         {altAddress && (
-          <div className="mt-2 flex items-center gap-2 text-sm text-white/40">
-            <span>{altAddress.startsWith('0x') ? 'EVM' : 'Cosmos'}:</span>
-            <span className="font-mono text-white/55">{altAddress}</span>
+          <div className="mt-2 flex items-center gap-2 text-sm">
+            <Link
+              href={`/address/${altAddress}`}
+              className="font-mono text-white/55 hover:text-emerald-300 transition"
+            >
+              {altAddress}
+            </Link>
             <CopyBtn text={altAddress} />
           </div>
         )}
@@ -562,6 +584,16 @@ function WalletLayout({
           <div className="text-xl font-semibold">
             {account.balance && account.balance !== '0' ? formatLitho(account.balance) : '0 LITHO'}
           </div>
+          {account.balance && account.balance !== '0' && usdPrice != null && (
+            <div className="text-sm text-white/40 mt-1 font-mono">
+              {(() => {
+                try {
+                  const usd = (Number(BigInt(account.balance)) / 1e18) * usdPrice;
+                  return usd.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                } catch { return null; }
+              })()}
+            </div>
+          )}
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-white/45 mb-1">Transactions</div>
@@ -576,7 +608,7 @@ function WalletLayout({
       </div>
 
       {/* ── Holdings ────────────────────────────────────────────────── */}
-      <HoldingsSection balance={account.balance} />
+      <HoldingsSection balance={account.balance} usdPrice={usdPrice} />
 
       {/* ── Tab bar ─────────────────────────────────────────────────── */}
       <div className="border-b border-white/10">
@@ -652,6 +684,10 @@ export default function AddressPage() {
   const { data: tokenDetail } =
     useApi<ApiTokenDetail>((isContract || isToken) && addr ? `/tokens/${addr}` : null);
 
+  // Fetch LITHO price for USD display
+  const { data: priceData } = useApi<ApiPrice>('/price');
+  const usdPrice = priceData?.price ?? null;
+
   const setTab = useCallback(
     (key: TabKey) => {
       router.push(
@@ -715,6 +751,7 @@ export default function AddressPage() {
           addr={addr}
           activeTab={activeTab}
           setTab={setTab}
+          usdPrice={usdPrice}
         />
       )}
     </>

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod } from '@/lib/format';
+import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod, txTypeInfo, isEvmAddress, isBech32Address } from '@/lib/format';
 import type { ApiTx, StatsSummary } from '@/lib/types';
 
 /* ------------------------------------------------------------------ */
@@ -207,15 +207,40 @@ export default function TransactionDetailPage() {
             {/* From */}
             <InfoRow label="From">
               {tx.fromAddr ? (
-                <>
-                  <Link
-                    href={`/address/${tx.fromAddr}`}
-                    className="font-mono text-emerald-300 hover:text-emerald-200 transition"
-                  >
-                    {truncateHash(tx.fromAddr, 10)}
-                  </Link>
-                  <CopyBtn text={tx.fromAddr} />
-                </>
+                <div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <Link
+                      href={`/address/${tx.fromAddr}`}
+                      className="font-mono text-emerald-300 hover:text-emerald-200 transition"
+                    >
+                      {truncateHash(tx.fromAddr, 10)}
+                    </Link>
+                    <CopyBtn text={tx.fromAddr} />
+                  </div>
+                  {/* Show alternate address format */}
+                  {tx.evmFromAddr && tx.evmFromAddr !== tx.fromAddr && (
+                    <div className="mt-1 flex items-center gap-1 flex-wrap">
+                      <Link
+                        href={`/address/${tx.evmFromAddr}`}
+                        className="font-mono text-xs text-white/45 hover:text-emerald-300 transition"
+                      >
+                        {truncateHash(tx.evmFromAddr, 10)}
+                      </Link>
+                      <CopyBtn text={tx.evmFromAddr} />
+                    </div>
+                  )}
+                  {tx.cosmosFromAddr && tx.cosmosFromAddr !== tx.fromAddr && (
+                    <div className="mt-1 flex items-center gap-1 flex-wrap">
+                      <Link
+                        href={`/address/${tx.cosmosFromAddr}`}
+                        className="font-mono text-xs text-white/45 hover:text-emerald-300 transition"
+                      >
+                        {truncateHash(tx.cosmosFromAddr, 10)}
+                      </Link>
+                      <CopyBtn text={tx.cosmosFromAddr} />
+                    </div>
+                  )}
+                </div>
               ) : (
                 <span className="text-white/40">&mdash;</span>
               )}
@@ -224,15 +249,40 @@ export default function TransactionDetailPage() {
             {/* To */}
             <InfoRow label="To">
               {tx.toAddr ? (
-                <>
-                  <Link
-                    href={`/address/${tx.toAddr}`}
-                    className="font-mono text-emerald-300 hover:text-emerald-200 transition"
-                  >
-                    {truncateHash(tx.toAddr, 10)}
-                  </Link>
-                  <CopyBtn text={tx.toAddr} />
-                </>
+                <div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <Link
+                      href={`/address/${tx.toAddr}`}
+                      className="font-mono text-emerald-300 hover:text-emerald-200 transition"
+                    >
+                      {truncateHash(tx.toAddr, 10)}
+                    </Link>
+                    <CopyBtn text={tx.toAddr} />
+                  </div>
+                  {/* Show alternate address format */}
+                  {tx.evmToAddr && tx.evmToAddr !== tx.toAddr && (
+                    <div className="mt-1 flex items-center gap-1 flex-wrap">
+                      <Link
+                        href={`/address/${tx.evmToAddr}`}
+                        className="font-mono text-xs text-white/45 hover:text-emerald-300 transition"
+                      >
+                        {truncateHash(tx.evmToAddr, 10)}
+                      </Link>
+                      <CopyBtn text={tx.evmToAddr} />
+                    </div>
+                  )}
+                  {tx.cosmosToAddr && tx.cosmosToAddr !== tx.toAddr && (
+                    <div className="mt-1 flex items-center gap-1 flex-wrap">
+                      <Link
+                        href={`/address/${tx.cosmosToAddr}`}
+                        className="font-mono text-xs text-white/45 hover:text-emerald-300 transition"
+                      >
+                        {truncateHash(tx.cosmosToAddr, 10)}
+                      </Link>
+                      <CopyBtn text={tx.cosmosToAddr} />
+                    </div>
+                  )}
+                </div>
               ) : (
                 <span className="text-white/40">&mdash;</span>
               )}
@@ -342,14 +392,22 @@ export default function TransactionDetailPage() {
                     </InfoRow>
                   )}
 
-                  {/* Transaction Type / Method */}
-                  {tx.method && (
-                    <InfoRow label="Transaction Type">
-                      <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-0.5 text-xs font-mono text-white/70">
+                  {/* Transaction Type */}
+                  <InfoRow label="Transaction Type">
+                    {(() => {
+                      const info = txTypeInfo(tx.txType);
+                      return (
+                        <span className={`inline-flex items-center rounded-full border px-3 py-0.5 text-xs font-medium ${info.color}`}>
+                          {info.label}
+                        </span>
+                      );
+                    })()}
+                    {tx.method && (
+                      <span className="ml-2 inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-0.5 text-xs font-mono text-white/50">
                         {cleanMethod(tx.method)}
                       </span>
-                    </InfoRow>
-                  )}
+                    )}
+                  </InfoRow>
 
                   {/* Memo */}
                   {tx.memo && (

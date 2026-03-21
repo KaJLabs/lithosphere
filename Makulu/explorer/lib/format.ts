@@ -67,6 +67,19 @@ export function cleanMethod(method: string | undefined): string | undefined {
   return method.replace(/MsgEthereumTx/g, 'MsgTx');
 }
 
+/** Get display info for transaction type badge */
+export function txTypeInfo(txType?: string): { label: string; color: string } {
+  switch (txType) {
+    case 'call':
+      return { label: 'Call', color: 'border-blue-400/20 bg-blue-400/10 text-blue-300' };
+    case 'create':
+      return { label: 'Create', color: 'border-violet-400/20 bg-violet-400/10 text-violet-300' };
+    case 'transfer':
+    default:
+      return { label: 'Transfer', color: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300' };
+  }
+}
+
 export function isEvmAddress(addr: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(addr);
 }

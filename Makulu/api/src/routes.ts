@@ -92,6 +92,13 @@ function cleanMethod(m: string | null | undefined): string | undefined {
   return m.replace(/MsgEthereumTx/g, 'MsgTx');
 }
 
+/** Classify EVM transaction type based on inputData and toAddr */
+function classifyTxType(inputData?: string | null, toAddr?: string | null, contractAddr?: string | null): 'transfer' | 'call' | 'create' {
+  if (!toAddr && contractAddr) return 'create';
+  if (inputData && inputData !== '0x' && inputData.length > 2) return 'call';
+  return 'transfer';
+}
+
 // ── Mappers → Explorer-expected shapes ──────────────────────────────────────
 
 function mapBlock(r: BlockRow) {
@@ -104,23 +111,25 @@ function mapBlock(r: BlockRow) {
   };
 }
 
-function mapBlockDetail(r: BlockRow, txs: Array<TxRow & { evm_hash?: string | null }>) {
+function mapBlockDetail(r: BlockRow, txs: Array<TxRow & { evm_hash?: string | null; evm_input_data?: string | null; evm_contract_address?: string | null; evm_from_address?: string | null; evm_to_address?: string | null }>) {
   return {
     ...mapBlock(r),
     parentHash: null,
     proposerAddress: r.proposer_address ?? null,
     gasUsed: r.total_gas ?? '0',
-    txs: txs.map((t) => mapTx(t, t.evm_hash)),
+    txs: txs.map((t) => mapTx(t, t.evm_hash, { input_data: t.evm_input_data, contract_address: t.evm_contract_address, from_address: t.evm_from_address, to_address: t.evm_to_address })),
   };
 }
 
-function mapTx(r: TxRow, evmHash?: string | null) {
+function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: string | null; contract_address?: string | null; from_address?: string | null; to_address?: string | null }) {
+  const fromAddr = r.sender ?? '';
+  const toAddr = r.receiver ?? '';
   return {
     hash: r.hash,
     evmHash: evmHash ?? undefined,
     blockHeight: Number(r.block_height),
-    fromAddr: r.sender ?? '',
-    toAddr: r.receiver ?? '',
+    fromAddr,
+    toAddr,
     value: r.amount ?? '0',
     denom: r.denom ?? 'ulitho',
     feePaid: r.fee ?? '0',
@@ -128,19 +137,29 @@ function mapTx(r: TxRow, evmHash?: string | null) {
     gasWanted: r.gas_wanted ?? null,
     success: r.success,
     method: cleanMethod(r.tx_type),
+    txType: classifyTxType(evmExtra?.input_data, toAddr || evmExtra?.to_address, evmExtra?.contract_address),
     memo: r.memo ?? undefined,
     timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
     rawLog: r.raw_log ?? undefined,
+    inputData: evmExtra?.input_data ?? undefined,
+    contractAddress: evmExtra?.contract_address ?? undefined,
+    // Include both address formats when available from EVM data
+    evmFromAddr: evmExtra?.from_address ?? undefined,
+    evmToAddr: evmExtra?.to_address ?? undefined,
   };
 }
 
 function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
+  const evmFrom = evm.from_address ?? '';
+  const evmTo = evm.to_address ?? '';
+  const cosmosFrom = cosmosTx?.sender ?? '';
+  const cosmosTo = cosmosTx?.receiver ?? '';
   return {
     hash: cosmosTx?.hash ?? evm.cosmos_tx_hash,
     evmHash: evm.hash,
     blockHeight: Number(evm.block_height),
-    fromAddr: evm.from_address ?? cosmosTx?.sender ?? '',
-    toAddr: evm.to_address ?? cosmosTx?.receiver ?? '',
+    fromAddr: evmFrom || cosmosFrom,
+    toAddr: evmTo || cosmosTo,
     value: evm.value ?? cosmosTx?.amount ?? '0',
     denom: cosmosTx?.denom ?? 'ulitho',
     feePaid: cosmosTx?.fee ?? '0',
@@ -148,12 +167,18 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
     gasWanted: evm.gas_limit != null ? String(evm.gas_limit) : cosmosTx?.gas_wanted ?? null,
     success: evm.status,
     method: cleanMethod(cosmosTx?.tx_type) ?? 'MsgTx',
+    txType: classifyTxType(evm.input_data, evmTo || cosmosTo, evm.contract_address),
     memo: cosmosTx?.memo ?? undefined,
     timestamp: evm.timestamp instanceof Date ? evm.timestamp.toISOString() : String(evm.timestamp),
     contractAddress: evm.contract_address ?? undefined,
     nonce: evm.nonce ?? undefined,
     gasPrice: evm.gas_price ?? undefined,
     inputData: evm.input_data ?? undefined,
+    // Include both address formats
+    evmFromAddr: evmFrom || undefined,
+    evmToAddr: evmTo || undefined,
+    cosmosFromAddr: cosmosFrom || undefined,
+    cosmosToAddr: cosmosTo || undefined,
   };
 }
 
@@ -264,8 +289,8 @@ export function explorerRouter(): Router {
         res.status(404).json({ message: 'Block not found' });
         return;
       }
-      const txs = await query<TxRow & { evm_hash: string | null }>(
-        `SELECT t.*, e.hash AS evm_hash
+      const txs = await query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null }>(
+        `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address
          FROM transactions t
          LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
          WHERE t.block_height = $1
@@ -286,8 +311,8 @@ export function explorerRouter(): Router {
       const limit = clamp(req.query.limit);
       const offset = Math.max(0, Number(req.query.offset) || 0);
       const [rows, countResult] = await Promise.all([
-        query<TxRow & { evm_hash: string | null }>(
-          `SELECT t.*, e.hash AS evm_hash
+        query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null }>(
+          `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address
            FROM transactions t
            LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
            ORDER BY t.timestamp DESC, t.block_height DESC
@@ -297,7 +322,7 @@ export function explorerRouter(): Router {
         query<CountRow>('SELECT COUNT(*) AS count FROM transactions'),
       ]);
       res.json({
-        txs: rows.map((r) => mapTx(r, r.evm_hash)),
+        txs: rows.map((r) => mapTx(r, r.evm_hash, { input_data: r.evm_input_data, contract_address: r.evm_contract_address, from_address: r.evm_from_address, to_address: r.evm_to_address })),
         total: parseInt(countResult[0]?.count ?? '0'),
         limit,
         offset,
@@ -312,29 +337,28 @@ export function explorerRouter(): Router {
     try {
       const { hash } = req.params;
 
-      // 1. Try exact match in transactions table (Cosmos SHA256 hash)
-      const rows = await query<TxRow & { evm_hash: string | null }>(
-        `SELECT t.*, e.hash AS evm_hash
+      type TxJoinRow = TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null };
+      const txJoinSql = `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address
          FROM transactions t
-         LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
-         WHERE t.hash = $1`,
+         LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash`;
+
+      // 1. Try exact match in transactions table (Cosmos SHA256 hash)
+      const rows = await query<TxJoinRow>(
+        `${txJoinSql} WHERE t.hash = $1`,
         [hash.toUpperCase()]
       );
       if (rows[0]) {
-        res.json(mapTx(rows[0], rows[0].evm_hash));
+        res.json(mapTx(rows[0], rows[0].evm_hash, { input_data: rows[0].evm_input_data, contract_address: rows[0].evm_contract_address, from_address: rows[0].evm_from_address, to_address: rows[0].evm_to_address }));
         return;
       }
 
       // 2. Try case-insensitive match in transactions
-      const rows2 = await query<TxRow & { evm_hash: string | null }>(
-        `SELECT t.*, e.hash AS evm_hash
-         FROM transactions t
-         LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
-         WHERE LOWER(t.hash) = LOWER($1)`,
+      const rows2 = await query<TxJoinRow>(
+        `${txJoinSql} WHERE LOWER(t.hash) = LOWER($1)`,
         [hash]
       );
       if (rows2[0]) {
-        res.json(mapTx(rows2[0], rows2[0].evm_hash));
+        res.json(mapTx(rows2[0], rows2[0].evm_hash, { input_data: rows2[0].evm_input_data, contract_address: rows2[0].evm_contract_address, from_address: rows2[0].evm_from_address, to_address: rows2[0].evm_to_address }));
         return;
       }
 
@@ -476,17 +500,21 @@ export function explorerRouter(): Router {
       const addrs = [...searchAddrs];
 
       // Search both Cosmos transactions (sender/receiver) and EVM transactions (from/to)
-      const rows = await query<TxRow & { evm_hash: string | null }>(
-        `SELECT DISTINCT ON (t.hash) t.*, e.hash AS evm_hash
-         FROM transactions t
-         LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
-         WHERE LOWER(t.sender) = ANY($1) OR LOWER(t.receiver) = ANY($1)
-            OR LOWER(e.from_address) = ANY($1) OR LOWER(e.to_address) = ANY($1)
-         ORDER BY t.hash, t.timestamp DESC
+      // Use subquery to deduplicate, then sort by most recent
+      const rows = await query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null }>(
+        `SELECT * FROM (
+           SELECT DISTINCT ON (t.hash) t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address
+           FROM transactions t
+           LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
+           WHERE LOWER(t.sender) = ANY($1) OR LOWER(t.receiver) = ANY($1)
+              OR LOWER(e.from_address) = ANY($1) OR LOWER(e.to_address) = ANY($1)
+           ORDER BY t.hash
+         ) sub
+         ORDER BY sub.timestamp DESC
          LIMIT $2`,
         [addrs, limit]
       );
-      res.json(rows.map((r) => mapTx(r, r.evm_hash)));
+      res.json(rows.map((r) => mapTx(r, r.evm_hash, { input_data: r.evm_input_data, contract_address: r.evm_contract_address, from_address: r.evm_from_address, to_address: r.evm_to_address })));
     } catch (err) {
       console.error('[api] /address/:address/txs error:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -613,6 +641,56 @@ export function explorerRouter(): Router {
     } catch (err) {
       console.error('[api] /tokens/:address error:', err);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── LITHO price (USD) ──────────────────────────────────────────────
+
+  let priceCache: { price: number; fetchedAt: number } | null = null;
+  const PRICE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  r.get('/price', async (_req: Request, res: Response) => {
+    try {
+      const now = Date.now();
+      if (priceCache && now - priceCache.fetchedAt < PRICE_TTL) {
+        res.json({ price: priceCache.price, symbol: 'LITHO', currency: 'USD' });
+        return;
+      }
+
+      // Try freecryptoapi.com first
+      let price: number | null = null;
+      try {
+        const resp = await fetch('https://api.freecryptoapi.com/v1/getData?symbol=LITHO', {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (resp.ok) {
+          const data = await resp.json() as Record<string, unknown>;
+          const lithoData = (data as { LITHO?: { price?: number } }).LITHO;
+          if (lithoData?.price) price = lithoData.price;
+        }
+      } catch { /* fallback below */ }
+
+      // Fallback: try CoinGecko
+      if (price == null) {
+        try {
+          const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=lithosphere&vs_currencies=usd', {
+            signal: AbortSignal.timeout(5000),
+          });
+          if (resp.ok) {
+            const data = await resp.json() as { lithosphere?: { usd?: number } };
+            if (data.lithosphere?.usd) price = data.lithosphere.usd;
+          }
+        } catch { /* no price available */ }
+      }
+
+      if (price != null) {
+        priceCache = { price, fetchedAt: now };
+      }
+
+      res.json({ price: price ?? null, symbol: 'LITHO', currency: 'USD' });
+    } catch (err) {
+      console.error('[api] /price error:', err);
+      res.json({ price: null, symbol: 'LITHO', currency: 'USD' });
     }
   });
 

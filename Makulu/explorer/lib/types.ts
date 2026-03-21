@@ -38,6 +38,7 @@ export interface ApiTx {
   gasWanted?: string | null;
   success: boolean;
   method?: string;
+  txType?: 'transfer' | 'call' | 'create';
   memo?: string;
   timestamp?: string;
   contractAddress?: string;
@@ -45,6 +46,16 @@ export interface ApiTx {
   gasPrice?: string;
   inputData?: string;
   rawLog?: string;
+  evmFromAddr?: string;
+  evmToAddr?: string;
+  cosmosFromAddr?: string;
+  cosmosToAddr?: string;
+}
+
+export interface ApiPrice {
+  price: number | null;
+  symbol: string;
+  currency: string;
 }
 
 export interface ApiToken {
