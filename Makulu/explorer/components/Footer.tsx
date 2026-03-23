@@ -6,7 +6,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-[var(--color-text-muted)]">
         <div className="flex items-center gap-3">
           <img
-            src="https://lithosphere.network/wp-content/uploads/2026/02/icon-tex-whitet.png"
+            src="/litho-logo.png"
             alt="Lithosphere"
             className="h-6 w-auto"
           />

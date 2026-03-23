@@ -35,7 +35,7 @@ export default function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 shrink-0">
             <img
-              src="https://lithosphere.network/wp-content/uploads/2026/02/icon-1-300x234.png"
+              src="/litho-logo.png"
               alt="Lithosphere"
               className="h-8 w-auto"
             />

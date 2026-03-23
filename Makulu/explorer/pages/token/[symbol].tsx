@@ -73,9 +73,13 @@ export default function TokenDetailPage() {
 
         {/* Header */}
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center text-2xl font-bold text-white">
-            {token.symbol.charAt(0).toUpperCase()}
-          </div>
+          {token.type === 'native' ? (
+            <img src="/litho-logo.png" alt={token.symbol} className="w-14 h-14 rounded-full object-contain" />
+          ) : (
+            <div className="w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center text-2xl font-bold text-white">
+              {token.symbol.charAt(0).toUpperCase()}
+            </div>
+          )}
           <div>
             <h1 className="text-3xl font-semibold">{token.name}</h1>
             <div className="flex items-center gap-3 mt-1">

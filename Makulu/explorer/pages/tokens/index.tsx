@@ -201,11 +201,15 @@ export default function TokensPage() {
                           {/* Token (avatar + symbol + name) */}
                           <td className="px-4 py-4">
                             <Link href={tokenHref} className="flex items-center gap-3 group">
-                              <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${getAvatarColor(token.symbol)}`}
-                              >
-                                {token.symbol.charAt(0).toUpperCase()}
-                              </div>
+                              {token.type === 'native' ? (
+                                <img src="/litho-logo.png" alt={token.symbol} className="w-8 h-8 rounded-full object-contain" />
+                              ) : (
+                                <div
+                                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${getAvatarColor(token.symbol)}`}
+                                >
+                                  {token.symbol.charAt(0).toUpperCase()}
+                                </div>
+                              )}
                               <div>
                                 <span className="text-sm font-semibold text-white group-hover:text-emerald-300 transition">
                                   {token.symbol}
@@ -265,11 +269,15 @@ export default function TokensPage() {
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white ${getAvatarColor(token.symbol)}`}
-                          >
-                            {token.symbol.charAt(0).toUpperCase()}
-                          </div>
+                          {token.type === 'native' ? (
+                            <img src="/litho-logo.png" alt={token.symbol} className="w-10 h-10 rounded-full object-contain" />
+                          ) : (
+                            <div
+                              className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white ${getAvatarColor(token.symbol)}`}
+                            >
+                              {token.symbol.charAt(0).toUpperCase()}
+                            </div>
+                          )}
                           <div>
                             <div className="text-sm font-semibold text-white">{token.symbol}</div>
                             <div className="text-xs text-white/40">{token.name}</div>

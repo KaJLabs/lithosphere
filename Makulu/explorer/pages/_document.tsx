@@ -17,7 +17,7 @@ export default function Document() {
             `,
           }}
         />
-        <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+        <link rel="icon" href="/litho-logo.png" type="image/png" />
       </Head>
       <body>
         <Main />
