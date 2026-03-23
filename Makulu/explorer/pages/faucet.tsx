@@ -37,7 +37,7 @@ function shortenAddress(value: string) {
 
 export default function FaucetPage() {
   const [address, setAddress] = useState('');
-  const [walletType, setWalletType] = useState<WalletType>('EVM');
+  const [walletType, setWalletType] = useState<WalletType>('COSMOS');
   const [amount, setAmount] = useState('10 LITHO');
   const [reason, setReason] = useState('');
   const [connectedAddress, setConnectedAddress] = useState('');
@@ -269,7 +269,7 @@ export default function FaucetPage() {
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                    <div className="text-white/50">Cosmos Chain ID</div>
+                    <div className="text-white/50">Chain ID</div>
                     <div className="mt-1 font-medium text-white">{NETWORK.cosmosChainId}</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
@@ -321,8 +321,8 @@ export default function FaucetPage() {
                       onChange={(e) => setWalletType(e.target.value as WalletType)}
                       className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-white/25"
                     >
+                      <option value="COSMOS">Wallet</option>
                       <option value="EVM">EVM Wallet</option>
-                      <option value="COSMOS">Cosmos Wallet</option>
                     </select>
                   </div>
                   <div>
@@ -386,7 +386,7 @@ export default function FaucetPage() {
                 <h2 className="mt-2 text-2xl font-semibold">Connect to Makalu testnet</h2>
                 <p className="mt-2 text-sm leading-6 text-white/65">
                   Add Lithosphere Makalu to your EVM wallet or use the chain identifiers for
-                  Cosmos-native tooling.
+                  native tooling.
                 </p>
               </div>
 
@@ -400,7 +400,7 @@ export default function FaucetPage() {
                   <div className="mt-1 break-all font-medium text-white">{NETWORK.evmRpcUrl}</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                  <div className="text-white/50">Cosmos Chain ID</div>
+                  <div className="text-white/50">Chain ID</div>
                   <div className="mt-1 font-medium text-white">{NETWORK.cosmosChainId}</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">

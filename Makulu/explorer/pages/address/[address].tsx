@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, truncateHash, timeAgo, formatTimestamp, formatLitho, cleanMethod, txTypeInfo } from '@/lib/format';
+import { formatNumber, truncateHash, timeAgo, formatTimestamp, formatLitho, cleanMethod, txTypeInfo, formatValue } from '@/lib/format';
 import type { ApiAddress, ApiTx, ApiTokenDetail, ApiPrice } from '@/lib/types';
 
 /* ── Tabs ─────────────────────────────────────────────────────────────── */
@@ -229,7 +229,7 @@ function TxTable({
             <div className="flex items-center md:block">
               <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Value</span>
               <span className="text-sm font-mono text-white/80">
-                {tx.value && tx.value !== '0' ? `${tx.value} ${tx.denom ?? 'ulitho'}` : '0'}
+                {formatValue(tx.value, tx.denom)}
               </span>
             </div>
 
@@ -270,7 +270,7 @@ function HoldingsSection({ balance, usdPrice }: { balance: string; usdPrice: num
   if (hasBalance && usdPrice != null) {
     try {
       const raw = BigInt(balance);
-      const lithoAmount = Number(raw) / 1e18;
+      const lithoAmount = Number(raw) / 1e6;
       const usd = lithoAmount * usdPrice;
       usdValue = usd.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
     } catch { /* ignore */ }
@@ -588,7 +588,7 @@ function WalletLayout({
             <div className="text-sm text-white/40 mt-1 font-mono">
               {(() => {
                 try {
-                  const usd = (Number(BigInt(account.balance)) / 1e18) * usdPrice;
+                  const usd = (Number(BigInt(account.balance)) / 1e6) * usdPrice;
                   return usd.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 } catch { return null; }
               })()}

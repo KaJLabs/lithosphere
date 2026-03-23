@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatTimestamp, timeAgo, truncateHash, cleanMethod, txTypeInfo } from '@/lib/format';
+import { formatNumber, formatTimestamp, timeAgo, truncateHash, cleanMethod, txTypeInfo, formatValue } from '@/lib/format';
 import type { ApiBlock, ApiTx, StatsSummary } from '@/lib/types';
 import HashDisplay from '@/components/HashDisplay';
 import DataTable, { type Column } from '@/components/DataTable';
@@ -89,7 +89,7 @@ export default function BlockDetailPage() {
     {
       key: 'value',
       header: 'Value',
-      render: (tx) => <span className="font-mono text-sm">{tx.value || '0'} {tx.denom ?? 'ulitho'}</span>,
+      render: (tx) => <span className="font-mono text-sm">{formatValue(tx.value, tx.denom)}</span>,
     },
     {
       key: 'fee',
@@ -170,12 +170,9 @@ export default function BlockDetailPage() {
 
           {block.proposerAddress && (
             <Row label="Validated By" tooltip="The validator who proposed this block">
-              <Link
-                href={`/address/${block.proposerAddress}`}
-                className="font-mono text-emerald-300 hover:text-emerald-200 transition"
-              >
+              <span className="font-mono text-white/70">
                 {block.proposerAddress}
-              </Link>
+              </span>
               <CopyBtn text={block.proposerAddress} />
             </Row>
           )}

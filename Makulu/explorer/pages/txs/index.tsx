@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
-import { truncateHash, formatNumber, timeAgo, cleanMethod, txTypeInfo } from '@/lib/format';
+import { truncateHash, formatNumber, timeAgo, cleanMethod, txTypeInfo, formatValue } from '@/lib/format';
 import type { ApiTxList } from '@/lib/types';
 
 const PAGE_SIZE = 25;
@@ -171,7 +171,7 @@ export default function TransactionsPage() {
                   <div className="flex items-center md:block">
                     <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Value</span>
                     <span className="text-sm font-mono text-white/80">
-                      {tx.value && tx.value !== '0' ? `${tx.value} ${tx.denom ?? 'ulitho'}` : '0'}
+                      {formatValue(tx.value, tx.denom)}
                     </span>
                   </div>
 

@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { useState } from 'react';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod, txTypeInfo } from '@/lib/format';
+import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod, txTypeInfo, formatValue } from '@/lib/format';
 import type { ApiTx } from '@/lib/types';
 
 /* ---------- tiny helpers ---------- */
@@ -214,7 +214,7 @@ export default function TransactionReceiptPage() {
                 </Link>
                 {' sent '}
                 <span className="font-mono text-white font-medium">
-                  {valueBig !== '0' ? `${valueBig} ${denom}` : `0 ${denom}`}
+                  {formatValue(valueBig, denom)}
                 </span>
                 {tx.toAddr ? (
                   <>
@@ -262,17 +262,17 @@ export default function TransactionReceiptPage() {
           <SectionTitle>Financial Summary</SectionTitle>
           <Row label="Value Sent">
             <span className="font-mono">
-              {valueBig !== '0' ? `${valueBig} ${denom}` : `0 ${denom}`}
+              {formatValue(valueBig, denom)}
             </span>
           </Row>
           <Row label="Fee">
             <span className="font-mono">
-              {feeBig !== '0' ? `${feeBig} ${denom}` : `0 ${denom}`}
+              {formatValue(feeBig, denom)}
             </span>
           </Row>
           <Row label="Total">
             <span className="font-mono font-medium text-white">
-              {total} {denom}
+              {formatValue(total, denom)}
             </span>
           </Row>
         </div>
@@ -310,7 +310,7 @@ export default function TransactionReceiptPage() {
 
           {tx.gasPrice && (
             <Row label="Effective Gas Price">
-              <span className="font-mono">{tx.gasPrice} ulitho</span>
+              <span className="font-mono">{formatValue(tx.gasPrice)}</span>
             </Row>
           )}
 

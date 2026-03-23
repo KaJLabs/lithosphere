@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod, txTypeInfo, isEvmAddress, isBech32Address } from '@/lib/format';
+import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod, txTypeInfo, isEvmAddress, isBech32Address, formatValue } from '@/lib/format';
 import type { ApiTx, StatsSummary } from '@/lib/types';
 
 /* ------------------------------------------------------------------ */
@@ -347,18 +347,14 @@ export default function TransactionDetailPage() {
                   {/* Value */}
                   <InfoRow label="Value">
                     <span className="font-mono">
-                      {tx.value && tx.value !== '0'
-                        ? `${tx.value} ${tx.denom ?? 'ulitho'}`
-                        : '0'}
+                      {formatValue(tx.value, tx.denom)}
                     </span>
                   </InfoRow>
 
                   {/* Transaction Fee */}
                   <InfoRow label="Transaction Fee">
                     <span className="font-mono">
-                      {tx.feePaid && tx.feePaid !== '0'
-                        ? `${tx.feePaid} ${tx.denom ?? 'ulitho'}`
-                        : '0'}
+                      {formatValue(tx.feePaid, tx.denom)}
                     </span>
                   </InfoRow>
 
@@ -381,7 +377,7 @@ export default function TransactionDetailPage() {
                   {/* Gas Price */}
                   {tx.gasPrice && (
                     <InfoRow label="Gas Price">
-                      <span className="font-mono">{tx.gasPrice} ulitho</span>
+                      <span className="font-mono">{formatValue(tx.gasPrice)}</span>
                     </InfoRow>
                   )}
 

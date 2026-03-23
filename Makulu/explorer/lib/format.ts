@@ -28,6 +28,23 @@ export function formatLitho(amount: string | null | undefined): string {
   return `${wholeFormatted}.${fracStr} LITHO`;
 }
 
+/** Convert raw ulitho value to LITHO display string (1 LITHO = 1,000,000 ulitho) */
+export function formatValue(amount: string | null | undefined, denom?: string): string {
+  if (!amount || amount === '0') return '0 LITHO';
+  try {
+    const raw = BigInt(amount);
+    const whole = raw / BigInt(10 ** DECIMALS);
+    const frac = raw % BigInt(10 ** DECIMALS);
+    const fracStr = frac.toString().padStart(DECIMALS, '0').replace(/0+$/, '');
+    const wholeFormatted = whole.toLocaleString('en-US');
+    if (!fracStr) return `${wholeFormatted} LITHO`;
+    return `${wholeFormatted}.${fracStr} LITHO`;
+  } catch {
+    // If BigInt fails, just show the raw number
+    return `${amount} ${denom === 'ulitho' ? 'LITHO' : (denom ?? 'LITHO')}`;
+  }
+}
+
 export function formatGas(gas: string | null | undefined): string {
   if (!gas) return '-';
   return formatNumber(gas);

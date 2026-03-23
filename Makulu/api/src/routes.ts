@@ -646,18 +646,28 @@ export function explorerRouter(): Router {
 
   // ── LITHO price (USD) ──────────────────────────────────────────────
 
+  // Testnet: fixed price. Mainnet: switch to live API after TGE.
+  const TESTNET_PRICE = 5; // $5 USD per LITHO (testnet only)
+  const IS_MAINNET = process.env.NETWORK === 'mainnet';
+
   let priceCache: { price: number; fetchedAt: number } | null = null;
   const PRICE_TTL = 5 * 60 * 1000; // 5 minutes
 
   r.get('/price', async (_req: Request, res: Response) => {
     try {
+      // Testnet: return fixed price
+      if (!IS_MAINNET) {
+        res.json({ price: TESTNET_PRICE, symbol: 'LITHO', currency: 'USD' });
+        return;
+      }
+
+      // Mainnet: fetch live price from APIs
       const now = Date.now();
       if (priceCache && now - priceCache.fetchedAt < PRICE_TTL) {
         res.json({ price: priceCache.price, symbol: 'LITHO', currency: 'USD' });
         return;
       }
 
-      // Try freecryptoapi.com first
       let price: number | null = null;
       try {
         const resp = await fetch('https://api.freecryptoapi.com/v1/getData?symbol=LITHO', {
@@ -670,7 +680,6 @@ export function explorerRouter(): Router {
         }
       } catch { /* fallback below */ }
 
-      // Fallback: try CoinGecko
       if (price == null) {
         try {
           const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=lithosphere&vs_currencies=usd', {

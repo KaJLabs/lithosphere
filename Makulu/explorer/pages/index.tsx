@@ -2,7 +2,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
-import { formatNumber, timeAgo, truncateHash, cleanMethod, txTypeInfo } from '@/lib/format';
+import { formatNumber, timeAgo, truncateHash, cleanMethod, txTypeInfo, formatValue } from '@/lib/format';
 import type { StatsSummary, ApiBlock, ApiTxList, ApiValidator } from '@/lib/types';
 import SearchBar from '@/components/SearchBar';
 
@@ -82,7 +82,7 @@ export default function Home() {
                 Explore blocks, contracts, AI activity, and LEP100 assets on Makalu.
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-white/65 md:text-lg">
-                A unified explorer for Lithosphere&apos;s Cosmos and EVM layers with validator
+                A unified explorer for Lithosphere&apos;s dual-layer blockchain with validator
                 intelligence, AI execution receipts, bridge activity, and real-time network
                 analytics.
               </p>
@@ -257,7 +257,7 @@ export default function Home() {
                             </span>
                           </div>
                           <div>
-                            Value: <span className="text-white">{tx.value}</span>
+                            Value: <span className="text-white">{formatValue(tx.value, tx.denom)}</span>
                           </div>
                         </div>
                       </div>
