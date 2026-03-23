@@ -270,7 +270,7 @@ function HoldingsSection({ balance, usdPrice }: { balance: string; usdPrice: num
   if (hasBalance && usdPrice != null) {
     try {
       const raw = BigInt(balance);
-      const lithoAmount = Number(raw) / 1e6;
+      const lithoAmount = Number(raw) / 1e18;
       const usd = lithoAmount * usdPrice;
       usdValue = usd.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
     } catch { /* ignore */ }
@@ -588,7 +588,7 @@ function WalletLayout({
             <div className="text-sm text-white/40 mt-1 font-mono">
               {(() => {
                 try {
-                  const usd = (Number(BigInt(account.balance)) / 1e6) * usdPrice;
+                  const usd = (Number(BigInt(account.balance)) / 1e18) * usdPrice;
                   return usd.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 } catch { return null; }
               })()}

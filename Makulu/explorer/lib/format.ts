@@ -1,4 +1,4 @@
-import { DECIMALS } from './constants';
+import { DECIMALS, ULITHO_DECIMALS } from './constants';
 
 export function truncateHash(hash: string, start = 10, end = 6): string {
   if (!hash) return '';
@@ -33,14 +33,14 @@ export function formatValue(amount: string | null | undefined, denom?: string): 
   if (!amount || amount === '0') return '0 LITHO';
   try {
     const raw = BigInt(amount);
-    const whole = raw / BigInt(10 ** DECIMALS);
-    const frac = raw % BigInt(10 ** DECIMALS);
-    const fracStr = frac.toString().padStart(DECIMALS, '0').replace(/0+$/, '');
+    const d = ULITHO_DECIMALS;
+    const whole = raw / BigInt(10 ** d);
+    const frac = raw % BigInt(10 ** d);
+    const fracStr = frac.toString().padStart(d, '0').replace(/0+$/, '');
     const wholeFormatted = whole.toLocaleString('en-US');
     if (!fracStr) return `${wholeFormatted} LITHO`;
     return `${wholeFormatted}.${fracStr} LITHO`;
   } catch {
-    // If BigInt fails, just show the raw number
     return `${amount} ${denom === 'ulitho' ? 'LITHO' : (denom ?? 'LITHO')}`;
   }
 }
