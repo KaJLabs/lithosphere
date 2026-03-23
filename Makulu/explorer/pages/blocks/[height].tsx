@@ -170,9 +170,12 @@ export default function BlockDetailPage() {
 
           {block.proposerAddress && (
             <Row label="Validated By" tooltip="The validator who proposed this block">
-              <span className="font-mono text-white/70">
-                {block.proposerAddress}
-              </span>
+              <Link
+                href={`/address/${block.proposerAddress}`}
+                className="font-mono text-emerald-300 hover:text-emerald-200 transition"
+              >
+                {truncateHash(block.proposerAddress)}
+              </Link>
               <CopyBtn text={block.proposerAddress} />
             </Row>
           )}
