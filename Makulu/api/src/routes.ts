@@ -160,7 +160,7 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
     blockHeight: Number(evm.block_height),
     fromAddr: evmFrom || cosmosFrom,
     toAddr: evmTo || cosmosTo,
-    value: evm.value ?? cosmosTx?.amount ?? '0',
+    value: cosmosTx?.amount ?? evm.value ?? '0',
     denom: cosmosTx?.denom ?? 'ulitho',
     feePaid: cosmosTx?.fee ?? '0',
     gasUsed: evm.gas_used != null ? String(evm.gas_used) : cosmosTx?.gas_used ?? null,
