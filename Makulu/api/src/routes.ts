@@ -472,6 +472,27 @@ export function explorerRouter(): Router {
         return;
       }
 
+      // 4. Check if this is a validator proposer address (CometBFT consensus hex)
+      const proposerBlocks = await query<{ count: string; last_time: Date | null }>(
+        `SELECT COUNT(*) AS count, MAX(block_time) AS last_time FROM blocks WHERE LOWER(proposer_address) = $1`,
+        [addrLower]
+      ).catch(() => [{ count: '0', last_time: null }]);
+
+      const blocksProposed = parseInt(proposerBlocks[0]?.count ?? '0');
+      if (blocksProposed > 0) {
+        res.json({
+          address,
+          balance: '0',
+          txCount: 0,
+          blocksProposed,
+          isValidator: true,
+          lastSeen: proposerBlocks[0]?.last_time instanceof Date
+            ? proposerBlocks[0].last_time.toISOString()
+            : new Date().toISOString(),
+        });
+        return;
+      }
+
       res.status(404).json({ message: 'Account not found' });
     } catch (err) {
       console.error('[api] /address/:address error:', err);

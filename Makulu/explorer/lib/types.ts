@@ -79,6 +79,8 @@ export interface ApiAddress {
   address: string;
   evmAddress?: string;
   cosmosAddress?: string;
+  isValidator?: boolean;
+  blocksProposed?: number;
   balance: string;
   txCount: number;
   lastSeen: string;

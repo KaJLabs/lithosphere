@@ -551,15 +551,21 @@ function WalletLayout({
           </h1>
           <div className="flex items-center gap-2 shrink-0">
             <CopyBtn text={account.address} />
-            <span
-              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                account.txCount > 0
-                  ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
-                  : 'border-white/20 bg-white/5 text-white/50'
-              }`}
-            >
-              {account.txCount > 0 ? 'Active' : 'Inactive'}
-            </span>
+            {account.isValidator ? (
+              <span className="inline-flex items-center rounded-full border border-violet-400/30 bg-violet-400/10 px-2.5 py-0.5 text-xs font-medium text-violet-300">
+                Validator
+              </span>
+            ) : (
+              <span
+                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                  account.txCount > 0
+                    ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
+                    : 'border-white/20 bg-white/5 text-white/50'
+                }`}
+              >
+                {account.txCount > 0 ? 'Active' : 'Inactive'}
+              </span>
+            )}
           </div>
         </div>
 
@@ -596,8 +602,12 @@ function WalletLayout({
           )}
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <div className="text-sm text-white/45 mb-1">Transactions</div>
-          <div className="text-xl font-semibold">{formatNumber(account.txCount)}</div>
+          <div className="text-sm text-white/45 mb-1">
+            {account.isValidator ? 'Blocks Proposed' : 'Transactions'}
+          </div>
+          <div className="text-xl font-semibold">
+            {formatNumber(account.isValidator ? (account.blocksProposed ?? 0) : account.txCount)}
+          </div>
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-white/45 mb-1">Last Active</div>
