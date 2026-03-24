@@ -1,6 +1,6 @@
 # What is Lithosphere?
 
-Lithosphere is a platform-level public chain for the digital economy era, designed to connect all kinds of values, provide complete financial functions, communicate diverse communities and tokens, and bridge centralized and decentralized organizations to bring the Internet of Value.
+Lithosphere is a platform-level public chain for the digital economy era, designed to connect all kinds of value, provide complete financial functions, communicate diverse communities and tokens, and bridge centralized and decentralized organizations to bring the Internet of Value.
 
 ![Lithosphere Ecosystem](../diagrams/Icon_Template_2.png)
 
