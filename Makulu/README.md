@@ -233,10 +233,10 @@ We welcome contributions! Please see our contributing guidelines (coming soon).
 
 ## 🔗 Links
 
-- Website: [Coming soon]
-- Documentation: [Coming soon]
+- Website: https://litho.ai
+- Documentation: https://docs.litho.ai
 - Discord: [Coming soon]
-- Twitter: [Coming soon]
+- Wavy: [Coming soon]
 
 ---
 
