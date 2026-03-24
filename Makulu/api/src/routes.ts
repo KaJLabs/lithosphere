@@ -99,6 +99,51 @@ function classifyTxType(inputData?: string | null, toAddr?: string | null, contr
   return 'transfer';
 }
 
+/** Common 4-byte EVM function selectors → human-readable method names */
+const METHOD_SIGS: Record<string, string> = {
+  '0xa9059cbb': 'Transfer', '0x23b872dd': 'Transfer From', '0x095ea7b3': 'Approve',
+  '0x70a08231': 'Balance Of', '0x18160ddd': 'Total Supply', '0x313ce567': 'Decimals',
+  '0x06fdde03': 'Name', '0x95d89b41': 'Symbol', '0xdd62ed3e': 'Allowance',
+  '0x3593564c': 'Execute', '0x5ae401dc': 'Multicall', '0x1249c58b': 'Mint',
+  '0xa0712d68': 'Mint', '0x40c10f19': 'Mint', '0x42842e0e': 'Safe Transfer From',
+  '0xf242432a': 'Safe Transfer From', '0xd0e30db0': 'Deposit', '0x2e1a7d4d': 'Withdraw',
+  '0x3ccfd60b': 'Withdraw', '0xa22cb465': 'Set Approval For All', '0x4e71d92d': 'Claim',
+  '0x2eb2c2d6': 'Safe Batch Transfer', '0x5c19a95c': 'Delegate',
+  '0xb858183f': 'Handle Ops', '0x1fad948c': 'Handle Ops',
+  '0x765e827f': 'Execute Batch', '0x51945447': 'Execute', '0xb61d27f6': 'Execute',
+  '0xe9ae5c53': 'Exec', '0x61461954': 'Exec',
+  '0x12aa3caf': 'Swap', '0x0502b1c5': 'Uniswap V3 Swap', '0xe449022e': 'Uniswap V3 Swap',
+  '0x7ff36ab5': 'Swap Exact ETH For Tokens', '0x38ed1739': 'Swap Exact Tokens For Tokens',
+  '0x18cbafe5': 'Swap Exact Tokens For ETH', '0x8803dbee': 'Swap Tokens For Exact Tokens',
+  '0x4a25d94a': 'Swap Tokens For Exact ETH', '0xfb3bdb41': 'Swap ETH For Exact Tokens',
+  '0xb6f9de95': 'Swap Exact ETH For Tokens', '0x791ac947': 'Swap Exact Tokens For ETH',
+  '0xc9567bf9': 'Open Trading', '0x8da5cb5b': 'Owner',
+  '0x715018a6': 'Renounce Ownership', '0xf2fde38b': 'Transfer Ownership',
+  '0x60806040': 'Deploy', '0x60c06040': 'Deploy',
+};
+
+/** Decode method name from input_data's first 4 bytes */
+function decodeMethodName(inputData?: string | null): string | undefined {
+  if (!inputData || inputData === '0x' || inputData.length < 10) return undefined;
+  const selector = inputData.slice(0, 10).toLowerCase();
+  return METHOD_SIGS[selector] ?? selector;
+}
+
+/** EVM JSON-RPC helper */
+const EVM_RPC_URL = process.env.EVM_RPC_URL || '';
+async function evmRpcCall(method: string, params: unknown[]): Promise<unknown> {
+  if (!EVM_RPC_URL) return null;
+  const resp = await fetch(EVM_RPC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!resp.ok) return null;
+  const data = await resp.json() as { result?: unknown; error?: unknown };
+  return data.result ?? null;
+}
+
 // ── Mappers → Explorer-expected shapes ──────────────────────────────────────
 
 function mapBlock(r: BlockRow) {
@@ -137,13 +182,13 @@ function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: stri
     gasWanted: r.gas_wanted ?? null,
     success: r.success,
     method: cleanMethod(r.tx_type),
+    methodName: decodeMethodName(evmExtra?.input_data),
     txType: classifyTxType(evmExtra?.input_data, toAddr || evmExtra?.to_address, evmExtra?.contract_address),
     memo: r.memo ?? undefined,
     timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
     rawLog: r.raw_log ?? undefined,
     inputData: evmExtra?.input_data ?? undefined,
     contractAddress: evmExtra?.contract_address ?? undefined,
-    // Include both address formats when available from EVM data
     evmFromAddr: evmExtra?.from_address ?? undefined,
     evmToAddr: evmExtra?.to_address ?? undefined,
   };
@@ -167,6 +212,7 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
     gasWanted: evm.gas_limit != null ? String(evm.gas_limit) : cosmosTx?.gas_wanted ?? null,
     success: evm.status,
     method: cleanMethod(cosmosTx?.tx_type) ?? 'MsgTx',
+    methodName: decodeMethodName(evm.input_data),
     txType: classifyTxType(evm.input_data, evmTo || cosmosTo, evm.contract_address),
     memo: cosmosTx?.memo ?? undefined,
     timestamp: evm.timestamp instanceof Date ? evm.timestamp.toISOString() : String(evm.timestamp),
@@ -174,7 +220,6 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
     nonce: evm.nonce ?? undefined,
     gasPrice: evm.gas_price ?? undefined,
     inputData: evm.input_data ?? undefined,
-    // Include both address formats
     evmFromAddr: evmFrom || undefined,
     evmToAddr: evmTo || undefined,
     cosmosFromAddr: cosmosFrom || undefined,
@@ -381,6 +426,57 @@ export function explorerRouter(): Router {
     } catch (err) {
       console.error('[api] /txs/:hash error:', err);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── EVM Transaction Receipt (logs) ─────────────────────────────────────
+
+  r.get('/txs/:hash/logs', async (req: Request, res: Response) => {
+    try {
+      const { hash } = req.params;
+
+      // Resolve the EVM hash (user may pass Cosmos hash or EVM hash)
+      let evmHash = hash;
+      if (!hash.startsWith('0x')) {
+        // Try to find the EVM hash from the cosmos tx hash
+        const evmRow = await query<{ hash: string }>(
+          'SELECT hash FROM evm_transactions WHERE LOWER(cosmos_tx_hash) = LOWER($1)',
+          [hash]
+        );
+        if (evmRow[0]) evmHash = evmRow[0].hash;
+      }
+
+      // Fetch receipt from EVM RPC
+      const receipt = await evmRpcCall('eth_getTransactionReceipt', [evmHash]);
+      if (!receipt) {
+        res.json({ logs: [], raw: null });
+        return;
+      }
+
+      const r2 = receipt as {
+        logs?: Array<{
+          address: string;
+          topics: string[];
+          data: string;
+          logIndex: string;
+          blockNumber: string;
+          transactionIndex: string;
+        }>;
+        [key: string]: unknown;
+      };
+
+      // Decode log topics where possible
+      const logs = (r2.logs ?? []).map((log, idx) => ({
+        index: parseInt(log.logIndex, 16) || idx,
+        address: log.address,
+        topics: log.topics,
+        data: log.data,
+      }));
+
+      res.json({ logs, raw: receipt });
+    } catch (err) {
+      console.error('[api] /txs/:hash/logs error:', err);
+      res.json({ logs: [], raw: null });
     }
   });
 

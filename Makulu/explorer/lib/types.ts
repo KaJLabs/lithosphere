@@ -38,6 +38,7 @@ export interface ApiTx {
   gasWanted?: string | null;
   success: boolean;
   method?: string;
+  methodName?: string;
   txType?: 'transfer' | 'call' | 'create';
   memo?: string;
   timestamp?: string;
@@ -50,6 +51,18 @@ export interface ApiTx {
   evmToAddr?: string;
   cosmosFromAddr?: string;
   cosmosToAddr?: string;
+}
+
+export interface EvmLog {
+  index: number;
+  address: string;
+  topics: string[];
+  data: string;
+}
+
+export interface EvmLogsResponse {
+  logs: EvmLog[];
+  raw: Record<string, unknown> | null;
 }
 
 export interface ApiPrice {

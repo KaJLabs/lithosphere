@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod, txTypeInfo, isEvmAddress, isBech32Address, formatValue } from '@/lib/format';
-import type { ApiTx, StatsSummary } from '@/lib/types';
+import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod, txTypeInfo, formatValue } from '@/lib/format';
+import type { ApiTx, StatsSummary, EvmLogsResponse } from '@/lib/types';
 
 /* ------------------------------------------------------------------ */
 /*  Utility components                                                 */
@@ -40,7 +40,7 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 }
 
 /* ------------------------------------------------------------------ */
-/*  Raw log events parser                                              */
+/*  Raw log events parser (Cosmos SDK)                                 */
 /* ------------------------------------------------------------------ */
 
 interface LogEvent {
@@ -52,7 +52,6 @@ function parseRawLog(rawLog: string | undefined): LogEvent[] | null {
   if (!rawLog) return null;
   try {
     const parsed = JSON.parse(rawLog);
-    // Cosmos SDK format: [{ events: [...] }] or { events: [...] }
     const events: LogEvent[] = Array.isArray(parsed)
       ? parsed.flatMap((entry: { events?: LogEvent[] }) => entry.events ?? [])
       : parsed.events ?? [];
@@ -66,16 +65,23 @@ function parseRawLog(rawLog: string | undefined): LogEvent[] | null {
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
+type RightTab = 'overview' | 'events' | 'logs' | 'raw';
+
 export default function TransactionDetailPage() {
   const router = useRouter();
   const { hash } = router.query;
   const [inputExpanded, setInputExpanded] = useState(false);
-  const [rightTab, setRightTab] = useState<'overview' | 'events'>('overview');
+  const [rightTab, setRightTab] = useState<RightTab>('overview');
 
   const { data: tx, loading, error } = useApi<ApiTx>(
     hash ? `/txs/${hash}` : null,
   );
   const { data: stats } = useApi<StatsSummary>('/stats/summary');
+
+  // Fetch EVM logs when Logs or Raw tab is selected
+  const { data: evmLogs } = useApi<EvmLogsResponse>(
+    hash && (rightTab === 'logs' || rightTab === 'raw') ? `/txs/${hash}/logs` : null,
+  );
 
   const tipHeight = stats?.tipHeight ?? 0;
   const confirmations = tx && tipHeight ? tipHeight - tx.blockHeight + 1 : 0;
@@ -125,6 +131,17 @@ export default function TransactionDetailPage() {
     gasUsed != null && gasWanted ? ((gasUsed / gasWanted) * 100).toFixed(2) : null;
   const logEvents = parseRawLog(tx.rawLog);
   const receiptHref = `/receipt/${tx.evmHash || tx.hash}`;
+
+  // Display method: prefer decoded methodName, fallback to cleaned Cosmos method
+  const displayMethod = tx.methodName ?? cleanMethod(tx.method);
+
+  // Tab items
+  const tabs: { key: RightTab; label: string }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'events', label: 'Events' },
+    { key: 'logs', label: 'Logs' },
+    { key: 'raw', label: 'Raw' },
+  ];
 
   return (
     <>
@@ -217,7 +234,6 @@ export default function TransactionDetailPage() {
                     </Link>
                     <CopyBtn text={tx.fromAddr} />
                   </div>
-                  {/* Show alternate address format */}
                   {tx.evmFromAddr && tx.evmFromAddr !== tx.fromAddr && (
                     <div className="mt-1 flex items-center gap-1 flex-wrap">
                       <Link
@@ -259,7 +275,6 @@ export default function TransactionDetailPage() {
                     </Link>
                     <CopyBtn text={tx.toAddr} />
                   </div>
-                  {/* Show alternate address format */}
                   {tx.evmToAddr && tx.evmToAddr !== tx.toAddr && (
                     <div className="mt-1 flex items-center gap-1 flex-wrap">
                       <Link
@@ -313,35 +328,31 @@ export default function TransactionDetailPage() {
           </div>
 
           {/* ---------------------------------------------------------- */}
-          {/*  RIGHT PANEL: Overview details                              */}
+          {/*  RIGHT PANEL: Tabbed details                                */}
           {/* ---------------------------------------------------------- */}
           <div className="lg:col-span-3 rounded-3xl border border-white/10 bg-white/5">
             {/* Tab header */}
-            <div className="border-b border-white/10 px-6 pt-5 pb-0 flex gap-6">
-              <button
-                onClick={() => setRightTab('overview')}
-                className={`pb-3 text-sm font-medium transition ${
-                  rightTab === 'overview'
-                    ? 'border-b-2 border-emerald-400 text-white'
-                    : 'text-white/50 hover:text-white/70'
-                }`}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setRightTab('events')}
-                className={`pb-3 text-sm font-medium transition ${
-                  rightTab === 'events'
-                    ? 'border-b-2 border-emerald-400 text-white'
-                    : 'text-white/50 hover:text-white/70'
-                }`}
-              >
-                Events
-              </button>
+            <div className="border-b border-white/10 px-6 pt-5 pb-0 flex gap-6 overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setRightTab(tab.key)}
+                  className={`pb-3 text-sm font-medium transition whitespace-nowrap ${
+                    rightTab === tab.key
+                      ? 'border-b-2 border-emerald-400 text-white'
+                      : 'text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  {tab.label}
+                  {tab.key === 'logs' && evmLogs?.logs?.length ? (
+                    <span className="ml-1.5 text-xs text-white/30">({evmLogs.logs.length})</span>
+                  ) : null}
+                </button>
+              ))}
             </div>
 
             <div className="px-6 py-2">
-              {/* ---- Overview tab content ---- */}
+              {/* ---- Overview tab ---- */}
               {rightTab === 'overview' && (
                 <>
                   {/* Value */}
@@ -398,9 +409,9 @@ export default function TransactionDetailPage() {
                         </span>
                       );
                     })()}
-                    {tx.method && (
+                    {displayMethod && (
                       <span className="ml-2 inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-0.5 text-xs font-mono text-white/50">
-                        {cleanMethod(tx.method)}
+                        {displayMethod}
                       </span>
                     )}
                   </InfoRow>
@@ -440,7 +451,7 @@ export default function TransactionDetailPage() {
                 </>
               )}
 
-              {/* ---- Events tab content ---- */}
+              {/* ---- Events tab (Cosmos SDK events from rawLog) ---- */}
               {rightTab === 'events' && (
                 <>
                   {logEvents && logEvents.length > 0 ? (
@@ -483,6 +494,101 @@ export default function TransactionDetailPage() {
                     </div>
                   )}
                 </>
+              )}
+
+              {/* ---- Logs tab (EVM event logs from receipt) ---- */}
+              {rightTab === 'logs' && (
+                <>
+                  {evmLogs?.logs && evmLogs.logs.length > 0 ? (
+                    <div className="py-3.5">
+                      <div className="text-sm text-white/45 mb-3">
+                        {evmLogs.logs.length} log{evmLogs.logs.length !== 1 ? 's' : ''} emitted
+                      </div>
+                      <div className="space-y-3">
+                        {evmLogs.logs.map((log, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-2xl border border-white/10 bg-black/20 overflow-hidden"
+                          >
+                            {/* Log header */}
+                            <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-white/[0.02]">
+                              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-white/10 text-xs font-mono text-white/60">
+                                {log.index}
+                              </span>
+                              <Link
+                                href={`/address/${log.address}`}
+                                className="text-xs font-mono text-emerald-300 hover:text-emerald-200 transition"
+                              >
+                                {truncateHash(log.address, 10)}
+                              </Link>
+                              <CopyBtn text={log.address} />
+                            </div>
+
+                            {/* Topics */}
+                            <div className="px-4 py-3 space-y-2">
+                              {log.topics.map((topic, tidx) => (
+                                <div key={tidx} className="flex gap-3 text-xs">
+                                  <span className="text-white/30 shrink-0 w-6 text-right">[{tidx}]</span>
+                                  <span className="font-mono text-white/60 break-all">{topic}</span>
+                                </div>
+                              ))}
+                              {log.data && log.data !== '0x' && (
+                                <div className="flex gap-3 text-xs mt-2 pt-2 border-t border-white/5">
+                                  <span className="text-white/30 shrink-0">Data</span>
+                                  <span className="font-mono text-white/50 break-all">{log.data}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center">
+                      <div className="text-sm text-white/40">
+                        {evmLogs ? 'No EVM event logs for this transaction.' : 'Loading event logs...'}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ---- Raw tab (full receipt JSON) ---- */}
+              {rightTab === 'raw' && (
+                <div className="py-3.5">
+                  {evmLogs?.raw ? (
+                    <div className="rounded-2xl border border-white/10 bg-black/30 p-4 font-mono text-xs text-white/60 max-h-[500px] overflow-auto whitespace-pre-wrap">
+                      {JSON.stringify(evmLogs.raw, null, 2)}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {tx.rawLog && (
+                        <div>
+                          <div className="text-sm text-white/45 mb-2">Cosmos Raw Log</div>
+                          <div className="rounded-2xl border border-white/10 bg-black/30 p-4 font-mono text-xs text-white/60 max-h-60 overflow-auto whitespace-pre-wrap">
+                            {(() => {
+                              try { return JSON.stringify(JSON.parse(tx.rawLog), null, 2); }
+                              catch { return tx.rawLog; }
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                      {tx.inputData && tx.inputData !== '0x' && (
+                        <div>
+                          <div className="text-sm text-white/45 mb-2">Input Data</div>
+                          <div className="rounded-2xl border border-white/10 bg-black/30 p-4 font-mono text-xs text-white/60 max-h-60 overflow-auto whitespace-pre-wrap">
+                            {tx.inputData}
+                          </div>
+                        </div>
+                      )}
+                      {!tx.rawLog && (!tx.inputData || tx.inputData === '0x') && (
+                        <div className="py-8 text-center text-sm text-white/40">
+                          No raw data available for this transaction.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

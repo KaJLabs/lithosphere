@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
-import { truncateHash, formatNumber, timeAgo, cleanMethod, txTypeInfo, formatValue } from '@/lib/format';
+import { truncateHash, formatNumber, timeAgo, formatValue } from '@/lib/format';
 import type { ApiTxList } from '@/lib/types';
 
 const PAGE_SIZE = 25;
@@ -86,7 +86,7 @@ export default function TransactionsPage() {
             <div>From</div>
             <div>To</div>
             <div>Value</div>
-            <div>Type</div>
+            <div>Method</div>
             <div>Age</div>
           </div>
 
@@ -175,17 +175,12 @@ export default function TransactionsPage() {
                     </span>
                   </div>
 
-                  {/* Type */}
+                  {/* Method */}
                   <div className="flex items-center md:block">
-                    <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Type</span>
-                    {(() => {
-                      const info = txTypeInfo(tx.txType);
-                      return (
-                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${info.color}`}>
-                          {info.label}
-                        </span>
-                      );
-                    })()}
+                    <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Method</span>
+                    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-medium text-white/70 truncate max-w-[120px]" title={tx.methodName ?? tx.txType ?? 'Transfer'}>
+                      {tx.methodName ?? (tx.txType === 'call' ? 'Call' : tx.txType === 'create' ? 'Create' : 'Transfer')}
+                    </span>
                   </div>
 
                   {/* Age */}
