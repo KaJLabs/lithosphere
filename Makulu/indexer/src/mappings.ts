@@ -204,8 +204,8 @@ async function indexTx(
   const action = attr(evts, 'message', 'action');
   const txType = action ? (action.split('.').pop() ?? action) : 'Unknown';
   const isEvm  = txType === 'MsgEthereumTx';
-  // Log tx details for diagnostics
-  console.log(`[tx] height=${height} hash=${hash.substring(0, 16)}… type=${txType} action=${action} isEvm=${isEvm} events=${evts.map(e => e.type).join(',')}`);
+  // Log EVM tx details for diagnostics (non-EVM txs are too frequent)
+  if (isEvm) console.log(`[tx] EVM tx at height=${height} hash=${hash.substring(0, 16)}… action=${action}`);
 
   // Sender / receiver / amount — pulled from emitted events (no protobuf needed)
   const sender   = attr(evts, 'message', 'sender')          ||
@@ -519,18 +519,29 @@ async function main(): Promise<void> {
     `);
   }
 
-  // Auto-backfill EVM data: if there are Cosmos txs but no EVM txs, re-index to populate evm_transactions
+  // Targeted EVM backfill: re-process only blocks that have transactions but no EVM records.
+  // This avoids resetting to 0 and re-processing all 85k+ blocks on every restart.
   try {
-    const txCount = await pool.query('SELECT COUNT(*) AS count FROM transactions');
     const evmCount = await pool.query('SELECT COUNT(*) AS count FROM evm_transactions');
-    const txTotal = parseInt(txCount.rows[0]?.count ?? '0');
     const evmTotal = parseInt(evmCount.rows[0]?.count ?? '0');
-    if (txTotal > 0 && evmTotal === 0) {
-      console.log(`[indexer] EVM backfill needed: ${txTotal} cosmos txs but 0 evm txs — resetting to re-index`);
-      await pool.query(`
-        INSERT INTO indexer_state (key, value, updated_at) VALUES ('last_indexed_block', '0', NOW())
-        ON CONFLICT (key) DO UPDATE SET value = '0', updated_at = NOW()
-      `);
+    if (evmTotal === 0) {
+      const txBlocks = await pool.query(
+        `SELECT DISTINCT block_height FROM transactions ORDER BY block_height`
+      );
+      if (txBlocks.rows.length > 0) {
+        console.log(`[indexer] EVM backfill: re-processing ${txBlocks.rows.length} blocks with transactions`);
+        for (const row of txBlocks.rows) {
+          const h = parseInt(row.block_height);
+          try {
+            await indexBlock(h);
+            console.log(`[indexer] EVM backfill: re-processed block ${h}`);
+          } catch (err) {
+            console.warn(`[indexer] EVM backfill block ${h} failed:`, err instanceof Error ? err.message : String(err));
+          }
+        }
+        const evmAfter = await pool.query('SELECT COUNT(*) AS count FROM evm_transactions');
+        console.log(`[indexer] EVM backfill complete: ${evmAfter.rows[0]?.count ?? 0} EVM txs now`);
+      }
     }
   } catch (err) {
     console.warn('[indexer] EVM backfill check failed:', err instanceof Error ? err.message : String(err));
