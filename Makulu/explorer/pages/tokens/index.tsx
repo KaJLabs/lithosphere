@@ -184,8 +184,8 @@ export default function TokensPage() {
                   <tbody>
                     {pageTokens.map((token, idx) => {
                       const tokenHref = token.contractAddress
-                        ? `/address/${token.contractAddress}`
-                        : `/token/${token.symbol}`;
+                        ? `/token/${token.contractAddress}`
+                        : `/token/native`;
 
                       return (
                         <tr
@@ -258,8 +258,8 @@ export default function TokensPage() {
               <div className="md:hidden p-4 space-y-3">
                 {pageTokens.map((token, idx) => {
                   const cardHref = token.contractAddress
-                    ? `/address/${token.contractAddress}`
-                    : `/token/${token.symbol}`;
+                    ? `/token/${token.contractAddress}`
+                    : `/token/native`;
 
                   return (
                     <Link

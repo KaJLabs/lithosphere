@@ -112,11 +112,46 @@ export interface ApiTokenDetail {
   symbol: string;
   decimals: number;
   totalSupply?: string;
-  type: string;
+  type: 'native' | 'LEP100';
   creator?: string;
+  creationTx?: string;
+  creationBlock?: number;
   createdAt?: string;
   holders: number;
   transfers: number;
+  contractAddress?: string | null;
+  standard?: string;
+  description?: string;
+  verified?: boolean;
+}
+
+export interface ApiTokenTransfer {
+  txHash: string;
+  fromAddress: string;
+  toAddress: string;
+  value: string;
+  blockHeight: number;
+  timestamp: string;
+}
+
+export interface ApiTokenTransferList {
+  transfers: ApiTokenTransfer[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ApiTokenHolder {
+  address: string;
+  balance: string;
+  percentage: number;
+}
+
+export interface ApiTokenHolderList {
+  holders: ApiTokenHolder[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface ApiValidator {

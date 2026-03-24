@@ -726,19 +726,58 @@ export function explorerRouter(): Router {
     }
   });
 
-  // ── Token detail by contract address ─────────────────────────────────
+  // ── Token detail by contract address (or "native" for LITHO) ────────
 
   r.get('/tokens/:address', async (req: Request, res: Response) => {
     try {
       const { address } = req.params;
-      const addrLower = address.toLowerCase();
 
+      // Native LITHO token
+      if (address === 'native') {
+        const [holderCount, totalTxCount] = await Promise.all([
+          query<CountRow>(
+            `SELECT COUNT(*) AS count FROM (
+               SELECT address FROM accounts WHERE balance != '0'
+               UNION
+               SELECT DISTINCT from_address FROM evm_transactions WHERE from_address IS NOT NULL
+               UNION
+               SELECT DISTINCT to_address FROM evm_transactions WHERE to_address IS NOT NULL
+             ) all_holders`
+          ).catch(() => [{ count: '0' }]),
+          query<CountRow>('SELECT COUNT(*) AS count FROM transactions').catch(() => [{ count: '0' }]),
+        ]);
+        res.json({
+          address: 'native',
+          name: 'Lithosphere',
+          symbol: 'LITHO',
+          decimals: 18,
+          totalSupply: '1000000000',
+          type: 'native',
+          creator: null,
+          creationTx: null,
+          creationBlock: 1,
+          createdAt: null,
+          holders: parseInt(holderCount[0]?.count ?? '0'),
+          transfers: parseInt(totalTxCount[0]?.count ?? '0'),
+          contractAddress: null,
+          standard: 'Native',
+          description: 'Native staking and gas token of the Lithosphere network. Used for transaction fees, staking, and governance.',
+          verified: true,
+        });
+        return;
+      }
+
+      // LEP100 token by contract address
+      const addrLower = address.toLowerCase();
       const rows = await query<{
         address: string; name: string | null; symbol: string | null;
         decimals: number | null; total_supply: string | null;
-        contract_type: string | null; creator: string | null; created_at: Date;
+        contract_type: string | null; creator: string | null;
+        creation_tx: string | null; creation_block: string | null;
+        verified: boolean | null; created_at: Date;
       }>(
-        `SELECT address, name, symbol, decimals, total_supply, contract_type, creator, created_at
+        `SELECT address, name, symbol, decimals, total_supply, contract_type, creator,
+                creation_tx, creation_block, verified, created_at
          FROM contracts WHERE LOWER(address) = $1`,
         [addrLower]
       );
@@ -749,11 +788,13 @@ export function explorerRouter(): Router {
       }
 
       const c = rows[0];
-
-      // Get holder count and transfer count
       const [holderCount, transferCount] = await Promise.all([
         query<CountRow>(
           `SELECT COUNT(*) AS count FROM (
+             SELECT DISTINCT from_address AS addr FROM evm_transactions WHERE LOWER(to_address) = $1
+             UNION
+             SELECT DISTINCT to_address AS addr FROM evm_transactions WHERE LOWER(from_address) = $1
+             UNION
              SELECT DISTINCT sender AS addr FROM transactions WHERE LOWER(receiver) = $1
              UNION
              SELECT DISTINCT receiver AS addr FROM transactions WHERE LOWER(sender) = $1
@@ -761,7 +802,11 @@ export function explorerRouter(): Router {
           [addrLower]
         ).catch(() => [{ count: '0' }]),
         query<CountRow>(
-          `SELECT COUNT(*) AS count FROM transactions WHERE LOWER(sender) = $1 OR LOWER(receiver) = $1`,
+          `SELECT COUNT(*) AS count FROM (
+             SELECT hash FROM transactions WHERE LOWER(sender) = $1 OR LOWER(receiver) = $1
+             UNION
+             SELECT hash FROM evm_transactions WHERE LOWER(from_address) = $1 OR LOWER(to_address) = $1
+           ) all_txs`,
           [addrLower]
         ).catch(() => [{ count: '0' }]),
       ]);
@@ -772,14 +817,158 @@ export function explorerRouter(): Router {
         symbol: c.symbol ?? 'Unknown',
         decimals: c.decimals ?? 18,
         totalSupply: c.total_supply,
-        type: (c.symbol || c.contract_type === 'token') ? 'LEP100' : 'contract',
+        type: 'LEP100',
         creator: c.creator,
+        creationTx: c.creation_tx,
+        creationBlock: c.creation_block ? parseInt(c.creation_block) : null,
         createdAt: c.created_at instanceof Date ? c.created_at.toISOString() : String(c.created_at),
         holders: parseInt(holderCount[0]?.count ?? '0'),
         transfers: parseInt(transferCount[0]?.count ?? '0'),
+        contractAddress: c.address,
+        standard: 'LEP-100',
+        description: null,
+        verified: c.verified ?? false,
       });
     } catch (err) {
       console.error('[api] /tokens/:address error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Token transfers list ──────────────────────────────────────────
+
+  r.get('/tokens/:address/transfers', async (req: Request, res: Response) => {
+    try {
+      const { address } = req.params;
+      const limit = clamp(req.query.limit, 25);
+      const offset = Number(req.query.offset) || 0;
+
+      if (address === 'native') {
+        // Native LITHO: all chain transactions
+        const [rows, countResult] = await Promise.all([
+          query<{ hash: string; sender: string | null; receiver: string | null; amount: string | null; block_height: string; timestamp: Date; evm_from: string | null; evm_to: string | null; evm_value: string | null }>(
+            `SELECT t.hash, t.sender, t.receiver, t.amount, t.block_height, t.timestamp,
+                    e.from_address AS evm_from, e.to_address AS evm_to, e.value AS evm_value
+             FROM transactions t LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
+             ORDER BY t.block_height DESC LIMIT $1 OFFSET $2`,
+            [limit, offset]
+          ),
+          query<CountRow>('SELECT COUNT(*) AS count FROM transactions'),
+        ]);
+        res.json({
+          transfers: rows.map((r) => ({
+            txHash: r.hash,
+            fromAddress: r.sender || r.evm_from || '',
+            toAddress: r.receiver || r.evm_to || '',
+            value: (r.amount && r.amount !== '0') ? r.amount : (r.evm_value ?? '0'),
+            blockHeight: Number(r.block_height),
+            timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
+          })),
+          total: parseInt(countResult[0]?.count ?? '0'),
+          limit,
+          offset,
+        });
+      } else {
+        // LEP100: transactions involving this contract
+        const addrLower = address.toLowerCase();
+        const [rows, countResult] = await Promise.all([
+          query<{ hash: string; from_address: string; to_address: string | null; value: string | null; block_height: string; timestamp: Date }>(
+            `SELECT e.hash, e.from_address, e.to_address, e.value, e.block_height, e.timestamp
+             FROM evm_transactions e
+             WHERE LOWER(e.from_address) = $1 OR LOWER(e.to_address) = $1 OR LOWER(e.contract_address) = $1
+             ORDER BY e.block_height DESC LIMIT $2 OFFSET $3`,
+            [addrLower, limit, offset]
+          ),
+          query<CountRow>(
+            `SELECT COUNT(*) AS count FROM evm_transactions
+             WHERE LOWER(from_address) = $1 OR LOWER(to_address) = $1 OR LOWER(contract_address) = $1`,
+            [addrLower]
+          ),
+        ]);
+        res.json({
+          transfers: rows.map((r) => ({
+            txHash: r.hash,
+            fromAddress: r.from_address,
+            toAddress: r.to_address ?? '',
+            value: r.value ?? '0',
+            blockHeight: Number(r.block_height),
+            timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
+          })),
+          total: parseInt(countResult[0]?.count ?? '0'),
+          limit,
+          offset,
+        });
+      }
+    } catch (err) {
+      console.error('[api] /tokens/:address/transfers error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Token holders list ────────────────────────────────────────────
+
+  r.get('/tokens/:address/holders', async (req: Request, res: Response) => {
+    try {
+      const { address } = req.params;
+      const limit = clamp(req.query.limit, 25);
+      const offset = Number(req.query.offset) || 0;
+
+      if (address === 'native') {
+        // Native LITHO: accounts with balance
+        const [rows, countResult] = await Promise.all([
+          query<{ address: string; balance: string }>(
+            `SELECT address, balance FROM accounts WHERE balance != '0' AND balance IS NOT NULL
+             ORDER BY CAST(balance AS NUMERIC) DESC LIMIT $1 OFFSET $2`,
+            [limit, offset]
+          ),
+          query<CountRow>("SELECT COUNT(*) AS count FROM accounts WHERE balance != '0' AND balance IS NOT NULL"),
+        ]);
+        const totalSupply = 1_000_000_000e18; // 1B LITHO in ulitho
+        res.json({
+          holders: rows.map((r) => ({
+            address: r.address,
+            balance: r.balance,
+            percentage: totalSupply > 0 ? (parseFloat(r.balance) / totalSupply) * 100 : 0,
+          })),
+          total: parseInt(countResult[0]?.count ?? '0'),
+          limit,
+          offset,
+        });
+      } else {
+        // LEP100: derive holders from evm_transactions involving this contract
+        const addrLower = address.toLowerCase();
+        const [rows, countResult] = await Promise.all([
+          query<{ address: string; tx_count: string }>(
+            `SELECT addr AS address, COUNT(*) AS tx_count FROM (
+               SELECT from_address AS addr FROM evm_transactions WHERE LOWER(to_address) = $1 OR LOWER(contract_address) = $1
+               UNION ALL
+               SELECT to_address AS addr FROM evm_transactions WHERE LOWER(from_address) = $1
+             ) interactions WHERE addr IS NOT NULL
+             GROUP BY addr ORDER BY tx_count DESC LIMIT $2 OFFSET $3`,
+            [addrLower, limit, offset]
+          ),
+          query<CountRow>(
+            `SELECT COUNT(DISTINCT addr) AS count FROM (
+               SELECT from_address AS addr FROM evm_transactions WHERE LOWER(to_address) = $1 OR LOWER(contract_address) = $1
+               UNION ALL
+               SELECT to_address AS addr FROM evm_transactions WHERE LOWER(from_address) = $1
+             ) interactions WHERE addr IS NOT NULL`,
+            [addrLower]
+          ),
+        ]);
+        res.json({
+          holders: rows.map((r) => ({
+            address: r.address,
+            balance: r.tx_count, // Using tx count as proxy since we don't track ERC20 balances
+            percentage: 0,
+          })),
+          total: parseInt(countResult[0]?.count ?? '0'),
+          limit,
+          offset,
+        });
+      }
+    } catch (err) {
+      console.error('[api] /tokens/:address/holders error:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
