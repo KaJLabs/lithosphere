@@ -119,7 +119,7 @@ const METHOD_SIGS: Record<string, string> = {
   '0xb6f9de95': 'Swap Exact ETH For Tokens', '0x791ac947': 'Swap Exact Tokens For ETH',
   '0xc9567bf9': 'Open Trading', '0x8da5cb5b': 'Owner',
   '0x715018a6': 'Renounce Ownership', '0xf2fde38b': 'Transfer Ownership',
-  '0x60806040': 'Deploy', '0x60c06040': 'Deploy',
+  '0x60806040': 'Deploy', '0x60a06040': 'Deploy', '0x60c06040': 'Deploy',
 };
 
 /** Decode method name from input_data's first 4 bytes */
