@@ -63,7 +63,7 @@ export default function FaucetPage() {
     setConnecting(true);
     try {
       if (!window.ethereum) {
-        showStatus('No EVM wallet detected. Please install MetaMask or a compatible browser wallet extension.', 'error');
+        showStatus('No wallet detected. Please install a compatible browser wallet extension.', 'error');
         return;
       }
 
@@ -97,7 +97,7 @@ export default function FaucetPage() {
     showStatus('');
     try {
       if (!window.ethereum) {
-        showStatus('No EVM wallet detected. Please install MetaMask or a compatible browser wallet extension.', 'error');
+        showStatus('No wallet detected. Please install a compatible browser wallet extension.', 'error');
         return;
       }
 
@@ -438,7 +438,7 @@ export default function FaucetPage() {
               <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4">
                 <div className="text-sm font-medium text-white">Suggested usage</div>
                 <ul className="mt-3 space-y-2 text-sm text-white/65">
-                  <li>• Install MetaMask or a compatible EVM wallet extension.</li>
+                  <li>• Install a compatible browser wallet extension.</li>
                   <li>• Click &quot;Connect EVM Wallet&quot; then &quot;Add / Switch Makalu&quot;.</li>
                   <li>• Enter your address and select an amount (10, 25, or 50 LITHO).</li>
                   <li>• One claim per wallet every 24 hours.</li>

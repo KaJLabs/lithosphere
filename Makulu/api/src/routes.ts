@@ -162,20 +162,23 @@ function mapBlockDetail(r: BlockRow, txs: Array<TxRow & { evm_hash?: string | nu
     parentHash: null,
     proposerAddress: r.proposer_address ?? null,
     gasUsed: r.total_gas ?? '0',
-    txs: txs.map((t) => mapTx(t, t.evm_hash, { input_data: t.evm_input_data, contract_address: t.evm_contract_address, from_address: t.evm_from_address, to_address: t.evm_to_address })),
+    txs: txs.map((t) => mapTx(t, t.evm_hash, { input_data: t.evm_input_data, contract_address: t.evm_contract_address, from_address: t.evm_from_address, to_address: t.evm_to_address, value: t.evm_value, gas_price: t.evm_gas_price, nonce: t.evm_nonce })),
   };
 }
 
-function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: string | null; contract_address?: string | null; from_address?: string | null; to_address?: string | null }) {
-  const fromAddr = r.sender ?? '';
-  const toAddr = r.receiver ?? '';
+function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: string | null; contract_address?: string | null; from_address?: string | null; to_address?: string | null; value?: string | null; gas_price?: string | null; nonce?: number | null }) {
+  // Prefer Cosmos sender/receiver, but fall back to EVM addresses when empty
+  const fromAddr = r.sender || evmExtra?.from_address || '';
+  const toAddr = r.receiver || evmExtra?.to_address || '';
+  // Prefer Cosmos amount, but fall back to EVM value when 0/empty
+  const value = (r.amount && r.amount !== '0') ? r.amount : (evmExtra?.value ?? '0');
   return {
     hash: r.hash,
     evmHash: evmHash ?? undefined,
     blockHeight: Number(r.block_height),
     fromAddr,
     toAddr,
-    value: r.amount ?? '0',
+    value,
     denom: r.denom ?? 'ulitho',
     feePaid: r.fee ?? '0',
     gasUsed: r.gas_used ?? null,
@@ -183,12 +186,14 @@ function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: stri
     success: r.success,
     method: cleanMethod(r.tx_type),
     methodName: decodeMethodName(evmExtra?.input_data),
-    txType: classifyTxType(evmExtra?.input_data, toAddr || evmExtra?.to_address, evmExtra?.contract_address),
+    txType: classifyTxType(evmExtra?.input_data, toAddr, evmExtra?.contract_address),
     memo: r.memo ?? undefined,
     timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
     rawLog: r.raw_log ?? undefined,
     inputData: evmExtra?.input_data ?? undefined,
     contractAddress: evmExtra?.contract_address ?? undefined,
+    gasPrice: evmExtra?.gas_price ?? undefined,
+    nonce: evmExtra?.nonce ?? undefined,
     evmFromAddr: evmExtra?.from_address ?? undefined,
     evmToAddr: evmExtra?.to_address ?? undefined,
   };
@@ -273,7 +278,15 @@ export function explorerRouter(): Router {
            WHERE timestamp > NOW() - INTERVAL '5 minutes'`
         ),
         query<CountRow>('SELECT COUNT(*) AS count FROM transactions'),
-        query<CountRow>('SELECT COUNT(*) AS count FROM accounts'),
+        query<CountRow>(
+          `SELECT COUNT(*) AS count FROM (
+             SELECT address FROM accounts
+             UNION
+             SELECT DISTINCT from_address FROM evm_transactions WHERE from_address IS NOT NULL
+             UNION
+             SELECT DISTINCT to_address FROM evm_transactions WHERE to_address IS NOT NULL
+           ) all_addrs`
+        ),
         query<{ avg_seconds: string }>(
           `SELECT COALESCE(EXTRACT(EPOCH FROM AVG(diff)), 0) AS avg_seconds FROM (
              SELECT block_time - LAG(block_time) OVER (ORDER BY height) AS diff
@@ -334,8 +347,8 @@ export function explorerRouter(): Router {
         res.status(404).json({ message: 'Block not found' });
         return;
       }
-      const txs = await query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null }>(
-        `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address
+      const txs = await query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null; evm_value: string | null; evm_gas_price: string | null; evm_nonce: number | null }>(
+        `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.nonce AS evm_nonce
          FROM transactions t
          LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
          WHERE t.block_height = $1
@@ -356,8 +369,8 @@ export function explorerRouter(): Router {
       const limit = clamp(req.query.limit);
       const offset = Math.max(0, Number(req.query.offset) || 0);
       const [rows, countResult] = await Promise.all([
-        query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null }>(
-          `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address
+        query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null; evm_value: string | null; evm_gas_price: string | null; evm_nonce: number | null }>(
+          `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.nonce AS evm_nonce
            FROM transactions t
            LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
            ORDER BY t.timestamp DESC, t.block_height DESC
@@ -367,7 +380,7 @@ export function explorerRouter(): Router {
         query<CountRow>('SELECT COUNT(*) AS count FROM transactions'),
       ]);
       res.json({
-        txs: rows.map((r) => mapTx(r, r.evm_hash, { input_data: r.evm_input_data, contract_address: r.evm_contract_address, from_address: r.evm_from_address, to_address: r.evm_to_address })),
+        txs: rows.map((r) => mapTx(r, r.evm_hash, { input_data: r.evm_input_data, contract_address: r.evm_contract_address, from_address: r.evm_from_address, to_address: r.evm_to_address, value: r.evm_value, gas_price: r.evm_gas_price, nonce: r.evm_nonce })),
         total: parseInt(countResult[0]?.count ?? '0'),
         limit,
         offset,
@@ -382,8 +395,8 @@ export function explorerRouter(): Router {
     try {
       const { hash } = req.params;
 
-      type TxJoinRow = TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null };
-      const txJoinSql = `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address
+      type TxJoinRow = TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null; evm_value: string | null; evm_gas_price: string | null; evm_nonce: number | null };
+      const txJoinSql = `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.nonce AS evm_nonce
          FROM transactions t
          LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash`;
 
@@ -393,7 +406,7 @@ export function explorerRouter(): Router {
         [hash.toUpperCase()]
       );
       if (rows[0]) {
-        res.json(mapTx(rows[0], rows[0].evm_hash, { input_data: rows[0].evm_input_data, contract_address: rows[0].evm_contract_address, from_address: rows[0].evm_from_address, to_address: rows[0].evm_to_address }));
+        res.json(mapTx(rows[0], rows[0].evm_hash, { input_data: rows[0].evm_input_data, contract_address: rows[0].evm_contract_address, from_address: rows[0].evm_from_address, to_address: rows[0].evm_to_address, value: rows[0].evm_value, gas_price: rows[0].evm_gas_price, nonce: rows[0].evm_nonce }));
         return;
       }
 
@@ -403,7 +416,7 @@ export function explorerRouter(): Router {
         [hash]
       );
       if (rows2[0]) {
-        res.json(mapTx(rows2[0], rows2[0].evm_hash, { input_data: rows2[0].evm_input_data, contract_address: rows2[0].evm_contract_address, from_address: rows2[0].evm_from_address, to_address: rows2[0].evm_to_address }));
+        res.json(mapTx(rows2[0], rows2[0].evm_hash, { input_data: rows2[0].evm_input_data, contract_address: rows2[0].evm_contract_address, from_address: rows2[0].evm_from_address, to_address: rows2[0].evm_to_address, value: rows2[0].evm_value, gas_price: rows2[0].evm_gas_price, nonce: rows2[0].evm_nonce }));
         return;
       }
 
@@ -618,9 +631,9 @@ export function explorerRouter(): Router {
 
       // Search both Cosmos transactions (sender/receiver) and EVM transactions (from/to)
       // Use subquery to deduplicate, then sort by most recent
-      const rows = await query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null }>(
+      const rows = await query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null; evm_value: string | null; evm_gas_price: string | null; evm_nonce: number | null }>(
         `SELECT * FROM (
-           SELECT DISTINCT ON (t.hash) t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address
+           SELECT DISTINCT ON (t.hash) t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.nonce AS evm_nonce
            FROM transactions t
            LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
            WHERE LOWER(t.sender) = ANY($1) OR LOWER(t.receiver) = ANY($1)
@@ -631,7 +644,7 @@ export function explorerRouter(): Router {
          LIMIT $2`,
         [addrs, limit]
       );
-      res.json(rows.map((r) => mapTx(r, r.evm_hash, { input_data: r.evm_input_data, contract_address: r.evm_contract_address, from_address: r.evm_from_address, to_address: r.evm_to_address })));
+      res.json(rows.map((r) => mapTx(r, r.evm_hash, { input_data: r.evm_input_data, contract_address: r.evm_contract_address, from_address: r.evm_from_address, to_address: r.evm_to_address, value: r.evm_value, gas_price: r.evm_gas_price, nonce: r.evm_nonce })));
     } catch (err) {
       console.error('[api] /address/:address/txs error:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -670,10 +683,19 @@ export function explorerRouter(): Router {
          FROM contracts WHERE contract_type = 'token' OR symbol IS NOT NULL ORDER BY created_at DESC LIMIT 100`
       ).catch(() => []);
 
-      // Get holder count for native LITHO
-      const holderCount = await query<CountRow>(
-        'SELECT COUNT(*) AS count FROM accounts WHERE balance != \'0\''
-      ).catch(() => [{ count: '0' }]);
+      // Get holder count for native LITHO (accounts + unique EVM addresses)
+      const [holderCount, totalTxCount] = await Promise.all([
+        query<CountRow>(
+          `SELECT COUNT(*) AS count FROM (
+             SELECT address FROM accounts WHERE balance != '0'
+             UNION
+             SELECT DISTINCT from_address FROM evm_transactions WHERE from_address IS NOT NULL
+             UNION
+             SELECT DISTINCT to_address FROM evm_transactions WHERE to_address IS NOT NULL
+           ) all_holders`
+        ).catch(() => [{ count: '0' }]),
+        query<CountRow>('SELECT COUNT(*) AS count FROM transactions').catch(() => [{ count: '0' }]),
+      ]);
 
       const tokens = [
         {
@@ -683,6 +705,7 @@ export function explorerRouter(): Router {
           totalSupply: '1000000000',
           type: 'native',
           holders: parseInt(holderCount[0]?.count ?? '0'),
+          transfers: parseInt(totalTxCount[0]?.count ?? '0'),
           contractAddress: null,
         },
         ...contractTokens.map((c) => ({

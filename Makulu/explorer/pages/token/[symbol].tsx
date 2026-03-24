@@ -107,8 +107,10 @@ export default function TokenDetailPage() {
             </div>
           </div>
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <div className="text-sm text-white/45 mb-1">Decimals</div>
-            <div className="text-xl font-semibold">{token.decimals}</div>
+            <div className="text-sm text-white/45 mb-1">Transfers</div>
+            <div className="text-xl font-semibold">
+              {token.transfers != null ? formatNumber(token.transfers) : '—'}
+            </div>
           </div>
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
             <div className="text-sm text-white/45 mb-1">{token.contractAddress ? 'Contract' : 'Type'}</div>

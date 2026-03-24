@@ -78,6 +78,7 @@ export interface ApiToken {
   contractAddress?: string;
   totalSupply?: string;
   holders?: number;
+  transfers?: number;
   type: 'native' | 'LEP100';
 }
 
