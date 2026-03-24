@@ -47,7 +47,7 @@ Smart contracts including:
 - **LEP100**: Multi-chain token standard
 - **WLITHO**: Wrapped token implementation
 - **Lep100Access**: Access control contracts
-- Built with Hardhat + Solidity
+- Built with Lithic + Hardhat + Solidity
 
 #### [@lithosphere/web](./web)
 Frontend application built with:
