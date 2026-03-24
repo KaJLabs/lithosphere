@@ -2,7 +2,7 @@
  * REST API routes consumed by the Explorer frontend.
  *
  * The explorer calls /api/* paths (e.g. /api/blocks, /api/stats/summary).
- * All routes query the same PostgreSQL database that the indexer writes to.
+ * Routes query the same PostgreSQL database that the indexer writes to.
  */
 import { Router, type Request, type Response } from 'express';
 import { query } from './db.js';
