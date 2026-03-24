@@ -10,6 +10,21 @@ import { query } from './db.js';
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
+/**
+ * Convert EVM wei (18 decimals) to ulitho (6 decimals).
+ * 1 LITHO = 1e18 wei = 1e6 ulitho  →  1 wei = 1e-12 ulitho
+ * So: ulitho = wei / 1e12
+ */
+function weiToUlitho(wei: string | null | undefined): string {
+  if (!wei || wei === '0') return '0';
+  try {
+    const w = BigInt(wei);
+    return String(w / BigInt(1e12));
+  } catch {
+    return '0';
+  }
+}
+
 function clamp(val: unknown, def = DEFAULT_LIMIT): number {
   const n = Number(val);
   if (!n || n < 1) return def;
@@ -170,8 +185,9 @@ function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: stri
   // Prefer Cosmos sender/receiver, but fall back to EVM addresses when empty
   const fromAddr = r.sender || evmExtra?.from_address || '';
   const toAddr = r.receiver || evmExtra?.to_address || '';
-  // Prefer Cosmos amount, but fall back to EVM value when 0/empty
-  const value = (r.amount && r.amount !== '0') ? r.amount : (evmExtra?.value ?? '0');
+  // Prefer Cosmos amount (already in ulitho), but fall back to EVM value (wei → ulitho)
+  const hasCosmosAmount = r.amount && r.amount !== '0';
+  const value = hasCosmosAmount ? r.amount : weiToUlitho(evmExtra?.value);
   return {
     hash: r.hash,
     evmHash: evmHash ?? undefined,
@@ -192,7 +208,7 @@ function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: stri
     rawLog: r.raw_log ?? undefined,
     inputData: evmExtra?.input_data ?? undefined,
     contractAddress: evmExtra?.contract_address ?? undefined,
-    gasPrice: evmExtra?.gas_price ?? undefined,
+    gasPrice: weiToUlitho(evmExtra?.gas_price) || undefined,
     nonce: evmExtra?.nonce ?? undefined,
     evmFromAddr: evmExtra?.from_address ?? undefined,
     evmToAddr: evmExtra?.to_address ?? undefined,
@@ -210,7 +226,7 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
     blockHeight: Number(evm.block_height),
     fromAddr: evmFrom || cosmosFrom,
     toAddr: evmTo || cosmosTo,
-    value: cosmosTx?.amount ?? evm.value ?? '0',
+    value: (cosmosTx?.amount && cosmosTx.amount !== '0') ? cosmosTx.amount : weiToUlitho(evm.value),
     denom: cosmosTx?.denom ?? 'ulitho',
     feePaid: cosmosTx?.fee ?? '0',
     gasUsed: evm.gas_used != null ? String(evm.gas_used) : cosmosTx?.gas_used ?? null,
@@ -223,7 +239,7 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
     timestamp: evm.timestamp instanceof Date ? evm.timestamp.toISOString() : String(evm.timestamp),
     contractAddress: evm.contract_address ?? undefined,
     nonce: evm.nonce ?? undefined,
-    gasPrice: evm.gas_price ?? undefined,
+    gasPrice: weiToUlitho(evm.gas_price) || undefined,
     inputData: evm.input_data ?? undefined,
     evmFromAddr: evmFrom || undefined,
     evmToAddr: evmTo || undefined,
@@ -702,7 +718,7 @@ export function explorerRouter(): Router {
           symbol: 'LITHO',
           name: 'Lithosphere',
           decimals: 18,
-          totalSupply: '1000000000',
+          totalSupply: '1000000000000000000000000000',
           type: 'native',
           holders: parseInt(holderCount[0]?.count ?? '0'),
           transfers: parseInt(totalTxCount[0]?.count ?? '0'),
@@ -751,7 +767,7 @@ export function explorerRouter(): Router {
           name: 'Lithosphere',
           symbol: 'LITHO',
           decimals: 18,
-          totalSupply: '1000000000',
+          totalSupply: '1000000000000000000000000000',
           type: 'native',
           creator: null,
           creationTx: null,
@@ -860,7 +876,7 @@ export function explorerRouter(): Router {
             txHash: r.hash,
             fromAddress: r.sender || r.evm_from || '',
             toAddress: r.receiver || r.evm_to || '',
-            value: (r.amount && r.amount !== '0') ? r.amount : (r.evm_value ?? '0'),
+            value: (r.amount && r.amount !== '0') ? r.amount : weiToUlitho(r.evm_value),
             blockHeight: Number(r.block_height),
             timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
           })),
@@ -890,7 +906,7 @@ export function explorerRouter(): Router {
             txHash: r.hash,
             fromAddress: r.from_address,
             toAddress: r.to_address ?? '',
-            value: r.value ?? '0',
+            value: weiToUlitho(r.value),
             blockHeight: Number(r.block_height),
             timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
           })),
@@ -923,12 +939,12 @@ export function explorerRouter(): Router {
           ),
           query<CountRow>("SELECT COUNT(*) AS count FROM accounts WHERE balance != '0' AND balance IS NOT NULL"),
         ]);
-        const totalSupply = 1_000_000_000e18; // 1B LITHO in ulitho
+        const totalSupplyWei = 1_000_000_000e18; // 1B LITHO in wei
         res.json({
           holders: rows.map((r) => ({
             address: r.address,
-            balance: r.balance,
-            percentage: totalSupply > 0 ? (parseFloat(r.balance) / totalSupply) * 100 : 0,
+            balance: weiToUlitho(r.balance),
+            percentage: totalSupplyWei > 0 ? (parseFloat(r.balance) / totalSupplyWei) * 100 : 0,
           })),
           total: parseInt(countResult[0]?.count ?? '0'),
           limit,

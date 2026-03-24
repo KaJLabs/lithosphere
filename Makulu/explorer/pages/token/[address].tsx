@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, truncateHash, timeAgo, formatTimestamp } from '@/lib/format';
+import { formatNumber, truncateHash, timeAgo, formatTimestamp, formatValue } from '@/lib/format';
 import type {
   ApiTokenDetail,
   ApiTokenTransferList,
@@ -208,7 +208,7 @@ function TransfersTab({ address, decimals, symbol }: { address: string; decimals
             <div className="flex items-center md:justify-end">
               <span className="md:hidden text-xs text-white/40 mr-2 w-12 shrink-0">Value</span>
               <span className="text-sm font-mono text-white/80">
-                {formatTokenAmount(tx.value, decimals, symbol)}
+                {formatValue(tx.value)}
               </span>
             </div>
 
@@ -333,7 +333,7 @@ function HoldersTab({ address, decimals, symbol, totalSupply }: { address: strin
             <div className="flex items-center md:justify-end">
               <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Balance</span>
               <span className="text-sm font-mono text-white/80">
-                {formatTokenAmount(h.balance, decimals, symbol)}
+                {formatValue(h.balance)}
               </span>
             </div>
 
