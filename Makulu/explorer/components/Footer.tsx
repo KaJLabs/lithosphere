@@ -3,17 +3,17 @@ import { EXPLORER_TITLE } from '@/lib/constants';
 export default function Footer() {
   return (
     <footer className="border-t border-[var(--color-border)] mt-8">
-      <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-[var(--color-text-muted)]">
-        <div className="flex items-center gap-3">
+      <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--color-text-muted)]">
+        <div className="flex items-center gap-2">
           <img
             src="/litho-logo.png"
             alt="Lithosphere"
-            className="h-6 w-auto"
+            className="h-5 w-auto"
           />
-          <span>&mdash;</span>
-          <span>{EXPLORER_TITLE} | Lithosphere Makalu Testnet</span>
+          <span className="text-white/40">&mdash;</span>
+          <span>{EXPLORER_TITLE} Makalu</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center flex-wrap justify-center gap-3">
           <a href="https://litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
             LITHO.ai
           </a>

@@ -13,6 +13,31 @@ const TOKENS = [
   { symbol: 'mBTC', supply: '—', holders: '—' },
 ];
 
+const MAKALU_CHAIN = {
+  chainId: '0xab169',
+  chainName: 'Lithosphere Makalu',
+  rpcUrls: ['https://rpc.litho.ai'],
+  nativeCurrency: { name: 'LITHO', symbol: 'LITHO', decimals: 18 },
+  blockExplorerUrls: ['https://makalu.litho.ai'],
+};
+
+async function addOrSwitchMakalu() {
+  try {
+    if (!(window as any).ethereum) {
+      alert('No wallet detected. Please install a compatible browser wallet extension.');
+      return;
+    }
+    const eth = (window as any).ethereum;
+    try {
+      await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: MAKALU_CHAIN.chainId }] });
+    } catch (e: any) {
+      if (e?.code === 4902) {
+        await eth.request({ method: 'wallet_addEthereumChain', params: [MAKALU_CHAIN] });
+      }
+    }
+  } catch { /* user rejected */ }
+}
+
 export default function Home() {
   const { data: stats, loading: statsLoading } = useApi<StatsSummary>('/stats/summary', {
     pollInterval: POLL_INTERVAL,
@@ -100,6 +125,12 @@ export default function Home() {
                 >
                   View Latest Transactions
                 </Link>
+                <button
+                  onClick={addOrSwitchMakalu}
+                  className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-3 text-sm font-medium text-emerald-300 hover:bg-emerald-400/20 transition"
+                >
+                  Add / Switch Makalu
+                </button>
               </div>
 
               <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl shadow-black/30">
