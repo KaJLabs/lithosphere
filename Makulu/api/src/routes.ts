@@ -156,7 +156,7 @@ function mapBlock(r: BlockRow) {
   };
 }
 
-function mapBlockDetail(r: BlockRow, txs: Array<TxRow & { evm_hash?: string | null; evm_input_data?: string | null; evm_contract_address?: string | null; evm_from_address?: string | null; evm_to_address?: string | null }>) {
+function mapBlockDetail(r: BlockRow, txs: Array<TxRow & { evm_hash?: string | null; evm_input_data?: string | null; evm_contract_address?: string | null; evm_from_address?: string | null; evm_to_address?: string | null; evm_value?: string | null; evm_gas_price?: string | null; evm_nonce?: number | null }>) {
   return {
     ...mapBlock(r),
     parentHash: null,
