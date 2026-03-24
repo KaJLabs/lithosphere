@@ -11,10 +11,10 @@ const MAKALU_CHAIN = {
   rpcUrl: 'https://rpc.litho.ai',
 };
 
-// Initialize Web3Modal
-createWeb3Modal({
-  ethersConfig: {
-    defaultChain: MAKALU_CHAIN.chainId,
+// Initialize Web3Modal with proper Makalu configuration
+try {
+  createWeb3Modal({
+    projectId: PROJECT_ID,
     chains: [
       {
         chainId: MAKALU_CHAIN.chainId,
@@ -24,19 +24,12 @@ createWeb3Modal({
         rpcUrl: MAKALU_CHAIN.rpcUrl,
       },
     ],
-  },
-  projectId: PROJECT_ID,
-  chains: [
-    {
-      chainId: MAKALU_CHAIN.chainId,
-      name: MAKALU_CHAIN.name,
-      currency: MAKALU_CHAIN.currency,
-      explorerUrl: MAKALU_CHAIN.explorerUrl,
-      rpcUrl: MAKALU_CHAIN.rpcUrl,
-    },
-  ],
-  enableAnalytics: true,
-});
+    enableAnalytics: true,
+  });
+} catch (error) {
+  // Web3Modal already initialized, this can happen in dev mode with HMR
+  console.log('Web3Modal initialization note:', error instanceof Error ? error.message : 'Already initialized');
+}
 
 interface WalletContextType {
   address: string | null;
@@ -68,6 +61,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     open,
     disconnect: async () => {
       // Web3Modal doesn't expose disconnect directly; user must use the modal
+      console.log('Disconnect via Web3Modal account button in modal');
     },
   };
 

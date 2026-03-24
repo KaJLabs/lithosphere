@@ -9,6 +9,12 @@ import { useWeb3Modal } from '@web3modal/ethers/react';
 import { useWeb3ModalAccount } from '@web3modal/ethers/react';
 import { useState } from 'react';
 
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
 const TOKENS = [
   { symbol: 'LITHO', supply: '1B', holders: '—' },
   { symbol: 'wLITHO', supply: '—', holders: '—' },
@@ -35,14 +41,13 @@ export default function Home() {
       if (!isConnected) {
         // If not connected, open wallet connection first
         await open();
-        // After connection, the chainId will update and we'll try to add network
         return;
       }
 
-      // Get the provider from Web3Modal
-      const provider = window.ethereum;
-      if (!provider) {
-        alert('Please connect a wallet first');
+      // Get ethereum provider from window (injected by wallet or Web3Modal)
+      const ethereum = window.ethereum;
+      if (!ethereum) {
+        alert('Wallet provider not found. Please use Connect Wallet first.');
         return;
       }
 
@@ -50,30 +55,35 @@ export default function Home() {
 
       // Check if we're already on Makalu
       if (chainId === targetChainId) {
-        alert('Already connected to Lithosphere Makalu');
+        alert('✓ Already connected to Lithosphere Makalu');
         return;
       }
 
       try {
         // Try to switch to existing chain
-        await provider.request({
+        await ethereum.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: MAKALU_CHAIN.chainId }],
         });
       } catch (switchError: any) {
         // Chain doesn't exist (error code 4902), so add it
         if (switchError?.code === 4902) {
-          await provider.request({
+          await ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [MAKALU_CHAIN],
           });
+        } else if (switchError?.code === 4001) {
+          // User rejected the request
+          console.log('User rejected network switch');
         } else {
-          throw switchError;
+          console.error('Network switch error:', switchError);
+          alert('Failed to switch network. Please try manually in your wallet settings.');
         }
       }
     } catch (err: any) {
-      if (err?.code !== 4001) { // Don't show error for user rejection
-        console.error('Error adding/switching network:', err);
+      console.error('Add/Switch network error:', err);
+      if (err?.code !== 4001) {
+        alert('Error connecting to network. Please try again.');
       }
     } finally {
       setIsAddingNetwork(false);
