@@ -45,6 +45,19 @@ export function formatValue(amount: string | null | undefined, denom?: string): 
   }
 }
 
+/** Format raw token supply (in smallest unit) to human-readable whole number */
+export function formatSupply(raw: string | null | undefined, decimals = 18): string {
+  if (!raw) return '0';
+  try {
+    const n = BigInt(raw);
+    const divisor = BigInt(10 ** decimals);
+    const whole = n / divisor;
+    return whole.toLocaleString('en-US');
+  } catch {
+    return formatNumber(raw);
+  }
+}
+
 export function formatGas(gas: string | null | undefined): string {
   if (!gas) return '-';
   return formatNumber(gas);

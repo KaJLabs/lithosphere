@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, truncateHash, timeAgo, formatTimestamp, formatLitho, formatValue } from '@/lib/format';
-import type { ApiAddress, ApiTx, ApiTokenDetail, ApiPrice } from '@/lib/types';
+import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatLitho, formatValue } from '@/lib/format';
+import type { ApiAddress, ApiTx, ApiTokenDetail, ApiTokenHolderList, ApiToken, ApiPrice } from '@/lib/types';
 
 /* ── Tabs ─────────────────────────────────────────────────────────────── */
 
@@ -19,24 +19,39 @@ const TOKEN_TABS = [
   { key: 'transfers', label: 'Transfers' },
   { key: 'holders', label: 'Holders' },
   { key: 'contract', label: 'Contract' },
+  { key: 'interact', label: 'Interact' },
 ] as const;
 
 type WalletTabKey = (typeof WALLET_TABS)[number]['key'];
 type TokenTabKey = (typeof TOKEN_TABS)[number]['key'];
 type TabKey = WalletTabKey | TokenTabKey;
 
+/* ── Standard LEP-100 ABI (ERC-20 compatible) ────────────────────────── */
+
+const LEP100_ABI = [
+  { name: 'name', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
+  { name: 'symbol', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
+  { name: 'decimals', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint8' }] },
+  { name: 'totalSupply', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'transfer', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ type: 'bool' }] },
+  { name: 'allowance', type: 'function', stateMutability: 'view', inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'approve', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }], outputs: [{ type: 'bool' }] },
+  { name: 'transferFrom', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'from', type: 'address' }, { name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ type: 'bool' }] },
+  { name: 'Transfer', type: 'event', inputs: [{ name: 'from', type: 'address', indexed: true }, { name: 'to', type: 'address', indexed: true }, { name: 'value', type: 'uint256', indexed: false }] },
+  { name: 'Approval', type: 'event', inputs: [{ name: 'owner', type: 'address', indexed: true }, { name: 'spender', type: 'address', indexed: true }, { name: 'value', type: 'uint256', indexed: false }] },
+];
+
 /* ── Address type detection ──────────────────────────────────────────── */
 
 function detectIsContract(account: ApiAddress): boolean {
-  if (account.isContract) return true;
-  return false;
+  return account.isContract === true;
 }
 
 /* ── Small helpers ────────────────────────────────────────────────────── */
 
 function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-
   const copy = useCallback(() => {
     navigator.clipboard?.writeText(text).then(() => {
       setCopied(true);
@@ -69,12 +84,10 @@ function StatusDot({ success }: { success: boolean }) {
 function PageSkeleton() {
   return (
     <div className="text-white animate-pulse space-y-6">
-      {/* Header skeleton */}
       <div className="space-y-3">
         <div className="h-5 rounded bg-white/10 w-24" />
         <div className="h-8 rounded-xl bg-white/10 w-2/3" />
       </div>
-      {/* Cards skeleton */}
       <div className="grid gap-4 sm:grid-cols-3">
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
@@ -83,18 +96,15 @@ function PageSkeleton() {
           </div>
         ))}
       </div>
-      {/* Holdings skeleton */}
       <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
         <div className="h-4 rounded bg-white/10 w-24" />
         <div className="h-10 rounded bg-white/10 w-full" />
       </div>
-      {/* Tab bar skeleton */}
       <div className="flex gap-6 border-b border-white/10 pb-0">
-        {Array.from({ length: 3 }).map((_, i) => (
+        {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="h-4 rounded bg-white/10 w-24 mb-3" />
         ))}
       </div>
-      {/* Table skeleton */}
       <div className="rounded-3xl border border-white/10 bg-white/5 p-4 space-y-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="flex gap-4">
@@ -136,9 +146,7 @@ function TxTable({
   currentAddr: string;
   emptyLabel: string;
 }) {
-  if (loading) {
-    return <TableSkeleton />;
-  }
+  if (loading) return <TableSkeleton />;
 
   if (!txs || txs.length === 0) {
     return (
@@ -151,7 +159,6 @@ function TxTable({
 
   return (
     <>
-      {/* Desktop header */}
       <div className="hidden md:grid grid-cols-[1.8fr_0.8fr_1.4fr_1.4fr_1fr_0.7fr_0.8fr] gap-4 px-5 py-3 border-b border-white/10 text-xs font-medium text-white/40 uppercase tracking-wide">
         <div>Tx Hash</div>
         <div>Block</div>
@@ -161,92 +168,53 @@ function TxTable({
         <div>Method</div>
         <div>Age</div>
       </div>
-
-      {/* Rows */}
       <div>
         {txs.map((tx) => (
           <div
             key={tx.hash}
             className="grid grid-cols-1 md:grid-cols-[1.8fr_0.8fr_1.4fr_1.4fr_1fr_0.7fr_0.8fr] gap-3 md:gap-4 px-5 py-4 border-b border-white/5 hover:bg-white/[0.03] transition"
           >
-            {/* Hash */}
             <div className="flex items-center gap-2">
               <StatusDot success={tx.success} />
-              <Link
-                href={`/txs/${tx.evmHash || tx.hash}`}
-                className="font-mono text-sm text-emerald-300 hover:text-emerald-200 transition truncate"
-              >
+              <Link href={`/txs/${tx.evmHash || tx.hash}`} className="font-mono text-sm text-emerald-300 hover:text-emerald-200 transition truncate">
                 {truncateHash(tx.evmHash || tx.hash)}
               </Link>
             </div>
-
-            {/* Block */}
             <div className="flex items-center md:block">
               <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Block</span>
-              <Link
-                href={`/blocks/${tx.blockHeight}`}
-                className="font-mono text-sm text-white/80 hover:text-white transition"
-              >
+              <Link href={`/blocks/${tx.blockHeight}`} className="font-mono text-sm text-white/80 hover:text-white transition">
                 #{formatNumber(tx.blockHeight)}
               </Link>
             </div>
-
-            {/* From */}
             <div className="flex items-center md:block">
               <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">From</span>
-              <Link
-                href={`/address/${tx.fromAddr}`}
-                className={`font-mono text-sm transition truncate ${
-                  tx.fromAddr === currentAddr
-                    ? 'text-white/50'
-                    : 'text-emerald-300 hover:text-emerald-200'
-                }`}
-              >
+              <Link href={`/address/${tx.fromAddr}`} className={`font-mono text-sm transition truncate ${tx.fromAddr === currentAddr ? 'text-white/50' : 'text-emerald-300 hover:text-emerald-200'}`}>
                 {truncateHash(tx.fromAddr, 10, 6)}
               </Link>
             </div>
-
-            {/* To */}
             <div className="flex items-center md:block">
               <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">To</span>
               {tx.toAddr ? (
-                <Link
-                  href={`/address/${tx.toAddr}`}
-                  className={`font-mono text-sm transition truncate ${
-                    tx.toAddr === currentAddr
-                      ? 'text-white/50'
-                      : 'text-emerald-300 hover:text-emerald-200'
-                  }`}
-                >
+                <Link href={`/address/${tx.toAddr}`} className={`font-mono text-sm transition truncate ${tx.toAddr === currentAddr ? 'text-white/50' : 'text-emerald-300 hover:text-emerald-200'}`}>
                   {truncateHash(tx.toAddr, 10, 6)}
                 </Link>
               ) : (
                 <span className="text-sm text-white/30">&mdash;</span>
               )}
             </div>
-
-            {/* Value */}
             <div className="flex items-center md:block">
               <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Value</span>
-              <span className="text-sm font-mono text-white/80">
-                {formatValue(tx.value, tx.denom)}
-              </span>
+              <span className="text-sm font-mono text-white/80">{formatValue(tx.value, tx.denom)}</span>
             </div>
-
-            {/* Method */}
             <div className="flex items-center md:block">
               <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Method</span>
               <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-medium text-white/70 truncate max-w-[120px]" title={tx.methodName ?? tx.txType ?? 'Transfer'}>
                 {tx.methodName ?? (tx.txType === 'call' ? 'Call' : tx.txType === 'create' ? 'Create' : 'Transfer')}
               </span>
             </div>
-
-            {/* Age */}
             <div className="flex items-center md:block">
               <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Age</span>
-              <span className="text-sm text-white/50">
-                {tx.timestamp ? timeAgo(tx.timestamp) : '—'}
-              </span>
+              <span className="text-sm text-white/50">{tx.timestamp ? timeAgo(tx.timestamp) : '--'}</span>
             </div>
           </div>
         ))}
@@ -259,8 +227,6 @@ function TxTable({
 
 function HoldingsSection({ balance, usdPrice }: { balance: string; usdPrice: number | null }) {
   const hasBalance = balance && balance !== '0';
-
-  // Calculate USD value
   let usdValue: string | null = null;
   if (hasBalance && usdPrice != null) {
     try {
@@ -276,26 +242,22 @@ function HoldingsSection({ balance, usdPrice }: { balance: string; usdPrice: num
       <div className="px-5 py-4 border-b border-white/10">
         <h2 className="text-sm font-medium text-white/70 uppercase tracking-wide">Holdings</h2>
       </div>
-
       {hasBalance ? (
         <>
-          {/* Table header */}
           <div className="grid grid-cols-4 gap-4 px-5 py-3 border-b border-white/10 text-xs font-medium text-white/40 uppercase tracking-wide">
             <div>Name</div>
             <div>Ticker</div>
             <div className="text-right">Amount</div>
             <div className="text-right">Value (USD)</div>
           </div>
-          {/* LITHO row */}
           <div className="grid grid-cols-4 gap-4 px-5 py-4 hover:bg-white/[0.03] transition">
-            <div className="text-sm text-white">Lithosphere</div>
+            <div className="flex items-center gap-2 text-sm text-white">
+              <img src="/litho-logo.png" alt="LITHO" className="w-5 h-5 rounded-full object-contain" />
+              Lithosphere
+            </div>
             <div className="text-sm text-white/70 font-mono">LITHO</div>
-            <div className="text-sm text-white/80 font-mono text-right">
-              {formatLitho(balance)}
-            </div>
-            <div className="text-sm text-white/60 font-mono text-right">
-              {usdValue ?? '—'}
-            </div>
+            <div className="text-sm text-white/80 font-mono text-right">{formatLitho(balance)}</div>
+            <div className="text-sm text-white/60 font-mono text-right">{usdValue ?? '--'}</div>
           </div>
         </>
       ) : (
@@ -307,13 +269,302 @@ function HoldingsSection({ balance, usdPrice }: { balance: string; usdPrice: num
   );
 }
 
-/* ── Tokens tab placeholder ──────────────────────────────────────────── */
+/* ── Tokens tab (wallet) — shows all tokens the address may hold ────── */
 
-function TokensTab() {
+function TokensTab({ tokens }: { tokens: ApiToken[] | null }) {
+  if (!tokens || tokens.length === 0) {
+    return (
+      <div className="py-16 text-center text-white/40">
+        <div className="text-base font-medium mb-1">No token balances</div>
+        <div className="text-sm">No LEP-100 tokens detected for this address yet.</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="py-16 text-center text-white/40">
-      <div className="text-base font-medium mb-1">No token balances found</div>
-      <div className="text-sm">Token balance tracking is not yet available for this address.</div>
+    <>
+      <div className="hidden md:grid grid-cols-[2fr_1fr_1.5fr_1fr] gap-4 px-5 py-3 border-b border-white/10 text-xs font-medium text-white/40 uppercase tracking-wide">
+        <div>Token</div>
+        <div>Symbol</div>
+        <div className="text-right">Total Supply</div>
+        <div className="text-right">Decimals</div>
+      </div>
+      <div>
+        {tokens.filter((t) => t.type !== 'native').map((t) => (
+          <Link
+            key={t.contractAddress ?? t.symbol}
+            href={t.contractAddress ? `/token/${t.contractAddress}` : `/token/native`}
+            className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1.5fr_1fr] gap-3 md:gap-4 px-5 py-4 border-b border-white/5 hover:bg-white/[0.03] transition block"
+          >
+            <div className="text-sm text-white font-medium">{t.name}</div>
+            <div className="text-sm text-white/70 font-mono">{t.symbol}</div>
+            <div className="text-sm text-white/60 font-mono text-right">
+              {t.totalSupply ? formatSupply(t.totalSupply, t.decimals) : '--'}
+            </div>
+            <div className="text-sm text-white/50 text-right">{t.decimals}</div>
+          </Link>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/* ── Holders tab (token contract) ──────────────────────────────────── */
+
+function HoldersTab({ addr }: { addr: string }) {
+  const [page, setPage] = useState(0);
+  const perPage = 25;
+  const offset = page * perPage;
+  const { data, loading } = useApi<ApiTokenHolderList>(
+    `/tokens/${addr}/holders?limit=${perPage}&offset=${offset}`
+  );
+
+  const holders = data?.holders ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+
+  if (loading && holders.length === 0) return <TableSkeleton />;
+
+  if (holders.length === 0) {
+    return (
+      <div className="py-16 text-center text-white/40">
+        <div className="text-base font-medium mb-1">No holders found</div>
+        <div className="text-sm">No holder data is available for this token yet.</div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="px-5 py-3 border-b border-white/10 text-xs text-white/40">
+        A total of {formatNumber(total)} holder{total !== 1 ? 's' : ''} found
+      </div>
+      <div className="hidden md:grid grid-cols-[0.4fr_2fr_1.2fr_0.8fr] gap-4 px-5 py-3 border-b border-white/10 text-xs font-medium text-white/40 uppercase tracking-wide">
+        <div>Rank</div>
+        <div>Address</div>
+        <div className="text-right">Balance</div>
+        <div className="text-right">Percentage</div>
+      </div>
+      <div>
+        {holders.map((h, i) => (
+          <div key={h.address} className="grid grid-cols-1 md:grid-cols-[0.4fr_2fr_1.2fr_0.8fr] gap-3 md:gap-4 px-5 py-4 border-b border-white/5 hover:bg-white/[0.03] transition">
+            <div className="text-sm text-white/40">{offset + i + 1}</div>
+            <div>
+              <Link href={`/address/${h.address}`} className="font-mono text-sm text-emerald-300 hover:text-emerald-200 transition truncate">
+                {h.address}
+              </Link>
+            </div>
+            <div className="text-sm font-mono text-white/80 md:text-right">{formatValue(h.balance)}</div>
+            <div className="flex items-center gap-2 md:justify-end">
+              <div className="hidden md:block w-16 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.min(100, h.percentage)}%` }} />
+              </div>
+              <span className="text-sm text-white/60">{h.percentage.toFixed(2)}%</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-5 py-4 border-t border-white/10">
+          <p className="text-xs text-white/30">Showing {offset + 1} to {Math.min(offset + perPage, total)} of {formatNumber(total)}</p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(0)} disabled={page === 0} className="px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-white/60 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition">First</button>
+            <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-white/60 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition">Prev</button>
+            <span className="px-3 py-1.5 text-xs text-white/60">Page {page + 1} of {totalPages}</span>
+            <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-white/60 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition">Next</button>
+            <button onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1} className="px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-white/60 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition">Last</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── Contract tab (token contract) ─────────────────────────────────── */
+
+function ContractTab({ addr, tokenDetail }: { addr: string; tokenDetail: ApiTokenDetail | null }) {
+  const verified = tokenDetail?.verified ?? false;
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Verification badge */}
+      <div className="flex items-center gap-3">
+        <div className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${
+          verified
+            ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
+            : 'border-yellow-400/30 bg-yellow-400/10 text-yellow-300'
+        }`}>
+          {verified ? (
+            <>
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" /></svg>
+              Contract Source Verified
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /></svg>
+              Contract Not Verified
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Contract overview */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
+        <div className="px-5 py-3 border-b border-white/10 text-sm font-medium text-white/60">Contract Overview</div>
+        <div className="divide-y divide-white/5">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 px-5 py-4">
+            <div className="sm:w-44 shrink-0 text-sm text-white/45">Contract Address</div>
+            <div className="flex-1 text-sm text-white font-mono break-all">
+              {addr}
+              <CopyBtn text={addr} />
+            </div>
+          </div>
+          {tokenDetail?.creator && (
+            <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 px-5 py-4">
+              <div className="sm:w-44 shrink-0 text-sm text-white/45">Creator</div>
+              <div className="flex-1 text-sm">
+                <Link href={`/address/${tokenDetail.creator}`} className="font-mono text-emerald-300 hover:text-emerald-200 transition break-all">
+                  {tokenDetail.creator}
+                </Link>
+              </div>
+            </div>
+          )}
+          {tokenDetail?.creationTx && (
+            <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 px-5 py-4">
+              <div className="sm:w-44 shrink-0 text-sm text-white/45">Creation Tx</div>
+              <div className="flex-1 text-sm">
+                <Link href={`/txs/${tokenDetail.creationTx}`} className="font-mono text-emerald-300 hover:text-emerald-200 transition break-all">
+                  {tokenDetail.creationTx}
+                </Link>
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 px-5 py-4">
+            <div className="sm:w-44 shrink-0 text-sm text-white/45">Token Standard</div>
+            <div className="flex-1 text-sm text-white">LEP-100</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ABI */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
+        <div className="px-5 py-3 border-b border-white/10 text-sm font-medium text-white/60">Contract ABI (LEP-100 Standard)</div>
+        <div className="p-5">
+          <pre className="rounded-xl bg-black/30 border border-white/5 p-4 font-mono text-xs text-white/60 overflow-auto max-h-80 whitespace-pre-wrap">
+            {JSON.stringify(LEP100_ABI, null, 2)}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Interact tab (token contract) ─────────────────────────────────── */
+
+function InteractTab({ addr, tokenDetail }: { addr: string; tokenDetail: ApiTokenDetail | null }) {
+  const readFns = LEP100_ABI.filter((f) => f.type === 'function' && (f.stateMutability === 'view' || f.stateMutability === 'pure'));
+  const writeFns = LEP100_ABI.filter((f) => f.type === 'function' && f.stateMutability !== 'view' && f.stateMutability !== 'pure');
+
+  const tokenName = tokenDetail?.name ?? 'Token';
+  const tokenSymbol = tokenDetail?.symbol ?? '???';
+  const decimals = tokenDetail?.decimals ?? 18;
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center gap-2 text-sm text-white/50">
+        Interact with <span className="font-semibold text-white">{tokenName} ({tokenSymbol})</span> LEP-100 contract
+      </div>
+
+      {/* Read functions */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
+        <div className="px-5 py-3 border-b border-white/10 flex items-center gap-2">
+          <span className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-xs font-medium text-emerald-300">Read</span>
+          <span className="text-sm font-medium text-white/60">Contract Methods</span>
+        </div>
+        <div className="divide-y divide-white/5">
+          {readFns.map((fn) => (
+            <div key={fn.name} className="px-5 py-4">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="font-mono text-sm text-white font-medium">{fn.name}</span>
+                <span className="text-xs text-white/30">
+                  ({fn.inputs?.map((inp: { name: string; type: string }) => `${inp.type} ${inp.name}`).join(', ')})
+                </span>
+                <span className="text-xs text-white/20">&rarr;</span>
+                <span className="text-xs text-white/40">
+                  {fn.outputs?.map((o: { type: string }) => o.type).join(', ')}
+                </span>
+              </div>
+              {fn.inputs && fn.inputs.length > 0 ? (
+                <div className="flex items-center gap-2">
+                  {fn.inputs.map((inp: { name: string; type: string }) => (
+                    <input
+                      key={inp.name}
+                      type="text"
+                      placeholder={`${inp.name} (${inp.type})`}
+                      className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 font-mono placeholder:text-white/20 focus:outline-none focus:border-emerald-400/50"
+                      disabled
+                    />
+                  ))}
+                  <button
+                    disabled
+                    className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-300 opacity-50 cursor-not-allowed"
+                  >
+                    Query
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/40 font-mono flex-1">
+                    {fn.name === 'name' && tokenName}
+                    {fn.name === 'symbol' && tokenSymbol}
+                    {fn.name === 'decimals' && String(decimals)}
+                    {fn.name === 'totalSupply' && (tokenDetail?.totalSupply ? formatSupply(tokenDetail.totalSupply, decimals) + ` ${tokenSymbol}` : '--')}
+                    {!['name', 'symbol', 'decimals', 'totalSupply'].includes(fn.name) && 'Connect wallet to query'}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Write functions */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
+        <div className="px-5 py-3 border-b border-white/10 flex items-center gap-2">
+          <span className="inline-flex items-center rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-xs font-medium text-amber-300">Write</span>
+          <span className="text-sm font-medium text-white/60">Contract Methods</span>
+        </div>
+        <div className="divide-y divide-white/5">
+          {writeFns.map((fn) => (
+            <div key={fn.name} className="px-5 py-4">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="font-mono text-sm text-white font-medium">{fn.name}</span>
+                <span className="text-xs text-white/30">
+                  ({fn.inputs?.map((inp: { name: string; type: string }) => `${inp.type} ${inp.name}`).join(', ')})
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {fn.inputs?.map((inp: { name: string; type: string }) => (
+                  <input
+                    key={inp.name}
+                    type="text"
+                    placeholder={`${inp.name} (${inp.type})`}
+                    className="flex-1 min-w-[150px] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 font-mono placeholder:text-white/20 focus:outline-none focus:border-amber-400/50"
+                    disabled
+                  />
+                ))}
+                <button
+                  disabled
+                  className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-300 opacity-50 cursor-not-allowed"
+                >
+                  Write
+                </button>
+              </div>
+              <div className="mt-1 text-xs text-white/25">Connect wallet to execute</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -341,6 +592,7 @@ function TokenContractLayout({
   const tokenName = tokenDetail?.name ?? account.tokenName ?? 'Unknown Token';
   const tokenSymbol = tokenDetail?.symbol ?? account.tokenSymbol ?? '???';
   const isToken = account.isToken || !!tokenDetail;
+  const decimals = tokenDetail?.decimals ?? account.tokenDecimals ?? 18;
 
   return (
     <div className="text-white space-y-6">
@@ -397,14 +649,14 @@ function TokenContractLayout({
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-white/45 mb-1">Total Supply</div>
           <div className="text-xl font-semibold font-mono">
-            {tokenDetail?.totalSupply ?? account.totalSupply ?? '—'}
+            {formatSupply(tokenDetail?.totalSupply ?? account.totalSupply, decimals)}
           </div>
           {isToken && <div className="text-xs text-white/30 mt-1">{tokenSymbol}</div>}
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-white/45 mb-1">Holders</div>
           <div className="text-xl font-semibold">
-            {tokenDetail?.holders != null ? formatNumber(tokenDetail.holders) : '—'}
+            {tokenDetail?.holders != null ? formatNumber(tokenDetail.holders) : '--'}
           </div>
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
@@ -415,9 +667,7 @@ function TokenContractLayout({
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-white/45 mb-1">Decimals</div>
-          <div className="text-xl font-semibold">
-            {tokenDetail?.decimals ?? account.tokenDecimals ?? 18}
-          </div>
+          <div className="text-xl font-semibold">{decimals}</div>
         </div>
       </div>
 
@@ -434,8 +684,8 @@ function TokenContractLayout({
           <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 py-4 border-b border-white/5">
             <div className="sm:w-40 shrink-0 text-sm text-white/45">Creator</div>
             <div className="flex-1 text-sm">
-              <Link href={`/address/${tokenDetail.creator}`} className="font-mono text-emerald-300 hover:text-emerald-200 transition">
-                {truncateHash(tokenDetail.creator)}
+              <Link href={`/address/${tokenDetail.creator}`} className="font-mono text-emerald-300 hover:text-emerald-200 transition break-all">
+                {tokenDetail.creator}
               </Link>
             </div>
           </div>
@@ -467,6 +717,9 @@ function TokenContractLayout({
                 }`}
               >
                 {t.label}
+                {t.key === 'holders' && tokenDetail?.holders != null && tokenDetail.holders > 0 && (
+                  <span className="ml-1.5 text-xs text-white/35">({formatNumber(tokenDetail.holders)})</span>
+                )}
               </button>
             );
           })}
@@ -476,26 +729,16 @@ function TokenContractLayout({
       {/* ── Tab content ─────────────────────────────────────────────── */}
       <div className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
         {resolvedTab === 'transfers' && (
-          <TxTable
-            txs={txs}
-            loading={txsLoading}
-            currentAddr={addr}
-            emptyLabel="No transfers found"
-          />
+          <TxTable txs={txs} loading={txsLoading} currentAddr={addr} emptyLabel="No transfers found" />
         )}
-
         {resolvedTab === 'holders' && (
-          <div className="py-16 text-center text-white/40">
-            <div className="text-base font-medium mb-1">No holder data available</div>
-            <div className="text-sm">Token holder tracking is not yet available.</div>
-          </div>
+          <HoldersTab addr={addr} />
         )}
-
         {resolvedTab === 'contract' && (
-          <div className="py-16 text-center text-white/40">
-            <div className="text-base font-medium mb-1">Contract details unavailable</div>
-            <div className="text-sm">Contract source and ABI are not indexed yet.</div>
-          </div>
+          <ContractTab addr={addr} tokenDetail={tokenDetail} />
+        )}
+        {resolvedTab === 'interact' && (
+          <InteractTab addr={addr} tokenDetail={tokenDetail} />
         )}
       </div>
     </div>
@@ -512,6 +755,7 @@ function WalletLayout({
   activeTab,
   setTab,
   usdPrice,
+  tokens,
 }: {
   account: ApiAddress;
   txs: ApiTx[] | null;
@@ -520,10 +764,10 @@ function WalletLayout({
   activeTab: TabKey;
   setTab: (key: TabKey) => void;
   usdPrice: number | null;
+  tokens: ApiToken[] | null;
 }) {
   const resolvedTab = WALLET_TABS.some((t) => t.key === activeTab) ? activeTab : 'transactions';
 
-  // Show alternate address format if available
   const altAddress = account.evmAddress && account.evmAddress !== account.address
     ? account.evmAddress
     : account.cosmosAddress && account.cosmosAddress !== account.address
@@ -547,32 +791,18 @@ function WalletLayout({
           <div className="flex items-center gap-2 shrink-0">
             <CopyBtn text={account.address} />
             {account.isValidator ? (
-              <span className="inline-flex items-center rounded-full border border-violet-400/30 bg-violet-400/10 px-2.5 py-0.5 text-xs font-medium text-violet-300">
-                Validator
-              </span>
+              <span className="inline-flex items-center rounded-full border border-violet-400/30 bg-violet-400/10 px-2.5 py-0.5 text-xs font-medium text-violet-300">Validator</span>
             ) : (
-              <span
-                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                  account.txCount > 0
-                    ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
-                    : 'border-white/20 bg-white/5 text-white/50'
-                }`}
-              >
+              <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${account.txCount > 0 ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-white/20 bg-white/5 text-white/50'}`}>
                 {account.txCount > 0 ? 'Active' : 'Inactive'}
               </span>
             )}
           </div>
         </div>
 
-        {/* Show alternate address format (clickable) */}
         {altAddress && (
           <div className="mt-2 flex items-center gap-2 text-sm">
-            <Link
-              href={`/address/${altAddress}`}
-              className="font-mono text-white/55 hover:text-emerald-300 transition"
-            >
-              {altAddress}
-            </Link>
+            <Link href={`/address/${altAddress}`} className="font-mono text-white/55 hover:text-emerald-300 transition">{altAddress}</Link>
             <CopyBtn text={altAddress} />
           </div>
         )}
@@ -597,18 +827,14 @@ function WalletLayout({
           )}
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <div className="text-sm text-white/45 mb-1">
-            {account.isValidator ? 'Blocks Proposed' : 'Transactions'}
-          </div>
+          <div className="text-sm text-white/45 mb-1">{account.isValidator ? 'Blocks Proposed' : 'Transactions'}</div>
           <div className="text-xl font-semibold">
             {formatNumber(account.isValidator ? (account.blocksProposed ?? 0) : account.txCount)}
           </div>
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <div className="text-sm text-white/45 mb-1">Last Active</div>
-          <div className="text-xl font-semibold">
-            {account.lastSeen ? timeAgo(account.lastSeen) : '—'}
-          </div>
+          <div className="text-xl font-semibold">{account.lastSeen ? timeAgo(account.lastSeen) : '--'}</div>
         </div>
       </div>
 
@@ -624,17 +850,11 @@ function WalletLayout({
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                className={`pb-3 text-sm font-medium transition border-b-2 ${
-                  isActive
-                    ? 'border-emerald-400 text-white'
-                    : 'border-transparent text-white/50 hover:text-white/70'
-                }`}
+                className={`pb-3 text-sm font-medium transition border-b-2 ${isActive ? 'border-emerald-400 text-white' : 'border-transparent text-white/50 hover:text-white/70'}`}
               >
                 {t.label}
                 {t.key === 'transactions' && account.txCount > 0 && (
-                  <span className="ml-1.5 text-xs text-white/35">
-                    ({formatNumber(account.txCount)})
-                  </span>
+                  <span className="ml-1.5 text-xs text-white/35">({formatNumber(account.txCount)})</span>
                 )}
               </button>
             );
@@ -645,24 +865,12 @@ function WalletLayout({
       {/* ── Tab content ─────────────────────────────────────────────── */}
       <div className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
         {resolvedTab === 'transactions' && (
-          <TxTable
-            txs={txs}
-            loading={txsLoading}
-            currentAddr={addr}
-            emptyLabel="No transactions found"
-          />
+          <TxTable txs={txs} loading={txsLoading} currentAddr={addr} emptyLabel="No transactions found" />
         )}
-
         {resolvedTab === 'transfers' && (
-          <TxTable
-            txs={txs}
-            loading={txsLoading}
-            currentAddr={addr}
-            emptyLabel="No transfers found"
-          />
+          <TxTable txs={txs} loading={txsLoading} currentAddr={addr} emptyLabel="No transfers found" />
         )}
-
-        {resolvedTab === 'tokens' && <TokensTab />}
+        {resolvedTab === 'tokens' && <TokensTab tokens={tokens} />}
       </div>
     </div>
   );
@@ -689,6 +897,9 @@ export default function AddressPage() {
   const { data: tokenDetail } =
     useApi<ApiTokenDetail>((isContract || isToken) && addr ? `/tokens/${addr}` : null);
 
+  // Fetch all tokens list for wallet's Tokens tab
+  const { data: tokens } = useApi<ApiToken[]>('/tokens');
+
   // Fetch LITHO price for USD display
   const { data: priceData } = useApi<ApiPrice>('/price');
   const usdPrice = priceData?.price ?? null;
@@ -704,13 +915,7 @@ export default function AddressPage() {
     [router, addr],
   );
 
-  /* ── Loading state ─────────────────────────────────────────────────── */
-
-  if (accountLoading) {
-    return <PageSkeleton />;
-  }
-
-  /* ── Error / not found ─────────────────────────────────────────────── */
+  if (accountLoading) return <PageSkeleton />;
 
   if (accountError || !account) {
     return (
@@ -720,15 +925,11 @@ export default function AddressPage() {
           <div className="text-sm text-white/50 mb-4">
             {accountError ?? 'This address has no indexed activity yet.'}
           </div>
-          <Link href="/" className="text-sm text-emerald-300 hover:text-emerald-200">
-            &larr; Back to Explorer
-          </Link>
+          <Link href="/" className="text-sm text-emerald-300 hover:text-emerald-200">&larr; Back to Explorer</Link>
         </div>
       </div>
     );
   }
-
-  /* ── Detect address type and render appropriate layout ──────────── */
 
   return (
     <>
@@ -757,6 +958,7 @@ export default function AddressPage() {
           activeTab={activeTab}
           setTab={setTab}
           usdPrice={usdPrice}
+          tokens={tokens}
         />
       )}
     </>

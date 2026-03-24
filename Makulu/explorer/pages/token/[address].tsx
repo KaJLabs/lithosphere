@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, truncateHash, timeAgo, formatTimestamp, formatValue } from '@/lib/format';
+import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatValue } from '@/lib/format';
 import type {
   ApiTokenDetail,
   ApiTokenTransferList,
@@ -90,39 +90,6 @@ function PageSkeleton() {
       </div>
     </div>
   );
-}
-
-/* ── Format token amount with decimals ────────────────────────────────── */
-
-function formatTokenAmount(raw: string, decimals: number, symbol: string): string {
-  if (!raw || raw === '0') return `0 ${symbol}`;
-  try {
-    const n = BigInt(raw);
-    if (decimals === 0) return `${n.toLocaleString()} ${symbol}`;
-    const divisor = BigInt(10 ** decimals);
-    const whole = n / divisor;
-    const frac = n % divisor;
-    const fracStr = frac.toString().padStart(decimals, '0').slice(0, 4).replace(/0+$/, '');
-    const wholeStr = whole.toLocaleString('en-US');
-    if (!fracStr) return `${wholeStr} ${symbol}`;
-    return `${wholeStr}.${fracStr} ${symbol}`;
-  } catch {
-    return `${raw} ${symbol}`;
-  }
-}
-
-/* ── Format total supply for display ──────────────────────────────────── */
-
-function formatSupply(raw: string | undefined, decimals: number): string {
-  if (!raw) return '--';
-  try {
-    const n = BigInt(raw);
-    const divisor = BigInt(10 ** decimals);
-    const whole = n / divisor;
-    return whole.toLocaleString('en-US');
-  } catch {
-    return formatNumber(raw);
-  }
 }
 
 /* ── Transfers Tab ────────────────────────────────────────────────────── */

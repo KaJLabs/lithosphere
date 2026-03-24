@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, truncateHash } from '@/lib/format';
+import { formatNumber, formatSupply, truncateHash } from '@/lib/format';
 import type { ApiToken } from '@/lib/types';
 
 const AVATAR_COLORS = [
@@ -226,7 +226,7 @@ export default function TokensPage() {
 
                           {/* Total Supply */}
                           <td className="px-4 py-4 text-sm text-white/70 text-right tabular-nums">
-                            {token.totalSupply ? formatNumber(token.totalSupply) : '-'}
+                            {token.totalSupply ? formatSupply(token.totalSupply, token.decimals) : '-'}
                           </td>
 
                           {/* Holders */}
@@ -293,7 +293,7 @@ export default function TokensPage() {
                         <div>
                           <div className="text-xs text-white/30 mb-0.5">Total Supply</div>
                           <div className="text-white/70 tabular-nums">
-                            {token.totalSupply ? formatNumber(token.totalSupply) : '-'}
+                            {token.totalSupply ? formatSupply(token.totalSupply, token.decimals) : '-'}
                           </div>
                         </div>
                         <div>
