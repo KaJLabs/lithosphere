@@ -242,7 +242,10 @@ async function indexTx(
   if (isEvm) {
     const evmHash = attr(evts, 'ethereum_tx', 'ethereumTxHash');
     if (evmHash) {
+      console.log(`[evm] Indexing EVM tx ${evmHash} (cosmos: ${hash}) at height ${height}`);
       await indexEvmTx(client, evmHash, hash, height, index, blockTime, evts, result, gasUsed);
+    } else {
+      console.warn(`[evm] MsgEthereumTx at height ${height} has no ethereumTxHash event`);
     }
   }
 }
@@ -299,7 +302,7 @@ async function indexEvmTx(
         input    = t.input ?? '';
       }
     } catch (err) {
-      // EVM RPC unavailable — event data is sufficient for basic indexing
+      console.warn(`[evm] RPC enrichment failed for ${evmHash}:`, err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -439,7 +442,7 @@ async function recordNetworkStats(): Promise<void> {
 // ─── Main Loop ────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  console.log(`[indexer] RPC=${RPC_URL}  LCD=${LCD_URL}  START=${START_BLOCK}  BATCH=${BATCH_SIZE}`);
+  console.log(`[indexer] RPC=${RPC_URL}  LCD=${LCD_URL}  EVM_RPC=${EVM_RPC_URL ?? '(disabled)'}  START=${START_BLOCK}  BATCH=${BATCH_SIZE}`);
 
   // Wait for PostgreSQL
   for (let i = 1; i <= 15; i++) {
@@ -502,6 +505,23 @@ async function main(): Promise<void> {
       INSERT INTO indexer_state (key, value, updated_at) VALUES ('last_indexed_block', '0', NOW())
       ON CONFLICT (key) DO UPDATE SET value = '0', updated_at = NOW()
     `);
+  }
+
+  // Auto-backfill EVM data: if there are Cosmos txs but no EVM txs, re-index to populate evm_transactions
+  try {
+    const txCount = await pool.query('SELECT COUNT(*) AS count FROM transactions');
+    const evmCount = await pool.query('SELECT COUNT(*) AS count FROM evm_transactions');
+    const txTotal = parseInt(txCount.rows[0]?.count ?? '0');
+    const evmTotal = parseInt(evmCount.rows[0]?.count ?? '0');
+    if (txTotal > 0 && evmTotal === 0) {
+      console.log(`[indexer] EVM backfill needed: ${txTotal} cosmos txs but 0 evm txs — resetting to re-index`);
+      await pool.query(`
+        INSERT INTO indexer_state (key, value, updated_at) VALUES ('last_indexed_block', '0', NOW())
+        ON CONFLICT (key) DO UPDATE SET value = '0', updated_at = NOW()
+      `);
+    }
+  } catch (err) {
+    console.warn('[indexer] EVM backfill check failed:', err instanceof Error ? err.message : String(err));
   }
 
   // Initial validator load
