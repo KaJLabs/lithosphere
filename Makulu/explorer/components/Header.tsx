@@ -88,23 +88,9 @@ export default function Header() {
             </div>
 
             {/* Connect Wallet button */}
-            <button
-              onClick={() => open()}
-              className={`hidden sm:inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${
-                isConnected && address
-                  ? 'border border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
-                  : 'border border-white/15 bg-white/5 text-white/70 hover:bg-white/10'
-              }`}
-            >
-              {isConnected && address ? (
-                <>
-                  <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-                  {shortenAddr(address)}
-                </>
-              ) : (
-                'Connect Wallet'
-              )}
-            </button>
+            <div className="hidden sm:block">
+              <w3m-button balance="hide" />
+            </div>
 
             {/* Mobile menu button */}
             <button
@@ -157,12 +143,9 @@ export default function Header() {
               )
             )}
             {/* Mobile wallet connect */}
-            <button
-              onClick={() => { open(); setMenuOpen(false); }}
-              className="block w-full text-left px-3 py-2 rounded-md text-sm font-medium text-emerald-300 hover:bg-[var(--color-bg-tertiary)]"
-            >
-              {isConnected && address ? `Connected: ${shortenAddr(address)}` : 'Connect Wallet'}
-            </button>
+            <div className="pt-2 pb-1 px-3">
+              <w3m-button balance="hide" />
+            </div>
           </div>
         )}
       </div>

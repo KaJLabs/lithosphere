@@ -203,9 +203,14 @@ function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: stri
   // Prefer Cosmos sender/receiver, but fall back to EVM addresses when empty
   const fromAddr = r.sender || evmExtra?.from_address || '';
   const toAddr = r.receiver || evmExtra?.to_address || '';
-  // Prefer Cosmos amount (already in ulitho), but fall back to EVM value (wei → ulitho)
-  const hasCosmosAmount = r.amount && r.amount !== '0';
-  const value = hasCosmosAmount ? r.amount : weiToUlitho(evmExtra?.value);
+  // For EVM transactions, prefer EVM value (it accurately reflects msg.value), otherwise fall back to Cosmos amount
+  const isEvmTx = r.tx_type === 'MsgEthereumTx' || !!evmExtra;
+  let value = '0';
+  if (isEvmTx) {
+    value = weiToUlitho(evmExtra?.value);
+  } else if (r.amount && r.amount !== '0') {
+    value = r.amount;
+  }
   // For ERC-20 token transfers, try to decode the transfer amount from input data
   const tokenTransferAmount = decodeTransferAmount(evmExtra?.input_data);
   return {
@@ -248,7 +253,7 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
     blockHeight: Number(evm.block_height),
     fromAddr: evmFrom || cosmosFrom,
     toAddr: evmTo || cosmosTo,
-    value: (cosmosTx?.amount && cosmosTx.amount !== '0') ? cosmosTx.amount : weiToUlitho(evm.value),
+    value: evm.value ? weiToUlitho(evm.value) : (cosmosTx?.amount ?? '0'),
     tokenTransferAmount,
     denom: cosmosTx?.denom ?? 'ulitho',
     feePaid: cosmosTx?.fee ?? '0',

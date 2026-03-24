@@ -5,8 +5,7 @@ import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
 import { formatNumber, timeAgo, truncateHash, formatValue } from '@/lib/format';
 import type { StatsSummary, ApiBlock, ApiTxList, ApiValidator } from '@/lib/types';
 import SearchBar from '@/components/SearchBar';
-import { useWeb3Modal } from '@web3modal/ethers/react';
-import { useWeb3ModalAccount } from '@web3modal/ethers/react';
+import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
 import { useState } from 'react';
 
 declare global {
@@ -33,51 +32,51 @@ const MAKALU_CHAIN = {
 export default function Home() {
   const { open } = useWeb3Modal();
   const { address, isConnected, chainId } = useWeb3ModalAccount();
+  const { walletProvider } = useWeb3ModalProvider();
   const [isAddingNetwork, setIsAddingNetwork] = useState(false);
 
   async function addOrSwitchMakalu() {
-    setIsAddingNetwork(true);
     try {
       if (!isConnected) {
-        // If not connected, open wallet connection first
-        await open();
+        // If not connected, present Web3Modal.
+        await open({ view: 'Connect' });
         return;
       }
 
-      // Get ethereum provider from window (injected by wallet or Web3Modal)
-      const ethereum = window.ethereum;
-      if (!ethereum) {
-        alert('Wallet provider not found. Please use Connect Wallet first.');
-        return;
-      }
+      setIsAddingNetwork(true);
 
       const targetChainId = parseInt(MAKALU_CHAIN.chainId, 16);
-
-      // Check if we're already on Makalu
       if (chainId === targetChainId) {
         alert('✓ Already connected to Lithosphere Makalu');
+        setIsAddingNetwork(false);
+        return;
+      }
+
+      const provider = walletProvider || window.ethereum;
+      if (!provider) {
+        alert('Wallet provider not found. Please connect a valid wallet.');
+        setIsAddingNetwork(false);
         return;
       }
 
       try {
         // Try to switch to existing chain
-        await ethereum.request({
+        await provider.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: MAKALU_CHAIN.chainId }],
         });
       } catch (switchError: any) {
         // Chain doesn't exist (error code 4902), so add it
         if (switchError?.code === 4902) {
-          await ethereum.request({
+          await provider.request({
             method: 'wallet_addEthereumChain',
             params: [MAKALU_CHAIN],
           });
         } else if (switchError?.code === 4001) {
-          // User rejected the request
           console.log('User rejected network switch');
         } else {
           console.error('Network switch error:', switchError);
-          alert('Failed to switch network. Please try manually in your wallet settings.');
+          alert('Failed to switch network. Please try manually.');
         }
       }
     } catch (err: any) {

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod, txTypeInfo, formatValue } from '@/lib/format';
+import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod, txTypeInfo, formatValue, formatSupply } from '@/lib/format';
 import type { ApiTx, StatsSummary, EvmLogsResponse } from '@/lib/types';
 
 /* ------------------------------------------------------------------ */
@@ -359,7 +359,7 @@ export default function TransactionDetailPage() {
                   <InfoRow label="Value">
                     <span className="font-mono">
                       {tx.tokenTransferAmount
-                        ? `${formatNumber(tx.tokenTransferAmount)} (token)`
+                        ? `${formatSupply(tx.tokenTransferAmount)} (token)`
                         : formatValue(tx.value, tx.denom)}
                     </span>
                   </InfoRow>
@@ -368,7 +368,7 @@ export default function TransactionDetailPage() {
                   {tx.tokenTransferAmount && (
                     <InfoRow label="Token Amount">
                       <span className="font-mono">
-                        {formatNumber(tx.tokenTransferAmount)}
+                        {formatSupply(tx.tokenTransferAmount)}
                       </span>
                     </InfoRow>
                   )}
