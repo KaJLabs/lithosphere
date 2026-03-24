@@ -67,23 +67,33 @@ type DbClient = PoolClient;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Decode a CometBFT event attribute value — newer nodes base64-encode them. */
-function decodeAttr(s: string): string {
-  if (!s) return '';
+/** Safely decode a CometBFT base64-encoded attribute. Returns null if not valid base64. */
+function tryBase64(s: string): string | null {
+  if (!s) return null;
   try {
-    const d = Buffer.from(s, 'base64').toString('utf-8');
-    // Accept decoded string if it's printable ASCII / common UTF-8
-    if (/^[\x20-\x7E\u00A0-\uFFFF\n\r\t]*$/.test(d)) return d;
-  } catch { /* not base64 */ }
-  return s;
+    const buf = Buffer.from(s, 'base64');
+    // Only accept if round-trip matches (i.e. string is genuine base64, not plain text)
+    if (buf.toString('base64').replace(/=+$/, '') !== s.replace(/=+$/, '')) return null;
+    const d = buf.toString('utf-8');
+    // Reject if it contains replacement characters (invalid UTF-8)
+    if (d.includes('\uFFFD')) return null;
+    return d;
+  } catch { return null; }
 }
 
-/** Get the first matching event attribute value. */
+/** Get the first matching event attribute value. Handles both plain and base64-encoded attributes. */
 function attr(events: TxEvent[], eventType: string, key: string): string {
   for (const ev of events) {
     if (ev.type !== eventType) continue;
     for (const a of ev.attributes) {
-      if (decodeAttr(a.key) === key) return decodeAttr(a.value);
+      // Try plain text first, then base64-decoded
+      const rawKey = a.key;
+      if (rawKey === key) return a.value;
+      const decodedKey = tryBase64(rawKey);
+      if (decodedKey === key) {
+        // Keys are base64-encoded, so decode the value too
+        return tryBase64(a.value) ?? a.value;
+      }
     }
   }
   return '';
@@ -194,6 +204,8 @@ async function indexTx(
   const action = attr(evts, 'message', 'action');
   const txType = action ? (action.split('.').pop() ?? action) : 'Unknown';
   const isEvm  = txType === 'MsgEthereumTx';
+  // Log tx details for diagnostics
+  console.log(`[tx] height=${height} hash=${hash.substring(0, 16)}… type=${txType} action=${action} isEvm=${isEvm} events=${evts.map(e => e.type).join(',')}`);
 
   // Sender / receiver / amount — pulled from emitted events (no protobuf needed)
   const sender   = attr(evts, 'message', 'sender')          ||
