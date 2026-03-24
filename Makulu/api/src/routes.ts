@@ -144,6 +144,24 @@ function decodeMethodName(inputData?: string | null): string | undefined {
   return METHOD_SIGS[selector] ?? selector;
 }
 
+/** Decode ERC-20 Transfer amount from input data (selector 0xa9059cbb)
+ *  function transfer(address to, uint256 amount)
+ *  Params: 2nd param (amount) is at offset 64-128 (bytes 32-64 in hex string)
+ */
+function decodeTransferAmount(inputData?: string | null): string | null {
+  if (!inputData || inputData.length < 138) return null; // Need 0x + 4 + 64 + 64 = 138 chars
+  const selector = inputData.slice(0, 10).toLowerCase();
+  // 0xa9059cbb is the selector for transfer(address, uint256)
+  if (selector !== '0xa9059cbb') return null;
+  try {
+    // Amount is the 2nd parameter, starting at position 10 + 64 = 74
+    const amountHex = inputData.slice(74, 138);
+    return BigInt('0x' + amountHex).toString();
+  } catch {
+    return null;
+  }
+}
+
 /** EVM JSON-RPC helper */
 const EVM_RPC_URL = process.env.EVM_RPC_URL || '';
 async function evmRpcCall(method: string, params: unknown[]): Promise<unknown> {
@@ -188,6 +206,8 @@ function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: stri
   // Prefer Cosmos amount (already in ulitho), but fall back to EVM value (wei → ulitho)
   const hasCosmosAmount = r.amount && r.amount !== '0';
   const value = hasCosmosAmount ? r.amount : weiToUlitho(evmExtra?.value);
+  // For ERC-20 token transfers, try to decode the transfer amount from input data
+  const tokenTransferAmount = decodeTransferAmount(evmExtra?.input_data);
   return {
     hash: r.hash,
     evmHash: evmHash ?? undefined,
@@ -195,6 +215,7 @@ function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: stri
     fromAddr,
     toAddr,
     value,
+    tokenTransferAmount,
     denom: r.denom ?? 'ulitho',
     feePaid: r.fee ?? '0',
     gasUsed: r.gas_used ?? null,
@@ -220,6 +241,7 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
   const evmTo = evm.to_address ?? '';
   const cosmosFrom = cosmosTx?.sender ?? '';
   const cosmosTo = cosmosTx?.receiver ?? '';
+  const tokenTransferAmount = decodeTransferAmount(evm.input_data);
   return {
     hash: cosmosTx?.hash ?? evm.cosmos_tx_hash,
     evmHash: evm.hash,
@@ -227,6 +249,7 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
     fromAddr: evmFrom || cosmosFrom,
     toAddr: evmTo || cosmosTo,
     value: (cosmosTx?.amount && cosmosTx.amount !== '0') ? cosmosTx.amount : weiToUlitho(evm.value),
+    tokenTransferAmount,
     denom: cosmosTx?.denom ?? 'ulitho',
     feePaid: cosmosTx?.fee ?? '0',
     gasUsed: evm.gas_used != null ? String(evm.gas_used) : cosmosTx?.gas_used ?? null,

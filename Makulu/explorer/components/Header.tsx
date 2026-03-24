@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
+import { useWeb3Modal } from '@web3modal/ethers/react';
+import { useWeb3ModalAccount } from '@web3modal/ethers/react';
 import SearchBar from './SearchBar';
 import { EXPLORER_TITLE } from '@/lib/constants';
 
@@ -19,14 +21,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'LITHO TGE', href: 'https://portal.litho.ai', external: true },
 ];
 
-const MAKALU_CHAIN = {
-  chainId: '0xab169',
-  chainName: 'Lithosphere Makalu',
-  rpcUrls: ['https://rpc.litho.ai'],
-  nativeCurrency: { name: 'LITHO', symbol: 'LITHO', decimals: 18 },
-  blockExplorerUrls: ['https://makalu.litho.ai'],
-};
-
 function shortenAddr(addr: string): string {
   return addr.slice(0, 6) + '...' + addr.slice(-4);
 }
@@ -34,40 +28,13 @@ function shortenAddr(addr: string): string {
 export default function Header() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [walletAddr, setWalletAddr] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState(false);
+  const { open } = useWeb3Modal();
+  const { address, isConnected } = useWeb3ModalAccount();
 
   const isActive = (href: string) => {
     if (href === '/') return router.pathname === '/';
     return router.pathname.startsWith(href);
   };
-
-  const connectWallet = useCallback(async () => {
-    setConnecting(true);
-    try {
-      const eth = (window as any).ethereum;
-      if (!eth) {
-        alert('No wallet detected. Please install a compatible browser wallet extension.');
-        return;
-      }
-      const accounts: string[] = await eth.request({ method: 'eth_requestAccounts' });
-      const addr = accounts?.[0];
-      if (addr) setWalletAddr(addr);
-
-      // Auto-switch to Makalu
-      const chainId = await eth.request({ method: 'eth_chainId' });
-      if (chainId?.toLowerCase() !== MAKALU_CHAIN.chainId) {
-        try {
-          await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: MAKALU_CHAIN.chainId }] });
-        } catch (e: any) {
-          if (e?.code === 4902) {
-            await eth.request({ method: 'wallet_addEthereumChain', params: [MAKALU_CHAIN] });
-          }
-        }
-      }
-    } catch { /* user rejected */ }
-    finally { setConnecting(false); }
-  }, []);
 
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]/95 backdrop-blur-sm">
@@ -122,20 +89,17 @@ export default function Header() {
 
             {/* Connect Wallet button */}
             <button
-              onClick={connectWallet}
-              disabled={connecting}
+              onClick={() => open()}
               className={`hidden sm:inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${
-                walletAddr
+                isConnected && address
                   ? 'border border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
                   : 'border border-white/15 bg-white/5 text-white/70 hover:bg-white/10'
               }`}
             >
-              {connecting ? (
-                'Connecting...'
-              ) : walletAddr ? (
+              {isConnected && address ? (
                 <>
                   <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-                  {shortenAddr(walletAddr)}
+                  {shortenAddr(address)}
                 </>
               ) : (
                 'Connect Wallet'
@@ -194,10 +158,10 @@ export default function Header() {
             )}
             {/* Mobile wallet connect */}
             <button
-              onClick={() => { connectWallet(); setMenuOpen(false); }}
+              onClick={() => { open(); setMenuOpen(false); }}
               className="block w-full text-left px-3 py-2 rounded-md text-sm font-medium text-emerald-300 hover:bg-[var(--color-bg-tertiary)]"
             >
-              {walletAddr ? `Connected: ${shortenAddr(walletAddr)}` : 'Connect Wallet'}
+              {isConnected && address ? `Connected: ${shortenAddr(address)}` : 'Connect Wallet'}
             </button>
           </div>
         )}

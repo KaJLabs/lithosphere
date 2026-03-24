@@ -358,9 +358,20 @@ export default function TransactionDetailPage() {
                   {/* Value */}
                   <InfoRow label="Value">
                     <span className="font-mono">
-                      {formatValue(tx.value, tx.denom)}
+                      {tx.tokenTransferAmount
+                        ? `${formatNumber(tx.tokenTransferAmount)} (token)`
+                        : formatValue(tx.value, tx.denom)}
                     </span>
                   </InfoRow>
+
+                  {/* Token Transfer Amount (if decoded from input) */}
+                  {tx.tokenTransferAmount && (
+                    <InfoRow label="Token Amount">
+                      <span className="font-mono">
+                        {formatNumber(tx.tokenTransferAmount)}
+                      </span>
+                    </InfoRow>
+                  )}
 
                   {/* Transaction Fee */}
                   <InfoRow label="Transaction Fee">

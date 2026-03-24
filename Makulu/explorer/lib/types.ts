@@ -32,6 +32,7 @@ export interface ApiTx {
   fromAddr: string;
   toAddr: string | null;
   value: string;
+  tokenTransferAmount?: string;
   denom?: string;
   feePaid: string;
   gasUsed?: string | null;

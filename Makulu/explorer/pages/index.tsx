@@ -5,6 +5,9 @@ import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
 import { formatNumber, timeAgo, truncateHash, formatValue } from '@/lib/format';
 import type { StatsSummary, ApiBlock, ApiTxList, ApiValidator } from '@/lib/types';
 import SearchBar from '@/components/SearchBar';
+import { useWeb3Modal } from '@web3modal/ethers/react';
+import { useWeb3ModalAccount } from '@web3modal/ethers/react';
+import { useState } from 'react';
 
 const TOKENS = [
   { symbol: 'LITHO', supply: '1B', holders: '—' },
@@ -21,24 +24,62 @@ const MAKALU_CHAIN = {
   blockExplorerUrls: ['https://makalu.litho.ai'],
 };
 
-async function addOrSwitchMakalu() {
-  try {
-    if (!(window as any).ethereum) {
-      alert('No wallet detected. Please install a compatible browser wallet extension.');
-      return;
-    }
-    const eth = (window as any).ethereum;
-    try {
-      await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: MAKALU_CHAIN.chainId }] });
-    } catch (e: any) {
-      if (e?.code === 4902) {
-        await eth.request({ method: 'wallet_addEthereumChain', params: [MAKALU_CHAIN] });
-      }
-    }
-  } catch { /* user rejected */ }
-}
-
 export default function Home() {
+  const { open } = useWeb3Modal();
+  const { address, isConnected, chainId } = useWeb3ModalAccount();
+  const [isAddingNetwork, setIsAddingNetwork] = useState(false);
+
+  async function addOrSwitchMakalu() {
+    setIsAddingNetwork(true);
+    try {
+      if (!isConnected) {
+        // If not connected, open wallet connection first
+        await open();
+        // After connection, the chainId will update and we'll try to add network
+        return;
+      }
+
+      // Get the provider from Web3Modal
+      const provider = window.ethereum;
+      if (!provider) {
+        alert('Please connect a wallet first');
+        return;
+      }
+
+      const targetChainId = parseInt(MAKALU_CHAIN.chainId, 16);
+
+      // Check if we're already on Makalu
+      if (chainId === targetChainId) {
+        alert('Already connected to Lithosphere Makalu');
+        return;
+      }
+
+      try {
+        // Try to switch to existing chain
+        await provider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: MAKALU_CHAIN.chainId }],
+        });
+      } catch (switchError: any) {
+        // Chain doesn't exist (error code 4902), so add it
+        if (switchError?.code === 4902) {
+          await provider.request({
+            method: 'wallet_addEthereumChain',
+            params: [MAKALU_CHAIN],
+          });
+        } else {
+          throw switchError;
+        }
+      }
+    } catch (err: any) {
+      if (err?.code !== 4001) { // Don't show error for user rejection
+        console.error('Error adding/switching network:', err);
+      }
+    } finally {
+      setIsAddingNetwork(false);
+    }
+  }
+
   const { data: stats, loading: statsLoading } = useApi<StatsSummary>('/stats/summary', {
     pollInterval: POLL_INTERVAL,
   });
@@ -127,9 +168,10 @@ export default function Home() {
                 </Link>
                 <button
                   onClick={addOrSwitchMakalu}
-                  className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-3 text-sm font-medium text-emerald-300 hover:bg-emerald-400/20 transition"
+                  disabled={isAddingNetwork}
+                  className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-3 text-sm font-medium text-emerald-300 hover:bg-emerald-400/20 transition disabled:opacity-60"
                 >
-                  Add / Switch Makalu
+                  {isAddingNetwork ? 'Adding...' : isConnected ? 'Makalu Connected ✓' : 'Add / Switch Makalu'}
                 </button>
               </div>
 
