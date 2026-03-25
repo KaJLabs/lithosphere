@@ -29,6 +29,9 @@ const ethersConfig = defaultConfig({
   defaultChainId: MAKALU_CHAIN.chainId,
   rpcUrl: MAKALU_CHAIN.rpcUrl,
   chains: [MAKALU_CHAIN],
+  enableInjected: true,     // MetaMask, Brave, etc.
+  enableCoinbase: true,     // Coinbase Wallet
+  enableEIP6963: true,      // Auto-detect all installed wallets
 });
 
 // Initialize Web3Modal once (try/catch handles HMR re-initialization)
@@ -38,6 +41,16 @@ try {
     chains: [MAKALU_CHAIN],
     projectId: PROJECT_ID,
     enableAnalytics: true,
+    // Featured wallets shown first in the modal (like portal.litho.ai)
+    featuredWalletIds: [
+      'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
+      '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
+      'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e18e4a0eb6f0f94bd4', // Coinbase
+    ],
+    themeMode: 'dark',
+    themeVariables: {
+      '--w3m-accent': '#34d399',  // Match our emerald accent
+    },
   });
 } catch (error) {
   console.log('Web3Modal init:', error instanceof Error ? error.message : 'already initialized');
