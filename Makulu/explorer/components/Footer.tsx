@@ -20,7 +20,7 @@ export default function Footer() {
           <a href="https://access.litho.ai/" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
             ACCESS
           </a>
-          <a href="https://portal.litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
+          <a href="https://deals.litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">
             LITHO TGE
           </a>
           <a href="https://validator.litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400">

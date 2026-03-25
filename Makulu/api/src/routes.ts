@@ -602,6 +602,16 @@ export function explorerRouter(): Router {
       const { address } = req.params;
       const addrLower = address.toLowerCase();
 
+      // Fetch live EVM balance if address is an EVM address and RPC is available
+      async function fetchLiveBalance(addr: string): Promise<string> {
+        if (!addr.startsWith('0x') || !EVM_RPC_URL) return '0';
+        try {
+          const result = await evmRpcCall('eth_getBalance', [addr, 'latest']);
+          if (typeof result === 'string') return hexToDec(result);
+        } catch {}
+        return '0';
+      }
+
       // 1. Try accounts table (both cosmos and evm address columns)
       const rows = await query<AccountRow>(
         'SELECT * FROM accounts WHERE address = $1 OR evm_address = $1 OR LOWER(address) = $2 OR LOWER(evm_address) = $2',
@@ -618,6 +628,12 @@ export function explorerRouter(): Router {
         ).catch(() => []);
 
         const result: Record<string, unknown> = mapAddress(rows[0], address);
+        // Fetch live balance from RPC (more accurate than DB)
+        const evmAddr = rows[0].evm_address ?? (address.startsWith('0x') ? address : undefined);
+        if (evmAddr) {
+          const liveBalance = await fetchLiveBalance(evmAddr);
+          if (liveBalance !== '0') result.balance = liveBalance;
+        }
         if (tokenInfo[0]) {
           result.isContract = true;
           result.isToken = !!(tokenInfo[0].symbol || tokenInfo[0].contract_type === 'token');
@@ -668,15 +684,18 @@ export function explorerRouter(): Router {
 
       const count = parseInt(txCount[0]?.count ?? '0');
       if (count > 0) {
-        const lastTx = await query<{ timestamp: Date }>(
-          `SELECT timestamp FROM transactions
-           WHERE LOWER(sender) = $1 OR LOWER(receiver) = $1
-           ORDER BY timestamp DESC LIMIT 1`,
-          [addrLower]
-        );
+        const [lastTx, liveBalance] = await Promise.all([
+          query<{ timestamp: Date }>(
+            `SELECT timestamp FROM transactions
+             WHERE LOWER(sender) = $1 OR LOWER(receiver) = $1
+             ORDER BY timestamp DESC LIMIT 1`,
+            [addrLower]
+          ),
+          fetchLiveBalance(address),
+        ]);
         res.json({
           address,
-          balance: '0',
+          balance: liveBalance,
           txCount: count,
           lastSeen: lastTx[0]?.timestamp instanceof Date ? lastTx[0].timestamp.toISOString() : new Date().toISOString(),
         });
@@ -934,6 +953,62 @@ export function explorerRouter(): Router {
     } catch (err) {
       console.error('[api] /tokens/:address error:', err);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Token roles (AccessControl RoleGranted events) ────────────────
+
+  r.get('/tokens/:address/roles', async (req: Request, res: Response) => {
+    try {
+      const { address } = req.params;
+      if (address === 'native' || !address.startsWith('0x') || !EVM_RPC_URL) {
+        res.json({ roles: [] });
+        return;
+      }
+
+      // RoleGranted(bytes32 role, address account, address sender)
+      const ROLE_GRANTED_TOPIC = '0x2f8788117e7eff1d82e926ec794901d17c78024a50270940304540a733656f0d';
+      // Known role hashes → human-readable names
+      const ROLE_NAMES: Record<string, string> = {
+        '0x0000000000000000000000000000000000000000000000000000000000000000': 'DEFAULT_ADMIN',
+        '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a': 'PAUSE',
+        '0x2fc10cc8ae19568712f7a176fb4978616a610650813c9d05326c34abb62749c7': 'UNPAUSE',
+        '0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6': 'MINTER',
+        '0x3c11d16cbaffd01df69ce1c404f6340ee057498f5f00246190ea54220576a848': 'BURNER',
+        '0x7804d923f43a17d325d77e781528e0793b2edd9890ab45fc64efd7b4b427744c': 'ISSUER',
+        '0xb5a7cd0579e9a9d0e9b0b3adcfa0b5e9cc1e4a15f57b55d4b14a3a9a3e4bc12d': 'BURN_BLOCKED',
+      };
+
+      const logs = await evmRpcCall('eth_getLogs', [{
+        fromBlock: '0x0',
+        toBlock: 'latest',
+        address: address,
+        topics: [ROLE_GRANTED_TOPIC],
+      }]) as Array<{ topics: string[]; data: string; blockNumber: string; transactionHash: string }> | null;
+
+      if (!logs || !Array.isArray(logs)) {
+        res.json({ roles: [] });
+        return;
+      }
+
+      const roles = logs.map((log) => {
+        const roleHash = log.topics[1] ?? '';
+        const accountHex = log.topics[2] ?? '';
+        const account = '0x' + accountHex.slice(26); // last 20 bytes
+        const block = Number(BigInt(log.blockNumber));
+        return {
+          role: ROLE_NAMES[roleHash] ?? roleHash.slice(0, 10) + '...',
+          roleHash,
+          account: account.toLowerCase(),
+          block,
+          txHash: log.transactionHash,
+        };
+      });
+
+      res.json({ roles });
+    } catch (err) {
+      console.error('[api] /tokens/:address/roles error:', err);
+      res.json({ roles: [] });
     }
   });
 

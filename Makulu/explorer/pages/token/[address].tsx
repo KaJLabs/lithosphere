@@ -464,6 +464,57 @@ function ContractTab({ token }: { token: ApiTokenDetail }) {
   );
 }
 
+/* ── Roles Section ────────────────────────────────────────────────────── */
+
+interface TokenRole {
+  role: string;
+  roleHash: string;
+  account: string;
+  block: number;
+  txHash: string;
+}
+
+function RolesSection({ contractAddress }: { contractAddress: string }) {
+  const { data } = useApi<{ roles: TokenRole[] }>(`/tokens/${contractAddress}/roles`);
+  const [expanded, setExpanded] = useState(true);
+  const roles = data?.roles ?? [];
+
+  if (roles.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-5 py-3 border-b border-white/10 text-sm font-medium text-white/60 hover:bg-white/[0.02] transition"
+      >
+        <span>Roles</span>
+        <svg className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {expanded && (
+        <div className="divide-y divide-white/5">
+          {roles.map((r, i) => (
+            <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-5 py-3">
+              <div className="sm:w-36 shrink-0 text-sm font-medium text-white/70">{r.role}</div>
+              <div className="flex-1 text-sm font-mono text-emerald-300 break-all">
+                <Link href={`/address/${r.account}`} className="hover:text-emerald-200 transition">
+                  {r.account}
+                </Link>
+              </div>
+              <div className="text-xs text-white/40 shrink-0">
+                <Link href={`/txs/${r.txHash}`} className="hover:text-white/60 transition">
+                  Grant
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Info Tab ─────────────────────────────────────────────────────────── */
 
 function InfoTab({ token }: { token: ApiTokenDetail }) {
@@ -478,6 +529,9 @@ function InfoTab({ token }: { token: ApiTokenDetail }) {
           <p className="text-sm text-white/80 leading-relaxed">{token.description}</p>
         </div>
       )}
+
+      {/* Roles (LEP-100 AccessControl) */}
+      {token.contractAddress && <RolesSection contractAddress={token.contractAddress} />}
 
       {/* Token Profile */}
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
