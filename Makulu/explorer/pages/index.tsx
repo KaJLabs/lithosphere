@@ -6,7 +6,7 @@ import { formatNumber, timeAgo, truncateHash, formatValue } from '@/lib/format';
 import type { StatsSummary, ApiBlock, ApiTxList, ApiValidator } from '@/lib/types';
 import SearchBar from '@/components/SearchBar';
 import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const TOKENS = [
   { symbol: 'LITHO', supply: '1B', holders: '—' },
@@ -23,64 +23,65 @@ const MAKALU_CHAIN = {
   blockExplorerUrls: ['https://makalu.litho.ai'],
 };
 
+const MAKALU_CHAIN_ID = parseInt(MAKALU_CHAIN.chainId, 16); // 700777
+
 export default function Home() {
   const { open } = useWeb3Modal();
   const { address, isConnected, chainId } = useWeb3ModalAccount();
   const { walletProvider } = useWeb3ModalProvider();
   const [isAddingNetwork, setIsAddingNetwork] = useState(false);
+  // Track if user clicked Add/Switch so we can auto-continue after wallet connects
+  const pendingNetworkAdd = useRef(false);
 
-  async function addOrSwitchMakalu() {
+  // After wallet connects, auto-add Makalu network if user had clicked the button
+  useEffect(() => {
+    if (isConnected && pendingNetworkAdd.current) {
+      pendingNetworkAdd.current = false;
+      promptNetworkAdd();
+    }
+  }, [isConnected]);
+
+  /** Prompt wallet to switch/add Makalu network */
+  async function promptNetworkAdd() {
+    const provider = walletProvider ?? (window.ethereum as { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } | undefined);
+    if (!provider) return;
+
+    if (chainId === MAKALU_CHAIN_ID) return; // already on Makalu
+
+    setIsAddingNetwork(true);
     try {
-      if (!isConnected) {
-        // If not connected, present Web3Modal.
-        await open({ view: 'Connect' });
-        return;
-      }
-
-      setIsAddingNetwork(true);
-
-      const targetChainId = parseInt(MAKALU_CHAIN.chainId, 16);
-      if (chainId === targetChainId) {
-        alert('✓ Already connected to Lithosphere Makalu');
-        setIsAddingNetwork(false);
-        return;
-      }
-
-      const provider = walletProvider ?? (window.ethereum as { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } | undefined);
-      if (!provider) {
-        alert('Wallet provider not found. Please connect a valid wallet.');
-        setIsAddingNetwork(false);
-        return;
-      }
-
-      try {
-        // Try to switch to existing chain
+      await provider.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: MAKALU_CHAIN.chainId }],
+      });
+    } catch (switchError: any) {
+      if (switchError?.code === 4902) {
+        // Chain not in wallet yet — add it
         await provider.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: MAKALU_CHAIN.chainId }],
+          method: 'wallet_addEthereumChain',
+          params: [MAKALU_CHAIN],
         });
-      } catch (switchError: any) {
-        // Chain doesn't exist (error code 4902), so add it
-        if (switchError?.code === 4902) {
-          await provider.request({
-            method: 'wallet_addEthereumChain',
-            params: [MAKALU_CHAIN],
-          });
-        } else if (switchError?.code === 4001) {
-          console.log('User rejected network switch');
-        } else {
-          console.error('Network switch error:', switchError);
-          alert('Failed to switch network. Please try manually.');
-        }
-      }
-    } catch (err: any) {
-      console.error('Add/Switch network error:', err);
-      if (err?.code !== 4001) {
-        alert('Error connecting to network. Please try again.');
+      } else if (switchError?.code !== 4001) {
+        console.error('Network switch error:', switchError);
       }
     } finally {
       setIsAddingNetwork(false);
     }
+  }
+
+  /** Main button handler: connect wallet → then add network */
+  async function addOrSwitchMakalu() {
+    if (chainId === MAKALU_CHAIN_ID) return; // already done
+
+    if (!isConnected) {
+      // Mark that we want to add network after connection completes
+      pendingNetworkAdd.current = true;
+      await open({ view: 'Connect' });
+      return;
+    }
+
+    // Already connected — go straight to network prompt
+    await promptNetworkAdd();
   }
 
   const { data: stats, loading: statsLoading } = useApi<StatsSummary>('/stats/summary', {
@@ -171,10 +172,16 @@ export default function Home() {
                 </Link>
                 <button
                   onClick={addOrSwitchMakalu}
-                  disabled={isAddingNetwork}
+                  disabled={isAddingNetwork || chainId === MAKALU_CHAIN_ID}
                   className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-3 text-sm font-medium text-emerald-300 hover:bg-emerald-400/20 transition disabled:opacity-60"
                 >
-                  {isAddingNetwork ? 'Adding...' : isConnected ? 'Makalu Connected ✓' : 'Add / Switch Makalu'}
+                  {isAddingNetwork
+                    ? 'Adding Network...'
+                    : chainId === MAKALU_CHAIN_ID
+                      ? '✓ Makalu Connected'
+                      : isConnected
+                        ? 'Switch to Makalu'
+                        : 'Add Makalu Network'}
                 </button>
               </div>
 
