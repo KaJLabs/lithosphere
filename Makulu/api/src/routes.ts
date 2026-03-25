@@ -162,6 +162,24 @@ function decodeTransferAmount(inputData?: string | null): string | null {
   }
 }
 
+/** Compute fee in ulitho from gasUsed (number) and gasPrice (wei string).
+ *  fee_wei = gasUsed * gasPrice_wei → fee_ulitho = fee_wei / 1e12  */
+function computeFeeUlitho(gasUsed: string | number | null | undefined, gasPriceWei: string | null | undefined): string | null {
+  if (!gasUsed || !gasPriceWei || gasPriceWei === '0') return null;
+  try {
+    const fee = BigInt(gasUsed) * BigInt(gasPriceWei) / BigInt(1e12);
+    return String(fee);
+  } catch {
+    return null;
+  }
+}
+
+/** Parse hex string to decimal string using BigInt (safe for large values) */
+function hexToDec(hex: string | null | undefined): string {
+  if (!hex || hex === '0x0' || hex === '0x') return '0';
+  try { return String(BigInt(hex)); } catch { return '0'; }
+}
+
 /** EVM JSON-RPC helper */
 const EVM_RPC_URL = process.env.EVM_RPC_URL || '';
 async function evmRpcCall(method: string, params: unknown[]): Promise<unknown> {
@@ -199,15 +217,18 @@ function mapBlockDetail(r: BlockRow, txs: Array<TxRow & { evm_hash?: string | nu
   };
 }
 
-function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: string | null; contract_address?: string | null; from_address?: string | null; to_address?: string | null; value?: string | null; gas_price?: string | null; nonce?: number | null }) {
+function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: string | null | undefined; contract_address?: string | null | undefined; from_address?: string | null | undefined; to_address?: string | null | undefined; value?: string | null | undefined; gas_price?: string | null | undefined; nonce?: number | null | undefined }) {
   // Prefer Cosmos sender/receiver, but fall back to EVM addresses when empty
   const fromAddr = r.sender || evmExtra?.from_address || '';
   const toAddr = r.receiver || evmExtra?.to_address || '';
-  // For EVM transactions, prefer EVM value (it accurately reflects msg.value), otherwise fall back to Cosmos amount
-  const isEvmTx = r.tx_type === 'MsgEthereumTx' || !!evmExtra;
+  // Check if this is actually an EVM tx (has real EVM data, not just an empty join object)
+  const hasEvmData = !!(evmExtra?.from_address || evmExtra?.to_address || evmExtra?.value || evmExtra?.input_data);
+  const isEvmTx = r.tx_type === 'MsgEthereumTx' || hasEvmData;
   let value = '0';
-  if (isEvmTx) {
-    value = weiToUlitho(evmExtra?.value);
+  if (isEvmTx && hasEvmData) {
+    // Use EVM value (accurate msg.value in wei)
+    const evmVal = weiToUlitho(evmExtra?.value);
+    value = evmVal !== '0' ? evmVal : '0';
   } else if (r.amount && r.amount !== '0') {
     value = r.amount;
   }
@@ -247,16 +268,21 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
   const cosmosFrom = cosmosTx?.sender ?? '';
   const cosmosTo = cosmosTx?.receiver ?? '';
   const tokenTransferAmount = decodeTransferAmount(evm.input_data);
+  // For EVM value: use DB value (in wei), fall back to Cosmos amount only for non-EVM txs
+  const evmValueUlitho = weiToUlitho(evm.value);
+  // Compute fee from gas metrics (more accurate than Cosmos fee event for EVM txs)
+  const gasPriceUlitho = weiToUlitho(evm.gas_price);
+  const computedFee = computeFeeUlitho(evm.gas_used, evm.gas_price);
   return {
     hash: cosmosTx?.hash ?? evm.cosmos_tx_hash,
     evmHash: evm.hash,
     blockHeight: Number(evm.block_height),
     fromAddr: evmFrom || cosmosFrom,
     toAddr: evmTo || cosmosTo,
-    value: evm.value ? weiToUlitho(evm.value) : (cosmosTx?.amount ?? '0'),
+    value: evmValueUlitho !== '0' ? evmValueUlitho : '0',
     tokenTransferAmount,
     denom: cosmosTx?.denom ?? 'ulitho',
-    feePaid: cosmosTx?.fee ?? '0',
+    feePaid: computedFee ?? cosmosTx?.fee ?? '0',
     gasUsed: evm.gas_used != null ? String(evm.gas_used) : cosmosTx?.gas_used ?? null,
     gasWanted: evm.gas_limit != null ? String(evm.gas_limit) : cosmosTx?.gas_wanted ?? null,
     success: evm.status,
@@ -267,7 +293,7 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
     timestamp: evm.timestamp instanceof Date ? evm.timestamp.toISOString() : String(evm.timestamp),
     contractAddress: evm.contract_address ?? undefined,
     nonce: evm.nonce ?? undefined,
-    gasPrice: weiToUlitho(evm.gas_price) || undefined,
+    gasPrice: gasPriceUlitho !== '0' ? gasPriceUlitho : undefined,
     inputData: evm.input_data ?? undefined,
     evmFromAddr: evmFrom || undefined,
     evmToAddr: evmTo || undefined,
@@ -439,10 +465,29 @@ export function explorerRouter(): Router {
     try {
       const { hash } = req.params;
 
-      type TxJoinRow = TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null; evm_value: string | null; evm_gas_price: string | null; evm_nonce: number | null };
-      const txJoinSql = `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.nonce AS evm_nonce
+      type TxJoinRow = TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null; evm_value: string | null; evm_gas_price: string | null; evm_gas_used: number | null; evm_nonce: number | null };
+      const txJoinSql = `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.gas_used AS evm_gas_used, e.nonce AS evm_nonce
          FROM transactions t
          LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash`;
+
+      type EvmExtra = { value?: string | null; gas_price?: string | null; from_address?: string | null; to_address?: string | null; input_data?: string | null; contract_address?: string | null; nonce?: number | null };
+      /** For EVM txs with missing/broken DB values, fetch live from RPC */
+      async function enrichEvmFromRpc(evmHash: string, evmExtra: EvmExtra): Promise<EvmExtra> {
+        const valueIsBad = !evmExtra.value || evmExtra.value === '0' || !isFinite(Number(evmExtra.value));
+        const gasPriceIsBad = !evmExtra.gas_price || evmExtra.gas_price === '0';
+        if (!valueIsBad && !gasPriceIsBad) return evmExtra;
+        // Try live RPC
+        const rpcTx = await evmRpcCall('eth_getTransactionByHash', [evmHash]) as { value?: string; gasPrice?: string; from?: string; to?: string; input?: string; nonce?: string } | null;
+        if (!rpcTx) return evmExtra;
+        const enriched = { ...evmExtra };
+        if (valueIsBad && rpcTx.value) enriched.value = hexToDec(rpcTx.value);
+        if (gasPriceIsBad && rpcTx.gasPrice) enriched.gas_price = hexToDec(rpcTx.gasPrice);
+        if (!enriched.from_address && rpcTx.from) enriched.from_address = rpcTx.from.toLowerCase();
+        if (!enriched.to_address && rpcTx.to) enriched.to_address = rpcTx.to.toLowerCase();
+        if (!enriched.input_data && rpcTx.input) enriched.input_data = rpcTx.input;
+        if (enriched.nonce == null && rpcTx.nonce) enriched.nonce = Number(BigInt(rpcTx.nonce));
+        return enriched;
+      }
 
       // 1. Try exact match in transactions table (Cosmos SHA256 hash)
       const rows = await query<TxJoinRow>(
@@ -450,7 +495,10 @@ export function explorerRouter(): Router {
         [hash.toUpperCase()]
       );
       if (rows[0]) {
-        res.json(mapTx(rows[0], rows[0].evm_hash, { input_data: rows[0].evm_input_data, contract_address: rows[0].evm_contract_address, from_address: rows[0].evm_from_address, to_address: rows[0].evm_to_address, value: rows[0].evm_value, gas_price: rows[0].evm_gas_price, nonce: rows[0].evm_nonce }));
+        let evmExtra: EvmExtra = { input_data: rows[0].evm_input_data, contract_address: rows[0].evm_contract_address, from_address: rows[0].evm_from_address, to_address: rows[0].evm_to_address, value: rows[0].evm_value, gas_price: rows[0].evm_gas_price, nonce: rows[0].evm_nonce };
+        if (rows[0].evm_hash) evmExtra = await enrichEvmFromRpc(rows[0].evm_hash, evmExtra);
+        const fee = computeFeeUlitho(rows[0].evm_gas_used ?? rows[0].gas_used, evmExtra.gas_price);
+        res.json({ ...mapTx(rows[0], rows[0].evm_hash, evmExtra), ...(fee ? { feePaid: fee } : {}) });
         return;
       }
 
@@ -460,7 +508,10 @@ export function explorerRouter(): Router {
         [hash]
       );
       if (rows2[0]) {
-        res.json(mapTx(rows2[0], rows2[0].evm_hash, { input_data: rows2[0].evm_input_data, contract_address: rows2[0].evm_contract_address, from_address: rows2[0].evm_from_address, to_address: rows2[0].evm_to_address, value: rows2[0].evm_value, gas_price: rows2[0].evm_gas_price, nonce: rows2[0].evm_nonce }));
+        let evmExtra: EvmExtra = { input_data: rows2[0].evm_input_data, contract_address: rows2[0].evm_contract_address, from_address: rows2[0].evm_from_address, to_address: rows2[0].evm_to_address, value: rows2[0].evm_value, gas_price: rows2[0].evm_gas_price, nonce: rows2[0].evm_nonce };
+        if (rows2[0].evm_hash) evmExtra = await enrichEvmFromRpc(rows2[0].evm_hash, evmExtra);
+        const fee = computeFeeUlitho(rows2[0].evm_gas_used ?? rows2[0].gas_used, evmExtra.gas_price);
+        res.json({ ...mapTx(rows2[0], rows2[0].evm_hash, evmExtra), ...(fee ? { feePaid: fee } : {}) });
         return;
       }
 
@@ -470,12 +521,19 @@ export function explorerRouter(): Router {
         [hash]
       );
       if (evmRows[0]) {
+        // Enrich from RPC if value/gasPrice are missing or broken
+        const evm = evmRows[0];
+        const rpcEnriched = await enrichEvmFromRpc(evm.hash, { value: evm.value, gas_price: evm.gas_price, from_address: evm.from_address, to_address: evm.to_address, input_data: evm.input_data, contract_address: evm.contract_address, nonce: evm.nonce });
+        const enrichedEvm: EvmTxRow = { ...evm, value: rpcEnriched.value ?? evm.value, gas_price: rpcEnriched.gas_price ?? evm.gas_price, from_address: rpcEnriched.from_address ?? evm.from_address, to_address: rpcEnriched.to_address ?? evm.to_address, input_data: rpcEnriched.input_data ?? evm.input_data, nonce: rpcEnriched.nonce ?? evm.nonce };
         // Get the linked Cosmos tx for full details
         const cosmosTx = await query<TxRow>(
           'SELECT * FROM transactions WHERE hash = $1',
-          [evmRows[0].cosmos_tx_hash]
+          [evm.cosmos_tx_hash]
         );
-        res.json(mapEvmTx(evmRows[0], cosmosTx[0]));
+        const mapped = mapEvmTx(enrichedEvm, cosmosTx[0]);
+        // Compute fee from gasUsed * gasPrice
+        const fee = computeFeeUlitho(enrichedEvm.gas_used, enrichedEvm.gas_price);
+        res.json(fee ? { ...mapped, feePaid: fee } : mapped);
         return;
       }
 

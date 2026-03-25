@@ -307,10 +307,11 @@ async function indexEvmTx(
         const t = j.result;
         fromAddr = (t.from  ?? fromAddr).toLowerCase();
         toAddr   = t.to ? t.to.toLowerCase() : null;
-        value    = String(parseInt(t.value    ?? '0x0', 16));
-        gasPrice = String(parseInt(t.gasPrice ?? '0x0', 16));
-        gasLimit = parseInt(t.gas   ?? '0x0', 16);
-        nonce    = parseInt(t.nonce ?? '0x0', 16);
+        // Use BigInt for value/gasPrice to avoid Number overflow (>2^53)
+        value    = String(BigInt(t.value    ?? '0x0'));
+        gasPrice = String(BigInt(t.gasPrice ?? '0x0'));
+        gasLimit = Number(BigInt(t.gas   ?? '0x0'));
+        nonce    = Number(BigInt(t.nonce ?? '0x0'));
         input    = t.input ?? '';
       }
     } catch (err) {
