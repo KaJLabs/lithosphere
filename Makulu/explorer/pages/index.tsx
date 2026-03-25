@@ -8,12 +8,6 @@ import SearchBar from '@/components/SearchBar';
 import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
 import { useState } from 'react';
 
-declare global {
-  interface Window {
-    ethereum?: any;
-  }
-}
-
 const TOKENS = [
   { symbol: 'LITHO', supply: '1B', holders: '—' },
   { symbol: 'wLITHO', supply: '—', holders: '—' },
@@ -52,7 +46,7 @@ export default function Home() {
         return;
       }
 
-      const provider = walletProvider || window.ethereum;
+      const provider = walletProvider ?? (window.ethereum as { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } | undefined);
       if (!provider) {
         alert('Wallet provider not found. Please connect a valid wallet.');
         setIsAddingNetwork(false);
