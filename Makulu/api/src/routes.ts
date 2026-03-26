@@ -183,15 +183,24 @@ function hexToDec(hex: string | null | undefined): string {
 const EVM_RPC_URL = process.env.EVM_RPC_URL || '';
 async function evmRpcCall(method: string, params: unknown[]): Promise<unknown> {
   if (!EVM_RPC_URL) return null;
-  const resp = await fetch(EVM_RPC_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!resp.ok) return null;
-  const data = await resp.json() as { result?: unknown; error?: unknown };
-  return data.result ?? null;
+  try {
+    const resp = await fetch(EVM_RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'Makalu-API/1.0' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!resp.ok) {
+        console.error(`[evmRpcCall] HTTP error! status: ${resp.status}`);
+        return null;
+    }
+    const data = await resp.json() as { result?: unknown; error?: unknown };
+    if (data.error) console.error(`[evmRpcCall] RPC error:`, data.error);
+    return data.result ?? null;
+  } catch (err) {
+    console.error(`[evmRpcCall] Fetch exception:`, err);
+    return null;
+  }
 }
 
 /** Fetch live EVM balance if address is an EVM address and RPC is available */
@@ -208,8 +217,8 @@ type EvmExtra = { value?: string | null; gas_price?: string | null; from_address
 
 /** For EVM txs with missing/broken DB values, fetch live from RPC */
 async function enrichEvmFromRpc(evmHash: string, evmExtra: EvmExtra): Promise<EvmExtra> {
-  const valueIsBad = !evmExtra.value || evmExtra.value === '0' || !isFinite(Number(evmExtra.value));
-  const gasPriceIsBad = !evmExtra.gas_price || evmExtra.gas_price === '0';
+  const valueIsBad = !evmExtra.value || evmExtra.value === '0' || Number(evmExtra.value) === 0;
+  const gasPriceIsBad = !evmExtra.gas_price || evmExtra.gas_price === '0' || Number(evmExtra.gas_price) === 0;
   if (!valueIsBad && !gasPriceIsBad) return evmExtra;
 
   const rpcTx = await evmRpcCall('eth_getTransactionByHash', [evmHash]) as { value?: string; gasPrice?: string; from?: string; to?: string; input?: string; nonce?: string } | null;
@@ -224,6 +233,25 @@ async function enrichEvmFromRpc(evmHash: string, evmExtra: EvmExtra): Promise<Ev
   if (enriched.nonce == null && rpcTx.nonce) enriched.nonce = Number(BigInt(rpcTx.nonce));
 
   return enriched;
+}
+
+async function enrichEvmRows<T extends { evm_hash?: string | null; evm_input_data?: string | null; evm_contract_address?: string | null; evm_from_address?: string | null; evm_to_address?: string | null; evm_value?: string | null; evm_gas_price?: string | null; evm_nonce?: number | null }>(rows: T[]): Promise<T[]> {
+  return Promise.all(rows.map(async (r) => {
+    if (r.evm_hash) {
+      const extra = await enrichEvmFromRpc(r.evm_hash, {
+        input_data: r.evm_input_data, contract_address: r.evm_contract_address, from_address: r.evm_from_address,
+        to_address: r.evm_to_address, value: r.evm_value, gas_price: r.evm_gas_price, nonce: r.evm_nonce
+      });
+      r.evm_input_data = extra.input_data ?? null;
+      r.evm_contract_address = extra.contract_address ?? null;
+      r.evm_from_address = extra.from_address ?? null;
+      r.evm_to_address = extra.to_address ?? null;
+      r.evm_value = extra.value ?? null;
+      r.evm_gas_price = extra.gas_price ?? null;
+      r.evm_nonce = extra.nonce ?? null;
+    }
+    return r;
+  }));
 }
 
 // ── Mappers → Explorer-expected shapes ──────────────────────────────────────
@@ -456,7 +484,8 @@ export function explorerRouter(): Router {
          ORDER BY t.tx_index ASC`,
         [height]
       );
-      res.json(mapBlockDetail(blocks[0], txs));
+      const enrichedTxs = await enrichEvmRows(txs);
+      res.json(mapBlockDetail(blocks[0], enrichedTxs));
     } catch (err) {
       console.error('[api] /blocks/:height error:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -787,7 +816,8 @@ export function explorerRouter(): Router {
          LIMIT $2`,
         [addrs, limit]
       );
-      res.json(rows.map((r) => mapTx(r, r.evm_hash, { input_data: r.evm_input_data, contract_address: r.evm_contract_address, from_address: r.evm_from_address, to_address: r.evm_to_address, value: r.evm_value, gas_price: r.evm_gas_price, nonce: r.evm_nonce })));
+      const enrichedRows = await enrichEvmRows(rows);
+      res.json(enrichedRows.map((r) => mapTx(r, r.evm_hash, { input_data: r.evm_input_data, contract_address: r.evm_contract_address, from_address: r.evm_from_address, to_address: r.evm_to_address, value: r.evm_value, gas_price: r.evm_gas_price, nonce: r.evm_nonce })));
     } catch (err) {
       console.error('[api] /address/:address/txs error:', err);
       res.status(500).json({ error: 'Internal server error' });
