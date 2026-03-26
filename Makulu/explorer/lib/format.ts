@@ -28,7 +28,7 @@ export function formatLitho(amount: string | null | undefined): string {
   return `${wholeFormatted}.${fracStr} LITHO`;
 }
 
-/** Convert raw ulitho value to LITHO display string (1 LITHO = 1,000,000 ulitho) */
+/** Convert raw ulitho value to LITHO display string (1 LITHO = 1e18 ulitho) */
 export function formatValue(amount: string | null | undefined, denom?: string): string {
   if (!amount || amount === '0') return '0 LITHO';
   try {
