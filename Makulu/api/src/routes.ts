@@ -12,8 +12,8 @@ const MAX_LIMIT = 100;
 
 /**
  * Convert EVM wei to ulitho.
- * Lithosphere uses 18 decimals (Ethermint): 1 LITHO = 1e18 ulitho = 1e18 wei.
- * Therefore 1 wei = 1 ulitho — no conversion needed.
+ * Lithosphere uses 18 decimals (Ethermint): 1 LITHO = 1e18 ulitho.
+ * 1 wei = 1 ulitho, so no conversion needed.
  */
 function weiToUlitho(wei: string | null | undefined): string {
   if (!wei || wei === '0') return '0';
@@ -161,8 +161,8 @@ function decodeTransferAmount(inputData?: string | null): string | null {
   }
 }
 
-/** Compute fee in ulitho from gasUsed and gasPrice (wei).
- *  Lithosphere: 1 wei = 1 ulitho, so fee_ulitho = gasUsed * gasPrice_wei */
+/** Compute fee in ulitho from gasUsed and gasPrice (wei string).
+ *  Lithosphere: 1 wei = 1 ulitho, so fee = gasUsed * gasPrice  */
 function computeFeeUlitho(gasUsed: string | number | null | undefined, gasPriceWei: string | null | undefined): string | null {
   if (!gasUsed || !gasPriceWei || gasPriceWei === '0') return null;
   try {
