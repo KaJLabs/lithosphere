@@ -1045,24 +1045,48 @@ export function explorerRouter(): Router {
       if (address === 'native') {
         // Native LITHO: all chain transactions
         const [rows, countResult] = await Promise.all([
-          query<{ hash: string; sender: string | null; receiver: string | null; amount: string | null; block_height: string; timestamp: Date; evm_from: string | null; evm_to: string | null; evm_value: string | null }>(
+          query<{ hash: string; sender: string | null; receiver: string | null; amount: string | null; block_height: string; timestamp: Date; evm_hash: string | null; evm_from: string | null; evm_to: string | null; evm_value: string | null; evm_gas_price: string | null; evm_nonce: number | null; evm_input_data: string | null; evm_contract_address: string | null }>(
             `SELECT t.hash, t.sender, t.receiver, t.amount, t.block_height, t.timestamp,
-                    e.from_address AS evm_from, e.to_address AS evm_to, e.value AS evm_value
+                    e.hash AS evm_hash, e.from_address AS evm_from, e.to_address AS evm_to, e.value AS evm_value,
+                    e.gas_price AS evm_gas_price, e.nonce AS evm_nonce, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address
              FROM transactions t LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
              ORDER BY t.block_height DESC LIMIT $1 OFFSET $2`,
             [limit, offset]
           ),
           query<CountRow>('SELECT COUNT(*) AS count FROM transactions'),
         ]);
-        res.json({
-          transfers: rows.map((r) => ({
+
+        const enrichedRows = await Promise.all(rows.map(async (r) => {
+          let evmExtra: EvmExtra = {
+            input_data: r.evm_input_data, contract_address: r.evm_contract_address,
+            from_address: r.evm_from, to_address: r.evm_to,
+            value: r.evm_value, gas_price: r.evm_gas_price, nonce: r.evm_nonce
+          };
+          // Evm txs without native value (e.g failed to be loaded) or value = 0.
+          if (r.evm_hash) evmExtra = await enrichEvmFromRpc(r.evm_hash, evmExtra);
+          
+          let finalValue = '0';
+          if (r.evm_hash || r.evm_from) {
+            // For EVM transactions, strictly use the enriched EVM value (wei mapped to ulitho)
+            const evmVal = weiToUlitho(evmExtra.value);
+            finalValue = evmVal !== '0' ? evmVal : '0';
+          } else if (r.amount && r.amount !== '0') {
+            // For pure Cosmos transactions (no EVM binding), use the amount
+            finalValue = r.amount;
+          }
+
+          return {
             txHash: r.hash,
-            fromAddress: r.sender || r.evm_from || '',
-            toAddress: r.receiver || r.evm_to || '',
-            value: (r.amount && r.amount !== '0') ? r.amount : weiToUlitho(r.evm_value),
+            fromAddress: r.sender || evmExtra.from_address || '',
+            toAddress: r.receiver || evmExtra.to_address || '',
+            value: finalValue,
             blockHeight: Number(r.block_height),
             timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
-          })),
+          };
+        }));
+
+        res.json({
+          transfers: enrichedRows,
           total: parseInt(countResult[0]?.count ?? '0'),
           limit,
           offset,
