@@ -2,18 +2,13 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
-import { formatNumber, timeAgo, truncateHash, formatValue } from '@/lib/format';
-import type { StatsSummary, ApiBlock, ApiTxList, ApiValidator } from '@/lib/types';
+import { formatNumber, timeAgo, truncateHash, formatValue, formatSupply } from '@/lib/format';
+import type { StatsSummary, ApiBlock, ApiTxList, ApiValidator, ApiTokenDetail } from '@/lib/types';
 import SearchBar from '@/components/SearchBar';
 import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
 import { useState, useEffect, useRef } from 'react';
 
-const TOKENS = [
-  { symbol: 'LITHO', supply: '1B', holders: '—' },
-  { symbol: 'wLITHO', supply: '—', holders: '—' },
-  { symbol: 'USDL', supply: '—', holders: '—' },
-  { symbol: 'mBTC', supply: '—', holders: '—' },
-];
+
 
 const MAKALU_CHAIN = {
   chainId: '0xab169',
@@ -96,7 +91,18 @@ export default function Home() {
   const txs = txsData?.txs ?? [];
   const { data: validators } = useApi<ApiValidator[]>('/validators');
 
+  const { data: tokensData, loading: tokensLoading } = useApi<ApiTokenDetail[]>('/tokens', {
+    pollInterval: POLL_INTERVAL,
+  });
+
   const topValidators = Array.isArray(validators) ? validators.slice(0, 4) : [];
+  
+  const topTokens = tokensData?.slice(0, 4) ?? [
+    { symbol: 'LITHO', name: 'Lithosphere', type: 'native' },
+    { symbol: 'wLITHO', name: 'Wrapped Lithosphere', type: 'LEP100' },
+    { symbol: 'LAX', name: 'Lithosphere Algo', type: 'LEP100' },
+    { symbol: 'LitBTC', name: 'Lithosphere LitBTC', type: 'LEP100' },
+  ];
 
   const summaryStats = [
     {
@@ -411,20 +417,41 @@ export default function Home() {
               </div>
 
               <div className="space-y-3">
-                {TOKENS.map((token) => (
-                  <div
-                    key={token.symbol}
-                    className="rounded-2xl border border-white/10 bg-black/25 p-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium">{token.symbol}</div>
-                      <div className="text-sm text-white/60">Holders {token.holders}</div>
-                    </div>
-                    <div className="mt-2 text-sm text-white/65">
-                      Supply: <span className="text-white">{token.supply}</span>
-                    </div>
-                  </div>
-                ))}
+                {tokensLoading && !tokensData
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="rounded-2xl border border-white/10 bg-black/25 p-4 animate-pulse"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="h-4 rounded bg-white/10 w-1/4" />
+                          <div className="h-4 rounded bg-white/10 w-1/4" />
+                        </div>
+                        <div className="h-4 rounded bg-white/10 w-1/2" />
+                      </div>
+                    ))
+                  : topTokens.map((token: any) => (
+                      <div
+                        key={token.symbol}
+                        className="rounded-2xl border border-white/10 bg-black/25 p-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-1">
+                          <Link href={`/token/${token.contractAddress || 'native'}`} className="font-medium hover:text-emerald-300 transition">
+                            {token.symbol}
+                          </Link>
+                          <div className="text-sm text-white/60">
+                            Holders {token.holders != null ? formatNumber(token.holders) : '—'}
+                          </div>
+                        </div>
+                        <div className="mt-2 text-sm text-white/65">
+                          Supply: <span className="text-white">
+                            {token.totalSupply && token.decimals != null
+                              ? formatSupply(token.totalSupply, token.decimals)
+                              : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
               </div>
             </div>
 

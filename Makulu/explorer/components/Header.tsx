@@ -136,7 +136,7 @@ export default function Header() {
 
             {/* Connect Wallet button */}
             <div className="hidden sm:block">
-              <w3m-button balance="hide" />
+              <w3m-button balance="hide" label="Connect" />
             </div>
 
             {/* Mobile menu button */}
@@ -194,7 +194,7 @@ export default function Header() {
             </div>
             {/* Mobile wallet connect */}
             <div className="pt-2 pb-1 px-3">
-              <w3m-button balance="hide" />
+              <w3m-button balance="hide" label="Connect" />
             </div>
           </div>
         )}

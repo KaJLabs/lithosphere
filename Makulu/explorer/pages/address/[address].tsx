@@ -937,6 +937,7 @@ export default function AddressPage() {
         <title>
           {isContract ? 'Contract' : 'Address'} {truncateHash(account.address, 12, 6)} | {EXPLORER_TITLE}
         </title>
+        <meta name="description" content={`View Lithosphere ${isContract ? 'contract details' : 'address balances'}, transactions, and token holdings for ${account.address}.`} />
       </Head>
 
       {isContract ? (

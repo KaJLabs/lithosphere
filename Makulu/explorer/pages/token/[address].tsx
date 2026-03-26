@@ -545,7 +545,7 @@ function InfoTab({ token }: { token: ApiTokenDetail }) {
           <InfoRow label="Standard" value={token.standard ?? (isNative ? 'Native' : 'LEP-100')} />
           {isNative && <InfoRow label="Denom" value="ulitho" mono />}
           <InfoRow label="Chain" value="lithosphere_700777-1" mono />
-          <InfoRow label="Chain ID (EVM)" value="700777" mono />
+          <InfoRow label="Chain ID" value="700777" mono />
           <InfoRow
             label="Total Supply"
             value={`${formatSupply(token.totalSupply, token.decimals)} ${token.symbol}`}
@@ -647,6 +647,7 @@ export default function TokenDetailPage() {
     <>
       <Head>
         <title>{token.symbol} ({token.name}) | {EXPLORER_TITLE}</title>
+        <meta name="description" content={`View info, holders, and transfers for ${token.name} (${token.symbol}) on the Lithosphere Makalu network.`} />
       </Head>
 
       <div className="text-white space-y-6">

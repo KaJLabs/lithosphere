@@ -106,7 +106,10 @@ export default function BlockDetailPage() {
 
   return (
     <>
-      <Head><title>Block #{height} | {EXPLORER_TITLE}</title></Head>
+      <Head>
+        <title>Block #{height} | {EXPLORER_TITLE}</title>
+        <meta name="description" content={`View Lithosphere Makalu testnet details and transactions for block ${height}.`} />
+      </Head>
 
       <div className="text-white">
         {/* Breadcrumb */}

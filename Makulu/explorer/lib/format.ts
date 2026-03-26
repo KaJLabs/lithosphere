@@ -20,8 +20,9 @@ export function formatNumber(n: string | number | null | undefined): string {
 export function formatLitho(amount: string | null | undefined): string {
   if (!amount) return '0 LITHO';
   const raw = BigInt(amount);
-  const whole = raw / BigInt(10 ** DECIMALS);
-  const frac = raw % BigInt(10 ** DECIMALS);
+  const divisor = BigInt('1' + '0'.repeat(DECIMALS));
+  const whole = raw / divisor;
+  const frac = raw % divisor;
   const fracStr = frac.toString().padStart(DECIMALS, '0').slice(0, 4);
   const wholeFormatted = whole.toLocaleString('en-US');
   if (frac === BigInt(0)) return `${wholeFormatted} LITHO`;
@@ -34,8 +35,9 @@ export function formatValue(amount: string | null | undefined, denom?: string): 
   try {
     const raw = BigInt(amount);
     const d = ULITHO_DECIMALS;
-    const whole = raw / BigInt(10 ** d);
-    const frac = raw % BigInt(10 ** d);
+    const divisor = BigInt('1' + '0'.repeat(d));
+    const whole = raw / divisor;
+    const frac = raw % divisor;
     const fracStr = frac.toString().padStart(d, '0').replace(/0+$/, '');
     const wholeFormatted = whole.toLocaleString('en-US');
     if (!fracStr) return `${wholeFormatted} LITHO`;
@@ -50,7 +52,7 @@ export function formatSupply(raw: string | null | undefined, decimals = 18): str
   if (!raw) return '0';
   try {
     const n = BigInt(raw);
-    const divisor = BigInt(10 ** decimals);
+    const divisor = BigInt('1' + '0'.repeat(decimals));
     const whole = n / divisor;
     return whole.toLocaleString('en-US');
   } catch {

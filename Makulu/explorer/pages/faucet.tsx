@@ -4,7 +4,7 @@ import { useWeb3Modal } from '@web3modal/ethers/react';
 import { useWeb3ModalAccount } from '@web3modal/ethers/react';
 import { EXPLORER_TITLE } from '@/lib/constants';
 
-type WalletType = 'EVM' | 'COSMOS';
+type WalletType = 'WEB3' | 'COSMOS';
 
 type ClaimResponse = {
   ok: boolean;
@@ -52,7 +52,7 @@ export default function FaucetPage() {
     if (isConnected && walletAddress) {
       setConnectedAddress(walletAddress);
       setAddress(walletAddress);
-      setWalletType('EVM');
+      setWalletType('WEB3');
     }
   }, [isConnected, walletAddress]);
 
@@ -82,7 +82,7 @@ export default function FaucetPage() {
     try {
       let signature = '';
       if (
-        walletType === 'EVM' &&
+        walletType === 'WEB3' &&
         connectedAddress &&
         connectedAddress.toLowerCase() === address.toLowerCase()
       ) {
@@ -188,7 +188,7 @@ export default function FaucetPage() {
                     <div className="mt-1 font-medium text-white">{NETWORK.cosmosChainId}</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                    <div className="text-white/50">EVM Chain ID</div>
+                    <div className="text-white/50">Chain ID</div>
                     <div className="mt-1 font-medium text-white">{NETWORK.evmChainIdDecimal}</div>
                   </div>
                 </div>
@@ -237,7 +237,7 @@ export default function FaucetPage() {
                       className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-white/25"
                     >
                       <option value="COSMOS">Wallet</option>
-                      <option value="EVM">EVM Wallet</option>
+                      <option value="EVM">Web3 Wallet</option>
                     </select>
                   </div>
                   <div>
@@ -299,7 +299,7 @@ export default function FaucetPage() {
                 <div className="text-sm font-medium text-white/80">Network Setup</div>
                 <h2 className="mt-2 text-2xl font-semibold">Connect to Makalu testnet</h2>
                 <p className="mt-2 text-sm leading-6 text-white/65">
-                  Add Lithosphere Makalu to your EVM wallet or use the chain identifiers for
+                  Add Lithosphere Makalu to your Web3 Wallet or use the chain identifiers for
                   native tooling.
                 </p>
               </div>
@@ -310,7 +310,7 @@ export default function FaucetPage() {
                   <div className="mt-1 font-medium text-white">{NETWORK.networkName}</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                  <div className="text-white/50">EVM RPC</div>
+                  <div className="text-white/50">RPC URL</div>
                   <div className="mt-1 break-all font-medium text-white">{NETWORK.evmRpcUrl}</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
@@ -318,7 +318,7 @@ export default function FaucetPage() {
                   <div className="mt-1 font-medium text-white">{NETWORK.cosmosChainId}</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                  <div className="text-white/50">EVM Chain ID</div>
+                  <div className="text-white/50">Chain ID</div>
                   <div className="mt-1 font-medium text-white">{NETWORK.evmChainIdDecimal}</div>
                 </div>
                 <a

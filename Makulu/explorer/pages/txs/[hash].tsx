@@ -147,6 +147,7 @@ export default function TransactionDetailPage() {
     <>
       <Head>
         <title>Tx {truncateHash(tx.hash)} | {EXPLORER_TITLE}</title>
+        <meta name="description" content={`View Lithosphere Makalu transaction details for ${tx.hash}`} />
       </Head>
 
       <div className="text-white">
@@ -190,9 +191,9 @@ export default function TransactionDetailPage() {
               <CopyBtn text={tx.hash} />
             </InfoRow>
 
-            {/* EVM Hash (if different) */}
+            {/* Original Hash (if different) */}
             {tx.evmHash && tx.evmHash !== tx.hash && (
-              <InfoRow label="EVM Hash">
+              <InfoRow label="Original Hash">
                 <span className="font-mono">{truncateHash(tx.evmHash, 14)}</span>
                 <CopyBtn text={tx.evmHash} />
               </InfoRow>
@@ -557,7 +558,7 @@ export default function TransactionDetailPage() {
                   ) : (
                     <div className="py-8 text-center">
                       <div className="text-sm text-white/40">
-                        {evmLogs ? 'No EVM event logs for this transaction.' : 'Loading event logs...'}
+                        {evmLogs ? 'No event logs for this transaction.' : 'Loading event logs...'}
                       </div>
                     </div>
                   )}
