@@ -194,6 +194,28 @@ async function evmRpcCall(method: string, params: unknown[]): Promise<unknown> {
   return data.result ?? null;
 }
 
+type EvmExtra = { value?: string | null; gas_price?: string | null; from_address?: string | null; to_address?: string | null; input_data?: string | null; contract_address?: string | null; nonce?: number | null };
+
+/** For EVM txs with missing/broken DB values, fetch live from RPC */
+async function enrichEvmFromRpc(evmHash: string, evmExtra: EvmExtra): Promise<EvmExtra> {
+  const valueIsBad = !evmExtra.value || evmExtra.value === '0' || !isFinite(Number(evmExtra.value));
+  const gasPriceIsBad = !evmExtra.gas_price || evmExtra.gas_price === '0';
+  if (!valueIsBad && !gasPriceIsBad) return evmExtra;
+
+  const rpcTx = await evmRpcCall('eth_getTransactionByHash', [evmHash]) as { value?: string; gasPrice?: string; from?: string; to?: string; input?: string; nonce?: string } | null;
+  if (!rpcTx) return evmExtra;
+
+  const enriched = { ...evmExtra };
+  if (valueIsBad && rpcTx.value) enriched.value = hexToDec(rpcTx.value);
+  if (gasPriceIsBad && rpcTx.gasPrice) enriched.gas_price = hexToDec(rpcTx.gasPrice);
+  if (!enriched.from_address && rpcTx.from) enriched.from_address = rpcTx.from.toLowerCase();
+  if (!enriched.to_address && rpcTx.to) enriched.to_address = rpcTx.to.toLowerCase();
+  if (!enriched.input_data && rpcTx.input) enriched.input_data = rpcTx.input;
+  if (enriched.nonce == null && rpcTx.nonce) enriched.nonce = Number(BigInt(rpcTx.nonce));
+
+  return enriched;
+}
+
 // ── Mappers → Explorer-expected shapes ──────────────────────────────────────
 
 function mapBlock(r: BlockRow) {
@@ -437,19 +459,29 @@ export function explorerRouter(): Router {
     try {
       const limit = clamp(req.query.limit);
       const offset = Math.max(0, Number(req.query.offset) || 0);
-      const [rows, countResult] = await Promise.all([
-        query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null; evm_value: string | null; evm_gas_price: string | null; evm_nonce: number | null }>(
-          `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.nonce AS evm_nonce
-           FROM transactions t
-           LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
-           ORDER BY t.timestamp DESC, t.block_height DESC
-           LIMIT $1 OFFSET $2`,
-          [limit, offset]
-        ),
-        query<CountRow>('SELECT COUNT(*) AS count FROM transactions'),
-      ]);
+      const rows = await query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null; evm_value: string | null; evm_gas_price: string | null; evm_nonce: number | null }>(
+        `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.nonce AS evm_nonce
+         FROM transactions t
+         LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
+         ORDER BY t.timestamp DESC, t.block_height DESC
+         LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      );
+
+      const countResult = await query<CountRow>('SELECT COUNT(*) AS count FROM transactions');
+
+      const enrichedRows = await Promise.all(rows.map(async (r) => {
+        let evmExtra: EvmExtra = {
+          input_data: r.evm_input_data, contract_address: r.evm_contract_address,
+          from_address: r.evm_from_address, to_address: r.evm_to_address,
+          value: r.evm_value, gas_price: r.evm_gas_price, nonce: r.evm_nonce
+        };
+        if (r.evm_hash) evmExtra = await enrichEvmFromRpc(r.evm_hash, evmExtra);
+        return mapTx(r, r.evm_hash, evmExtra);
+      }));
+
       res.json({
-        txs: rows.map((r) => mapTx(r, r.evm_hash, { input_data: r.evm_input_data, contract_address: r.evm_contract_address, from_address: r.evm_from_address, to_address: r.evm_to_address, value: r.evm_value, gas_price: r.evm_gas_price, nonce: r.evm_nonce })),
+        txs: enrichedRows,
         total: parseInt(countResult[0]?.count ?? '0'),
         limit,
         offset,
@@ -468,25 +500,6 @@ export function explorerRouter(): Router {
       const txJoinSql = `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.gas_used AS evm_gas_used, e.nonce AS evm_nonce
          FROM transactions t
          LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash`;
-
-      type EvmExtra = { value?: string | null; gas_price?: string | null; from_address?: string | null; to_address?: string | null; input_data?: string | null; contract_address?: string | null; nonce?: number | null };
-      /** For EVM txs with missing/broken DB values, fetch live from RPC */
-      async function enrichEvmFromRpc(evmHash: string, evmExtra: EvmExtra): Promise<EvmExtra> {
-        const valueIsBad = !evmExtra.value || evmExtra.value === '0' || !isFinite(Number(evmExtra.value));
-        const gasPriceIsBad = !evmExtra.gas_price || evmExtra.gas_price === '0';
-        if (!valueIsBad && !gasPriceIsBad) return evmExtra;
-        // Try live RPC
-        const rpcTx = await evmRpcCall('eth_getTransactionByHash', [evmHash]) as { value?: string; gasPrice?: string; from?: string; to?: string; input?: string; nonce?: string } | null;
-        if (!rpcTx) return evmExtra;
-        const enriched = { ...evmExtra };
-        if (valueIsBad && rpcTx.value) enriched.value = hexToDec(rpcTx.value);
-        if (gasPriceIsBad && rpcTx.gasPrice) enriched.gas_price = hexToDec(rpcTx.gasPrice);
-        if (!enriched.from_address && rpcTx.from) enriched.from_address = rpcTx.from.toLowerCase();
-        if (!enriched.to_address && rpcTx.to) enriched.to_address = rpcTx.to.toLowerCase();
-        if (!enriched.input_data && rpcTx.input) enriched.input_data = rpcTx.input;
-        if (enriched.nonce == null && rpcTx.nonce) enriched.nonce = Number(BigInt(rpcTx.nonce));
-        return enriched;
-      }
 
       // 1. Try exact match in transactions table (Cosmos SHA256 hash)
       const rows = await query<TxJoinRow>(
@@ -607,7 +620,7 @@ export function explorerRouter(): Router {
         try {
           const result = await evmRpcCall('eth_getBalance', [addr, 'latest']);
           if (typeof result === 'string') return hexToDec(result);
-        } catch {}
+        } catch { }
         return '0';
       }
 
