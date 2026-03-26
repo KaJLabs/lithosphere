@@ -194,6 +194,16 @@ async function evmRpcCall(method: string, params: unknown[]): Promise<unknown> {
   return data.result ?? null;
 }
 
+/** Fetch live EVM balance if address is an EVM address and RPC is available */
+async function fetchLiveBalance(addr: string): Promise<string> {
+  if (!addr.startsWith('0x') || !EVM_RPC_URL) return '0';
+  try {
+    const result = await evmRpcCall('eth_getBalance', [addr, 'latest']);
+    if (typeof result === 'string') return hexToDec(result);
+  } catch {}
+  return '0';
+}
+
 type EvmExtra = { value?: string | null; gas_price?: string | null; from_address?: string | null; to_address?: string | null; input_data?: string | null; contract_address?: string | null; nonce?: number | null };
 
 /** For EVM txs with missing/broken DB values, fetch live from RPC */
@@ -1103,22 +1113,46 @@ export function explorerRouter(): Router {
       const offset = Number(req.query.offset) || 0;
 
       if (address === 'native') {
-        // Native LITHO: accounts with balance
+        // Native LITHO: dynamically fetch for active EVM addresses (since indexer accounts lacks balances)
         const [rows, countResult] = await Promise.all([
-          query<{ address: string; balance: string }>(
-            `SELECT address, balance FROM accounts WHERE balance != '0' AND balance IS NOT NULL
-             ORDER BY CAST(balance AS NUMERIC) DESC LIMIT $1 OFFSET $2`,
+          query<{ address: string }>(
+            `SELECT addr AS address FROM (
+               SELECT DISTINCT from_address AS addr FROM evm_transactions WHERE from_address IS NOT NULL
+               UNION
+               SELECT DISTINCT to_address AS addr FROM evm_transactions WHERE to_address IS NOT NULL
+             ) all_holders
+             LIMIT $1 OFFSET $2`,
             [limit, offset]
           ),
-          query<CountRow>("SELECT COUNT(*) AS count FROM accounts WHERE balance != '0' AND balance IS NOT NULL"),
+          query<CountRow>(
+            `SELECT COUNT(*) AS count FROM (
+               SELECT DISTINCT from_address AS addr FROM evm_transactions WHERE from_address IS NOT NULL
+               UNION
+               SELECT DISTINCT to_address AS addr FROM evm_transactions WHERE to_address IS NOT NULL
+             ) all_holders`
+          ),
         ]);
+
         const totalSupplyWei = 1_000_000_000e18; // 1B LITHO in wei
-        res.json({
-          holders: rows.map((r) => ({
+        const holders = await Promise.all(rows.map(async (r) => {
+          const liveBal = await fetchLiveBalance(r.address);
+          const balUlitho = weiToUlitho(liveBal);
+          return {
             address: r.address,
-            balance: weiToUlitho(r.balance),
-            percentage: totalSupplyWei > 0 ? (parseFloat(r.balance) / totalSupplyWei) * 100 : 0,
-          })),
+            balance: balUlitho,
+            percentage: totalSupplyWei > 0 ? (parseFloat(liveBal) / totalSupplyWei) * 100 : 0,
+          };
+        }));
+
+        // Sort dynamically fetched balances correctly
+        holders.sort((a, b) => {
+          const balA = BigInt(a.balance);
+          const balB = BigInt(b.balance);
+          return balA < balB ? 1 : balA > balB ? -1 : 0;
+        });
+
+        res.json({
+          holders,
           total: parseInt(countResult[0]?.count ?? '0'),
           limit,
           offset,
