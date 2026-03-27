@@ -156,10 +156,10 @@ export default function TransactionReceiptPage() {
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <h1 className="text-2xl font-semibold mb-1">Transaction Receipt</h1>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-sm text-white/60">{tx.hash}</span>
+            <div className="flex items-center flex-wrap gap-2">
+              <span className="font-mono text-sm text-white/60 break-all">{tx.hash}</span>
               <CopyBtn text={tx.hash} />
             </div>
           </div>
@@ -175,22 +175,24 @@ export default function TransactionReceiptPage() {
         <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-2">
           <Row label="Sender">
             {tx.fromAddr ? (
-              <>
+              <div className="flex items-center flex-wrap gap-2">
                 <Link
                   href={`/address/${tx.fromAddr}`}
-                  className="font-mono text-emerald-300 hover:text-emerald-200 transition"
+                  className="font-mono text-emerald-300 hover:text-emerald-200 transition break-all"
                 >
                   {tx.fromAddr}
                 </Link>
                 <CopyBtn text={tx.fromAddr} />
-              </>
+              </div>
             ) : (
               <span className="text-white/40">&mdash;</span>
             )}
           </Row>
           <Row label="Hash">
-            <span className="font-mono">{tx.hash}</span>
-            <CopyBtn text={tx.hash} />
+            <div className="flex items-center flex-wrap gap-2">
+              <span className="font-mono break-all">{tx.hash}</span>
+              <CopyBtn text={tx.hash} />
+            </div>
           </Row>
           {tx.timestamp && (
             <Row label="Date / Time">
