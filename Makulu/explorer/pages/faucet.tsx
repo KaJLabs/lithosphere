@@ -352,9 +352,9 @@ export default function FaucetPage() {
               <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4">
                 <div className="text-sm font-medium text-white">Wallet support</div>
                 <ul className="mt-3 space-y-2 text-sm text-white/65">
-                  <li>• Desktop users: Use your browser wallet extension (MetaMask, etc.)</li>
+                  <li>• Desktop users: Use your browser wallet extension</li>
                   <li>• Mobile users: Use WalletConnect to scan the QR code with your mobile wallet</li>
-                  <li>• Click &quot;Connect Wallet&quot; to get started</li>
+                  <li>• Click &quot;Connect&quot; to get started</li>
                   <li>• One claim per wallet every 24 hours</li>
                 </ul>
               </div>
