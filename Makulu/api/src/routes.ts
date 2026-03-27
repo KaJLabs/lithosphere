@@ -679,11 +679,30 @@ export function explorerRouter(): Router {
         ).catch(() => []);
 
         const result: Record<string, unknown> = mapAddress(rows[0], address);
+        
+        let evmAddr = rows[0].evm_address ?? (address.startsWith('0x') ? address : undefined);
+
+        // If evmAddr is missing (common for litho1... addresses not fully indexed), try to find it from tx combinations
+        if (!evmAddr && address.startsWith('litho1')) {
+           const evmInfer = await query<{ from_address: string | null; to_address: string | null; sender: string | null; receiver: string | null; }>(
+             `SELECT e.from_address, e.to_address, t.sender, t.receiver 
+              FROM transactions t 
+              JOIN evm_transactions e ON t.hash = e.cosmos_tx_hash 
+              WHERE LOWER(t.sender) = $1 OR LOWER(t.receiver) = $1 
+              LIMIT 1`,
+             [addrLower]
+           ).catch(() => []);
+           if (evmInfer[0]) {
+              if (evmInfer[0].sender?.toLowerCase() === addrLower && evmInfer[0].from_address) evmAddr = evmInfer[0].from_address;
+              if (evmInfer[0].receiver?.toLowerCase() === addrLower && evmInfer[0].to_address) evmAddr = evmInfer[0].to_address;
+           }
+        }
+
         // Fetch live balance from RPC (more accurate than DB)
-        const evmAddr = rows[0].evm_address ?? (address.startsWith('0x') ? address : undefined);
         if (evmAddr) {
           const liveBalance = await fetchLiveBalance(evmAddr);
           if (liveBalance !== '0') result.balance = liveBalance;
+          if (address.startsWith('litho1')) result.evmAddress = evmAddr; // add to output so frontend knows it
         }
         if (tokenInfo[0]) {
           result.isContract = true;
@@ -735,6 +754,22 @@ export function explorerRouter(): Router {
 
       const count = parseInt(txCount[0]?.count ?? '0');
       if (count > 0) {
+        let evmAddr = address.startsWith('0x') ? address : null;
+        if (!evmAddr && address.startsWith('litho1')) {
+           const evmInfer = await query<{ from_address: string | null; to_address: string | null; sender: string | null; receiver: string | null; }>(
+             `SELECT e.from_address, e.to_address, t.sender, t.receiver 
+              FROM transactions t 
+              JOIN evm_transactions e ON t.hash = e.cosmos_tx_hash 
+              WHERE LOWER(t.sender) = $1 OR LOWER(t.receiver) = $1 
+              LIMIT 1`,
+             [addrLower]
+           ).catch(() => []);
+           if (evmInfer[0]) {
+              if (evmInfer[0].sender?.toLowerCase() === addrLower && evmInfer[0].from_address) evmAddr = evmInfer[0].from_address;
+              if (evmInfer[0].receiver?.toLowerCase() === addrLower && evmInfer[0].to_address) evmAddr = evmInfer[0].to_address;
+           }
+        }
+
         const [lastTx, liveBalance] = await Promise.all([
           query<{ timestamp: Date }>(
             `SELECT timestamp FROM transactions
@@ -742,10 +777,11 @@ export function explorerRouter(): Router {
              ORDER BY timestamp DESC LIMIT 1`,
             [addrLower]
           ),
-          fetchLiveBalance(address),
+          fetchLiveBalance(evmAddr || address),
         ]);
         res.json({
           address,
+          evmAddress: evmAddr !== address ? evmAddr : undefined,
           balance: liveBalance,
           txCount: count,
           lastSeen: lastTx[0]?.timestamp instanceof Date ? lastTx[0].timestamp.toISOString() : new Date().toISOString(),
