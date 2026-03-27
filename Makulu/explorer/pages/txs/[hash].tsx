@@ -6,6 +6,7 @@ import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
 import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod, txTypeInfo, formatValue, formatSupply } from '@/lib/format';
 import type { ApiTx, StatsSummary, EvmLogsResponse } from '@/lib/types';
+import { FormattedValueElement } from '@/components/FormattedValueElement';
 
 /* ------------------------------------------------------------------ */
 /*  Utility components                                                 */
@@ -59,24 +60,6 @@ function parseRawLog(rawLog: string | undefined): LogEvent[] | null {
   } catch {
     return null;
   }
-}
-
-function FormattedValueElement({ formattedStr, tokenAddress }: { formattedStr: string; tokenAddress?: string | null }) {
-  const match = formattedStr.match(/^(.*?)\s+([^ ]+)$/);
-  if (match) {
-    const amount = match[1];
-    const symbol = match[2];
-    const linkHref = tokenAddress ? `/token/${tokenAddress}` : '/token/native';
-    return (
-      <span className="font-mono">
-        {amount}{' '}
-        <Link href={linkHref} className="text-emerald-400 hover:text-emerald-300 transition">
-          {symbol}
-        </Link>
-      </span>
-    );
-  }
-  return <span className="font-mono">{formattedStr}</span>;
 }
 
 /* ------------------------------------------------------------------ */

@@ -7,7 +7,7 @@ import type { StatsSummary, ApiBlock, ApiTxList, ApiValidator, ApiTokenDetail } 
 import SearchBar from '@/components/SearchBar';
 import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
 import { useState, useEffect, useRef } from 'react';
-
+import { FormattedValueElement } from '@/components/FormattedValueElement';
 
 
 const MAKALU_CHAIN = {
@@ -341,7 +341,13 @@ export default function Home() {
                             </span>
                           </div>
                           <div>
-                            Value: <span className="text-white">{formatValue(tx.value, tx.denom)}</span>
+                            Value:{' '}
+                            <span className="text-white">
+                              <FormattedValueElement 
+                                formattedStr={formatValue(tx.value, tx.denom)}
+                                tokenAddress={tx.contractAddress}
+                              />
+                            </span>
                           </div>
                         </div>
                       </div>

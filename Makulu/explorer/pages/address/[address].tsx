@@ -6,6 +6,7 @@ import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
 import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatLitho, formatValue } from '@/lib/format';
 import type { ApiAddress, ApiTx, ApiTokenDetail, ApiTokenHolderList, ApiToken, ApiPrice } from '@/lib/types';
+import { FormattedValueElement } from '@/components/FormattedValueElement';
 
 /* ── Tabs ─────────────────────────────────────────────────────────────── */
 
@@ -202,9 +203,15 @@ function TxTable({
                 <span className="text-sm text-white/30">&mdash;</span>
               )}
             </div>
+            {/* Value */}
             <div className="flex items-center md:block">
               <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Value</span>
-              <span className="text-sm font-mono text-white/80">{formatValue(tx.value, tx.denom)}</span>
+              <span className="text-sm text-white/80">
+                <FormattedValueElement
+                  formattedStr={formatValue(tx.value, tx.denom)}
+                  tokenAddress={tx.contractAddress}
+                />
+              </span>
             </div>
             <div className="flex items-center md:block">
               <span className="md:hidden text-xs text-white/40 mr-2 w-16 shrink-0">Method</span>

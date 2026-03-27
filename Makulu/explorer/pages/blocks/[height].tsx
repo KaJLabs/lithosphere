@@ -5,6 +5,7 @@ import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
 import { formatNumber, formatTimestamp, timeAgo, truncateHash, formatValue } from '@/lib/format';
 import type { ApiBlock, ApiTx, StatsSummary } from '@/lib/types';
+import { FormattedValueElement } from '@/components/FormattedValueElement';
 import HashDisplay from '@/components/HashDisplay';
 import DataTable, { type Column } from '@/components/DataTable';
 import { TxStatusBadge } from '@/components/Badges';
@@ -86,7 +87,14 @@ export default function BlockDetailPage() {
     {
       key: 'value',
       header: 'Value',
-      render: (tx) => <span className="font-mono text-sm">{formatValue(tx.value, tx.denom)}</span>,
+      render: (tx) => (
+        <span className="text-sm">
+          <FormattedValueElement 
+            formattedStr={formatValue(tx.value, tx.denom)}
+            tokenAddress={tx.contractAddress}
+          />
+        </span>
+      ),
     },
     {
       key: 'fee',
