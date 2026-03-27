@@ -40,6 +40,7 @@ export interface ApiTx {
   success: boolean;
   method?: string;
   methodName?: string;
+  tokenSymbol?: string;
   txType?: 'transfer' | 'call' | 'create';
   memo?: string;
   timestamp?: string;

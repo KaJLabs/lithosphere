@@ -61,6 +61,24 @@ function parseRawLog(rawLog: string | undefined): LogEvent[] | null {
   }
 }
 
+function FormattedValueElement({ formattedStr, tokenAddress }: { formattedStr: string; tokenAddress?: string | null }) {
+  const match = formattedStr.match(/^(.*?)\s+([^ ]+)$/);
+  if (match) {
+    const amount = match[1];
+    const symbol = match[2];
+    const linkHref = tokenAddress ? `/token/${tokenAddress}` : '/token/native';
+    return (
+      <span className="font-mono">
+        {amount}{' '}
+        <Link href={linkHref} className="text-emerald-400 hover:text-emerald-300 transition">
+          {symbol}
+        </Link>
+      </span>
+    );
+  }
+  return <span className="font-mono">{formattedStr}</span>;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
@@ -193,7 +211,7 @@ export default function TransactionDetailPage() {
 
             {/* Original Hash (if different) */}
             {tx.evmHash && tx.evmHash !== tx.hash && (
-              <InfoRow label="Original Hash">
+              <InfoRow label="0x Hash">
                 <span className="font-mono">{truncateHash(tx.evmHash, 14)}</span>
                 <CopyBtn text={tx.evmHash} />
               </InfoRow>
@@ -358,27 +376,33 @@ export default function TransactionDetailPage() {
                 <>
                   {/* Value */}
                   <InfoRow label="Value">
-                    <span className="font-mono">
-                      {tx.tokenTransferAmount
-                        ? `${formatSupply(tx.tokenTransferAmount)} (token)`
-                        : formatValue(tx.value, tx.denom)}
-                    </span>
+                    {tx.tokenTransferAmount ? (
+                      <FormattedValueElement 
+                        formattedStr={`${formatSupply(tx.tokenTransferAmount)} ${tx.tokenSymbol || '(token)'}`}
+                        tokenAddress={tx.contractAddress}
+                      />
+                    ) : (
+                      <FormattedValueElement 
+                        formattedStr={formatValue(tx.value, tx.denom)} 
+                      />
+                    )}
                   </InfoRow>
 
                   {/* Token Transfer Amount (if decoded from input) */}
                   {tx.tokenTransferAmount && (
                     <InfoRow label="Token Amount">
-                      <span className="font-mono">
-                        {formatSupply(tx.tokenTransferAmount)}
-                      </span>
+                      <FormattedValueElement 
+                        formattedStr={`${formatSupply(tx.tokenTransferAmount)} ${tx.tokenSymbol || '(token)'}`}
+                        tokenAddress={tx.contractAddress}
+                      />
                     </InfoRow>
                   )}
 
                   {/* Transaction Fee */}
                   <InfoRow label="Transaction Fee">
-                    <span className="font-mono">
-                      {formatValue(tx.feePaid, tx.denom)}
-                    </span>
+                    <FormattedValueElement 
+                      formattedStr={formatValue(tx.feePaid, tx.denom)} 
+                    />
                   </InfoRow>
 
                   {/* Gas Used */}
