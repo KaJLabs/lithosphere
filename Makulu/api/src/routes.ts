@@ -277,12 +277,13 @@ function mapBlockDetail(r: BlockRow, txs: Array<TxRow & { evm_hash?: string | nu
 }
 
 function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: string | null | undefined; contract_address?: string | null | undefined; from_address?: string | null | undefined; to_address?: string | null | undefined; value?: string | null | undefined; gas_price?: string | null | undefined; nonce?: number | null | undefined }) {
-  // Prefer Cosmos sender/receiver, but fall back to EVM addresses when empty
-  const fromAddr = r.sender || evmExtra?.from_address || '';
-  const toAddr = r.receiver || evmExtra?.to_address || '';
   // Check if this is actually an EVM tx (has real EVM data, not just an empty join object)
   const hasEvmData = !!(evmExtra?.from_address || evmExtra?.to_address || evmExtra?.value || evmExtra?.input_data);
   const isEvmTx = r.tx_type === 'MsgEthereumTx' || hasEvmData;
+  // For EVM txs: prefer EVM addresses (Cosmos receiver is the fee collector module, NOT the actual recipient)
+  // For non-EVM txs: use Cosmos addresses as before
+  const fromAddr = isEvmTx ? (evmExtra?.from_address || r.sender || '') : (r.sender || evmExtra?.from_address || '');
+  const toAddr = isEvmTx ? (evmExtra?.to_address || r.receiver || '') : (r.receiver || evmExtra?.to_address || '');
   let value = '0';
   if (isEvmTx && hasEvmData) {
     // Use EVM value (accurate msg.value in wei)
@@ -1143,8 +1144,8 @@ export function explorerRouter(): Router {
 
           return {
             txHash: r.hash,
-            fromAddress: r.sender || evmExtra.from_address || '',
-            toAddress: r.receiver || evmExtra.to_address || '',
+            fromAddress: (r.evm_hash || r.evm_from) ? (evmExtra.from_address || r.sender || '') : (r.sender || evmExtra.from_address || ''),
+            toAddress: (r.evm_hash || r.evm_from) ? (evmExtra.to_address || r.receiver || '') : (r.receiver || evmExtra.to_address || ''),
             value: finalValue,
             blockHeight: Number(r.block_height),
             timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
