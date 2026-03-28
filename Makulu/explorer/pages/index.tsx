@@ -395,7 +395,7 @@ export default function Home() {
                         <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-white/65">
                           <div>
                             Voting Power:{' '}
-                            <span className="text-white">{v.votingPower}</span>
+                            <span className="text-white">{v.votingPower} LITHO</span>
                           </div>
                           <div>
                             Commission:{' '}

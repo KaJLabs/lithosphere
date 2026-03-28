@@ -402,11 +402,26 @@ function mapAddress(r: AccountRow, queriedAddr?: string) {
 const STATUS_LABELS: Record<number, string> = { 1: 'Unbonded', 2: 'Unbonding', 3: 'Bonded' };
 
 function mapValidator(r: ValidatorRow) {
+  // votingPower is in ulitho (18 decimals) — convert to whole LITHO with commas
+  let votingPower = '0';
+  try {
+    const tokens = BigInt(r.tokens ?? '0');
+    const litho = tokens / BigInt('1000000000000000000');
+    votingPower = litho.toLocaleString('en-US');
+  } catch { /* keep 0 */ }
+
+  // commission_rate is a Cosmos decimal string like "0.100000000000000000" → "10%"
+  let commission = '0%';
+  try {
+    const rate = parseFloat(r.commission_rate ?? '0');
+    commission = (rate * 100).toFixed(2).replace(/\.?0+$/, '') + '%';
+  } catch { /* keep 0% */ }
+
   return {
     address: r.operator_address,
     moniker: r.moniker ?? r.operator_address.slice(0, 16) + '...',
-    votingPower: r.tokens ?? '0',
-    commission: r.commission_rate ?? '0',
+    votingPower,
+    commission,
     status: STATUS_LABELS[r.status] ?? 'Unknown',
   };
 }
