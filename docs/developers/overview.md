@@ -80,7 +80,7 @@ Lithosphere was built around three core design objectives derived from research 
 The recommended reading path for developers building on the Lithosphere platform:
 
 1. **[Whitepaper](https://paper.litho.ai)** -- Understand the vision and high-level design of the Lithosphere network.
-2. **[LEP100 Token Standard](/lep100-standard.md)** -- Learn the multi-chain token standard that underpins all Lithosphere tokens.
+2. **[LEP100 Token Standard](docs/developers/lep100-standard.md)** -- Learn the multi-chain token standard that underpins all Lithosphere tokens.
 3. **Architecture Overview** -- Study the architectural decisions, consensus model (LinBFT), and cryptographic primitives (MDKM).
 4. **[Smart Contracts](/smart-contracts.md)** -- Dive into smart contract development, multi-triggering mechanisms, and DeFi patterns.
 5. **[API & SDK](/api-and-sdk.md)** -- Integrate with the GraphQL API and blockchain-core SDK.
