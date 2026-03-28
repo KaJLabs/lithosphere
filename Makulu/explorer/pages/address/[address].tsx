@@ -251,18 +251,18 @@ function HoldingsSection({ balance, usdPrice }: { balance: string; usdPrice: num
       </div>
       {hasBalance ? (
         <>
-          <div className="grid grid-cols-[1fr_0.6fr_1.4fr_1.2fr] gap-2 md:gap-4 px-5 py-3 border-b border-white/10 text-xs font-medium text-white/40 uppercase tracking-wide">
+          <div className="grid grid-cols-[1.2fr_1.6fr_1fr] sm:grid-cols-[1fr_0.6fr_1.4fr_1fr] gap-2 sm:gap-4 px-5 py-3 border-b border-white/10 text-xs font-medium text-white/40 uppercase tracking-wide">
             <div>Name</div>
-            <div>Ticker</div>
+            <div className="hidden sm:block">Ticker</div>
             <div className="text-right">Amount</div>
             <div className="text-right">Value (USD)</div>
           </div>
-          <div className="grid grid-cols-[1fr_0.6fr_1.4fr_1.2fr] gap-2 md:gap-4 px-5 py-4 hover:bg-white/[0.03] transition">
+          <div className="grid grid-cols-[1.2fr_1.6fr_1fr] sm:grid-cols-[1fr_0.6fr_1.4fr_1fr] gap-2 sm:gap-4 px-5 py-4 hover:bg-white/[0.03] transition">
             <div className="flex items-center gap-2 text-sm text-white min-w-0">
               <img src="/litho-logo.png" alt="LITHO" className="w-5 h-5 rounded-full object-contain shrink-0" />
               <span className="truncate">Lithosphere</span>
             </div>
-            <div className="text-sm text-white/70 font-mono truncate">LITHO</div>
+            <div className="hidden sm:block text-sm text-white/70 font-mono truncate">LITHO</div>
             <div className="text-sm text-white/80 font-mono text-right truncate">{formatLitho(balance)}</div>
             <div className="text-sm text-white/60 font-mono text-right truncate">{usdValue ?? '--'}</div>
           </div>
