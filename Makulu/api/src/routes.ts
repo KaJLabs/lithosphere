@@ -295,10 +295,14 @@ function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: stri
   // Check if this is actually an EVM tx (has real EVM data, not just an empty join object)
   const hasEvmData = !!(evmExtra?.from_address || evmExtra?.to_address || evmExtra?.value || evmExtra?.input_data);
   const isEvmTx = r.tx_type === 'MsgEthereumTx' || hasEvmData;
-  // For EVM txs: prefer EVM addresses (Cosmos receiver is the fee collector module, NOT the actual recipient)
-  // For non-EVM txs: use Cosmos addresses as before
-  const fromAddr = isEvmTx ? (evmExtra?.from_address || r.sender || '') : (r.sender || evmExtra?.from_address || '');
-  const toAddr = isEvmTx ? (evmExtra?.to_address || r.receiver || '') : (r.receiver || evmExtra?.to_address || '');
+  // Primary addresses are always litho1 (mainnet bech32). For EVM txs, derive from 0x address.
+  // Never use r.receiver for EVM txs — it's the fee collector module, not the actual recipient.
+  const fromAddr = isEvmTx
+    ? (evmToCosmos(evmExtra?.from_address) || r.sender || evmExtra?.from_address || '')
+    : (r.sender || evmExtra?.from_address || '');
+  const toAddr = isEvmTx
+    ? (evmToCosmos(evmExtra?.to_address) || evmExtra?.to_address || '')
+    : (r.receiver || evmExtra?.to_address || '');
   let value = '0';
   if (isEvmTx && hasEvmData) {
     // Use EVM value (accurate msg.value in wei)
@@ -334,9 +338,9 @@ function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: stri
     nonce: evmExtra?.nonce ?? undefined,
     evmFromAddr: evmExtra?.from_address ?? undefined,
     evmToAddr: evmExtra?.to_address ?? undefined,
-    // Derive correct cosmos addresses from EVM addresses (not from fee collector in r.receiver)
-    cosmosFromAddr: isEvmTx ? (evmToCosmos(evmExtra?.from_address) || (r.sender?.startsWith('litho') ? r.sender : undefined)) : (r.sender?.startsWith('litho') ? r.sender : undefined),
-    cosmosToAddr: isEvmTx ? evmToCosmos(evmExtra?.to_address) : (r.receiver?.startsWith('litho') ? r.receiver : undefined),
+    // cosmosFromAddr/cosmosToAddr: only set when different from primary fromAddr/toAddr
+    cosmosFromAddr: isEvmTx ? (evmToCosmos(evmExtra?.from_address) || undefined) : (r.sender?.startsWith('litho') ? r.sender : undefined),
+    cosmosToAddr: isEvmTx ? (evmToCosmos(evmExtra?.to_address) || undefined) : (r.receiver?.startsWith('litho') ? r.receiver : undefined),
   };
 }
 
@@ -356,8 +360,8 @@ function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
     hash: cosmosTx?.hash ?? evm.cosmos_tx_hash,
     evmHash: evm.hash,
     blockHeight: Number(evm.block_height),
-    fromAddr: evmFrom || cosmosFrom,
-    toAddr: evmTo || cosmosTo,
+    fromAddr: cosmosFrom || evmFrom,
+    toAddr: cosmosTo || evmTo,
     value: evmValueUlitho !== '0' ? evmValueUlitho : '0',
     tokenTransferAmount,
     denom: cosmosTx?.denom ?? 'ulitho',
@@ -1163,8 +1167,8 @@ export function explorerRouter(): Router {
 
           return {
             txHash: r.hash,
-            fromAddress: (r.evm_hash || r.evm_from) ? (evmExtra.from_address || r.sender || '') : (r.sender || evmExtra.from_address || ''),
-            toAddress: (r.evm_hash || r.evm_from) ? (evmExtra.to_address || r.receiver || '') : (r.receiver || evmExtra.to_address || ''),
+            fromAddress: (r.evm_hash || r.evm_from) ? (evmToCosmos(evmExtra.from_address) || r.sender || evmExtra.from_address || '') : (r.sender || evmExtra.from_address || ''),
+            toAddress: (r.evm_hash || r.evm_from) ? (evmToCosmos(evmExtra.to_address) || evmExtra.to_address || '') : (r.receiver || evmExtra.to_address || ''),
             value: finalValue,
             blockHeight: Number(r.block_height),
             timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),

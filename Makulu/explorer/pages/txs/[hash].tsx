@@ -186,22 +186,17 @@ export default function TransactionDetailPage() {
               </span>
             </InfoRow>
 
-            {/* Hash - Cosmos hash is primary */}
-            {tx.hash && (
-              <InfoRow label="Hash">
-                <div>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <span className="font-mono text-emerald-300">{truncateHash(tx.hash, 14)}</span>
-                    <CopyBtn text={tx.hash} />
-                  </div>
-                  {/* EVM hash (0x) shown below */}
-                  {tx.evmHash && tx.evmHash !== tx.hash && (
-                    <div className="mt-1 flex items-center gap-1 flex-wrap">
-                      <span className="font-mono text-xs text-white/45">{truncateHash(tx.evmHash, 14)}</span>
-                      <CopyBtn text={tx.evmHash} />
-                    </div>
-                  )}
-                </div>
+            {/* Hash */}
+            <InfoRow label="Hash">
+              <span className="font-mono">{truncateHash(tx.hash, 14)}</span>
+              <CopyBtn text={tx.hash} />
+            </InfoRow>
+
+            {/* Original Hash (if different) */}
+            {tx.evmHash && tx.evmHash !== tx.hash && (
+              <InfoRow label="0x Hash">
+                <span className="font-mono">{truncateHash(tx.evmHash, 14)}</span>
+                <CopyBtn text={tx.evmHash} />
               </InfoRow>
             )}
 
@@ -232,30 +227,16 @@ export default function TransactionDetailPage() {
             <InfoRow label="From">
               {tx.fromAddr ? (
                 <div>
-                  {/* Primary: Cosmos address (litho1...) if available */}
-                  {tx.cosmosFromAddr ? (
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <Link
-                        href={`/address/${tx.cosmosFromAddr}`}
-                        className="font-mono text-emerald-300 hover:text-emerald-200 transition"
-                      >
-                        {truncateHash(tx.cosmosFromAddr, 10)}
-                      </Link>
-                      <CopyBtn text={tx.cosmosFromAddr} />
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <Link
-                        href={`/address/${tx.fromAddr}`}
-                        className="font-mono text-emerald-300 hover:text-emerald-200 transition"
-                      >
-                        {truncateHash(tx.fromAddr, 10)}
-                      </Link>
-                      <CopyBtn text={tx.fromAddr} />
-                    </div>
-                  )}
-                  {/* Secondary: EVM address (0x...) if different from primary */}
-                  {tx.evmFromAddr && tx.evmFromAddr !== tx.cosmosFromAddr && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <Link
+                      href={`/address/${tx.fromAddr}`}
+                      className="font-mono text-emerald-300 hover:text-emerald-200 transition"
+                    >
+                      {truncateHash(tx.fromAddr, 10)}
+                    </Link>
+                    <CopyBtn text={tx.fromAddr} />
+                  </div>
+                  {tx.evmFromAddr && tx.evmFromAddr !== tx.fromAddr && (
                     <div className="mt-1 flex items-center gap-1 flex-wrap">
                       <Link
                         href={`/address/${tx.evmFromAddr}`}
@@ -264,6 +245,17 @@ export default function TransactionDetailPage() {
                         {truncateHash(tx.evmFromAddr, 10)}
                       </Link>
                       <CopyBtn text={tx.evmFromAddr} />
+                    </div>
+                  )}
+                  {tx.cosmosFromAddr && tx.cosmosFromAddr !== tx.fromAddr && (
+                    <div className="mt-1 flex items-center gap-1 flex-wrap">
+                      <Link
+                        href={`/address/${tx.cosmosFromAddr}`}
+                        className="font-mono text-xs text-white/45 hover:text-emerald-300 transition"
+                      >
+                        {truncateHash(tx.cosmosFromAddr, 10)}
+                      </Link>
+                      <CopyBtn text={tx.cosmosFromAddr} />
                     </div>
                   )}
                 </div>
@@ -276,30 +268,16 @@ export default function TransactionDetailPage() {
             <InfoRow label="To">
               {tx.toAddr ? (
                 <div>
-                  {/* Primary: Cosmos address (litho1...) if available */}
-                  {tx.cosmosToAddr ? (
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <Link
-                        href={`/address/${tx.cosmosToAddr}`}
-                        className="font-mono text-emerald-300 hover:text-emerald-200 transition"
-                      >
-                        {truncateHash(tx.cosmosToAddr, 10)}
-                      </Link>
-                      <CopyBtn text={tx.cosmosToAddr} />
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <Link
-                        href={`/address/${tx.toAddr}`}
-                        className="font-mono text-emerald-300 hover:text-emerald-200 transition"
-                      >
-                        {truncateHash(tx.toAddr, 10)}
-                      </Link>
-                      <CopyBtn text={tx.toAddr} />
-                    </div>
-                  )}
-                  {/* Secondary: EVM address (0x...) if different from primary */}
-                  {tx.evmToAddr && tx.evmToAddr !== tx.cosmosToAddr && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <Link
+                      href={`/address/${tx.toAddr}`}
+                      className="font-mono text-emerald-300 hover:text-emerald-200 transition"
+                    >
+                      {truncateHash(tx.toAddr, 10)}
+                    </Link>
+                    <CopyBtn text={tx.toAddr} />
+                  </div>
+                  {tx.evmToAddr && tx.evmToAddr !== tx.toAddr && (
                     <div className="mt-1 flex items-center gap-1 flex-wrap">
                       <Link
                         href={`/address/${tx.evmToAddr}`}
@@ -308,6 +286,17 @@ export default function TransactionDetailPage() {
                         {truncateHash(tx.evmToAddr, 10)}
                       </Link>
                       <CopyBtn text={tx.evmToAddr} />
+                    </div>
+                  )}
+                  {tx.cosmosToAddr && tx.cosmosToAddr !== tx.toAddr && (
+                    <div className="mt-1 flex items-center gap-1 flex-wrap">
+                      <Link
+                        href={`/address/${tx.cosmosToAddr}`}
+                        className="font-mono text-xs text-white/45 hover:text-emerald-300 transition"
+                      >
+                        {truncateHash(tx.cosmosToAddr, 10)}
+                      </Link>
+                      <CopyBtn text={tx.cosmosToAddr} />
                     </div>
                   )}
                 </div>

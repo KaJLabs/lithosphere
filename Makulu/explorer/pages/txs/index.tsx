@@ -124,10 +124,10 @@ export default function TransactionsPage() {
                   <div className="flex items-center gap-2">
                     <StatusDot success={tx.success} />
                     <Link
-                      href={`/txs/${tx.evmHash || tx.hash}`}
+                      href={`/txs/${tx.hash || tx.evmHash}`}
                       className="font-mono text-sm text-emerald-300 hover:text-emerald-200 transition truncate"
                     >
-                      {truncateHash(tx.evmHash || tx.hash)}
+                      {truncateHash(tx.hash || tx.evmHash || '')}
                     </Link>
                   </div>
 

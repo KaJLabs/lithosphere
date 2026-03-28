@@ -52,8 +52,8 @@ export default function BlockDetailPage() {
       key: 'hash',
       header: 'Tx Hash',
       render: (tx) => (
-        <Link href={`/txs/${tx.evmHash || tx.hash}`} className="font-mono text-emerald-300 hover:text-emerald-200 transition">
-          {truncateHash(tx.evmHash || tx.hash)}
+        <Link href={`/txs/${tx.hash || tx.evmHash}`} className="font-mono text-emerald-300 hover:text-emerald-200 transition">
+          {truncateHash(tx.hash || tx.evmHash || '')}
         </Link>
       ),
     },
