@@ -5,6 +5,7 @@
  * Routes query the same PostgreSQL database that the indexer writes to.
  */
 import { Router, type Request, type Response } from 'express';
+import { bech32 } from 'bech32';
 import { query } from './db.js';
 
 const DEFAULT_LIMIT = 20;
@@ -28,6 +29,20 @@ function clamp(val: unknown, def = DEFAULT_LIMIT): number {
   const n = Number(val);
   if (!n || n < 1) return def;
   return Math.min(n, MAX_LIMIT);
+}
+
+/** Convert an EVM 0x address to its Cosmos bech32 equivalent (litho1...). */
+function evmToCosmos(evmAddr: string | null | undefined): string | undefined {
+  if (!evmAddr) return undefined;
+  try {
+    const hex = evmAddr.replace(/^0x/i, '');
+    if (hex.length !== 40) return undefined;
+    const bytes = Buffer.from(hex, 'hex');
+    const words = bech32.toWords(bytes);
+    return bech32.encode('litho', words);
+  } catch {
+    return undefined;
+  }
 }
 
 // ── Row types (mirror DB columns) ───────────────────────────────────────────
@@ -319,14 +334,18 @@ function mapTx(r: TxRow, evmHash?: string | null, evmExtra?: { input_data?: stri
     nonce: evmExtra?.nonce ?? undefined,
     evmFromAddr: evmExtra?.from_address ?? undefined,
     evmToAddr: evmExtra?.to_address ?? undefined,
+    // Derive correct cosmos addresses from EVM addresses (not from fee collector in r.receiver)
+    cosmosFromAddr: isEvmTx ? (evmToCosmos(evmExtra?.from_address) || (r.sender?.startsWith('litho') ? r.sender : undefined)) : (r.sender?.startsWith('litho') ? r.sender : undefined),
+    cosmosToAddr: isEvmTx ? evmToCosmos(evmExtra?.to_address) : (r.receiver?.startsWith('litho') ? r.receiver : undefined),
   };
 }
 
 function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
   const evmFrom = evm.from_address ?? '';
   const evmTo = evm.to_address ?? '';
-  const cosmosFrom = cosmosTx?.sender ?? '';
-  const cosmosTo = cosmosTx?.receiver ?? '';
+  // Derive cosmos addresses from EVM addresses (don't use cosmosTx.receiver — that's the fee collector)
+  const cosmosFrom = evmToCosmos(evmFrom) || cosmosTx?.sender || '';
+  const cosmosTo = evmToCosmos(evmTo) || '';
   const tokenTransferAmount = decodeTransferAmount(evm.input_data);
   // For EVM value: use DB value (in wei), fall back to Cosmos amount only for non-EVM txs
   const evmValueUlitho = weiToUlitho(evm.value);
