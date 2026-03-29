@@ -45,7 +45,7 @@ lithosphere/
 ├── static/                # Docsify theme assets (CSS, JS, images)
 ├── index.html             # Docsify entry point
 ├── _sidebar.md            # Documentation navigation
-├── Makulu/                # Testnet environment (complete monorepo)
+├── Makalu/                # Testnet environment (complete monorepo)
 │   ├── api/               # GraphQL API server (Express + Apollo)
 │   ├── contracts/         # Smart contracts (LITHO, LEP100, WLITHO)
 │   ├── indexer/           # Blockchain event indexer
@@ -72,7 +72,7 @@ git clone https://github.com/KaJLabs/lithosphere.git
 cd lithosphere
 
 # Install dependencies
-cd Makulu
+cd Makalu
 pnpm install
 
 # Build all packages
@@ -94,7 +94,7 @@ Then open [http://localhost:3000](http://localhost:3000) to browse the docs.
 ### Docker Development
 
 ```bash
-cd Makulu
+cd Makalu
 
 # Start core services
 docker compose up -d

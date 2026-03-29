@@ -70,7 +70,7 @@ The DevContainer pre-installs everything a Lithosphere contributor needs:
 Open the integrated terminal inside VS Code and run:
 
 ```bash
-cd Makulu
+cd Makalu
 make up
 ```
 
@@ -142,7 +142,7 @@ After seeding, five wallets are pre-funded with 1 000 LITHO and 1 000 LEP100 tok
 
 ## 5 — Day-to-Day Commands
 
-All Makefile targets run from the `Makulu/` directory:
+All Makefile targets run from the `Makalu/` directory:
 
 | Command          | What It Does                                                      |
 | ---------------- | ----------------------------------------------------------------- |

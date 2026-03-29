@@ -134,7 +134,7 @@ Push to main
     ├── 4. Pull latest code, select correct .env (mainnet/testnet/staging)
     ├── 5. Build Docker images (api, indexer, explorer)
     ├── 6. Inject RDS DATABASE_URL from Secrets Manager
-    ├── 7. Deploy Makulu stack (docker compose up)
+    ├── 7. Deploy Makalu stack (docker compose up)
     ├── 8. Write explorer .env to /opt/lithoscan
     ├── 9. Deploy Lithoscan explorer stack (docker compose up)
     ├── 10. Health check — API (:4000/health) with 5 retries

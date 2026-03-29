@@ -79,7 +79,7 @@ Inherited from [security-baselines.md](../governance/security-baselines.md) sect
    ```
 2. Roll back to previous commit:
    ```bash
-   cd /opt/lithosphere/Makulu
+   cd /opt/lithosphere/Makalu
    git log --oneline -5          # identify target commit
    git checkout <previous-sha>
    sudo docker compose up -d --build --remove-orphans
@@ -104,7 +104,7 @@ Same procedure, but requires:
 | Gap | Resolution |
 |-----|------------|
 | No automated rollback on health failure | Both `deploy-simple.yaml` and `deploy.yaml` have rollback jobs; rollback snapshots saved before each deploy |
-| No blue/green or canary deploy | `Makulu/scripts/blue-green-deploy.sh` provides blue/green for Docker Compose |
+| No blue/green or canary deploy | `Makalu/scripts/blue-green-deploy.sh` provides blue/green for Docker Compose |
 | No formal staging environment | `promote.yaml` supports testnet->staging->mainnet promotion flow |
 | No GitHub Environment protection rules | `promote.yaml` uses GitHub Environment approval gates for mainnet |
 

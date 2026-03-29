@@ -1,7 +1,7 @@
 // ============================================================================
 // Lithosphere Developer Container
 // ============================================================================
-// Opens the Makulu monorepo in a fully configured dev environment.
+// Opens the Makalu monorepo in a fully configured dev environment.
 //
 // Quick start:
 //   1. VS Code → Ctrl+Shift+P → "Dev Containers: Reopen in Container"
@@ -99,5 +99,5 @@
   // Environment
   // --------------------------------------------------------------------------
   "remoteUser": "node",
-  "workspaceFolder": "/workspaces/lithosphere/Makulu"
+  "workspaceFolder": "/workspaces/lithosphere/Makalu"
 }

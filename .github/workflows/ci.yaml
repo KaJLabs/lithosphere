@@ -8,13 +8,13 @@ on:
     branches:
       - main
     paths:
-      - 'Makulu/**'
+      - 'Makalu/**'
       - '.github/workflows/ci.yaml'
   pull_request:
     branches:
       - main
     paths:
-      - 'Makulu/**'
+      - 'Makalu/**'
       - '.github/workflows/ci.yaml'
 
 concurrency:
@@ -51,7 +51,7 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: ./Makulu
+        working-directory: ./Makalu
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,7 +65,7 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: Makulu/pnpm-lock.yaml
+          cache-dependency-path: Makalu/pnpm-lock.yaml
 
       - name: Get pnpm store directory
         shell: bash
@@ -75,20 +75,20 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makulu/**/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makalu/**/pnpm-lock.yaml') }}
           restore-keys: ${{ runner.os }}-pnpm-store-
 
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
-          path: Makulu/**/node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('Makulu/**/pnpm-lock.yaml') }}
+          path: Makalu/**/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('Makalu/**/pnpm-lock.yaml') }}
           restore-keys: ${{ runner.os }}-node-modules-
 
       - name: Cache Turborepo
         uses: actions/cache@v4
         with:
-          path: Makulu/.turbo
+          path: Makalu/.turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
           restore-keys: ${{ runner.os }}-turbo-
 
@@ -103,7 +103,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: turbo-build-summary
-          path: Makulu/.turbo/runs
+          path: Makalu/.turbo/runs
           retention-days: 7
           if-no-files-found: ignore
 
@@ -117,7 +117,7 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: ./Makulu
+        working-directory: ./Makalu
     steps:
       - uses: actions/checkout@v4
         with:
@@ -131,13 +131,13 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: Makulu/pnpm-lock.yaml
+          cache-dependency-path: Makalu/pnpm-lock.yaml
 
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
           path: ~/.local/share/pnpm/store
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makulu/**/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makalu/**/pnpm-lock.yaml') }}
           restore-keys: ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
@@ -158,7 +158,7 @@ jobs:
       pull-requests: write
     defaults:
       run:
-        working-directory: ./Makulu
+        working-directory: ./Makalu
     steps:
       - uses: actions/checkout@v4
         with:
@@ -172,19 +172,19 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: Makulu/pnpm-lock.yaml
+          cache-dependency-path: Makalu/pnpm-lock.yaml
 
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
           path: ~/.local/share/pnpm/store
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makulu/**/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makalu/**/pnpm-lock.yaml') }}
           restore-keys: ${{ runner.os }}-pnpm-store-
 
       - name: Cache Turborepo
         uses: actions/cache@v4
         with:
-          path: Makulu/.turbo
+          path: Makalu/.turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
           restore-keys: ${{ runner.os }}-turbo-
 
@@ -220,7 +220,7 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: ./Makulu
+        working-directory: ./Makalu
     steps:
       - uses: actions/checkout@v4
         with:
@@ -234,19 +234,19 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: Makulu/pnpm-lock.yaml
+          cache-dependency-path: Makalu/pnpm-lock.yaml
 
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
           path: ~/.local/share/pnpm/store
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makulu/**/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('Makalu/**/pnpm-lock.yaml') }}
           restore-keys: ${{ runner.os }}-pnpm-store-
 
       - name: Cache Turborepo
         uses: actions/cache@v4
         with:
-          path: Makulu/.turbo
+          path: Makalu/.turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
           restore-keys: ${{ runner.os }}-turbo-
 

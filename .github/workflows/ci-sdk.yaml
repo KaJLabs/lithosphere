@@ -7,14 +7,14 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Makulu/templates/sdk-template/**'
-      - 'Makulu/packages/**'
+      - 'Makalu/templates/sdk-template/**'
+      - 'Makalu/packages/**'
       - '.github/workflows/ci-sdk.yaml'
   pull_request:
     branches: [main]
     paths:
-      - 'Makulu/templates/sdk-template/**'
-      - 'Makulu/packages/**'
+      - 'Makalu/templates/sdk-template/**'
+      - 'Makalu/packages/**'
       - '.github/workflows/ci-sdk.yaml'
 
 concurrency:
@@ -32,7 +32,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./Makulu/templates/sdk-template
+        working-directory: ./Makalu/templates/sdk-template
 
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +45,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: pnpm
-          cache-dependency-path: Makulu/templates/sdk-template/pnpm-lock.yaml
+          cache-dependency-path: Makalu/templates/sdk-template/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile || pnpm install
@@ -78,7 +78,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./Makulu/templates/sdk-template
+        working-directory: ./Makalu/templates/sdk-template
     steps:
       - uses: actions/checkout@v4
 
@@ -90,7 +90,7 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: Makulu/templates/sdk-template/pnpm-lock.yaml
+          cache-dependency-path: Makalu/templates/sdk-template/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile || pnpm install

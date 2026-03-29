@@ -54,9 +54,9 @@ check_command "docker"
 check_command "docker compose"
 check_command "jq"
 
-# Check if we're in the Makulu directory
+# Check if we're in the Makalu directory
 if [ ! -f "docker-compose.yaml" ]; then
-    log_error "docker-compose.yaml not found. Please run this script from the Makulu directory."
+    log_error "docker-compose.yaml not found. Please run this script from the Makalu directory."
     exit 1
 fi
 

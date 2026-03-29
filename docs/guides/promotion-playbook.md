@@ -83,11 +83,11 @@ If automatic rollback fails or you need to roll back outside of CI:
 ssh -o ProxyJump="ec2-user@44.218.142.100" ec2-user@10.0.10.16
 
 # 2. Option A: Use the rollback script
-cd /opt/lithosphere/Makulu
+cd /opt/lithosphere/Makalu
 sudo bash scripts/rollback.sh
 
 # 2. Option B: Manual restore from snapshot
-cd /opt/lithosphere/Makulu
+cd /opt/lithosphere/Makalu
 cp .rollback/docker-compose.yaml.bak docker-compose.yaml
 cp .rollback/.env.bak .env
 sudo docker compose down --timeout 30
@@ -105,7 +105,7 @@ Roll back to a specific commit:
 ```bash
 ssh -o ProxyJump="ec2-user@44.218.142.100" ec2-user@10.0.10.16
 
-cd /opt/lithosphere/Makulu
+cd /opt/lithosphere/Makalu
 # View recent deploys
 git log --oneline -10
 
@@ -144,7 +144,7 @@ For zero-downtime deploys, use the blue/green script:
 
 ```bash
 ssh -o ProxyJump="ec2-user@44.218.142.100" ec2-user@10.0.10.16
-cd /opt/lithosphere/Makulu
+cd /opt/lithosphere/Makalu
 sudo bash scripts/blue-green-deploy.sh
 ```
 
@@ -191,7 +191,7 @@ ssh -o ProxyJump="ec2-user@44.218.142.100" ec2-user@10.0.10.16 echo "indexer ok"
 ### Containers not starting
 ```bash
 ssh -o ProxyJump="ec2-user@44.218.142.100" ec2-user@10.0.10.16
-cd /opt/lithosphere/Makulu
+cd /opt/lithosphere/Makalu
 sudo docker compose ps -a
 sudo docker compose logs --tail 50 api
 sudo docker compose logs --tail 50 indexer

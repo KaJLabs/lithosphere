@@ -5,7 +5,7 @@
 # ============================================================================
 set -euo pipefail
 
-DEPLOY_PATH="${DEPLOY_PATH:-/opt/lithosphere/Makulu}"
+DEPLOY_PATH="${DEPLOY_PATH:-/opt/lithosphere/Makalu}"
 ROLLBACK_DIR="${DEPLOY_PATH}/.rollback"
 SLOT_FILE="${DEPLOY_PATH}/.active-slot"
 

@@ -31,10 +31,10 @@
 - [x] Environments defined (.env.local, .env.testnet, .env.mainnet)
 - [x] Core stack picked (GitHub Actions, Docker Compose, Prometheus/Grafana)
 - [x] Architecture diagrams (14 in docs/diagrams/)
-- [x] RACI matrix — `Makulu/docs/governance/security-baselines.md` section 3
-- [x] Security baselines (aspirational) — `Makulu/docs/governance/security-baselines.md` sections 1-2
-- [x] Security baselines (Makalu-enforced) — `Makulu/docs/architecture/004-security-baselines-makalu.md`
-- [x] Promotion gates — `Makulu/docs/architecture/003-promotion-gates.md`
+- [x] RACI matrix — `Makalu/docs/governance/security-baselines.md` section 3
+- [x] Security baselines (aspirational) — `Makalu/docs/governance/security-baselines.md` sections 1-2
+- [x] Security baselines (Makalu-enforced) — `Makalu/docs/architecture/004-security-baselines-makalu.md`
+- [x] Promotion gates — `Makalu/docs/architecture/003-promotion-gates.md`
 - [x] Phase 0 sign-off checklist — `docs/phase-0/SIGNOFF.md`
 
 ## Phase 1 — Source Control & Repo Strategy (100%)
@@ -80,10 +80,10 @@
 - [x] Health monitoring — health-monitoring.yaml cron every 5 min
 - [x] K8s/ArgoCD — N/A, out of scope for Makalu (production is EC2 + Docker Compose)
 - [x] Kustomize overlays — N/A, out of scope for Makalu
-- [x] Blue/green deploy — `Makulu/scripts/blue-green-deploy.sh` (Docker Compose based)
+- [x] Blue/green deploy — `Makalu/scripts/blue-green-deploy.sh` (Docker Compose based)
 - [x] Automated rollback — rollback jobs in both deploy workflows + rollback snapshots saved pre-deploy
 - [x] Formal staging->mainnet approval flow — `promote.yaml` with GitHub Environment protection rules
-- [x] Rollback script — `Makulu/scripts/rollback.sh` for manual rollback
+- [x] Rollback script — `Makalu/scripts/rollback.sh` for manual rollback
 - [x] Promotion & rollback playbook — `docs/guides/promotion-playbook.md`
 
 ## Phase 5 — Developer Local Environment (100%)
@@ -92,11 +92,11 @@
 - [x] docker-compose.dev.yml with LithoVM/Anvil (7 services incl. faucet)
 - [x] seed-local.ts (27KB) — funds wallets, deploys LEP100, generates transfers
 - [x] .env profiles (local, testnet, staging, mainnet)
-- [x] VS Code devcontainers (root + Makulu)
+- [x] VS Code devcontainers (root + Makalu)
 - [x] VS Code workspace config — `.vscode/settings.json`, `launch.json` (debugger attach), `extensions.json`
 - [x] Onboarding doc (docs/quickstart/dev-setup.md — thorough)
 - [x] Makefile targets (up, down, clean, logs, seed, status, restart, dev, test, faucet-fund, help)
-- [x] Faucet service — `Makulu/faucet/` (Fastify + viem, Redis rate limiting, HTML frontend)
+- [x] Faucet service — `Makalu/faucet/` (Fastify + viem, Redis rate limiting, HTML frontend)
 - [x] Faucet in production compose — `docker-compose.yaml` with Traefik routing
 - [x] `make dev` — one-command full setup (up + seed + endpoints)
 
@@ -114,7 +114,7 @@
 ## Phase 7 — Contract Tooling & Safety Rails (~30%)
 
 - [x] Hardhat config in contracts/ and contracts-template/
-- [x] Solidity contracts (LEP100, WLITHO, LITHONative) in Makulu/contracts/src/
+- [x] Solidity contracts (LEP100, WLITHO, LITHONative) in Makalu/contracts/src/
 - [x] Foundry config (foundry.toml in contracts-template)
 - [x] Slither config (.slither.config.json) — NOT wired to CI
 - [x] Gas reporter configured in hardhat — REPORT_GAS=false, not in CI

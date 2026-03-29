@@ -5,17 +5,17 @@
 - **Project:** Lithosphere L1 blockchain developer infrastructure
 - **Scope doc:** "L1 Developer Infrastructure Engineer Work Scope.pdf" — Phase 5: Developer Local Environment (Day 10–14)
 - **Client request overlap:** Client specifically asked for a **Faucet** on production testnet (makalu.litho.ai)
-- **Codebase location:** `Makulu/` directory
+- **Codebase location:** `Makalu/` directory
 
 ## What Already Exists (Phase 5 partial progress)
 
 | Component | Status | Location |
 |---|---|---|
-| Docker Compose dev stack | Done | `Makulu/docker-compose.dev.yml` — 6 services: lithovm (Anvil), postgres, redis, indexer, api, explorer |
-| Makefile task suite | Done | `Makulu/Makefile` — `make up`, `make down`, `make clean`, `make logs`, `make seed`, `make status`, `make restart` |
-| Seed script | Done | `Makulu/scripts/seed-local.ts` — funds dev wallets + deploys demo LEP100 contract |
-| `.env.local` profile | Done | `Makulu/.env.local` |
-| VS Code devcontainer | Done | `Makulu/.devcontainer/devcontainer.json` |
+| Docker Compose dev stack | Done | `Makalu/docker-compose.dev.yml` — 6 services: lithovm (Anvil), postgres, redis, indexer, api, explorer |
+| Makefile task suite | Done | `Makalu/Makefile` — `make up`, `make down`, `make clean`, `make logs`, `make seed`, `make status`, `make restart` |
+| Seed script | Done | `Makalu/scripts/seed-local.ts` — funds dev wallets + deploys demo LEP100 contract |
+| `.env.local` profile | Done | `Makalu/.env.local` |
+| VS Code devcontainer | Done | `Makalu/.devcontainer/devcontainer.json` |
 | Faucet service | **Missing** | No faucet exists anywhere in the codebase |
 | `.env` staging profile | **Missing** | Only `.env.local` and `.env.mainnet` exist, no `.env.staging` |
 | Onboarding doc | **Missing** | No dedicated "new developer onboarding" doc |
@@ -40,7 +40,7 @@ Build a lightweight faucet service for the Lithosphere testnet (Makalu).
 
 **Files to create:**
 ```
-Makulu/faucet/
+Makalu/faucet/
 ├── Dockerfile
 ├── package.json
 ├── tsconfig.json
@@ -85,7 +85,7 @@ faucet:
 
 ### 2. `.env.staging` Profile
 
-Create `Makulu/.env.staging` with staging-specific values:
+Create `Makalu/.env.staging` with staging-specific values:
 - Staging RPC URL
 - Staging chain ID
 - Staging DB credentials (different from local/mainnet)
@@ -93,7 +93,7 @@ Create `Makulu/.env.staging` with staging-specific values:
 
 ### 3. Onboarding Documentation
 
-Create `Makulu/docs/ONBOARDING.md`:
+Create `Makalu/docs/ONBOARDING.md`:
 - Prerequisites (Docker >= 24.0, Node >= 18, pnpm)
 - Clone → `make up` → verify all services are running
 - `make seed` to fund wallets and deploy demo contract

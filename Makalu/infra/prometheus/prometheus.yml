@@ -9,7 +9,7 @@ global:
   external_labels:
     monitor: 'lithosphere-monitor'
     environment: 'mainnet'
-    cluster: 'makulu-vps'
+    cluster: 'makalu-vps'
 
 # ============================================================================
 # Alertmanager Configuration

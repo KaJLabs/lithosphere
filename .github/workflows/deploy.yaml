@@ -28,7 +28,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: kajlabs/lithosphere/service-template
-  DEPLOY_PATH: /opt/lithosphere/Makulu
+  DEPLOY_PATH: /opt/lithosphere/Makalu
   INDEXER_IP: ${{ secrets.INDEXER_IP }}
   BASTION_HOST: ${{ secrets.BASTION_HOST }}
   SERVER_USER: ${{ secrets.SERVER_USER }}
@@ -59,7 +59,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./Makulu
+        working-directory: ./Makalu
 
     steps:
       - name: Checkout Repository
@@ -146,7 +146,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./Makulu
+        working-directory: ./Makalu
 
     steps:
       - name: Checkout Repository
@@ -244,7 +244,7 @@ jobs:
           #!/bin/bash
           set -euo pipefail
           
-          DEPLOY_PATH="${DEPLOY_PATH:-/opt/lithosphere/Makulu}"
+          DEPLOY_PATH="${DEPLOY_PATH:-/opt/lithosphere/Makalu}"
           
           echo "🚀 Starting Lithosphere deployment..."
           
@@ -353,11 +353,11 @@ jobs:
               cd lithosphere && git fetch origin && git reset --hard origin/main && cd ..
             fi
 
-            mkdir -p Makulu
-            cp -r lithosphere/Makulu/. Makulu/
+            mkdir -p Makalu
+            cp -r lithosphere/Makalu/. Makalu/
             rm -rf lithosphere
 
-            cd Makulu
+            cd Makalu
             if [ -f ".env.${ENV}" ]; then
               cp ".env.${ENV}" .env
               echo "Using .env.${ENV}"
@@ -538,7 +538,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./Makulu
+        working-directory: ./Makalu
 
     steps:
       - name: Setup SSH Agent
@@ -559,7 +559,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no \
               -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
               "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
-            cd /opt/lithosphere/Makulu
+            cd /opt/lithosphere/Makalu
             if [ -f docker-compose.yaml.bak ]; then
               echo "Restoring previous configuration..."
               mv docker-compose.yaml.bak docker-compose.yaml

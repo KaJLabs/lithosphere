@@ -10,7 +10,7 @@ on:
     branches:
       - main
     paths:
-      - 'Makulu/**'
+      - 'Makalu/**'
       - '.github/workflows/deploy-simple.yaml'
 
   workflow_dispatch:
@@ -26,7 +26,7 @@ on:
           - mainnet
 
 env:
-  DEPLOY_PATH: /opt/lithosphere/Makulu
+  DEPLOY_PATH: /opt/lithosphere/Makalu
   INSTANCE_ID: i-057bf8e4baabd9f31
   AWS_REGION: us-east-1
 
@@ -116,10 +116,10 @@ jobs:
           cd /opt/lithosphere
 
           echo "── Saving rollback snapshot..."
-          if [ -d Makulu ]; then
-            mkdir -p Makulu/.rollback
-            cp Makulu/docker-compose.yaml Makulu/.rollback/docker-compose.yaml.bak 2>/dev/null || true
-            cp Makulu/.env Makulu/.rollback/.env.bak 2>/dev/null || true
+          if [ -d Makalu ]; then
+            mkdir -p Makalu/.rollback
+            cp Makalu/docker-compose.yaml Makalu/.rollback/docker-compose.yaml.bak 2>/dev/null || true
+            cp Makalu/.env Makalu/.rollback/.env.bak 2>/dev/null || true
           fi
 
           echo "── Pulling latest code..."
@@ -129,28 +129,28 @@ jobs:
           # Preserve server-side .env before copying new code
           # (git clone brings .env.mainnet with placeholder secrets;
           #  the server .env has real DATABASE_URL, RPC_URL, BATCH_SIZE, etc.)
-          if [ -f Makulu/.env ]; then
-            cp Makulu/.env /tmp/.env.preserve
+          if [ -f Makalu/.env ]; then
+            cp Makalu/.env /tmp/.env.preserve
             echo "Preserved existing .env"
           fi
 
           # Clean old source dirs so deleted files don't linger (preserve .env, data, node_modules)
-          mkdir -p Makulu
+          mkdir -p Makalu
           for d in api explorer indexer faucet infra; do
-            rm -rf "Makulu/$d"
+            rm -rf "Makalu/$d"
           done
-          cp -r lithosphere/Makulu/. Makulu/
+          cp -r lithosphere/Makalu/. Makalu/
           rm -rf lithosphere
 
           # Restore preserved .env (takes priority over repo defaults)
           if [ -f /tmp/.env.preserve ]; then
-            cp /tmp/.env.preserve Makulu/.env
+            cp /tmp/.env.preserve Makalu/.env
             rm -f /tmp/.env.preserve
             echo "Restored server .env"
           fi
 
           echo "── Configuring environment..."
-          cd Makulu
+          cd Makalu
           ENV_FILE=".env.DEPLOY_ENV"
           if [ ! -f .env ] && [ -f "$ENV_FILE" ]; then
             cp "$ENV_FILE" .env
@@ -248,7 +248,7 @@ jobs:
             DocumentName: "AWS-RunShellScript",
             TimeoutSeconds: 120,
             Parameters: { commands: [
-              "cd /opt/lithosphere/Makulu",
+              "cd /opt/lithosphere/Makalu",
               "if grep -q '\''^DATABASE_URL='\'' .env; then sed -i '\''s|^DATABASE_URL=.*|DATABASE_URL=" + $dburl + "|'\'' .env; else echo '\''DATABASE_URL=" + $dburl + "'\'' >> .env; fi",
               "echo DATABASE_URL injected",
               "sudo docker compose up -d --force-recreate api indexer",
@@ -356,7 +356,7 @@ jobs:
         run: |
           SCRIPT=$(cat << 'ROLLBACK'
           #!/bin/bash
-          cd /opt/lithosphere/Makulu
+          cd /opt/lithosphere/Makalu
           if [ -f .rollback/.env.bak ]; then
             cp .rollback/.env.bak .env
             echo "Restored .env"

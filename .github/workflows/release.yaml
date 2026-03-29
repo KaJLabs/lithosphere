@@ -8,7 +8,7 @@ on:
     branches:
       - main
     paths:
-      - 'Makulu/**'
+      - 'Makalu/**'
       - '.github/workflows/release.yaml'
     tags:
       - 'v*'
@@ -48,16 +48,16 @@ jobs:
         with:
           node-version: 20
           cache: 'pnpm'
-          cache-dependency-path: 'Makulu/pnpm-lock.yaml'
+          cache-dependency-path: 'Makalu/pnpm-lock.yaml'
 
       - name: Install dependencies
-        run: cd Makulu && pnpm install
+        run: cd Makalu && pnpm install
 
       - name: Run semantic-release
         id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cd Makulu && npx semantic-release
+        run: cd Makalu && npx semantic-release
 
   build-and-push:
     name: Build & Push Container
@@ -72,7 +72,7 @@ jobs:
     
     defaults:
       run:
-        working-directory: ./Makulu
+        working-directory: ./Makalu
 
     outputs:
       digest: ${{ steps.push.outputs.digest }}
@@ -104,8 +104,8 @@ jobs:
         id: push
         uses: docker/build-push-action@v5
         with:
-          context: ./Makulu/templates/service-template
-          file: ./Makulu/templates/service-template/Dockerfile
+          context: ./Makalu/templates/service-template
+          file: ./Makalu/templates/service-template/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -251,7 +251,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./Makulu
+        working-directory: ./Makalu
 
     steps:
       - name: Checkout
@@ -267,7 +267,7 @@ jobs:
         with:
           node-version: 20
           cache: 'pnpm'
-          cache-dependency-path: 'Makulu/pnpm-lock.yaml'
+          cache-dependency-path: 'Makalu/pnpm-lock.yaml'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
@@ -326,7 +326,7 @@ jobs:
       contents: write
     defaults:
       run:
-        working-directory: ./Makulu/contracts
+        working-directory: ./Makalu/contracts
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -393,9 +393,9 @@ jobs:
         with:
           tag_name: v${{ needs.semantic-release.outputs.new_release_version }}
           files: |
-            Makulu/contracts/${{ env.BUNDLE_NAME }}.tar.gz
-            Makulu/contracts/${{ env.BUNDLE_NAME }}.sha256
-            Makulu/contracts/checksums.txt
+            Makalu/contracts/${{ env.BUNDLE_NAME }}.tar.gz
+            Makalu/contracts/${{ env.BUNDLE_NAME }}.sha256
+            Makalu/contracts/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -404,6 +404,6 @@ jobs:
         with:
           name: contract-artifacts-v${{ needs.semantic-release.outputs.new_release_version }}
           path: |
-            Makulu/contracts/${{ env.BUNDLE_NAME }}.tar.gz
-            Makulu/contracts/${{ env.BUNDLE_NAME }}.sha256
+            Makalu/contracts/${{ env.BUNDLE_NAME }}.tar.gz
+            Makalu/contracts/${{ env.BUNDLE_NAME }}.sha256
           retention-days: 90

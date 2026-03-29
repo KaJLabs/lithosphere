@@ -129,7 +129,7 @@ API health check failed after 5 attempts
 
 1. Check the API server logs:
    ```bash
-   ssh root@SERVER_IP "cd /opt/lithosphere/Makulu && docker compose logs api"
+   ssh root@SERVER_IP "cd /opt/lithosphere/Makalu && docker compose logs api"
    ```
 2. Verify the API container is running:
    ```bash
@@ -180,11 +180,11 @@ cd /opt/lithosphere
 
 # Clone a fresh copy
 git clone https://github.com/KaJLabs/lithosphere.git temp
-cp -r temp/Makulu/* Makulu/
+cp -r temp/Makalu/* Makalu/
 rm -rf temp
 
 # Navigate to the application directory
-cd Makulu
+cd Makalu
 
 # Build and start services
 docker compose build
@@ -279,7 +279,7 @@ LITHO_CHAIN_ID=61
 If you are unable to resolve an issue using this guide:
 
 1. Check the [CI/CD Guide](ci-cd-guide.md) for pipeline-specific issues.
-2. Review the infrastructure README at `Makulu/infra/README.md` for detailed monitoring configuration.
+2. Review the infrastructure README at `Makalu/infra/README.md` for detailed monitoring configuration.
 3. Review the secrets documentation at `.github/SECRETS.md` for deployment credential setup.
 4. Open an issue on the [GitHub repository](https://github.com/KaJLabs/lithosphere) with:
    - The error message or unexpected behavior

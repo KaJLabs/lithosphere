@@ -6,7 +6,7 @@
 // Quick start:
 //   1. VS Code → Ctrl+Shift+P → "Dev Containers: Reopen in Container"
 //   2. Wait for the build + postCreateCommand (pnpm install) to finish.
-//   3. cd Makulu && make up    — start the local stack
+//   3. cd Makalu && make up    — start the local stack
 //   4. make seed               — fund wallets & deploy demo LEP100 contract
 // ============================================================================
 {
@@ -57,7 +57,7 @@
   // --------------------------------------------------------------------------
   // Lifecycle
   // --------------------------------------------------------------------------
-  "postCreateCommand": "cd Makulu && pnpm install --frozen-lockfile || pnpm install",
+  "postCreateCommand": "cd Makalu && pnpm install --frozen-lockfile || pnpm install",
 
   // --------------------------------------------------------------------------
   // Ports

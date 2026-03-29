@@ -71,7 +71,7 @@ The workflow will:
 ## Deployment Workflow
 
 The deployment happens automatically on:
-- Push to `main` branch (changes in `Makulu/**`)
+- Push to `main` branch (changes in `Makalu/**`)
 - Manual trigger via GitHub Actions UI
 
 ### Workflow Steps:
@@ -104,7 +104,7 @@ Permission denied (publickey)
 ```
 API health check failed after 5 attempts
 ```
-**Solution**: Check server logs: `ssh root@SERVER_IP "cd /opt/lithosphere/Makulu && docker compose logs api"`
+**Solution**: Check server logs: `ssh root@SERVER_IP "cd /opt/lithosphere/Makalu && docker compose logs api"`
 
 ### Build Failed
 ```
@@ -121,10 +121,10 @@ ssh root@72.60.177.106
 
 cd /opt/lithosphere
 git clone https://github.com/KaJLabs/lithosphere.git temp
-cp -r temp/Makulu/* Makulu/
+cp -r temp/Makalu/* Makalu/
 rm -rf temp
 
-cd Makulu
+cd Makalu
 docker compose build
 docker compose up -d
 docker compose ps

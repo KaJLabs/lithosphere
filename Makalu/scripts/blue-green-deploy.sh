@@ -5,7 +5,7 @@
 # ============================================================================
 set -euo pipefail
 
-DEPLOY_PATH="${DEPLOY_PATH:-/opt/lithosphere/Makulu}"
+DEPLOY_PATH="${DEPLOY_PATH:-/opt/lithosphere/Makalu}"
 COMPOSE_FILE="${DEPLOY_PATH}/docker-compose.yaml"
 HEALTH_URL="${HEALTH_URL:-http://localhost:4000/health}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-10}"

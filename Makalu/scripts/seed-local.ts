@@ -77,7 +77,7 @@ function requireEnvHex(name: string): Hex {
     console.error(
       `Missing environment variable: ${name}\n` +
         `   Copy .env.local.example -> .env.local and source it, or set the var directly.\n` +
-        `   See: Makulu/scripts/.env.local.example`,
+        `   See: Makalu/scripts/.env.local.example`,
     );
     process.exit(1);
   }

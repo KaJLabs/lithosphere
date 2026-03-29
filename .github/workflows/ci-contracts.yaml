@@ -7,14 +7,14 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Makulu/contracts/**'
-      - 'Makulu/templates/contracts-template/**'
+      - 'Makalu/contracts/**'
+      - 'Makalu/templates/contracts-template/**'
       - '.github/workflows/ci-contracts.yaml'
   pull_request:
     branches: [main]
     paths:
-      - 'Makulu/contracts/**'
-      - 'Makulu/templates/contracts-template/**'
+      - 'Makalu/contracts/**'
+      - 'Makalu/templates/contracts-template/**'
       - '.github/workflows/ci-contracts.yaml'
 
 concurrency:
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./Makulu/contracts
+        working-directory: ./Makalu/contracts
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +42,7 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: Makulu/contracts/pnpm-lock.yaml
+          cache-dependency-path: Makalu/contracts/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile || pnpm install
@@ -55,12 +55,12 @@ jobs:
         with:
           name: contract-artifacts
           path: |
-            Makulu/contracts/artifacts/
-            Makulu/contracts/cache/
+            Makalu/contracts/artifacts/
+            Makalu/contracts/cache/
           retention-days: 7
 
   # ─────────────────────────────────────────────────────────────────────
-  # Run contract tests (Makulu/contracts + contracts-template)
+  # Run contract tests (Makalu/contracts + contracts-template)
   # ─────────────────────────────────────────────────────────────────────
   test:
     name: Test
@@ -77,24 +77,24 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: Makulu/contracts/pnpm-lock.yaml
+          cache-dependency-path: Makalu/contracts/pnpm-lock.yaml
 
       - name: Install — contracts
-        working-directory: ./Makulu/contracts
+        working-directory: ./Makalu/contracts
         run: pnpm install --frozen-lockfile || pnpm install
 
       - name: Test — contracts
-        working-directory: ./Makulu/contracts
+        working-directory: ./Makalu/contracts
         run: pnpm test
         env:
           CI: true
 
       - name: Install — contracts-template
-        working-directory: ./Makulu/templates/contracts-template
+        working-directory: ./Makalu/templates/contracts-template
         run: pnpm install --frozen-lockfile || pnpm install
 
       - name: Test — contracts-template
-        working-directory: ./Makulu/templates/contracts-template
+        working-directory: ./Makalu/templates/contracts-template
         run: pnpm test
         env:
           CI: true
@@ -124,11 +124,11 @@ jobs:
           node-version: 20
 
       - name: Install — contracts-template
-        working-directory: ./Makulu/templates/contracts-template
+        working-directory: ./Makalu/templates/contracts-template
         run: pnpm install --frozen-lockfile || pnpm install
 
       - name: Lint Solidity
-        working-directory: ./Makulu/templates/contracts-template
+        working-directory: ./Makalu/templates/contracts-template
         run: pnpm lint
         continue-on-error: true
 
@@ -141,7 +141,7 @@ jobs:
     needs: compile
     defaults:
       run:
-        working-directory: ./Makulu/templates/contracts-template
+        working-directory: ./Makalu/templates/contracts-template
     steps:
       - uses: actions/checkout@v4
 
@@ -167,7 +167,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gas-report
-          path: Makulu/templates/contracts-template/gas-report.txt
+          path: Makalu/templates/contracts-template/gas-report.txt
           if-no-files-found: ignore
           retention-days: 30
 
@@ -183,7 +183,7 @@ jobs:
       security-events: write
     defaults:
       run:
-        working-directory: ./Makulu/templates/contracts-template
+        working-directory: ./Makalu/templates/contracts-template
     steps:
       - uses: actions/checkout@v4
 
@@ -215,7 +215,7 @@ jobs:
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: Makulu/templates/contracts-template/slither-report.sarif
+          sarif_file: Makalu/templates/contracts-template/slither-report.sarif
         continue-on-error: true
 
       - name: Upload Slither JSON report
@@ -224,8 +224,8 @@ jobs:
         with:
           name: slither-report
           path: |
-            Makulu/templates/contracts-template/slither-report.json
-            Makulu/templates/contracts-template/slither-report.sarif
+            Makalu/templates/contracts-template/slither-report.json
+            Makalu/templates/contracts-template/slither-report.sarif
           if-no-files-found: ignore
           retention-days: 30
 
@@ -238,7 +238,7 @@ jobs:
     needs: compile
     defaults:
       run:
-        working-directory: ./Makulu/contracts
+        working-directory: ./Makalu/contracts
     steps:
       - uses: actions/checkout@v4
 
@@ -272,5 +272,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: contract-abis
-          path: Makulu/contracts/abi-export/
+          path: Makalu/contracts/abi-export/
           retention-days: 90

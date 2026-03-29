@@ -8,18 +8,18 @@
 
 | # | Deliverable | Status | Location |
 |---|-------------|--------|----------|
-| 1 | Languages/toolchains inventory | Done | `Makulu/docs/architecture/002-tech-stack.md` (ADR-002) |
-| 2 | Environment matrix | Done | `Makulu/docs/architecture/001-environment-strategy.md` (ADR-001) |
-| 3 | Core technology stack / BOM | Done | `Makulu/docs/architecture/002-tech-stack.md` (ADR-002) |
+| 1 | Languages/toolchains inventory | Done | `Makalu/docs/architecture/002-tech-stack.md` (ADR-002) |
+| 2 | Environment matrix | Done | `Makalu/docs/architecture/001-environment-strategy.md` (ADR-001) |
+| 3 | Core technology stack / BOM | Done | `Makalu/docs/architecture/002-tech-stack.md` (ADR-002) |
 | 4 | Architecture diagrams | Done | `docs/diagrams/` (14 diagrams) |
-| 5 | RACI matrix | Done | `Makulu/docs/governance/security-baselines.md` section 3 |
-| 6 | Security baselines (aspirational) | Done | `Makulu/docs/governance/security-baselines.md` sections 1-2 |
-| 7 | Security baselines (Makalu-enforced) | Done | `Makulu/docs/architecture/004-security-baselines-makalu.md` (ADR-004) |
-| 8 | Promotion gates | Done | `Makulu/docs/architecture/003-promotion-gates.md` (ADR-003) |
+| 5 | RACI matrix | Done | `Makalu/docs/governance/security-baselines.md` section 3 |
+| 6 | Security baselines (aspirational) | Done | `Makalu/docs/governance/security-baselines.md` sections 1-2 |
+| 7 | Security baselines (Makalu-enforced) | Done | `Makalu/docs/architecture/004-security-baselines-makalu.md` (ADR-004) |
+| 8 | Promotion gates | Done | `Makalu/docs/architecture/003-promotion-gates.md` (ADR-003) |
 | 9 | CODEOWNERS (access control) | Done | `.github/CODEOWNERS` |
 | 10 | Cosign image signing | Done | `.github/workflows/deploy.yaml`, `.github/workflows/publish-images.yaml` |
 | 11 | SBOM generation (SPDX) | Done | `.github/workflows/release.yaml` (anchore/sbom-action) |
-| 12 | SLSA target documented | Done | `Makulu/docs/governance/security-baselines.md` section 1 |
+| 12 | SLSA target documented | Done | `Makalu/docs/governance/security-baselines.md` section 1 |
 
 ---
 

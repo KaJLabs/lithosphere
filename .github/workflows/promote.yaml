@@ -228,12 +228,12 @@ jobs:
             cd /opt/lithosphere
 
             # Save rollback snapshot
-            if [ -d Makulu ]; then
-              mkdir -p Makulu/.rollback
-              cp Makulu/docker-compose.yaml Makulu/.rollback/docker-compose.yaml.bak 2>/dev/null || true
-              cp Makulu/.env Makulu/.rollback/.env.bak 2>/dev/null || true
-              sudo docker compose -f Makulu/docker-compose.yaml images --format json \
-                > Makulu/.rollback/images.json 2>/dev/null || true
+            if [ -d Makalu ]; then
+              mkdir -p Makalu/.rollback
+              cp Makalu/docker-compose.yaml Makalu/.rollback/docker-compose.yaml.bak 2>/dev/null || true
+              cp Makalu/.env Makalu/.rollback/.env.bak 2>/dev/null || true
+              sudo docker compose -f Makalu/docker-compose.yaml images --format json \
+                > Makalu/.rollback/images.json 2>/dev/null || true
             fi
 
             # Pull latest code
@@ -243,11 +243,11 @@ jobs:
               cd lithosphere && git fetch origin && git reset --hard origin/main && cd ..
             fi
 
-            mkdir -p Makulu
-            cp -r lithosphere/Makulu/. Makulu/
+            mkdir -p Makalu
+            cp -r lithosphere/Makalu/. Makalu/
             rm -rf lithosphere
 
-            cd Makulu
+            cd Makalu
             if [ -f ".env.${ENV}" ]; then
               cp ".env.${ENV}" .env
               echo "Using .env.${ENV}"
@@ -318,7 +318,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no \
               -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
               "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
-            cd /opt/lithosphere/Makulu
+            cd /opt/lithosphere/Makalu
             ROLLBACK_DIR=".rollback"
             if [ -f "${ROLLBACK_DIR}/docker-compose.yaml.bak" ]; then
               cp "${ROLLBACK_DIR}/docker-compose.yaml.bak" docker-compose.yaml

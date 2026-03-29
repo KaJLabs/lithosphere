@@ -2,7 +2,7 @@
 -- Lithosphere PostgreSQL Initialization Script
 -- Canonical schema for LITHOSCAN Explorer & Indexer
 -- ============================================================================
--- Source: Reconciled from validator-infra 001-schema.sql + Makulu schema
+-- Source: Reconciled from validator-infra 001-schema.sql + Makalu schema
 -- Compatible with: Ethermint dual-layer chain (Cosmos + EVM transactions)
 -- ============================================================================
 

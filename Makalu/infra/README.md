@@ -1,6 +1,6 @@
 # Lithosphere Infrastructure Configuration
 
-This directory contains all infrastructure-related configuration files for the Lithosphere Makulu deployment.
+This directory contains all infrastructure-related configuration files for the Lithosphere Makalu deployment.
 
 ## Directory Structure
 

@@ -12,9 +12,9 @@ on:
     branches:
       - main
     paths:
-      - 'Makulu/api/**'
-      - 'Makulu/indexer/**'
-      - 'Makulu/explorer/**'
+      - 'Makalu/api/**'
+      - 'Makalu/indexer/**'
+      - 'Makalu/explorer/**'
       - '.github/workflows/publish-images.yaml'
   workflow_dispatch:
     inputs:
@@ -46,18 +46,18 @@ jobs:
         include:
           - service: api
             image: ghcr.io/kajlabs/lithosphere-api
-            context: ./Makulu/api
-            dockerfile: ./Makulu/api/Dockerfile
+            context: ./Makalu/api
+            dockerfile: ./Makalu/api/Dockerfile
 
           - service: indexer
             image: ghcr.io/kajlabs/lithosphere-indexer
-            context: ./Makulu/indexer
-            dockerfile: ./Makulu/indexer/Dockerfile
+            context: ./Makalu/indexer
+            dockerfile: ./Makalu/indexer/Dockerfile
 
           - service: explorer
             image: ghcr.io/kajlabs/lithosphere-explorer
-            context: ./Makulu/explorer
-            dockerfile: ./Makulu/explorer/Dockerfile
+            context: ./Makalu/explorer
+            dockerfile: ./Makalu/explorer/Dockerfile
 
     steps:
       - name: Checkout
