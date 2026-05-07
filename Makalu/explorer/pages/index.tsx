@@ -381,34 +381,34 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                             <span className="truncate">{methodLabel}</span>
                           </span>
                         </div>
-                        <div className="mt-3 grid gap-3 text-sm text-white/65 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.85fr)]">
-                          <div className="min-w-0 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-                            <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">From</div>
+                        <div className="mt-4 flex flex-col gap-4 text-sm text-white/65 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-6">
+                          <div className="min-w-0 sm:min-w-[12rem] sm:flex-1">
+                            <div className="text-sm font-medium text-white/55">From:</div>
                             <Link
                               href={`/address/${tx.fromAddr}`}
-                              className="mt-1 block truncate font-mono text-sm text-white/80 transition hover:text-white"
+                              className="mt-1 block truncate font-mono text-[15px] text-white/85 transition hover:text-white sm:text-base"
                               title={tx.fromAddr}
                             >
-                              {truncateHash(tx.fromAddr, 11, 6)}
+                              {truncateHash(tx.fromAddr, 10, 6)}
                             </Link>
                           </div>
-                          <div className="min-w-0 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-                            <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">To</div>
+                          <div className="min-w-0 sm:min-w-[12rem] sm:flex-1">
+                            <div className="text-sm font-medium text-white/55">To:</div>
                             {tx.toAddr ? (
                               <Link
                                 href={`/address/${tx.toAddr}`}
-                                className="mt-1 block truncate font-mono text-sm text-white/80 transition hover:text-white"
+                                className="mt-1 block truncate font-mono text-[15px] text-white/85 transition hover:text-white sm:text-base"
                                 title={tx.toAddr}
                               >
-                                {truncateHash(tx.toAddr, 11, 6)}
+                                {truncateHash(tx.toAddr, 10, 6)}
                               </Link>
                             ) : (
                               <span className="mt-1 block text-sm text-white/35">--</span>
                             )}
                           </div>
-                          <div className="min-w-0 rounded-2xl border border-white/8 bg-white/[0.03] p-3 sm:col-span-2 xl:col-span-1">
-                            <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">Value</div>
-                            <div className="mt-1 min-w-0 text-sm text-white/90">
+                          <div className="min-w-0 sm:ml-auto sm:min-w-[10rem] sm:text-right">
+                            <div className="text-sm font-medium text-white/55">Value:</div>
+                            <div className="mt-1 min-w-0 text-[15px] text-white/90 sm:text-base">
                               <FormattedValueElement
                                 formattedStr={tx.tokenTransferAmount
                                   ? (tx.tokenSymbol
