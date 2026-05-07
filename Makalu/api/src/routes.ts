@@ -27,6 +27,62 @@ const EVM_RPC_URL = (process.env.EVM_RPC_URL || '').replace(/\/$/, '');
 // the server's private RPC is missing older historical transaction data.
 const PUBLIC_EVM_RPC_URL = (process.env.PUBLIC_EVM_RPC_URL || 'https://rpc.litho.ai').replace(/\/$/, '');
 const EVM_RPC_ENDPOINTS = [...new Set([EVM_RPC_URL, RPC_URL, PUBLIC_EVM_RPC_URL].filter(Boolean))];
+const COUNT_CACHE_TTL_MS = 10_000;
+const STATS_SUMMARY_TTL_MS = 5_000;
+const EVM_ENRICH_TTL_MS = 60_000;
+const MAX_RUNTIME_CACHE_ENTRIES = 2_000;
+
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
+const runtimeCache = new Map<string, CacheEntry<unknown>>();
+const runtimeCachePending = new Map<string, Promise<unknown>>();
+
+function readCache<T>(key: string): T | null {
+  const cached = runtimeCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    runtimeCache.delete(key);
+    return null;
+  }
+  return cached.value as T;
+}
+
+function trimRuntimeCache(): void {
+  if (runtimeCache.size <= MAX_RUNTIME_CACHE_ENTRIES) return;
+  const now = Date.now();
+  for (const [key, entry] of runtimeCache) {
+    if (entry.expiresAt <= now || runtimeCache.size > MAX_RUNTIME_CACHE_ENTRIES) {
+      runtimeCache.delete(key);
+    }
+    if (runtimeCache.size <= MAX_RUNTIME_CACHE_ENTRIES) break;
+  }
+}
+
+function writeCache<T>(key: string, value: T, ttlMs: number): T {
+  runtimeCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+  trimRuntimeCache();
+  return value;
+}
+
+async function loadCached<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
+  const cached = readCache<T>(key);
+  if (cached !== null) return cached;
+
+  const pending = runtimeCachePending.get(key) as Promise<T> | undefined;
+  if (pending) return pending;
+
+  const promise = loader()
+    .then((value) => writeCache(key, value, ttlMs))
+    .finally(() => {
+      runtimeCachePending.delete(key);
+    });
+
+  runtimeCachePending.set(key, promise as Promise<unknown>);
+  return promise;
+}
 
 function isHiddenToken(token: { symbol?: string | null; address?: string | null }): boolean {
   const symbol = token.symbol?.trim();
@@ -128,6 +184,18 @@ async function getTokenStatsByContract(): Promise<Map<string, { holders: number;
       { holders: Number(row.holders ?? 0), transfers: Number(row.transfers ?? 0) },
     ])
   );
+}
+
+async function getCachedCount(
+  key: string,
+  sql: string,
+  params: unknown[] = [],
+  ttlMs = COUNT_CACHE_TTL_MS,
+): Promise<number> {
+  return loadCached<number>(`count:${key}:${JSON.stringify(params)}`, ttlMs, async () => {
+    const rows = await query<CountRow>(sql, params);
+    return parseInt(rows[0]?.count ?? '0', 10);
+  });
 }
 
 /**
@@ -359,6 +427,13 @@ interface SyncSummary {
   inconsistentBlocks: number;
 }
 
+interface StatsSummaryResponse extends SyncSummary {
+  totalTransactions: number;
+  walletAddresses: number;
+  avgBlockTime: number;
+  gasPriceWei: string | null;
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 /** Strip Ethereum branding from Cosmos SDK method names */
@@ -537,6 +612,40 @@ async function getSyncSummary(): Promise<SyncSummary> {
   };
 }
 
+async function getStatsSummaryResponse(): Promise<StatsSummaryResponse> {
+  return loadCached<StatsSummaryResponse>('stats:summary', STATS_SUMMARY_TTL_MS, async () => {
+    const [syncSummary, totalTransactions, walletAddresses, avgBlockTime, gasPriceWei] = await Promise.all([
+      getSyncSummary(),
+      getCachedCount('transactions-total', 'SELECT COUNT(*) AS count FROM transactions'),
+      getCachedCount(
+        'wallet-addresses',
+        `SELECT COUNT(*) AS count FROM (
+           SELECT address FROM accounts
+           UNION
+           SELECT DISTINCT from_address FROM evm_transactions WHERE from_address IS NOT NULL
+           UNION
+           SELECT DISTINCT to_address FROM evm_transactions WHERE to_address IS NOT NULL
+         ) all_addrs`
+      ),
+      query<{ avg_seconds: string }>(
+        `SELECT COALESCE(EXTRACT(EPOCH FROM AVG(diff)), 0) AS avg_seconds FROM (
+           SELECT block_time - LAG(block_time) OVER (ORDER BY height) AS diff
+           FROM blocks ORDER BY height DESC LIMIT 100
+         ) sub WHERE diff IS NOT NULL`
+      ).catch(() => [{ avg_seconds: '0' }]),
+      getCurrentGasPriceWei().catch(() => null),
+    ]);
+
+    return {
+      ...syncSummary,
+      totalTransactions,
+      walletAddresses,
+      avgBlockTime: Math.round(parseFloat(avgBlockTime[0]?.avg_seconds ?? '0') * 10) / 10,
+      gasPriceWei,
+    };
+  });
+}
+
 async function evmRpcCall(method: string, params: unknown[]): Promise<unknown> {
   if (EVM_RPC_ENDPOINTS.length === 0) return null;
 
@@ -667,6 +776,39 @@ function warnAddressBalanceFallback(
 
 type EvmExtra = { value?: string | null; gas_price?: string | null; from_address?: string | null; to_address?: string | null; input_data?: string | null; contract_address?: string | null; nonce?: number | null };
 
+function hasNumericString(value: string | null | undefined): boolean {
+  return typeof value === 'string' && /^\d+$/.test(value);
+}
+
+function hasPositiveNumericString(value: string | null | undefined): boolean {
+  return hasNumericString(value) && value !== '0';
+}
+
+function preferString(primary?: string | null, fallback?: string | null): string | null | undefined {
+  return primary != null && primary !== '' ? primary : fallback;
+}
+
+function mergeEvmExtra(base: EvmExtra, fallback: EvmExtra): EvmExtra {
+  return {
+    value: preferString(base.value, fallback.value),
+    gas_price: preferString(base.gas_price, fallback.gas_price),
+    from_address: preferString(base.from_address, fallback.from_address),
+    to_address: preferString(base.to_address, fallback.to_address),
+    input_data: preferString(base.input_data, fallback.input_data),
+    contract_address: preferString(base.contract_address, fallback.contract_address),
+    nonce: base.nonce ?? fallback.nonce,
+  };
+}
+
+function needsRpcEnrichment(evmExtra: EvmExtra): boolean {
+  return !hasNumericString(evmExtra.value)
+    || !hasPositiveNumericString(evmExtra.gas_price)
+    || !evmExtra.from_address
+    || (!evmExtra.to_address && !evmExtra.contract_address)
+    || !evmExtra.input_data
+    || evmExtra.nonce == null;
+}
+
 interface RpcEvmTransaction {
   hash?: string;
   blockHash?: string | null;
@@ -702,27 +844,37 @@ interface RpcEvmBlock {
 
 /** For EVM txs with missing/broken DB values, fetch live from RPC */
 async function enrichEvmFromRpc(evmHash: string, evmExtra: EvmExtra): Promise<EvmExtra> {
-  const valueIsBad = !evmExtra.value || evmExtra.value === '0' || Number(evmExtra.value) === 0;
-  const gasPriceIsBad = !evmExtra.gas_price || evmExtra.gas_price === '0' || Number(evmExtra.gas_price) === 0;
-  if (!valueIsBad && !gasPriceIsBad) return evmExtra;
+  if (!needsRpcEnrichment(evmExtra)) return evmExtra;
 
   if (!isEvmTxHash(evmHash)) {
     console.warn(`[api] Skipping EVM enrichment for malformed hash: ${String(evmHash).slice(0, 80)}`);
     return evmExtra;
   }
 
-  const rpcTx = await evmRpcCall('eth_getTransactionByHash', [evmHash]) as { value?: string; gasPrice?: string; from?: string; to?: string; input?: string; nonce?: string } | null;
-  if (!rpcTx) return evmExtra;
+  const normalizedHash = evmHash.toLowerCase();
+  const rpcExtra = await loadCached<EvmExtra>(`evm-extra:${normalizedHash}`, EVM_ENRICH_TTL_MS, async () => {
+    const rpcTx = await evmRpcCall('eth_getTransactionByHash', [evmHash]) as {
+      value?: string;
+      gasPrice?: string;
+      from?: string;
+      to?: string;
+      input?: string;
+      nonce?: string;
+    } | null;
 
-  const enriched = { ...evmExtra };
-  if (valueIsBad && rpcTx.value) enriched.value = hexToDec(rpcTx.value);
-  if (gasPriceIsBad && rpcTx.gasPrice) enriched.gas_price = hexToDec(rpcTx.gasPrice);
-  if (!enriched.from_address && rpcTx.from) enriched.from_address = rpcTx.from.toLowerCase();
-  if (!enriched.to_address && rpcTx.to) enriched.to_address = rpcTx.to.toLowerCase();
-  if (!enriched.input_data && rpcTx.input) enriched.input_data = rpcTx.input;
-  if (enriched.nonce == null && rpcTx.nonce) enriched.nonce = Number(BigInt(rpcTx.nonce));
+    if (!rpcTx) return {};
 
-  return enriched;
+    const extra: EvmExtra = {};
+    if (rpcTx.value) extra.value = hexToDec(rpcTx.value);
+    if (rpcTx.gasPrice) extra.gas_price = hexToDec(rpcTx.gasPrice);
+    if (rpcTx.from) extra.from_address = rpcTx.from.toLowerCase();
+    if (rpcTx.to) extra.to_address = rpcTx.to.toLowerCase();
+    if (rpcTx.input) extra.input_data = rpcTx.input;
+    if (rpcTx.nonce) extra.nonce = Number(BigInt(rpcTx.nonce));
+    return extra;
+  });
+
+  return mergeEvmExtra(evmExtra, rpcExtra);
 }
 
 async function enrichEvmRows<T extends { evm_hash?: string | null; evm_input_data?: string | null; evm_contract_address?: string | null; evm_from_address?: string | null; evm_to_address?: string | null; evm_value?: string | null; evm_gas_price?: string | null; evm_nonce?: number | null }>(rows: T[]): Promise<T[]> {
@@ -928,6 +1080,92 @@ async function enrichTokenInfo<T extends { tokenTransferAmount?: string | null; 
   return { ...mapped, contractAddress: mapped.evmToAddr };
 }
 
+async function enrichTokenInfoBatch<
+  T extends {
+    tokenTransferAmount?: string | null;
+    evmHash?: string;
+    evmToAddr?: string;
+    contractAddress?: string;
+    tokenSymbol?: string;
+  },
+>(items: T[]): Promise<T[]> {
+  if (items.length === 0) return items;
+
+  const hashes = [...new Set(
+    items
+      .filter((item) => !item.contractAddress && item.evmHash)
+      .map((item) => normalizeEvmTxHash(item.evmHash)?.toLowerCase())
+      .filter((value): value is string => Boolean(value))
+  )];
+
+  const transferRows = hashes.length > 0
+    ? await query<{ tx_hash: string; contract_address: string; symbol: string | null; value: string }>(
+        `SELECT DISTINCT ON (LOWER(tt.tx_hash))
+           LOWER(tt.tx_hash) AS tx_hash,
+           tt.contract_address,
+           c.symbol,
+           tt.value
+         FROM token_transfers tt
+         LEFT JOIN contracts c ON LOWER(c.address) = LOWER(tt.contract_address)
+         WHERE LOWER(tt.tx_hash) = ANY($1)
+         ORDER BY LOWER(tt.tx_hash), tt.value::numeric DESC, tt.log_index ASC`,
+        [hashes]
+      ).catch(() => [])
+    : [];
+
+  const transferByHash = new Map(
+    transferRows.map((row) => [
+      row.tx_hash,
+      {
+        contractAddress: row.contract_address,
+        tokenSymbol: row.symbol ?? undefined,
+        tokenTransferAmount: row.value,
+      },
+    ])
+  );
+
+  const contractLookups = [...new Set(
+    items
+      .filter((item) => !item.contractAddress && item.tokenTransferAmount && item.evmToAddr)
+      .map((item) => item.evmToAddr?.toLowerCase())
+      .filter((value): value is string => Boolean(value))
+  )];
+
+  const contractRows = contractLookups.length > 0
+    ? await query<{ address: string; symbol: string | null }>(
+        `SELECT LOWER(address) AS address, symbol
+         FROM contracts
+         WHERE LOWER(address) = ANY($1)`,
+        [contractLookups]
+      ).catch(() => [])
+    : [];
+
+  const contractByAddress = new Map(contractRows.map((row) => [row.address, row.symbol ?? undefined]));
+
+  return items.map((item) => {
+    if (item.contractAddress) return item;
+
+    const hashKey = item.evmHash ? normalizeEvmTxHash(item.evmHash)?.toLowerCase() : undefined;
+    const transfer = hashKey ? transferByHash.get(hashKey) : undefined;
+    if (transfer) {
+      return {
+        ...item,
+        tokenTransferAmount: transfer.tokenTransferAmount,
+        tokenSymbol: transfer.tokenSymbol,
+        contractAddress: transfer.contractAddress,
+      };
+    }
+
+    if (!item.tokenTransferAmount || !item.evmToAddr) return item;
+
+    return {
+      ...item,
+      tokenSymbol: contractByAddress.get(item.evmToAddr.toLowerCase()) ?? item.tokenSymbol,
+      contractAddress: item.evmToAddr,
+    };
+  });
+}
+
 function mapEvmTx(evm: EvmTxRow, cosmosTx?: TxRow) {
   const safeHash = pickValidTxHash(cosmosTx?.hash ?? evm.cosmos_tx_hash, evm.hash);
   const safeEvmHash = normalizeEvmTxHash(evm.hash) ?? undefined;
@@ -1027,33 +1265,7 @@ export function explorerRouter(): Router {
 
   r.get('/stats/summary', async (_req: Request, res: Response) => {
     try {
-      const [syncSummary, totalTxs, walletCount, avgBlockTime, gasPriceWei] = await Promise.all([
-        getSyncSummary(),
-        query<CountRow>('SELECT COUNT(*) AS count FROM transactions'),
-        query<CountRow>(
-          `SELECT COUNT(*) AS count FROM (
-             SELECT address FROM accounts
-             UNION
-             SELECT DISTINCT from_address FROM evm_transactions WHERE from_address IS NOT NULL
-             UNION
-             SELECT DISTINCT to_address FROM evm_transactions WHERE to_address IS NOT NULL
-           ) all_addrs`
-        ),
-        query<{ avg_seconds: string }>(
-          `SELECT COALESCE(EXTRACT(EPOCH FROM AVG(diff)), 0) AS avg_seconds FROM (
-             SELECT block_time - LAG(block_time) OVER (ORDER BY height) AS diff
-             FROM blocks ORDER BY height DESC LIMIT 100
-           ) sub WHERE diff IS NOT NULL`
-        ).catch(() => [{ avg_seconds: '0' }]),
-        getCurrentGasPriceWei().catch(() => null),
-      ]);
-      res.json({
-        ...syncSummary,
-        totalTransactions: parseInt(totalTxs[0]?.count ?? '0'),
-        walletAddresses: parseInt(walletCount[0]?.count ?? '0'),
-        avgBlockTime: Math.round(parseFloat(avgBlockTime[0]?.avg_seconds ?? '0') * 10) / 10,
-        gasPriceWei,
-      });
+      res.json(await getStatsSummaryResponse());
     } catch (err) {
       console.error('[api] /stats/summary error:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -1145,30 +1357,36 @@ export function explorerRouter(): Router {
     try {
       const limit = clamp(req.query.limit);
       const offset = resolveOffset(req.query, limit);
-      const rows = await query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null; evm_value: string | null; evm_gas_price: string | null; evm_nonce: number | null }>(
-        `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.nonce AS evm_nonce
-         FROM transactions t
-         LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
-         ORDER BY t.timestamp DESC, t.block_height DESC
-         LIMIT $1 OFFSET $2`,
-        [limit, offset]
-      );
+      const [rows, total] = await Promise.all([
+        query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null; evm_value: string | null; evm_gas_price: string | null; evm_nonce: number | null }>(
+          `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.nonce AS evm_nonce
+           FROM transactions t
+           LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
+           ORDER BY t.timestamp DESC, t.block_height DESC
+           LIMIT $1 OFFSET $2`,
+          [limit, offset]
+        ),
+        getCachedCount('transactions-total', 'SELECT COUNT(*) AS count FROM transactions'),
+      ]);
 
-      const countResult = await query<CountRow>('SELECT COUNT(*) AS count FROM transactions');
-
-      const enrichedRows = await Promise.all(rows.map(async (r) => {
+      const baseRows = await Promise.all(rows.map(async (row) => {
         let evmExtra: EvmExtra = {
-          input_data: r.evm_input_data, contract_address: r.evm_contract_address,
-          from_address: r.evm_from_address, to_address: r.evm_to_address,
-          value: r.evm_value, gas_price: r.evm_gas_price, nonce: r.evm_nonce
+          input_data: row.evm_input_data,
+          contract_address: row.evm_contract_address,
+          from_address: row.evm_from_address,
+          to_address: row.evm_to_address,
+          value: row.evm_value,
+          gas_price: row.evm_gas_price,
+          nonce: row.evm_nonce,
         };
-        if (r.evm_hash) evmExtra = await enrichEvmFromRpc(r.evm_hash, evmExtra);
-        return enrichTokenInfo(mapTx(r, r.evm_hash, evmExtra));
+        if (row.evm_hash) evmExtra = await enrichEvmFromRpc(row.evm_hash, evmExtra);
+        return mapTx(row, row.evm_hash, evmExtra);
       }));
+      const enrichedRows = await enrichTokenInfoBatch(baseRows);
 
       res.json({
         txs: enrichedRows,
-        total: parseInt(countResult[0]?.count ?? '0'),
+        total,
         limit,
         offset,
       });
@@ -1545,15 +1763,16 @@ export function explorerRouter(): Router {
       ]);
 
       const enrichedRows = await enrichEvmRows(rows);
-      const items = await Promise.all(enrichedRows.map((r) => enrichTokenInfo(mapTx(r, r.evm_hash, {
-        input_data: r.evm_input_data,
-        contract_address: r.evm_contract_address,
-        from_address: r.evm_from_address,
-        to_address: r.evm_to_address,
-        value: r.evm_value,
-        gas_price: r.evm_gas_price,
-        nonce: r.evm_nonce,
-      }))));
+      const mappedRows = enrichedRows.map((row) => mapTx(row, row.evm_hash, {
+        input_data: row.evm_input_data,
+        contract_address: row.evm_contract_address,
+        from_address: row.evm_from_address,
+        to_address: row.evm_to_address,
+        value: row.evm_value,
+        gas_price: row.evm_gas_price,
+        nonce: row.evm_nonce,
+      }));
+      const items = await enrichTokenInfoBatch(mappedRows);
       const total = parseInt(countRows[0]?.count ?? '0', 10);
 
       res.json({

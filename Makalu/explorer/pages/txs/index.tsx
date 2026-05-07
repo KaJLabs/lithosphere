@@ -28,9 +28,10 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(0);
 
   const offset = page * PAGE_SIZE;
+  const txPollInterval = page === 0 ? POLL_INTERVAL : undefined;
   const { data, loading } = useApi<ApiTxList>(
     `/txs?limit=${PAGE_SIZE}&offset=${offset}`,
-    { pollInterval: POLL_INTERVAL }
+    { pollInterval: txPollInterval }
   );
   const { data: stats } = useApi<StatsSummary>(
     '/stats/summary',

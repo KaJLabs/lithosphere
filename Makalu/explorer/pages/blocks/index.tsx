@@ -12,10 +12,11 @@ const ROWS_PER_PAGE = 25;
 export default function BlocksPage() {
   const [page, setPage] = useState(1);
   const offset = (page - 1) * ROWS_PER_PAGE;
+  const blockPollInterval = page === 1 ? POLL_INTERVAL : undefined;
 
   const { data: blocks, loading, error } = useApi<ApiBlock[]>(
     `/blocks?limit=${ROWS_PER_PAGE}&offset=${offset}`,
-    { pollInterval: POLL_INTERVAL },
+    { pollInterval: blockPollInterval },
   );
 
   const { data: stats } = useApi<StatsSummary>(

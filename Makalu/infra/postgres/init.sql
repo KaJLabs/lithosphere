@@ -55,10 +55,14 @@ CREATE TABLE IF NOT EXISTS transactions (
 
 CREATE INDEX IF NOT EXISTS idx_tx_hash ON transactions(hash);
 CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
+CREATE INDEX IF NOT EXISTS idx_tx_block_index ON transactions(block_height, tx_index);
 CREATE INDEX IF NOT EXISTS idx_tx_sender ON transactions(sender);
 CREATE INDEX IF NOT EXISTS idx_tx_receiver ON transactions(receiver);
 CREATE INDEX IF NOT EXISTS idx_tx_timestamp ON transactions(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_time_height ON transactions(timestamp DESC, block_height DESC);
 CREATE INDEX IF NOT EXISTS idx_tx_type ON transactions(tx_type);
+CREATE INDEX IF NOT EXISTS idx_tx_sender_lower ON transactions(LOWER(sender));
+CREATE INDEX IF NOT EXISTS idx_tx_receiver_lower ON transactions(LOWER(receiver));
 
 -- ============================================================================
 -- EVM TRANSACTIONS TABLE
@@ -86,9 +90,15 @@ CREATE TABLE IF NOT EXISTS evm_transactions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_evm_tx_hash ON evm_transactions(hash);
+CREATE INDEX IF NOT EXISTS idx_evm_tx_hash_lower ON evm_transactions(LOWER(hash));
+CREATE INDEX IF NOT EXISTS idx_evm_tx_cosmos_hash ON evm_transactions(cosmos_tx_hash);
+CREATE INDEX IF NOT EXISTS idx_evm_tx_cosmos_hash_lower ON evm_transactions(LOWER(cosmos_tx_hash));
 CREATE INDEX IF NOT EXISTS idx_evm_tx_from ON evm_transactions(from_address);
 CREATE INDEX IF NOT EXISTS idx_evm_tx_to ON evm_transactions(to_address);
+CREATE INDEX IF NOT EXISTS idx_evm_tx_from_lower ON evm_transactions(LOWER(from_address));
+CREATE INDEX IF NOT EXISTS idx_evm_tx_to_lower ON evm_transactions(LOWER(to_address));
 CREATE INDEX IF NOT EXISTS idx_evm_tx_contract ON evm_transactions(contract_address);
+CREATE INDEX IF NOT EXISTS idx_evm_tx_contract_lower ON evm_transactions(LOWER(contract_address));
 CREATE INDEX IF NOT EXISTS idx_evm_tx_block ON evm_transactions(block_height);
 
 -- ============================================================================
@@ -114,6 +124,8 @@ CREATE TABLE IF NOT EXISTS accounts (
 
 CREATE INDEX IF NOT EXISTS idx_accounts_evm ON accounts(evm_address);
 CREATE INDEX IF NOT EXISTS idx_accounts_balance ON accounts(balance);
+CREATE INDEX IF NOT EXISTS idx_accounts_address_lower ON accounts(LOWER(address));
+CREATE INDEX IF NOT EXISTS idx_accounts_evm_lower ON accounts(LOWER(evm_address));
 
 -- ============================================================================
 -- VALIDATORS TABLE
@@ -167,9 +179,13 @@ CREATE TABLE IF NOT EXISTS token_transfers (
 );
 
 CREATE INDEX IF NOT EXISTS idx_transfers_tx ON token_transfers(tx_hash);
+CREATE INDEX IF NOT EXISTS idx_transfers_tx_lower ON token_transfers(LOWER(tx_hash));
 CREATE INDEX IF NOT EXISTS idx_transfers_contract ON token_transfers(contract_address);
+CREATE INDEX IF NOT EXISTS idx_transfers_contract_lower ON token_transfers(LOWER(contract_address));
 CREATE INDEX IF NOT EXISTS idx_transfers_from ON token_transfers(from_address);
 CREATE INDEX IF NOT EXISTS idx_transfers_to ON token_transfers(to_address);
+CREATE INDEX IF NOT EXISTS idx_transfers_from_lower ON token_transfers(LOWER(from_address));
+CREATE INDEX IF NOT EXISTS idx_transfers_to_lower ON token_transfers(LOWER(to_address));
 CREATE INDEX IF NOT EXISTS idx_transfers_block ON token_transfers(block_height);
 -- Idempotency: prevent duplicate inserts when re-indexing the same tx/log pair
 DO $$
@@ -206,6 +222,7 @@ CREATE TABLE IF NOT EXISTS contracts (
 
 CREATE INDEX IF NOT EXISTS idx_contracts_creator ON contracts(creator);
 CREATE INDEX IF NOT EXISTS idx_contracts_type ON contracts(contract_type);
+CREATE INDEX IF NOT EXISTS idx_contracts_address_lower ON contracts(LOWER(address));
 
 -- ============================================================================
 -- PROPOSALS (GOVERNANCE)

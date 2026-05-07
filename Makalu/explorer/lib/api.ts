@@ -74,8 +74,23 @@ export function useApi<T>(
 
   useEffect(() => {
     if (!options?.pollInterval || !path) return;
-    const id = setInterval(doFetch, options.pollInterval);
-    return () => clearInterval(id);
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleNext = () => {
+      if (!active) return;
+      timer = setTimeout(async () => {
+        await doFetch();
+        scheduleNext();
+      }, options.pollInterval);
+    };
+
+    scheduleNext();
+
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+    };
   }, [doFetch, options?.pollInterval, path]);
 
   return { data, loading, error, refetch: doFetch };
