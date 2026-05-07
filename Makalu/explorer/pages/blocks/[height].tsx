@@ -35,13 +35,20 @@ function Row({ label, children, tooltip }: { label: string; children: React.Reac
   );
 }
 
+const BLOCK_TX_PAGE_SIZE = 25;
+
 export default function BlockDetailPage() {
   const router = useRouter();
-  const { height } = router.query;
+  const { height, page } = router.query;
+  const pageParam = Array.isArray(page) ? page[0] : page;
+  const requestedPage = Number.isFinite(Number(pageParam)) && Number(pageParam) > 0
+    ? Math.floor(Number(pageParam))
+    : 1;
+  const txOffset = (requestedPage - 1) * BLOCK_TX_PAGE_SIZE;
   const blockNum = Number(height);
 
   const { data: block, loading, error, refetch } = useApi<ApiBlock>(
-    height ? `/blocks/${height}` : null
+    height ? `/blocks/${height}?limit=${BLOCK_TX_PAGE_SIZE}&offset=${txOffset}` : null
   );
 
   const { data: stats } = useApi<StatsSummary>('/stats/summary');
@@ -133,6 +140,21 @@ export default function BlockDetailPage() {
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (loading) return <Loading lines={8} />;
   if (!block) return <ErrorState message="Block not found" />;
+
+  const blockTxs = block.txs ?? [];
+  const txPageLimit = block.txLimit ?? BLOCK_TX_PAGE_SIZE;
+  const txPageOffset = block.txOffset ?? txOffset;
+  const totalTxPages = Math.max(1, Math.ceil(block.txCount / txPageLimit));
+  const currentTxPage = Math.min(totalTxPages, Math.floor(txPageOffset / txPageLimit) + 1);
+  const txStart = block.txCount === 0 ? 0 : txPageOffset + 1;
+  const txEnd = Math.min(txPageOffset + blockTxs.length, block.txCount);
+
+  const blockPageHref = (targetPage: number) => {
+    const normalizedPage = Math.max(1, Math.min(totalTxPages, targetPage));
+    return normalizedPage === 1
+      ? `/blocks/${block.height}#transactions`
+      : `/blocks/${block.height}?page=${normalizedPage}#transactions`;
+  };
 
   return (
     <>
@@ -275,16 +297,65 @@ export default function BlockDetailPage() {
         )}
 
         {/* Transactions Table */}
-        {block.txs && block.txs.length > 0 ? (
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <h2 className="text-lg font-semibold mb-4">
-              Transactions ({block.txs.length})
-            </h2>
+        {blockTxs.length > 0 ? (
+          <div id="transactions" className="rounded-3xl border border-white/10 bg-white/5 p-6">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">
+                  Transactions ({formatNumber(block.txCount)})
+                </h2>
+                <div className="mt-1 text-sm text-white/40">
+                  Showing {formatNumber(txStart)} to {formatNumber(txEnd)} of {formatNumber(block.txCount)}
+                </div>
+              </div>
+              {totalTxPages > 1 && (
+                <div className="text-sm text-white/40">
+                  Page {formatNumber(currentTxPage)} of {formatNumber(totalTxPages)}
+                </div>
+              )}
+            </div>
             <DataTable
               columns={txColumns}
-              data={block.txs}
+              data={blockTxs}
               rowKey={(tx) => getPreferredTxHash(tx) ?? `${tx.blockHeight}-${tx.fromAddr}-${tx.toAddr ?? 'none'}-${tx.timestamp ?? 'unknown'}`}
             />
+            {totalTxPages > 1 && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm text-white/40">
+                  Page {formatNumber(currentTxPage)} of {formatNumber(totalTxPages)}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={blockPageHref(1)}
+                    className={`rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 ${currentTxPage === 1 ? 'pointer-events-none opacity-30' : ''}`}
+                    aria-disabled={currentTxPage === 1}
+                  >
+                    First
+                  </Link>
+                  <Link
+                    href={blockPageHref(currentTxPage - 1)}
+                    className={`rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 ${currentTxPage === 1 ? 'pointer-events-none opacity-30' : ''}`}
+                    aria-disabled={currentTxPage === 1}
+                  >
+                    Previous
+                  </Link>
+                  <Link
+                    href={blockPageHref(currentTxPage + 1)}
+                    className={`rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 ${currentTxPage >= totalTxPages ? 'pointer-events-none opacity-30' : ''}`}
+                    aria-disabled={currentTxPage >= totalTxPages}
+                  >
+                    Next
+                  </Link>
+                  <Link
+                    href={blockPageHref(totalTxPages)}
+                    className={`rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 ${currentTxPage >= totalTxPages ? 'pointer-events-none opacity-30' : ''}`}
+                    aria-disabled={currentTxPage >= totalTxPages}
+                  >
+                    Last
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-white/40">

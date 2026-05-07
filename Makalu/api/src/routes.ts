@@ -810,13 +810,20 @@ function mapBlock(r: BlockRow) {
   };
 }
 
-function mapBlockDetail(r: BlockRow, txs: Array<TxRow & { evm_hash?: string | null; evm_input_data?: string | null; evm_contract_address?: string | null; evm_from_address?: string | null; evm_to_address?: string | null; evm_value?: string | null; evm_gas_price?: string | null; evm_nonce?: number | null }>) {
+function mapBlockDetail(
+  r: BlockRow,
+  txs: Array<TxRow & { evm_hash?: string | null; evm_input_data?: string | null; evm_contract_address?: string | null; evm_from_address?: string | null; evm_to_address?: string | null; evm_value?: string | null; evm_gas_price?: string | null; evm_nonce?: number | null }>,
+  options?: { txOffset?: number; txLimit?: number; txHasMore?: boolean },
+) {
   return {
     ...mapBlock(r),
     parentHash: null,
     proposerAddress: r.proposer_address ?? null,
     gasUsed: r.total_gas ?? '0',
     txs: txs.map((t) => mapTx(t, t.evm_hash, { input_data: t.evm_input_data, contract_address: t.evm_contract_address, from_address: t.evm_from_address, to_address: t.evm_to_address, value: t.evm_value, gas_price: t.evm_gas_price, nonce: t.evm_nonce })),
+    txOffset: options?.txOffset ?? 0,
+    txLimit: options?.txLimit ?? txs.length,
+    txHasMore: options?.txHasMore ?? false,
   };
 }
 
@@ -1082,6 +1089,7 @@ export function explorerRouter(): Router {
   r.get('/blocks/:height', async (req: Request, res: Response) => {
     try {
       const { height } = req.params;
+      const limit = clamp(req.query.limit, DEFAULT_LIMIT);
       const blocks = await query<BlockRow>(
         'SELECT * FROM blocks WHERE height = $1',
         [height]
@@ -1090,16 +1098,25 @@ export function explorerRouter(): Router {
         res.status(404).json({ message: 'Block not found' });
         return;
       }
+      const totalTxs = Number(blocks[0].num_txs ?? 0);
+      const requestedOffset = resolveOffset(req.query, limit);
+      const maxOffset = totalTxs > 0 ? Math.floor((totalTxs - 1) / limit) * limit : 0;
+      const offset = Math.min(requestedOffset, maxOffset);
       const txs = await query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null; evm_value: string | null; evm_gas_price: string | null; evm_nonce: number | null }>(
         `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.nonce AS evm_nonce
          FROM transactions t
          LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
          WHERE t.block_height = $1
-         ORDER BY t.tx_index ASC`,
-        [height]
+         ORDER BY t.tx_index ASC
+         LIMIT $2 OFFSET $3`,
+        [height, limit, offset]
       );
       const enrichedTxs = await enrichEvmRows(txs);
-      const detail = mapBlockDetail(blocks[0], enrichedTxs);
+      const detail = mapBlockDetail(blocks[0], enrichedTxs, {
+        txOffset: offset,
+        txLimit: limit,
+        txHasMore: offset + enrichedTxs.length < totalTxs,
+      });
 
       // Block #1 is genesis. Surface chain_id / genesis_time from indexer_state
       // so the explorer can render a Genesis Information panel — block headers

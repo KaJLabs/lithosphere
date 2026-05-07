@@ -249,10 +249,10 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
           <SyncStatusBanner stats={stats} className="mt-6" />
 
           {/* Blocks + Transactions */}
-          <section className="mt-8 grid w-full min-w-0 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <section className="mt-8 grid w-full min-w-0 gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
             {/* Latest Blocks */}
             <div className="min-w-0 rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
-              <div className="mb-5 flex items-center justify-between gap-3">
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-sm text-white/55">
                     {isSyncing ? 'Indexed Network Activity' : 'Live Network Activity'}
@@ -316,7 +316,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
 
             {/* Latest Transactions */}
             <div className="min-w-0 rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
-              <div className="mb-5 flex items-center justify-between gap-3">
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-sm text-white/55">
                     {isSyncing ? 'Indexed Feed' : 'Realtime Feed'}
@@ -344,43 +344,63 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                     ))
                   : txs.map((tx) => {
                       const txHash = getPreferredTxHash(tx);
+                      const methodLabel = tx.methodName ?? (tx.txType === 'call' ? 'Call' : tx.txType === 'create' ? 'Create' : 'Transfer');
                       const txKey = txHash ?? `${tx.blockHeight}-${tx.fromAddr}-${tx.toAddr ?? 'none'}-${tx.timestamp ?? 'unknown'}`;
+
                       return (
                       <div
                         key={txKey}
-                        className="rounded-2xl border border-white/10 bg-black/25 p-4"
+                        className="rounded-2xl border border-white/10 bg-black/25 p-4 sm:p-5"
                       >
-                        <div className="flex min-w-0 items-center justify-between gap-3">
-                          {txHash ? (
-                            <Link
-                              href={`/txs/${txHash}`}
-                              className="min-w-0 truncate font-mono font-medium hover:text-emerald-300 transition"
-                            >
-                              {truncateHash(txHash)}
-                            </Link>
-                          ) : (
-                            <span className="font-mono font-medium text-white/30">Unavailable</span>
-                          )}
-                          <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/70 truncate max-w-[120px]" title={tx.methodName ?? tx.txType ?? 'Transfer'}>
-                            {tx.methodName ?? (tx.txType === 'call' ? 'Call' : tx.txType === 'create' ? 'Create' : 'Transfer')}
+                        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            {txHash ? (
+                              <Link
+                                href={`/txs/${txHash}`}
+                                className="block truncate font-mono text-sm font-medium text-emerald-300 transition hover:text-emerald-200 sm:text-[15px]"
+                                title={txHash}
+                              >
+                                {truncateHash(txHash)}
+                              </Link>
+                            ) : (
+                              <span className="block font-mono font-medium text-white/30">Unavailable</span>
+                            )}
+                            <div className="mt-1 text-xs text-white/40">
+                              Block #{formatNumber(tx.blockHeight)}
+                            </div>
+                          </div>
+                          <span className="inline-flex max-w-full shrink-0 items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/70" title={methodLabel}>
+                            <span className="truncate">{methodLabel}</span>
                           </span>
                         </div>
-                        <div className="mt-3 grid gap-2 text-sm text-white/65 sm:grid-cols-3">
-                          <div>
-                            From:{' '}
-                            <span className="text-white font-mono">
+                        <div className="mt-4 grid gap-3 text-sm text-white/65">
+                          <div className="min-w-0 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">From</div>
+                            <Link
+                              href={`/address/${tx.fromAddr}`}
+                              className="mt-1 block truncate font-mono text-sm text-white/80 transition hover:text-white"
+                              title={tx.fromAddr}
+                            >
                               {truncateHash(tx.fromAddr)}
-                            </span>
+                            </Link>
                           </div>
-                          <div>
-                            To:{' '}
-                            <span className="text-white font-mono">
-                              {tx.toAddr ? truncateHash(tx.toAddr) : '—'}
-                            </span>
+                          <div className="min-w-0 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">To</div>
+                            {tx.toAddr ? (
+                              <Link
+                                href={`/address/${tx.toAddr}`}
+                                className="mt-1 block truncate font-mono text-sm text-white/80 transition hover:text-white"
+                                title={tx.toAddr}
+                              >
+                                {truncateHash(tx.toAddr)}
+                              </Link>
+                            ) : (
+                              <span className="mt-1 block text-sm text-white/35">--</span>
+                            )}
                           </div>
-                          <div>
-                            Value:{' '}
-                            <span className="text-white">
+                          <div className="min-w-0 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">Value</div>
+                            <div className="mt-1 min-w-0 text-sm text-white/90">
                               <FormattedValueElement
                                 formattedStr={tx.tokenTransferAmount
                                   ? (tx.tokenSymbol
@@ -389,7 +409,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                                   : formatValue(tx.value, tx.denom)}
                                 tokenAddress={tx.contractAddress}
                               />
-                            </span>
+                            </div>
                           </div>
                         </div>
                       </div>

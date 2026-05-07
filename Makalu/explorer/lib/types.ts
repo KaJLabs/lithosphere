@@ -30,6 +30,9 @@ export interface ApiBlock {
   timestamp: string;
   txCount: number;
   txs?: ApiTx[];
+  txOffset?: number;
+  txLimit?: number;
+  txHasMore?: boolean;
   // Genesis-only fields (populated only for block #1)
   chainId?: string;
   genesisTime?: string;
