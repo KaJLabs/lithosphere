@@ -249,7 +249,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
           <SyncStatusBanner stats={stats} className="mt-6" />
 
           {/* Blocks + Transactions */}
-          <section className="mt-8 grid w-full min-w-0 gap-6 2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <section className="mt-8 grid w-full min-w-0 gap-6 2xl:mx-auto 2xl:max-w-[1560px] 2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
             {/* Latest Blocks */}
             <div className="min-w-0 rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
               <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -281,9 +281,9 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                   : (Array.isArray(blocks) ? blocks : []).map((block) => (
                       <div
                         key={block.height}
-                        className="grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:items-center"
+                        className="grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 xl:grid-cols-[minmax(0,18rem)_minmax(0,22.5rem)] xl:justify-between xl:gap-6 xl:items-center"
                       >
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(4.75rem,0.45fr)]">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(4.75rem,0.45fr)] xl:max-w-[18rem]">
                           <div className="min-w-0">
                             <div className="text-xs text-white/45">Height</div>
                             <Link
@@ -295,7 +295,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                           </div>
                           <div className="min-w-0">
                             <div className="text-xs text-white/45">Age</div>
-                            <div className="mt-1 font-medium tabular-nums">{timeAgo(block.timestamp)}</div>
+                            <div className="mt-1 whitespace-nowrap font-medium tabular-nums">{timeAgo(block.timestamp)}</div>
                           </div>
                           <div className="min-w-0 sm:justify-self-start">
                             <div className="text-xs text-white/45">
@@ -305,7 +305,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                             <div className="mt-1 font-medium tabular-nums">{block.txCount}</div>
                           </div>
                         </div>
-                        <div className="min-w-0 rounded-xl bg-white/[0.03] px-3 py-2.5">
+                        <div className="min-w-0 rounded-xl bg-white/[0.03] px-3 py-2.5 xl:w-full xl:max-w-[22.5rem] xl:justify-self-end">
                           <div className="text-xs text-white/45">Hash</div>
                           <div
                             className="mt-1 truncate font-mono text-xs text-white/70 sm:text-sm"
@@ -381,7 +381,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                             <span className="truncate">{methodLabel}</span>
                           </span>
                         </div>
-                        <div className="mt-4 grid gap-x-6 gap-y-4 text-sm text-white/65 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)] xl:items-end">
+                        <div className="mt-4 grid gap-x-6 gap-y-4 text-sm text-white/65 sm:grid-cols-2 xl:grid-cols-[minmax(0,14rem)_minmax(0,14rem)_max-content] xl:justify-between xl:gap-x-8 xl:items-end 2xl:grid-cols-[minmax(0,15rem)_minmax(0,15rem)_max-content]">
                           <div className="min-w-0">
                             <div className="text-sm font-medium text-white/55">From:</div>
                             <Link
@@ -406,7 +406,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                               <span className="mt-1 block text-sm text-white/35">--</span>
                             )}
                           </div>
-                          <div className="min-w-0 sm:col-span-2 xl:col-span-1 xl:text-right">
+                          <div className="min-w-0 sm:col-span-2 xl:col-span-1 xl:min-w-[9rem] xl:text-right">
                             <div className="text-sm font-medium text-white/55">Value:</div>
                             <div className="mt-1 min-w-0 text-[15px] text-white/90 sm:text-base">
                               <FormattedValueElement
