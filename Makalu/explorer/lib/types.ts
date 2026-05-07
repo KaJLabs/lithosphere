@@ -29,6 +29,7 @@ export interface ApiBlock {
   gasUsed?: string;
   timestamp: string;
   txCount: number;
+  txFilteredCount?: number;
   txs?: ApiTx[];
   txOffset?: number;
   txLimit?: number;

@@ -249,7 +249,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
           <SyncStatusBanner stats={stats} className="mt-6" />
 
           {/* Blocks + Transactions */}
-          <section className="mt-8 grid w-full min-w-0 gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <section className="mt-8 grid w-full min-w-0 gap-6 2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
             {/* Latest Blocks */}
             <div className="min-w-0 rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
               <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -281,9 +281,9 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                   : (Array.isArray(blocks) ? blocks : []).map((block) => (
                       <div
                         key={block.height}
-                        className="grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-center"
+                        className="grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:items-center"
                       >
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)_minmax(5rem,0.55fr)]">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(4.75rem,0.45fr)]">
                           <div className="min-w-0">
                             <div className="text-xs text-white/45">Height</div>
                             <Link
@@ -381,35 +381,34 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                             <span className="truncate">{methodLabel}</span>
                           </span>
                         </div>
-                        <div className="mt-4 grid gap-4 text-sm text-white/65 sm:grid-cols-2">
+                        <div className="mt-4 grid gap-x-6 gap-y-4 text-sm text-white/65 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)] xl:items-end">
                           <div className="min-w-0">
-                            <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">From</div>
+                            <div className="text-sm font-medium text-white/55">From:</div>
                             <Link
                               href={`/address/${tx.fromAddr}`}
                               className="mt-1 block truncate font-mono text-[15px] text-white/85 transition hover:text-white sm:text-base"
                               title={tx.fromAddr}
                             >
-                              {truncateHash(tx.fromAddr, 10, 6)}
+                              {truncateHash(tx.fromAddr, 11, 6)}
                             </Link>
                           </div>
                           <div className="min-w-0">
-                            <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">To</div>
+                            <div className="text-sm font-medium text-white/55">To:</div>
                             {tx.toAddr ? (
                               <Link
                                 href={`/address/${tx.toAddr}`}
                                 className="mt-1 block truncate font-mono text-[15px] text-white/85 transition hover:text-white sm:text-base"
                                 title={tx.toAddr}
                               >
-                                {truncateHash(tx.toAddr, 10, 6)}
+                                {truncateHash(tx.toAddr, 11, 6)}
                               </Link>
                             ) : (
                               <span className="mt-1 block text-sm text-white/35">--</span>
                             )}
                           </div>
-                          <div className="min-w-0 border-t border-white/8 pt-3 sm:col-span-2">
-                            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                              <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">Value</div>
-                              <div className="min-w-0 text-[15px] text-white/90 sm:text-base sm:text-right">
+                          <div className="min-w-0 sm:col-span-2 xl:col-span-1 xl:text-right">
+                            <div className="text-sm font-medium text-white/55">Value:</div>
+                            <div className="mt-1 min-w-0 text-[15px] text-white/90 sm:text-base">
                               <FormattedValueElement
                                 formattedStr={tx.tokenTransferAmount
                                   ? (tx.tokenSymbol
@@ -418,7 +417,6 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                                   : formatValue(tx.value, tx.denom)}
                                 tokenAddress={tx.contractAddress}
                               />
-                              </div>
                             </div>
                           </div>
                         </div>

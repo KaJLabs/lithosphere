@@ -965,7 +965,7 @@ function mapBlock(r: BlockRow) {
 function mapBlockDetail(
   r: BlockRow,
   txs: Array<TxRow & { evm_hash?: string | null; evm_input_data?: string | null; evm_contract_address?: string | null; evm_from_address?: string | null; evm_to_address?: string | null; evm_value?: string | null; evm_gas_price?: string | null; evm_nonce?: number | null }>,
-  options?: { txOffset?: number; txLimit?: number; txHasMore?: boolean },
+  options?: { txOffset?: number; txLimit?: number; txHasMore?: boolean; txFilteredCount?: number },
 ) {
   return {
     ...mapBlock(r),
@@ -973,6 +973,7 @@ function mapBlockDetail(
     proposerAddress: r.proposer_address ?? null,
     gasUsed: r.total_gas ?? '0',
     txs: txs.map((t) => mapTx(t, t.evm_hash, { input_data: t.evm_input_data, contract_address: t.evm_contract_address, from_address: t.evm_from_address, to_address: t.evm_to_address, value: t.evm_value, gas_price: t.evm_gas_price, nonce: t.evm_nonce })),
+    txFilteredCount: options?.txFilteredCount ?? Number(r.num_txs ?? 0),
     txOffset: options?.txOffset ?? 0,
     txLimit: options?.txLimit ?? txs.length,
     txHasMore: options?.txHasMore ?? false,
@@ -1302,6 +1303,13 @@ export function explorerRouter(): Router {
     try {
       const { height } = req.params;
       const limit = clamp(req.query.limit, DEFAULT_LIMIT);
+      const rawSearch = typeof req.query.q === 'string' ? req.query.q.trim().toLowerCase() : '';
+      const rawStatus = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : '';
+      const rawType = typeof req.query.type === 'string' ? req.query.type.trim().toLowerCase() : '';
+      const statusFilter = rawStatus === 'success' ? true : rawStatus === 'failed' ? false : null;
+      const typeFilter = rawType === 'transfer' || rawType === 'call' || rawType === 'create'
+        ? rawType
+        : null;
       const blocks = await query<BlockRow>(
         'SELECT * FROM blocks WHERE height = $1',
         [height]
@@ -1311,23 +1319,70 @@ export function explorerRouter(): Router {
         return;
       }
       const totalTxs = Number(blocks[0].num_txs ?? 0);
+      const whereClauses = ['t.block_height = $1'];
+      const filterParams: unknown[] = [height];
+
+      if (rawSearch) {
+        filterParams.push(`%${rawSearch}%`);
+        const searchIdx = filterParams.length;
+        whereClauses.push(`(
+          LOWER(t.hash) LIKE $${searchIdx}
+          OR LOWER(COALESCE(e.hash, '')) LIKE $${searchIdx}
+          OR LOWER(COALESCE(t.sender, '')) LIKE $${searchIdx}
+          OR LOWER(COALESCE(t.receiver, '')) LIKE $${searchIdx}
+          OR LOWER(COALESCE(e.from_address, '')) LIKE $${searchIdx}
+          OR LOWER(COALESCE(e.to_address, '')) LIKE $${searchIdx}
+          OR LOWER(COALESCE(t.memo, '')) LIKE $${searchIdx}
+        )`);
+      }
+
+      if (statusFilter !== null) {
+        filterParams.push(statusFilter);
+        whereClauses.push(`t.success = $${filterParams.length}`);
+      }
+
+      if (typeFilter) {
+        filterParams.push(typeFilter);
+        whereClauses.push(`(
+          CASE
+            WHEN (COALESCE(e.to_address, '') = '' AND COALESCE(e.contract_address, '') <> '') THEN 'create'
+            WHEN (COALESCE(e.input_data, '') <> '' AND e.input_data <> '0x' AND LENGTH(e.input_data) > 2) THEN 'call'
+            ELSE 'transfer'
+          END
+        ) = $${filterParams.length}`);
+      }
+
+      const filtersActive = Boolean(rawSearch) || statusFilter !== null || Boolean(typeFilter);
+      const filteredTxs = filtersActive
+        ? await query<CountRow>(
+            `SELECT COUNT(*) AS count
+             FROM transactions t
+             LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
+             WHERE ${whereClauses.join(' AND ')}`,
+            filterParams
+          )
+        : null;
+      const filteredTxCount = filtersActive
+        ? parseInt(filteredTxs?.[0]?.count ?? '0', 10)
+        : totalTxs;
       const requestedOffset = resolveOffset(req.query, limit);
-      const maxOffset = totalTxs > 0 ? Math.floor((totalTxs - 1) / limit) * limit : 0;
+      const maxOffset = filteredTxCount > 0 ? Math.floor((filteredTxCount - 1) / limit) * limit : 0;
       const offset = Math.min(requestedOffset, maxOffset);
       const txs = await query<TxRow & { evm_hash: string | null; evm_input_data: string | null; evm_contract_address: string | null; evm_from_address: string | null; evm_to_address: string | null; evm_value: string | null; evm_gas_price: string | null; evm_nonce: number | null }>(
         `SELECT t.*, e.hash AS evm_hash, e.input_data AS evm_input_data, e.contract_address AS evm_contract_address, e.from_address AS evm_from_address, e.to_address AS evm_to_address, e.value AS evm_value, e.gas_price AS evm_gas_price, e.nonce AS evm_nonce
          FROM transactions t
          LEFT JOIN evm_transactions e ON e.cosmos_tx_hash = t.hash
-         WHERE t.block_height = $1
+         WHERE ${whereClauses.join(' AND ')}
          ORDER BY t.tx_index ASC
-         LIMIT $2 OFFSET $3`,
-        [height, limit, offset]
+         LIMIT $${filterParams.length + 1} OFFSET $${filterParams.length + 2}`,
+        [...filterParams, limit, offset]
       );
       const enrichedTxs = await enrichEvmRows(txs);
       const detail = mapBlockDetail(blocks[0], enrichedTxs, {
         txOffset: offset,
         txLimit: limit,
-        txHasMore: offset + enrichedTxs.length < totalTxs,
+        txHasMore: offset + enrichedTxs.length < filteredTxCount,
+        txFilteredCount: filteredTxCount,
       });
 
       // Block #1 is genesis. Surface chain_id / genesis_time from indexer_state
