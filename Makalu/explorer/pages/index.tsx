@@ -281,32 +281,37 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                   : (Array.isArray(blocks) ? blocks : []).map((block) => (
                       <div
                         key={block.height}
-                        className="grid gap-x-4 gap-y-3 rounded-2xl border border-white/10 bg-black/25 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,1fr)] lg:items-center"
+                        className="grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-center"
                       >
-                        <div className="min-w-0">
-                          <div className="text-xs text-white/45">Height</div>
-                          <Link
-                            href={`/blocks/${block.height}`}
-                            className="mt-1 block font-medium hover:text-emerald-300 transition"
-                          >
-                            #{formatNumber(block.height)}
-                          </Link>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)_minmax(5rem,0.55fr)]">
+                          <div className="min-w-0">
+                            <div className="text-xs text-white/45">Height</div>
+                            <Link
+                              href={`/blocks/${block.height}`}
+                              className="mt-1 block font-medium tabular-nums hover:text-emerald-300 transition"
+                            >
+                              #{formatNumber(block.height)}
+                            </Link>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs text-white/45">Age</div>
+                            <div className="mt-1 font-medium tabular-nums">{timeAgo(block.timestamp)}</div>
+                          </div>
+                          <div className="min-w-0 sm:justify-self-start">
+                            <div className="text-xs text-white/45">
+                              <span className="sm:hidden">Txns</span>
+                              <span className="hidden sm:inline">Transactions</span>
+                            </div>
+                            <div className="mt-1 font-medium tabular-nums">{block.txCount}</div>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <div className="text-xs text-white/45">Age</div>
-                          <div className="mt-1 font-medium">{timeAgo(block.timestamp)}</div>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs text-white/45">Transactions</div>
-                          <div className="mt-1 font-medium">{block.txCount}</div>
-                        </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
                           <div className="text-xs text-white/45">Hash</div>
                           <div
                             className="mt-1 truncate font-mono text-xs text-white/70 sm:text-sm"
                             title={block.hash ?? undefined}
                           >
-                            {block.hash ? truncateHash(block.hash) : '—'}
+                            {block.hash ? truncateHash(block.hash, 11, 7) : '—'}
                           </div>
                         </div>
                       </div>
@@ -365,15 +370,18 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                             ) : (
                               <span className="block font-mono font-medium text-white/30">Unavailable</span>
                             )}
-                            <div className="mt-1 text-xs text-white/40">
-                              Block #{formatNumber(tx.blockHeight)}
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/40">
+                              <span className="tabular-nums">Block #{formatNumber(tx.blockHeight)}</span>
+                              {tx.timestamp && (
+                                <span className="tabular-nums">{timeAgo(tx.timestamp)}</span>
+                              )}
                             </div>
                           </div>
                           <span className="inline-flex max-w-full shrink-0 items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/70" title={methodLabel}>
                             <span className="truncate">{methodLabel}</span>
                           </span>
                         </div>
-                        <div className="mt-4 grid gap-3 text-sm text-white/65">
+                        <div className="mt-3 grid gap-3 text-sm text-white/65 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.85fr)]">
                           <div className="min-w-0 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
                             <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">From</div>
                             <Link
@@ -381,7 +389,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                               className="mt-1 block truncate font-mono text-sm text-white/80 transition hover:text-white"
                               title={tx.fromAddr}
                             >
-                              {truncateHash(tx.fromAddr)}
+                              {truncateHash(tx.fromAddr, 11, 6)}
                             </Link>
                           </div>
                           <div className="min-w-0 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
@@ -392,13 +400,13 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                                 className="mt-1 block truncate font-mono text-sm text-white/80 transition hover:text-white"
                                 title={tx.toAddr}
                               >
-                                {truncateHash(tx.toAddr)}
+                                {truncateHash(tx.toAddr, 11, 6)}
                               </Link>
                             ) : (
                               <span className="mt-1 block text-sm text-white/35">--</span>
                             )}
                           </div>
-                          <div className="min-w-0 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                          <div className="min-w-0 rounded-2xl border border-white/8 bg-white/[0.03] p-3 sm:col-span-2 xl:col-span-1">
                             <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">Value</div>
                             <div className="mt-1 min-w-0 text-sm text-white/90">
                               <FormattedValueElement
