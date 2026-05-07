@@ -305,7 +305,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                             <div className="mt-1 font-medium tabular-nums">{block.txCount}</div>
                           </div>
                         </div>
-                        <div className="min-w-0 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+                        <div className="min-w-0 rounded-xl bg-white/[0.03] px-3 py-2.5">
                           <div className="text-xs text-white/45">Hash</div>
                           <div
                             className="mt-1 truncate font-mono text-xs text-white/70 sm:text-sm"
@@ -381,9 +381,9 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                             <span className="truncate">{methodLabel}</span>
                           </span>
                         </div>
-                        <div className="mt-4 flex flex-col gap-4 text-sm text-white/65 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-6">
-                          <div className="min-w-0 sm:min-w-[12rem] sm:flex-1">
-                            <div className="text-sm font-medium text-white/55">From:</div>
+                        <div className="mt-4 grid gap-4 text-sm text-white/65 sm:grid-cols-2">
+                          <div className="min-w-0">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">From</div>
                             <Link
                               href={`/address/${tx.fromAddr}`}
                               className="mt-1 block truncate font-mono text-[15px] text-white/85 transition hover:text-white sm:text-base"
@@ -392,8 +392,8 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                               {truncateHash(tx.fromAddr, 10, 6)}
                             </Link>
                           </div>
-                          <div className="min-w-0 sm:min-w-[12rem] sm:flex-1">
-                            <div className="text-sm font-medium text-white/55">To:</div>
+                          <div className="min-w-0">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">To</div>
                             {tx.toAddr ? (
                               <Link
                                 href={`/address/${tx.toAddr}`}
@@ -406,9 +406,10 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                               <span className="mt-1 block text-sm text-white/35">--</span>
                             )}
                           </div>
-                          <div className="min-w-0 sm:ml-auto sm:min-w-[10rem] sm:text-right">
-                            <div className="text-sm font-medium text-white/55">Value:</div>
-                            <div className="mt-1 min-w-0 text-[15px] text-white/90 sm:text-base">
+                          <div className="min-w-0 border-t border-white/8 pt-3 sm:col-span-2">
+                            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                              <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">Value</div>
+                              <div className="min-w-0 text-[15px] text-white/90 sm:text-base sm:text-right">
                               <FormattedValueElement
                                 formattedStr={tx.tokenTransferAmount
                                   ? (tx.tokenSymbol
@@ -417,6 +418,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                                   : formatValue(tx.value, tx.denom)}
                                 tokenAddress={tx.contractAddress}
                               />
+                              </div>
                             </div>
                           </div>
                         </div>
