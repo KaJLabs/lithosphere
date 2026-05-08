@@ -80,7 +80,7 @@ Lithosphere uses LinBFT (Linear-communication BFT), a Proof of Stake consensus a
 
 ### What is the block time?
 
-Lithosphere achieves approximately 3-second average block times.
+Lithosphere achieves approximately 525ms average block times (timeout_commit = 500ms).
 
 ### Is Lithosphere compatible with other blockchains?
 
