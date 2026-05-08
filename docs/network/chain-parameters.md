@@ -43,7 +43,7 @@ Lithosphere is built on the following technology stack:
 | **Virtual Machine** | LithoVM (EVM-compatible) |
 | **Chain ID** | `lithosphere_700777-1` |
 | **EVM Chain ID** | `700777` |
-| **Block Time** | ~3 seconds |
+| **Block Time** | ~525ms (timeout_commit 500ms) |
 
 The Cosmos-SDK foundation provides modular architecture and proven interoperability primitives, while CometBFT handles networking and consensus. LithoVM delivers full EVM compatibility, allowing developers to deploy Solidity smart contracts and use familiar Ethereum tooling.
 
@@ -78,7 +78,7 @@ A machine-readable JSON configuration bundle is available at [`network-parameter
 | EVM Chain ID | `700777` (hex: `0xab169`) |
 | Bech32 Prefix | `litho` |
 | Native Denom | `ulitho` (display: `LITHO`, 18 decimals) |
-| Block Time | ~3 seconds |
+| Block Time | ~525ms (timeout_commit 500ms) |
 | Max Block Size | 21 MB |
 | Max Gas per Block | 100,000,000 |
 | Consensus | CometBFT (LinBFT) |
