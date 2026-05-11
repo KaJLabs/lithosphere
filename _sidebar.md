@@ -53,3 +53,9 @@
   - [Post-Incident Review Template](docs/governance/pir-template.md)
   - [Key Rotation Runbook](docs/governance/key-rotation-runbook.md)
   - [Release Process](docs/governance/release-process.md)
+
+- **Phase Completions**
+  - [Overview](docs/phases/README.md)
+  - [Phase 6 — Test Strategy](docs/phases/phase-6-completion.md)
+  - [Phase 7 — Contract Tooling](docs/phases/phase-7-completion.md)
+  - [Phase 8 — SDKs & DX Portal](docs/phases/phase-8-completion.md)
