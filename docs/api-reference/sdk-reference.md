@@ -189,6 +189,12 @@ Three exports cover the contracts that ship with Lithosphere:
 import { LEP100_ABI, WLITHO_ABI, LITHONATIVE_ABI } from '@lithosphere/sdk';
 ```
 
+A machine-readable copy of the api's GraphQL schema is checked in at
+[`schema.graphql`](./schema.graphql) — drop it into your GraphQL client
+of choice for typed access. CI's `Schema Sync Check` job re-prints
+`src/schema.ts` and fails if the artifact drifts, so the committed file
+is always a faithful representation of what `/graphql` actually serves.
+
 These are JSON ABIs vendored at `Makalu/packages/blockchain-core/src/abis/`.
 The contract artifacts in `Makalu/contracts/artifacts/` are the source of
 truth — drift between the two is blocked at CI time by the `abi-sync-check`

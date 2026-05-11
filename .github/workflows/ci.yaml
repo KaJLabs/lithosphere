@@ -387,3 +387,36 @@ jobs:
 
       - name: Run license policy check
         run: node scripts/check-licenses.mjs
+
+  # ─────────────────────────────────────────────────────────────────────
+  # GraphQL Schema Drift Gate — fail if docs/api-reference/schema.graphql
+  # doesn't match what re-printing src/schema.ts produces. Prevents
+  # shipping an api whose machine-readable schema is silently stale.
+  # ─────────────────────────────────────────────────────────────────────
+  schema-sync-check:
+    name: Schema Sync Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ./Makalu/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: Makalu/pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        working-directory: ./Makalu
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify GraphQL schema is in sync
+        run: pnpm run verify-schema-in-sync

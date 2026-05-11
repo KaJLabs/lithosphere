@@ -1,0 +1,210 @@
+type PageInfo {
+  total: Int!
+  limit: Int!
+  offset: Int!
+  hasMore: Boolean!
+}
+
+type Block {
+  height: String!
+  hash: String!
+  proposerAddress: String
+  numTxs: Int!
+  totalGas: String!
+  blockTime: String!
+  transactions: [Transaction!]!
+}
+
+type BlocksResult {
+  items: [Block!]!
+  pageInfo: PageInfo!
+}
+
+type Transaction {
+  id: String!
+  hash: String!
+  blockHeight: String!
+  txIndex: Int
+  txType: String
+  sender: String
+  receiver: String
+  amount: String
+  denom: String
+  gasUsed: String
+  gasWanted: String
+  fee: String
+  feeDenom: String
+  success: Boolean!
+  memo: String
+  rawLog: String
+  timestamp: String!
+}
+
+type TransactionsResult {
+  items: [Transaction!]!
+  pageInfo: PageInfo!
+}
+
+type EvmTransaction {
+  id: String!
+  hash: String!
+  cosmosTxHash: String
+  blockHeight: String!
+  txIndex: Int
+  fromAddress: String!
+  toAddress: String
+  value: String
+  gasPrice: String
+  gasLimit: String
+  gasUsed: String
+  nonce: String
+  inputData: String
+  contractAddress: String
+  status: Boolean!
+  timestamp: String!
+}
+
+type EvmTransactionsResult {
+  items: [EvmTransaction!]!
+  pageInfo: PageInfo!
+}
+
+type Account {
+  address: String!
+  evmAddress: String
+  balance: String!
+  sequence: String!
+  accountNumber: String
+  accountType: String
+  firstSeenBlock: String
+  lastSeenBlock: String
+  txCount: String!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type Validator {
+  operatorAddress: String!
+  consensusAddress: String
+  moniker: String
+  identity: String
+  website: String
+  details: String
+  commissionRate: String
+  commissionMaxRate: String
+  tokens: String!
+  delegatorShares: String!
+  status: Int!
+  jailed: Boolean!
+  uptimePercentage: Float
+  missedBlocksCounter: String!
+  updatedAt: String!
+}
+
+type Contract {
+  address: String!
+  creator: String
+  creationTx: String
+  creationBlock: String
+  verified: Boolean!
+  name: String
+  symbol: String
+  decimals: Int
+  totalSupply: String
+  contractType: String
+  createdAt: String!
+  updatedAt: String!
+}
+
+type ContractsResult {
+  items: [Contract!]!
+  pageInfo: PageInfo!
+}
+
+type TokenTransfer {
+  id: String!
+  txHash: String!
+  logIndex: Int
+  contractAddress: String!
+  fromAddress: String!
+  toAddress: String!
+  value: String!
+  tokenId: String
+  blockHeight: String!
+  timestamp: String!
+}
+
+type TokenTransfersResult {
+  items: [TokenTransfer!]!
+  pageInfo: PageInfo!
+}
+
+type Proposal {
+  id: String!
+  title: String
+  description: String
+  proposalType: String
+  proposer: String
+  status: String
+  submitTime: String
+  depositEndTime: String
+  votingStartTime: String
+  votingEndTime: String
+  totalDeposit: String
+  yesVotes: String!
+  noVotes: String!
+  abstainVotes: String!
+  noWithVetoVotes: String!
+  updatedAt: String!
+}
+
+type NetworkStats {
+  totalTransactions: String
+  totalAccounts: String
+  totalContracts: String
+  avgBlockTime: Float
+  avgGasPrice: String
+  dailyTransactions: String
+  dailyActiveAccounts: String
+  recordedAt: String
+}
+
+type IndexerState {
+  lastIndexedBlock: String!
+  lastIndexedEvmBlock: String!
+  indexerVersion: String!
+}
+
+type ChainSummary {
+  latestBlock: String!
+  totalTransactions: String!
+  totalAccounts: String!
+  totalValidators: Int!
+  totalContracts: String!
+  avgBlockTime: Float
+}
+
+type Query {
+  latestBlock: Block
+  block(height: String, hash: String): Block
+  blocks(limit: Int, offset: Int): BlocksResult!
+  transaction(hash: String!): Transaction
+  transactions(limit: Int, offset: Int): TransactionsResult!
+  transactionsByBlock(height: String!, limit: Int, offset: Int): TransactionsResult!
+  transactionsByAddress(address: String!, limit: Int, offset: Int): TransactionsResult!
+  evmTransaction(hash: String!): EvmTransaction
+  evmTransactions(limit: Int, offset: Int): EvmTransactionsResult!
+  evmTransactionsByAddress(address: String!, limit: Int, offset: Int): EvmTransactionsResult!
+  account(address: String!): Account
+  accounts(limit: Int, offset: Int): [Account!]!
+  validators(status: Int, limit: Int, offset: Int): [Validator!]!
+  validator(operatorAddress: String!): Validator
+  contract(address: String!): Contract
+  contracts(contractType: String, limit: Int, offset: Int): ContractsResult!
+  tokenTransfers(contractAddress: String, address: String, limit: Int, offset: Int): TokenTransfersResult!
+  proposals(status: String, limit: Int, offset: Int): [Proposal!]!
+  proposal(id: String!): Proposal
+  networkStats: NetworkStats
+  indexerState: IndexerState
+  chainSummary: ChainSummary
+}
