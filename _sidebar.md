@@ -20,6 +20,8 @@
   - [CI/CD Guide](docs/developers/ci-cd-guide.md)
   - [Hardhat Example](docs/developers/examples/hardhat-example.md)
   - [Foundry Example](docs/developers/examples/foundry-example.md)
+  - [wagmi + Next.js Example](docs/developers/examples/wagmi-example.md)
+  - [ethers.js Example](docs/developers/examples/ethers-example.md)
   - [Troubleshooting](docs/developers/troubleshooting.md)
 
 - **Validators**
@@ -50,3 +52,4 @@
   - [RFC Template](docs/governance/rfc-template.md)
   - [Post-Incident Review Template](docs/governance/pir-template.md)
   - [Key Rotation Runbook](docs/governance/key-rotation-runbook.md)
+  - [Release Process](docs/governance/release-process.md)

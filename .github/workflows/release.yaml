@@ -73,16 +73,20 @@ jobs:
         working-directory: ./Makalu
         run: pnpm install --frozen-lockfile
 
-      - name: Sync preview package versions
+      - name: Sync public package versions
         env:
           RELEASE_VERSION: ${{ steps.release_meta.outputs.version }}
         run: |
           node <<'NODE'
           const fs = require('fs');
 
+          // Bump the version on every package we publish so the tag and the
+          // package.json version stay in lock-step. sdk-template is no longer
+          // published — packages/blockchain-core and packages/sdk are.
           for (const file of [
             'Makalu/packages/create-litho-app/package.json',
-            'Makalu/templates/sdk-template/package.json',
+            'Makalu/packages/blockchain-core/package.json',
+            'Makalu/packages/sdk/package.json',
           ]) {
             const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
             pkg.version = process.env.RELEASE_VERSION;
@@ -94,19 +98,24 @@ jobs:
         working-directory: ./Makalu
         run: |
           pnpm --filter create-litho-app typecheck
+          pnpm --filter @lithosphere/blockchain-core typecheck
           pnpm --filter @lithosphere/sdk typecheck
 
       - name: Build CLI
         working-directory: ./Makalu
         run: pnpm --filter create-litho-app build
 
-      - name: Build SDK
+      - name: Build SDK packages
         working-directory: ./Makalu
-        run: pnpm --filter @lithosphere/sdk build
+        run: |
+          pnpm --filter @lithosphere/blockchain-core build
+          pnpm --filter @lithosphere/sdk build
 
-      - name: Test SDK
+      - name: Test SDK packages
         working-directory: ./Makalu
-        run: pnpm --filter @lithosphere/sdk test
+        run: |
+          pnpm --filter @lithosphere/blockchain-core test
+          pnpm --filter @lithosphere/sdk test
 
       - name: Compile canonical contracts
         working-directory: ./Makalu/contracts
@@ -144,14 +153,15 @@ jobs:
         working-directory: ./Makalu
         run: pnpm install --frozen-lockfile
 
-      - name: Sync preview package versions
+      - name: Sync public package versions
         run: |
           node <<'NODE'
           const fs = require('fs');
 
           for (const file of [
             'Makalu/packages/create-litho-app/package.json',
-            'Makalu/templates/sdk-template/package.json',
+            'Makalu/packages/blockchain-core/package.json',
+            'Makalu/packages/sdk/package.json',
           ]) {
             const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
             pkg.version = process.env.RELEASE_VERSION;
@@ -166,16 +176,22 @@ jobs:
         working-directory: ./Makalu
         run: pnpm --filter create-litho-app build
 
-      - name: Build SDK
+      - name: Build SDK packages
         working-directory: ./Makalu
-        run: pnpm --filter @lithosphere/sdk build
+        run: |
+          pnpm --filter @lithosphere/blockchain-core build
+          pnpm --filter @lithosphere/sdk build
 
       - name: Pack create-litho-app
         working-directory: ./Makalu/packages/create-litho-app
         run: npm pack --pack-destination "${ASSET_DIR}"
 
+      - name: Pack @lithosphere/blockchain-core
+        working-directory: ./Makalu/packages/blockchain-core
+        run: npm pack --pack-destination "${ASSET_DIR}"
+
       - name: Pack @lithosphere/sdk
-        working-directory: ./Makalu/templates/sdk-template
+        working-directory: ./Makalu/packages/sdk
         run: npm pack --pack-destination "${ASSET_DIR}"
 
       - name: Smoke test packed CLI and SDK assets
@@ -185,8 +201,9 @@ jobs:
 
           CLI_TARBALL="$(find "${ASSET_DIR}" -maxdepth 1 -name 'create-litho-app-*.tgz' -print -quit)"
           SDK_TARBALL="$(find "${ASSET_DIR}" -maxdepth 1 -name 'lithosphere-sdk-*.tgz' -print -quit)"
+          CORE_TARBALL="$(find "${ASSET_DIR}" -maxdepth 1 -name 'lithosphere-blockchain-core-*.tgz' -print -quit)"
 
-          if [[ -z "${CLI_TARBALL}" || -z "${SDK_TARBALL}" ]]; then
+          if [[ -z "${CLI_TARBALL}" || -z "${SDK_TARBALL}" || -z "${CORE_TARBALL}" ]]; then
             echo "Packed tarballs were not generated as expected."
             exit 1
           fi
@@ -221,10 +238,16 @@ jobs:
           pnpm --dir "${CONTRACT_PROJECT}" compile
           pnpm --dir "${CONTRACT_PROJECT}" test:hardhat
 
+          # Smoke-test the real SDK consumer install — install both tarballs and
+          # verify the canonical LithoClient export is reachable.
           cd "${SDK_CONSUMER_DIR}"
           npm init -y >/dev/null 2>&1
+          # Install core first since sdk has a runtime dep on it via workspace:* which
+          # rewrites to the version on publish. For tarball install, point sdk at the
+          # already-installed core.
+          pnpm add "${CORE_TARBALL}"
           pnpm add "${SDK_TARBALL}"
-          node --input-type=module -e "import { createClient } from '@lithosphere/sdk'; if (typeof createClient !== 'function') throw new Error('SDK export check failed');"
+          node --input-type=module -e "import { LithoClient, NETWORKS, LithoError, ErrorCode } from '@lithosphere/sdk'; if (typeof LithoClient !== 'function') throw new Error('LithoClient missing'); if (!NETWORKS.mainnet) throw new Error('NETWORKS missing'); if (typeof LithoError !== 'function') throw new Error('LithoError missing'); if (!ErrorCode.NETWORK_ERROR) throw new Error('ErrorCode missing');"
 
       - name: Compile canonical contracts
         working-directory: ./Makalu/contracts
@@ -278,6 +301,7 @@ jobs:
           const manifestPath = path.join(assetDir, `release-manifest-v${releaseVersion}.json`);
           const assetFiles = [
             `create-litho-app-${releaseVersion}.tgz`,
+            `lithosphere-blockchain-core-${releaseVersion}.tgz`,
             `lithosphere-sdk-${releaseVersion}.tgz`,
             `lithosphere-contracts-v${releaseVersion}.tar.gz`,
             `lithosphere-contracts-v${releaseVersion}.sha256`,
@@ -307,6 +331,7 @@ jobs:
 
           sha256sum \
             "create-litho-app-${RELEASE_VERSION}.tgz" \
+            "lithosphere-blockchain-core-${RELEASE_VERSION}.tgz" \
             "lithosphere-sdk-${RELEASE_VERSION}.tgz" \
             "lithosphere-contracts-v${RELEASE_VERSION}.tar.gz" \
             "lithosphere-contracts-v${RELEASE_VERSION}.sha256" \
@@ -324,6 +349,7 @@ jobs:
           ## Included Assets
 
           - \`create-litho-app-${RELEASE_VERSION}.tgz\`
+          - \`lithosphere-blockchain-core-${RELEASE_VERSION}.tgz\`
           - \`lithosphere-sdk-${RELEASE_VERSION}.tgz\`
           - \`lithosphere-contracts-v${RELEASE_VERSION}.tar.gz\`
           - \`release-manifest-v${RELEASE_VERSION}.json\`
@@ -365,3 +391,72 @@ jobs:
             ${{ env.ASSET_DIR }}/lithosphere-contracts-v${{ env.RELEASE_VERSION }}.sha256
             ${{ env.ASSET_DIR }}/release-manifest-v${{ env.RELEASE_VERSION }}.json
             ${{ env.ASSET_DIR }}/checksums-v${{ env.RELEASE_VERSION }}.txt
+
+  publish_npm:
+    name: Publish SDK Packages To npm
+    runs-on: ubuntu-latest
+    needs: [validate, publish_github_release]
+    # Only attempt to publish on tag pushes; workflow_dispatch is for dry runs.
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      id-token: write  # required for npm provenance attestations
+    env:
+      RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js with npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+          cache-dependency-path: 'Makalu/pnpm-lock.yaml'
+
+      - name: Install dependencies
+        working-directory: ./Makalu
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync package versions
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          for (const file of [
+            'Makalu/packages/blockchain-core/package.json',
+            'Makalu/packages/sdk/package.json',
+          ]) {
+            const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+            pkg.version = process.env.RELEASE_VERSION;
+            fs.writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`);
+          }
+          NODE
+
+      - name: Build SDK packages
+        working-directory: ./Makalu
+        run: |
+          pnpm --filter @lithosphere/blockchain-core build
+          pnpm --filter @lithosphere/sdk build
+
+      - name: Publish (with provenance)
+        working-directory: ./Makalu
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::warning::NPM_TOKEN is not configured — skipping npm publish."
+            echo "::warning::See docs/governance/release-process.md for setup."
+            exit 0
+          fi
+          # blockchain-core must publish first so the sdk's workspace:* dep
+          # resolves to a real version on the registry.
+          pnpm --filter @lithosphere/blockchain-core publish \
+            --no-git-checks --provenance --access public
+          pnpm --filter @lithosphere/sdk publish \
+            --no-git-checks --provenance --access public

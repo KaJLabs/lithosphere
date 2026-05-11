@@ -1,7 +1,7 @@
 {
-  "name": "@lithosphere/blockchain-core",
+  "name": "@lithosphere/sdk",
   "version": "0.1.0",
-  "description": "Lithosphere core primitives — networks, typed ABIs, errors, shared types. Zero runtime deps.",
+  "description": "Lithosphere high-level client SDK — LithoClient with retry/backoff, balance helpers, typed errors.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -17,12 +17,10 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
-    },
-    "./abis/*.json": "./src/abis/*.json"
+    }
   },
   "files": [
     "dist",
-    "src/abis/*.json",
     "README.md",
     "CHANGELOG.md"
   ],
@@ -34,23 +32,24 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint \"src/**/*.ts\"",
-    "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "typecheck": "tsc --noEmit",
     "clean": "rimraf dist"
   },
   "keywords": [
     "lithosphere",
-    "blockchain",
     "sdk",
     "web3",
-    "abi",
-    "lep100"
+    "evm",
+    "blockchain",
+    "client"
   ],
   "repository": {
     "type": "git",
     "url": "https://github.com/KaJLabs/Lithosphere",
-    "directory": "Makalu/packages/blockchain-core"
+    "directory": "Makalu/packages/sdk"
+  },
+  "dependencies": {
+    "@lithosphere/blockchain-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

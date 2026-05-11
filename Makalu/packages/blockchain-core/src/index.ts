@@ -1,26 +1,36 @@
 /**
  * @lithosphere/blockchain-core
  *
- * Main entry point for the Lithosphere blockchain core package
+ * Low-level primitives for the Lithosphere stack: network registry, typed ABIs,
+ * shared types, and the canonical `LithoError` class. Zero runtime dependencies.
+ *
+ * For the high-level client (`LithoClient`, retry/backoff, balance helpers),
+ * install `@lithosphere/sdk` which depends on this package.
  */
 
-// TODO: Export SDK components when implemented
-// export * from './sdk';
+export {
+  NETWORKS,
+  getNetwork,
+  isNetworkName,
+  type NetworkConfig,
+  type NetworkName,
+} from './networks.js';
 
-// TODO: Export contract interfaces and utilities when implemented
-// export * from './contracts';
+export { ErrorCode, LithoError } from './errors.js';
 
-// TODO: Export chain utilities when implemented
-// export * from './chain';
+export type {
+  AccountBalance,
+  CallOptions,
+  ClientConfig,
+  Log,
+  RetryConfig,
+  SendOptions,
+  TokenBalance,
+  TransactionReceipt,
+  TransactionResponse,
+  TransactionStatus,
+} from './types.js';
 
-// TODO: Export consensus mechanisms when implemented
-// export * from './consensus';
+export { LEP100_ABI, LITHONATIVE_ABI, WLITHO_ABI } from './abis/index.js';
 
-// TODO: Export cryptographic utilities when implemented
-// export * from './crypto';
-
-// Version info
 export const VERSION = '0.1.0';
-
-// Placeholder export to satisfy TypeScript
-export default {};

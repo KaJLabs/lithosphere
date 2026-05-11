@@ -1,7 +1,8 @@
 {
-  "name": "@lithosphere/sdk",
+  "name": "@lithosphere/sdk-template",
   "version": "0.1.0",
-  "description": "Official Lithosphere TypeScript SDK for the Lithosphere developer preview",
+  "description": "Starter scaffold for building a custom SDK on Lithosphere. Copied by create-litho-app; NOT the published @lithosphere/sdk (that lives at packages/sdk/).",
+  "private": true,
   "license": "MIT",
   "author": "Lithosphere Team",
   "repository": {
