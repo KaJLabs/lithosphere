@@ -294,8 +294,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   # Export compiled ABIs as build artifacts
   # ─────────────────────────────────────────────────────────────────────
-  abi-export:
-    name: ABI Export
+  contract-artifacts:
+    name: Contract Artifacts (ABI + bytecode)
     runs-on: ubuntu-latest
     needs: compile
     defaults:
@@ -318,23 +318,91 @@ jobs:
       - name: Compile
         run: pnpm compile
 
-      - name: Extract ABIs
+      # Extract ABI + bytecode + deployedBytecode + linkReferences from every
+      # contract artifact under artifacts/src/. Three outputs per contract:
+      #   - {name}.abi.json           — for SDK consumers + verification tools
+      #   - {name}.bytecode.json      — creation bytecode + link refs (deploy)
+      #   - {name}.full.json          — combined record (deploy + verify in one)
+      # The glob target is `artifacts/src/*.sol/*.json` — Hardhat puts compiled
+      # output at that path; an earlier version of this step used the
+      # `artifacts/contracts/src/...` path which doesn't exist and silently
+      # produced no files.
+      - name: Extract ABI + bytecode artifacts
         run: |
-          mkdir -p abi-export
-          for f in artifacts/contracts/src/*.sol/*.json; do
+          set -e
+          mkdir -p artifacts-export
+          count=0
+          # `find` handles nested src/ subdirectories (e.g. src/libs/Strings.sol)
+          # that a single-level shell glob would miss. -not lets us skip .dbg.json
+          # debugging-source-map files emitted alongside each artifact.
+          while IFS= read -r f; do
             [ -f "$f" ] || continue
-            # Skip .dbg.json files
-            [[ "$f" == *.dbg.json ]] && continue
             name=$(basename "$f" .json)
-            node -e "const a=JSON.parse(require('fs').readFileSync('$f','utf8'));require('fs').writeFileSync('abi-export/${name}.abi.json',JSON.stringify(a.abi,null,2))"
-            echo "Exported: ${name}.abi.json"
-          done
+            node -e "
+              const a = JSON.parse(require('fs').readFileSync('$f', 'utf8'));
+              const fs = require('fs');
+              fs.writeFileSync('artifacts-export/${name}.abi.json', JSON.stringify(a.abi, null, 2));
+              fs.writeFileSync('artifacts-export/${name}.bytecode.json', JSON.stringify({
+                bytecode: a.bytecode,
+                deployedBytecode: a.deployedBytecode,
+                linkReferences: a.linkReferences,
+                deployedLinkReferences: a.deployedLinkReferences,
+              }, null, 2));
+              fs.writeFileSync('artifacts-export/${name}.full.json', JSON.stringify({
+                contractName: a.contractName,
+                abi: a.abi,
+                bytecode: a.bytecode,
+                deployedBytecode: a.deployedBytecode,
+                linkReferences: a.linkReferences,
+                deployedLinkReferences: a.deployedLinkReferences,
+              }, null, 2));
+            "
+            count=$((count + 1))
+            echo "  $name → abi.json + bytecode.json + full.json"
+          done < <(find artifacts/src -type f -name '*.json' -not -name '*.dbg.json')
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No contract artifacts found at artifacts/src/*.sol/*.json — did Hardhat compile?"
+            exit 1
+          fi
+          echo "Exported $count contract(s)."
 
-      - name: Upload ABIs
+      - name: Generate manifest
+        # A small index.json so consumers know what's in the artifact bundle
+        # without having to list directory contents. Includes a short SHA + a
+        # timestamp + the SPDX list of names so cosign verification / signed
+        # release flows can cross-reference.
+        run: |
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const files = fs.readdirSync('artifacts-export').filter(f => f.endsWith('.full.json'));
+            const contracts = files.map(f => {
+              const json = JSON.parse(fs.readFileSync(path.join('artifacts-export', f), 'utf8'));
+              return {
+                name: json.contractName,
+                methods: (json.abi || []).filter(x => x.type === 'function').length,
+                events: (json.abi || []).filter(x => x.type === 'event').length,
+                bytecodeBytes: json.bytecode ? (json.bytecode.length - 2) / 2 : 0,
+              };
+            });
+            const manifest = {
+              schemaVersion: 1,
+              generatedAt: new Date().toISOString(),
+              gitSha: process.env.GITHUB_SHA || 'local',
+              contracts,
+            };
+            fs.writeFileSync('artifacts-export/index.json', JSON.stringify(manifest, null, 2));
+            console.log('manifest:', JSON.stringify(manifest, null, 2));
+          "
+
+      - name: Upload contract artifacts bundle
         uses: actions/upload-artifact@v4
         with:
+          # Keep `contract-abis` as a legacy-compatible name for now —
+          # downstream consumers (if any) won't break on the rename. The
+          # bundle includes everything: abi.json + bytecode.json + full.json + index.json.
           name: contract-abis
-          path: Makalu/contracts/abi-export/
+          path: Makalu/contracts/artifacts-export/
           retention-days: 90
 
   # ─────────────────────────────────────────────────────────────────────

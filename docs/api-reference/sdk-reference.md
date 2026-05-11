@@ -189,6 +189,18 @@ Three exports cover the contracts that ship with Lithosphere:
 import { LEP100_ABI, WLITHO_ABI, LITHONATIVE_ABI } from '@lithosphere/sdk';
 ```
 
+A versioned bundle of every compiled contract (ABI + bytecode +
+deployedBytecode + link references + a summary `index.json`) is uploaded by
+the `Contract Artifacts (ABI + bytecode)` job in `ci-contracts.yaml` as the
+`contract-abis` workflow artifact. Useful for deployment automation,
+on-chain verification tooling, and SDK consumers who want predictable
+addresses across networks. Grab the latest via:
+
+```bash
+gh run download <run-id> -n contract-abis -D ./contract-artifacts
+ls contract-artifacts/   # index.json + per-contract .abi.json / .bytecode.json / .full.json
+```
+
 A machine-readable copy of the api's GraphQL schema is checked in at
 [`schema.graphql`](./schema.graphql) — drop it into your GraphQL client
 of choice for typed access. CI's `Schema Sync Check` job re-prints
