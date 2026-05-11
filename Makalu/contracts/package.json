@@ -9,7 +9,9 @@
     "test:coverage": "hardhat coverage",
     "clean": "hardhat clean",
     "node": "hardhat node",
-    "deploy:local": "hardhat run scripts/deploy.ts --network localhost"
+    "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+    "sync-abis": "node scripts/sync-abis.mjs",
+    "verify-abis-in-sync": "node scripts/sync-abis.mjs && git diff --exit-code -- ../packages/blockchain-core/src/abis/"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",

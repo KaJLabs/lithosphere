@@ -189,7 +189,16 @@ Three exports cover the contracts that ship with Lithosphere:
 import { LEP100_ABI, WLITHO_ABI, LITHONATIVE_ABI } from '@lithosphere/sdk';
 ```
 
-These are JSON ABIs extracted at build time from `Makalu/contracts/artifacts/`.
+These are JSON ABIs vendored at `Makalu/packages/blockchain-core/src/abis/`.
+The contract artifacts in `Makalu/contracts/artifacts/` are the source of
+truth — drift between the two is blocked at CI time by the `abi-sync-check`
+job in `ci-contracts.yaml`. To re-sync after a contract change:
+
+```bash
+cd Makalu/contracts
+pnpm run sync-abis
+git add ../packages/blockchain-core/src/abis/
+```
 For tight viem / abitype inference, re-assert as `const` at the call site:
 
 ```ts
