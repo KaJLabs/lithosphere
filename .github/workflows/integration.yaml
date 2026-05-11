@@ -58,6 +58,11 @@ jobs:
         working-directory: ./Makalu/api
         env:
           INTEGRATION_TESTS: '1'
-          DATABASE_URL: postgres://litho:litho@localhost:5433/litho_test
+          # `sslmode=disable` is required — Makalu/api/src/db.ts defaults
+          # to SSL with rejectUnauthorized:false unless this is explicit,
+          # and the ephemeral postgres:16-alpine service doesn't speak SSL.
+          # Without it every integration test fails with
+          # "Error: The server does not support SSL connections".
+          DATABASE_URL: postgres://litho:litho@localhost:5433/litho_test?sslmode=disable
           CI: true
         run: pnpm vitest run src/__tests__/integration
