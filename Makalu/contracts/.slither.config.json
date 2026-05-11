@@ -10,13 +10,7 @@
   "exclude_high": false,
   "exclude_optimization": true,
   "exclude_dependencies": true,
-  "filter_paths": [
-    "node_modules",
-    "lib",
-    "test",
-    "script",
-    "forge-std"
-  ],
+  "filter_paths": "node_modules,lib,test,script,forge-std",
   "solc_remaps": [
     "@openzeppelin/=node_modules/@openzeppelin/"
   ],
