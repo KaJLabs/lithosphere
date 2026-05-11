@@ -1,4 +1,8 @@
 import 'dotenv/config';
+// IMPORTANT: tracing must be imported BEFORE any other modules (express, pg,
+// fetch wrappers) so OpenTelemetry's auto-instrumentation can patch them at
+// load time. Moving this import lower silently produces empty traces.
+import './tracing.js';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
 import { ApolloServer } from 'apollo-server-express';

@@ -1,4 +1,6 @@
 import 'dotenv/config';
+// Must come before any pg / http / fetch imports — see tracing.ts.
+import './tracing.js';
 import { createHash } from 'crypto';
 import pkg, { type PoolClient } from 'pg';
 const { Pool } = pkg;
