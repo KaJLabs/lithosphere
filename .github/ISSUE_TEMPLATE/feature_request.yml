@@ -1,0 +1,54 @@
+name: Feature request
+description: Propose new functionality or an enhancement.
+title: "[feature] "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For substantial design proposals (new services, protocol changes, breaking API changes), open an RFC using `docs/governance/rfc-template.md` instead.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - api
+        - indexer
+        - explorer
+        - contracts
+        - sdk
+        - docs
+        - ci / workflows
+        - infrastructure
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What pain point does this solve? Who is affected?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Sketch the proposed change. Implementation detail is optional at this stage.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you ruled out, and why.
+
+  - type: textarea
+    id: success
+    attributes:
+      label: Success criteria
+      description: How will we know this worked?

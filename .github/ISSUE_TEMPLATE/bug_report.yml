@@ -1,0 +1,78 @@
+name: Bug report
+description: A reproducible defect in code, infrastructure, or docs.
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing. Please fill out the sections below so we can reproduce and prioritise.
+        For security issues, **stop** — follow `SECURITY.md` instead of opening a public issue.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Where does the bug live?
+      options:
+        - api (Makalu/api)
+        - indexer (Makalu/indexer)
+        - explorer (Makalu/explorer)
+        - contracts (Makalu/contracts)
+        - sdk / packages
+        - docs
+        - ci / workflows
+        - infrastructure / deploy
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Which environment? (local, devnet, staging/Makalu testnet, mainnet)
+      placeholder: Makalu testnet
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the observed behaviour.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      description: Describe the expected behaviour.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction steps
+      description: Numbered steps. Include commands, URLs, tx hashes, block heights as relevant.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots / tx hashes
+      description: Paste relevant output. Use code fences.
+      render: shell
+
+  - type: textarea
+    id: version
+    attributes:
+      label: Version information
+      description: Commit SHA, image tag, package version, browser version — whichever apply.

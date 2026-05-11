@@ -45,3 +45,8 @@
   - [Testing Best Practices](docs/guides/testing-best-practices.md)
   - [Deployment Automation](docs/guides/deployment-automation.md)
   - [Contributing](docs/guides/contributing.md)
+
+- **Governance**
+  - [RFC Template](docs/governance/rfc-template.md)
+  - [Post-Incident Review Template](docs/governance/pir-template.md)
+  - [Key Rotation Runbook](docs/governance/key-rotation-runbook.md)

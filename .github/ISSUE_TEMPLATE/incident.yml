@@ -1,0 +1,67 @@
+name: Incident / Operational Change
+description: Track an incident, planned operational change, or rotation. Becomes the parent for a Post-Incident Review.
+title: "[incident] "
+labels: ["incident", "oncall"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for active incidents, planned changes (rotations, migrations), or any operational event that may need a PIR.
+
+        - Active incident: page oncall via PagerDuty **first**, file this issue **second**.
+        - Security incident: do **not** describe details here. Follow `SECURITY.md`.
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - SEV1 (full outage / data loss risk)
+        - SEV2 (major degradation, partial outage)
+        - SEV3 (minor degradation)
+        - Operational change (planned, no impact expected)
+    validations:
+      required: true
+
+  - type: input
+    id: start
+    attributes:
+      label: Incident start (UTC)
+      placeholder: "2026-05-11 14:02 UTC"
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: One-line summary
+      description: A stakeholder-ready summary. Update as the incident evolves.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Known impact
+      description: Users, services, environments affected. Update live.
+
+  - type: textarea
+    id: actions
+    attributes:
+      label: Actions taken / timeline
+      description: Append-only log of what's been tried. Timestamps in UTC.
+      placeholder: |
+        14:04 — oncall acknowledged
+        14:09 — identified indexer pool exhaustion
+
+  - type: checkboxes
+    id: followup
+    attributes:
+      label: Required follow-up
+      options:
+        - label: PIR will be filed within 5 business days using `docs/governance/pir-template.md`
+          required: false
+        - label: Status page updated
+          required: false
+        - label: Customers notified (if applicable)
+          required: false

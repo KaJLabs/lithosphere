@@ -2,6 +2,8 @@
 
 This document provides pre-deployment and post-deployment checklists, secret management policies, key rotation schedules, and vulnerability scanning requirements for the Lithosphere network.
 
+> For step-by-step rotation procedures (routine and emergency), see [`docs/governance/key-rotation-runbook.md`](../governance/key-rotation-runbook.md).
+
 ## Pre-Deployment Checklist
 
 Complete all items before deploying to any environment:

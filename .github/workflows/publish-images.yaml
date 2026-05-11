@@ -39,6 +39,7 @@ jobs:
       contents: read
       packages: write
       id-token: write    # For Cosign keyless signing
+      security-events: write    # For Trivy SARIF upload
 
     strategy:
       fail-fast: false
@@ -120,6 +121,25 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Scan image with Trivy
+        id: trivy
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ matrix.image }}@${{ steps.build.outputs.digest || steps.build_explorer.outputs.digest }}
+          format: 'sarif'
+          output: 'trivy-${{ matrix.service }}.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+
+      - name: Upload Trivy SARIF to GitHub Security
+        if: always() && hashFiles(format('trivy-{0}.sarif', matrix.service)) != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-${{ matrix.service }}.sarif'
+          category: 'trivy-${{ matrix.service }}'
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
