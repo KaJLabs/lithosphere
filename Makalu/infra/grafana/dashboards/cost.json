@@ -1,0 +1,248 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "templating": {
+    "list": [
+      {
+        "name": "monthlyBudgetUsd",
+        "type": "constant",
+        "label": "Monthly VPS budget ($)",
+        "query": "60",
+        "current": { "value": "60", "text": "60" },
+        "options": [{ "value": "60", "text": "60" }],
+        "description": "Operator-set monthly VPS spend for this environment. Default 60 ≈ t3.large on-demand; set via dashboard JSON or the Grafana UI."
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Monthly Budget",
+      "description": "Operator-set monthly VPS spend. Change the `monthlyBudgetUsd` template variable to match your instance class.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [
+        { "expr": "${monthlyBudgetUsd}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Host CPU (5m)",
+      "description": "Aggregate CPU utilisation across all cores. Sustained > 80% = under-provisioned.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "red", "value": 0.9 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [
+        {
+          "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Host Memory (used)",
+      "description": "Percent of physical memory in use right now. Sustained > 85% means swap is imminent.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "red", "value": 0.85 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [
+        {
+          "expr": "1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Disk Free",
+      "description": "Bytes available on the root filesystem. Sustained drop = log rotation or DB growth alert.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 5000000000 },
+              { "color": "green", "value": 20000000000 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [
+        {
+          "expr": "node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Network Egress (bytes/s, 5m rate)",
+      "description": "Outbound traffic from the host. On EC2 / most VPS providers this is the dominant variable cost above the instance fee. Integrate over a month to estimate the bandwidth bill.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "Bps", "decimals": 1 } },
+      "targets": [
+        {
+          "expr": "sum(rate(node_network_transmit_bytes_total{device!~\"lo|docker.*|veth.*|br-.*\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "egress"
+        },
+        {
+          "expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|docker.*|veth.*|br-.*\"}[5m]))",
+          "refId": "B",
+          "legendFormat": "ingress"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Per-Container CPU Utilisation",
+      "description": "CPU time per container as a fraction of one core. > 1 means using multiple cores. Identifies which container drives the host CPU number on the top row.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 2 } },
+      "options": { "legend": { "displayMode": "table", "placement": "right" } },
+      "targets": [
+        {
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"litho-.*\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Per-Container Memory (working set)",
+      "description": "Live working set per container. Sums to the host memory utilisation (top row, third panel).",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "decbytes", "decimals": 1 } },
+      "options": { "legend": { "displayMode": "table", "placement": "right" } },
+      "targets": [
+        {
+          "expr": "sum by (name) (container_memory_working_set_bytes{name=~\"litho-.*\"})",
+          "refId": "A",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "API Egress per 1k Requests (24h)",
+      "description": "Bytes transmitted divided by the number of api requests served, scaled to 1k requests. Multiply by your provider's per-GB bandwidth price to estimate marginal cost per 1k api hits. Useful for forecasting traffic-growth cost impact.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "decbytes", "decimals": 1 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "targets": [
+        {
+          "expr": "(sum(increase(node_network_transmit_bytes_total{device!~\"lo|docker.*|veth.*|br-.*\"}[24h])) / clamp_min(sum(increase(litho_api_http_requests_total[24h])), 1)) * 1000",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Resource Footprint Summary",
+      "description": "Per-container snapshot — pick the row driving any host-level number above and you have your scale-down candidate (or your scale-up justification).",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 23 },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Value #cpu" }, "properties": [{ "id": "unit", "value": "short" }, { "id": "displayName", "value": "CPU cores (5m avg)" }] },
+          { "matcher": { "id": "byName", "options": "Value #mem" }, "properties": [{ "id": "unit", "value": "decbytes" }, { "id": "displayName", "value": "Memory (working set)" }] },
+          { "matcher": { "id": "byName", "options": "Value #net" }, "properties": [{ "id": "unit", "value": "Bps" }, { "id": "displayName", "value": "Net out (5m rate)" }] }
+        ]
+      },
+      "options": { "showHeader": true, "footer": { "show": false } },
+      "transformations": [
+        { "id": "merge" },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "instance": true, "job": true, "id": true, "image": true, "container_label_com_docker_compose_project": true },
+            "renameByName": { "name": "Container" }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"litho-.*\"}[5m]))",
+          "refId": "cpu",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (name) (container_memory_working_set_bytes{name=~\"litho-.*\"})",
+          "refId": "mem",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (name) (rate(container_network_transmit_bytes_total{name=~\"litho-.*\"}[5m]))",
+          "refId": "net",
+          "instant": true,
+          "format": "table"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["cost", "lithosphere", "infrastructure"],
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Lithosphere — Cost",
+  "uid": "lithosphere-cost",
+  "version": 1,
+  "weekStart": ""
+}

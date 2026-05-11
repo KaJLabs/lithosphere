@@ -197,6 +197,40 @@ One table:
 
 The underlying metrics ship from `Makalu/api/src/lib/http-metrics.ts`. Routes are labeled by Express's normalized `req.route.path` (e.g. `/api/blocks/:height`), not the raw URL, so cardinality stays bounded.
 
+## Cost dashboard
+
+Grafana panel "Lithosphere — Cost" (uid `lithosphere-cost`) at
+`Makalu/infra/grafana/dashboards/cost.json` gives operators a
+single-pane view of "where is my VPS spend going?".
+
+Top row — four stat panels for a 24h spend snapshot:
+
+- **Monthly Budget** — operator-set via the `monthlyBudgetUsd` template
+  variable (default $60 ≈ t3.large on-demand). Adjust via the Grafana UI
+  or by editing the dashboard JSON.
+- **Host CPU (5m)** — fraction of cores busy. Sustained > 80% means
+  scale-up is worth pricing.
+- **Host Memory (used)** — fraction of physical RAM. Sustained > 85%
+  means swap is imminent.
+- **Disk Free** — bytes available on `/`. The early-warning is yellow
+  at 5 GB.
+
+Middle rows — time series for the underlying drivers:
+
+- **Network Egress (bytes/s)** — host network out; the dominant
+  variable cost above the instance fee on EC2.
+- **Per-Container CPU** — sum across containers reconciles to the
+  Host CPU stat. Identifies which `litho-*` container drives the bill.
+- **Per-Container Memory** — same idea for RAM.
+- **API Egress per 1k Requests (24h)** — `bytes_out / api_requests * 1000`.
+  Multiply by your provider's per-GB bandwidth price for a marginal
+  cost-per-1k-requests figure useful for traffic-growth forecasting.
+
+Bottom row — **Resource Footprint Summary** table, one row per container
+with CPU cores / working-set memory / network out columns. The row
+driving any of the host-level numbers above is your scale-down candidate
+(or scale-up justification).
+
 ## Glossary
 
 | Term | Where it lives | What it correlates |
