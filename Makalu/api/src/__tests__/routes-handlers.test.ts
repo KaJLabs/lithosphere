@@ -214,3 +214,311 @@ describe('GET /api/faucet/info', () => {
     });
   });
 });
+
+describe('GET /api/price', () => {
+  it('returns the fixed testnet price when NETWORK env is not "mainnet"', async () => {
+    // Default test env has no NETWORK var set → IS_MAINNET = false → testnet path
+    const res = await request(makeApp()).get('/api/price');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ price: 5, symbol: 'LITHO', currency: 'USD' });
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/tokens/:address', () => {
+  it('returns native LITHO metadata for the special "native" address', async () => {
+    mockQuery
+      .mockResolvedValueOnce([{ count: '1234' }]) // holder count
+      .mockResolvedValueOnce([{ count: '5678' }]); // total tx count
+
+    const res = await request(makeApp()).get('/api/tokens/native');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      address: 'native',
+      name: 'Lithosphere',
+      symbol: 'LITHO',
+      decimals: 18,
+      type: 'native',
+      standard: 'Native',
+      verified: true,
+      holders: 1234,
+      transfers: 5678,
+      contractAddress: null,
+    });
+  });
+
+  it('returns 404 when the contract is not in the contracts table', async () => {
+    mockQuery.mockResolvedValueOnce([]); // contracts query
+    const res = await request(makeApp()).get('/api/tokens/0xdeadbeef');
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ message: 'Token contract not found' });
+  });
+
+  it('returns 404 for hidden tokens even when they exist in the contracts table', async () => {
+    mockQuery.mockResolvedValueOnce([
+      {
+        address: '0x468022f17cafebd43c18f68d53c66a1a7f0e5249',
+        name: 'Hidden',
+        symbol: 'HID',
+        decimals: 18,
+        total_supply: '1',
+        contract_type: 'token',
+        creator: '0xabc',
+        creation_tx: null,
+        creation_block: null,
+        verified: false,
+        created_at: new Date('2026-01-01T00:00:00Z'),
+      },
+    ]);
+
+    const res = await request(makeApp()).get(
+      '/api/tokens/0x468022f17cafebd43c18f68d53c66a1a7f0e5249',
+    );
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ message: 'Token contract not found' });
+  });
+});
+
+describe('POST /api/faucet/claim', () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('rejects requests with no address (400)', async () => {
+    const res = await request(makeApp()).post('/api/faucet/claim').send({});
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ ok: false, message: 'Wallet address is required.' });
+  });
+
+  it('rejects malformed addresses (400)', async () => {
+    const res = await request(makeApp())
+      .post('/api/faucet/claim')
+      .send({ address: 'not-an-address' });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Invalid wallet address/);
+  });
+
+  it('rejects bech32 cosmos addresses — faucet only supports EVM (400)', async () => {
+    const res = await request(makeApp())
+      .post('/api/faucet/claim')
+      .send({ address: 'litho1ytf8n5j0pd72t4yutfa87qed5st0wgu8lvvmtr' });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/EVM \(0x\) addresses only/);
+  });
+
+  it('rejects malformed amounts (400)', async () => {
+    const res = await request(makeApp()).post('/api/faucet/claim').send({
+      address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      amount: 'one-litho',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Invalid amount/);
+  });
+
+  it('forwards a valid EVM address to the upstream and returns the txHash', async () => {
+    const validTxHash = '0xf3df3dce8dce77d8b1172dc9d191e11caed85563f5b5a323f6ea4a18ab97077f';
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ txHash: validTxHash, amount: '1', retryAfterSeconds: 7200 }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    ) as typeof fetch;
+
+    const res = await request(makeApp()).post('/api/faucet/claim').send({
+      address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      amount: '1',
+      assetId: 'LITHO',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      txHash: validTxHash,
+      cooldownSeconds: 7200,
+      assetId: 'LITHO',
+    });
+    expect(res.body.message).toMatch(/Sent 1/);
+  });
+
+  it('returns txHash:null when the upstream returns a malformed hash', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ txHash: 'definitely-not-a-hash', cooldownHours: 24 }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    ) as typeof fetch;
+
+    const res = await request(makeApp()).post('/api/faucet/claim').send({
+      address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      amount: 1,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.txHash).toBeNull();
+    expect(res.body.cooldownSeconds).toBe(24 * 3600);
+  });
+
+  it('passes through upstream non-200 with a sanitized message', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ message: 'Rate limit exceeded.', retryAfterSeconds: 600 }),
+        { status: 429, headers: { 'Content-Type': 'application/json' } },
+      ),
+    ) as typeof fetch;
+
+    const res = await request(makeApp()).post('/api/faucet/claim').send({
+      address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      amount: '2',
+    });
+
+    expect(res.status).toBe(429);
+    expect(res.body).toEqual({
+      ok: false,
+      message: 'Rate limit exceeded.',
+      cooldownSeconds: 600,
+    });
+  });
+
+  it('returns 502 when the upstream fetch throws', async () => {
+    globalThis.fetch = vi.fn().mockRejectedValueOnce(new Error('ECONNREFUSED')) as typeof fetch;
+
+    const res = await request(makeApp()).post('/api/faucet/claim').send({
+      address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      amount: '1',
+    });
+
+    expect(res.status).toBe(502);
+    expect(res.body).toEqual({
+      ok: false,
+      message: 'Faucet service is unavailable. Please try again later.',
+    });
+  });
+});
+
+const HIDDEN_TOKEN_ADDRESS = '0x468022f17cafebd43c18f68d53c66a1a7f0e5249';
+
+describe('GET /api/tokens/:address/roles', () => {
+  it('returns 404 for hidden tokens', async () => {
+    const res = await request(makeApp()).get(
+      `/api/tokens/${HIDDEN_TOKEN_ADDRESS}/roles`,
+    );
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ message: 'Token contract not found' });
+  });
+
+  it('returns an empty role list for the native token (no on-chain roles)', async () => {
+    const res = await request(makeApp()).get('/api/tokens/native/roles');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ roles: [] });
+  });
+
+  it('returns an empty role list for addresses without an 0x prefix', async () => {
+    const res = await request(makeApp()).get('/api/tokens/not-an-evm-address/roles');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ roles: [] });
+  });
+});
+
+describe('GET /api/tokens/:address/transfers', () => {
+  it('returns 404 for hidden tokens', async () => {
+    const res = await request(makeApp()).get(
+      `/api/tokens/${HIDDEN_TOKEN_ADDRESS}/transfers`,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('returns LEP100 transfers for a non-native token from token_transfers', async () => {
+    const contract = '0xcccccccccccccccccccccccccccccccccccccccc';
+    mockQuery
+      .mockResolvedValueOnce([
+        {
+          tx_hash: '0xabc' + 'd'.repeat(61),
+          from_address: '0xfrom' + '0'.repeat(36),
+          to_address: '0x' + 'e'.repeat(40),
+          value: '5000',
+          token_id: null,
+          block_height: '1234',
+          timestamp: new Date('2026-05-11T00:00:00Z'),
+        },
+      ])
+      .mockResolvedValueOnce([{ count: '42' }]);
+
+    const res = await request(makeApp()).get(`/api/tokens/${contract}/transfers?limit=10`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      total: 42,
+      limit: 10,
+      offset: 0,
+    });
+    expect(res.body.transfers).toHaveLength(1);
+    expect(res.body.transfers[0]).toMatchObject({
+      value: '5000',
+      tokenId: null,
+      blockHeight: 1234,
+      timestamp: '2026-05-11T00:00:00.000Z',
+    });
+  });
+});
+
+describe('GET /api/tokens/:address/holders', () => {
+  it('returns 404 for hidden tokens', async () => {
+    const res = await request(makeApp()).get(
+      `/api/tokens/${HIDDEN_TOKEN_ADDRESS}/holders`,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('computes percentages from total_supply for a LEP100 token', async () => {
+    const contract = '0xcccccccccccccccccccccccccccccccccccccccc';
+    mockQuery
+      .mockResolvedValueOnce([{ total_supply: '1000000' }])
+      .mockResolvedValueOnce([
+        { address: '0xholder1' + '0'.repeat(33), balance: '500000' },
+        { address: '0xholder2' + '0'.repeat(33), balance: '250000' },
+      ])
+      .mockResolvedValueOnce([{ count: '2' }]);
+
+    const res = await request(makeApp()).get(`/api/tokens/${contract}/holders?limit=25`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(2);
+    expect(res.body.holders).toEqual([
+      { address: expect.stringMatching(/^0xholder1/), balance: '500000', percentage: 50 },
+      { address: expect.stringMatching(/^0xholder2/), balance: '250000', percentage: 25 },
+    ]);
+  });
+});
+
+describe('GET /api/txs/:hash', () => {
+  it('returns 404 when neither cosmos nor evm tables match a non-hex hash', async () => {
+    mockQuery
+      .mockResolvedValueOnce([]) // exact cosmos hash match (uppercased)
+      .mockResolvedValueOnce([]); // case-insensitive cosmos match
+    // Third query is skipped because normalizeEvmTxHash('not-a-hash') === null
+
+    const res = await request(makeApp()).get('/api/txs/not-a-hash');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ message: 'Transaction not found' });
+    expect(mockQuery).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('GET /api/txs/:hash/logs', () => {
+  it('returns empty logs without hitting the DB when the hash is structurally invalid', async () => {
+    // 0x-prefixed but too short → normalizeEvmTxHash returns null and the
+    // startsWith('0x') branch skips the DB lookup. isEvmTxHash then rejects
+    // and the handler short-circuits to {logs: [], raw: null}.
+    const res = await request(makeApp()).get('/api/txs/0x123/logs');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ logs: [], raw: null });
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+});
