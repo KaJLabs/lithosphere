@@ -31,6 +31,18 @@ RUN pnpm prune --prod
 # ----------------------------------------------------------------------------
 FROM node:20-alpine AS runner
 
+# Build-time metadata (injected by CI; defaults are dev-friendly fallbacks)
+ARG GIT_SHA=""
+ARG BUILD_TIME=""
+ARG VERSION=""
+
+# OCI image labels — surfaced by `docker inspect` and GHCR's package UI
+LABEL org.opencontainers.image.revision=$GIT_SHA
+LABEL org.opencontainers.image.created=$BUILD_TIME
+LABEL org.opencontainers.image.version=$VERSION
+LABEL org.opencontainers.image.source="https://github.com/KaJLabs/Lithosphere"
+LABEL org.opencontainers.image.title="lithosphere-api"
+
 # Install security updates and wget for healthchecks
 RUN apk update && apk upgrade --no-cache && apk add --no-cache wget
 
@@ -64,6 +76,12 @@ EXPOSE 4000 9090
 # Set environment
 ENV NODE_ENV=production
 ENV API_PORT=4000
+
+# Propagate build metadata into the runtime environment so /version and the
+# litho_api_build_info Prometheus gauge can surface it.
+ENV GIT_SHA=$GIT_SHA
+ENV BUILD_TIME=$BUILD_TIME
+ENV VERSION=$VERSION
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

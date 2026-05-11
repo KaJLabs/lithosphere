@@ -27,6 +27,15 @@ ARG NEXT_PUBLIC_RPC_URL=http://localhost:8545
 ARG NEXT_PUBLIC_CHAIN_ID=700777
 ARG NEXT_PUBLIC_CHAIN_NAME=Litho Devnet
 
+# Build metadata baked into the client bundle so the UI can show what's deployed
+ARG GIT_SHA=""
+ARG BUILD_TIME=""
+ARG VERSION=""
+
+ENV NEXT_PUBLIC_GIT_SHA=$GIT_SHA
+ENV NEXT_PUBLIC_BUILD_TIME=$BUILD_TIME
+ENV NEXT_PUBLIC_VERSION=$VERSION
+
 ENV NEXT_PUBLIC_RPC_URL=$NEXT_PUBLIC_RPC_URL
 ENV NEXT_PUBLIC_CHAIN_ID=$NEXT_PUBLIC_CHAIN_ID
 ENV NEXT_PUBLIC_CHAIN_NAME=$NEXT_PUBLIC_CHAIN_NAME
@@ -37,6 +46,16 @@ RUN pnpm run build
 # Stage 2: Production Runner
 # ----------------------------------------------------------------------------
 FROM node:20-alpine AS runner
+
+ARG GIT_SHA=""
+ARG BUILD_TIME=""
+ARG VERSION=""
+
+LABEL org.opencontainers.image.revision=$GIT_SHA
+LABEL org.opencontainers.image.created=$BUILD_TIME
+LABEL org.opencontainers.image.version=$VERSION
+LABEL org.opencontainers.image.source="https://github.com/KaJLabs/Lithosphere"
+LABEL org.opencontainers.image.title="lithosphere-explorer"
 
 RUN apk update && apk upgrade --no-cache && apk add --no-cache wget
 
@@ -68,6 +87,10 @@ EXPOSE 3000
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+
+ENV GIT_SHA=$GIT_SHA
+ENV BUILD_TIME=$BUILD_TIME
+ENV VERSION=$VERSION
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD wget -q --spider http://localhost:3000 || exit 1

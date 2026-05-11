@@ -125,6 +125,8 @@ jobs:
           echo "── Pulling latest code..."
           rm -rf lithosphere
           git clone --depth 1 https://github.com/KaJLabs/lithosphere.git
+          BUILD_GIT_SHA=$(git -C lithosphere rev-parse HEAD 2>/dev/null || echo "unknown")
+          export BUILD_GIT_SHA
 
           # Preserve server-side .env before copying new code
           # (git clone brings .env.mainnet with placeholder secrets;
@@ -193,6 +195,21 @@ jobs:
             CIDS=$(sudo docker ps -aq --filter "publish=$PORT" 2>/dev/null)
             [ -n "$CIDS" ] && sudo docker rm -f $CIDS 2>/dev/null || true
           done
+
+          echo "── Recording build metadata..."
+          # Inject git SHA + build time so /version and the build_info Prometheus
+          # gauge expose what's actually running. SHA was captured at clone time.
+          BUILD_TIME_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          BUILD_VERSION="bastion-${BUILD_GIT_SHA:0:7}"
+          sed -i '/^GIT_SHA=/d; /^BUILD_TIME=/d; /^VERSION=/d' .env 2>/dev/null || true
+          {
+            echo "GIT_SHA=${BUILD_GIT_SHA}"
+            echo "BUILD_TIME=${BUILD_TIME_UTC}"
+            echo "VERSION=${BUILD_VERSION}"
+          } >> .env
+          echo "  GIT_SHA=${BUILD_GIT_SHA}"
+          echo "  BUILD_TIME=${BUILD_TIME_UTC}"
+          echo "  VERSION=${BUILD_VERSION}"
 
           echo "── Building and starting services..."
           sudo docker compose up -d redis

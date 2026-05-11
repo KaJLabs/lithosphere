@@ -4,6 +4,7 @@ import pkg, { type PoolClient } from 'pg';
 const { Pool } = pkg;
 import { Gauge, register, collectDefaultMetrics } from 'prom-client';
 import express from 'express';
+import { readBuildInfo, buildVersionResponse } from './lib/build-info.js';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,24 @@ const gChain   = new Gauge({ name: 'litho_indexer_chain_height',       help: 'Ch
 const gMaxTxBlock = new Gauge({ name: 'litho_indexer_max_transaction_block', help: 'Latest indexed transaction block height' });
 const gInconsistentBlocks = new Gauge({ name: 'litho_indexer_inconsistent_block_count', help: 'Indexed blocks whose transaction count does not match the transactions table' });
 const gLag = new Gauge({ name: 'litho_indexer_chain_lag_blocks', help: 'Block lag between the chain tip and the indexed blocks table tip' });
+
+const BUILD_INFO = readBuildInfo();
+
+new Gauge({
+  name: 'litho_indexer_build_info',
+  help: 'Indexer build metadata. Value is always 1; labels carry git_sha / build_time / version.',
+  labelNames: ['git_sha', 'build_time', 'version', 'node_version'],
+}).set(
+  {
+    git_sha: BUILD_INFO.gitSha,
+    build_time: BUILD_INFO.buildTime,
+    version: BUILD_INFO.version,
+    node_version: BUILD_INFO.nodeVersion,
+  },
+  1,
+);
+
+const PROCESS_START = Date.now();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1205,8 +1224,12 @@ async function main(): Promise<void> {
       status: 'healthy',
       service: 'lithosphere-indexer',
       timestamp: new Date().toISOString(),
+      version: BUILD_INFO.version,
       sync: syncSnapshot,
     })
+  );
+  app.get('/version', (_, res) =>
+    res.json(buildVersionResponse('lithosphere-indexer', PROCESS_START, BUILD_INFO))
   );
   app.get('/debug', async (_, res) => {
     try {

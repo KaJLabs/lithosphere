@@ -24,6 +24,10 @@ services:
     build:
       context: ./api
       dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-}
+        BUILD_TIME: ${BUILD_TIME:-}
+        VERSION: ${VERSION:-}
     restart: unless-stopped
     ports:
       - "${API_PORT:-4000}:4000"
@@ -41,6 +45,12 @@ services:
       - GRAPHQL_PLAYGROUND=${GRAPHQL_PLAYGROUND:-false}
       - REDIS_URL=redis://redis:6379
       - PROMETHEUS_ENABLED=true
+      - GIT_SHA=${GIT_SHA:-}
+      - BUILD_TIME=${BUILD_TIME:-}
+      - VERSION=${VERSION:-}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_SERVICE_NAME=lithosphere-api
+      - LOG_LEVEL=${LOG_LEVEL:-info}
     env_file:
       - .env
     logging:
@@ -81,6 +91,10 @@ services:
     build:
       context: ./indexer
       dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-}
+        BUILD_TIME: ${BUILD_TIME:-}
+        VERSION: ${VERSION:-}
     restart: unless-stopped
     environment:
       - NODE_ENV=${NODE_ENV:-production}
@@ -96,6 +110,12 @@ services:
       - FORCE_REINDEX=${FORCE_REINDEX:-0}
       - INDEXER_BATCH_SIZE=${INDEXER_BATCH_SIZE:-100}
       - INDEXER_CONFIRMATIONS=${INDEXER_CONFIRMATIONS:-12}
+      - GIT_SHA=${GIT_SHA:-}
+      - BUILD_TIME=${BUILD_TIME:-}
+      - VERSION=${VERSION:-}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_SERVICE_NAME=lithosphere-indexer
+      - LOG_LEVEL=${LOG_LEVEL:-info}
     env_file:
       - .env
     logging:
@@ -211,6 +231,9 @@ services:
         NEXT_PUBLIC_RPC_URL: ${NEXT_PUBLIC_RPC_URL:-https://rpc.litho.ai}
         NEXT_PUBLIC_CHAIN_ID: ${CHAIN_ID:-lithosphere_700777-2}
         NEXT_PUBLIC_CHAIN_NAME: ${CHAIN_NAME:-Lithosphere}
+        GIT_SHA: ${GIT_SHA:-}
+        BUILD_TIME: ${BUILD_TIME:-}
+        VERSION: ${VERSION:-}
     restart: unless-stopped
     ports:
       - "${EXPLORER_PORT:-3100}:3000"
@@ -219,6 +242,9 @@ services:
       - NEXT_PUBLIC_RPC_URL=${NEXT_PUBLIC_RPC_URL:-https://rpc.litho.ai}
       - NEXT_PUBLIC_CHAIN_ID=${CHAIN_ID:-lithosphere_700777-2}
       - NEXT_PUBLIC_CHAIN_NAME=${CHAIN_NAME:-Lithosphere}
+      - GIT_SHA=${GIT_SHA:-}
+      - BUILD_TIME=${BUILD_TIME:-}
+      - VERSION=${VERSION:-}
     env_file:
       - .env
     logging:

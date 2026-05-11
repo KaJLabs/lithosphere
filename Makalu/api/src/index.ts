@@ -5,10 +5,31 @@ import { ApolloServer } from 'apollo-server-express';
 import { typeDefs, resolvers } from './schema.js';
 import { lithoRouter } from './litho.js';
 import { explorerRouter } from './routes.js';
-import { register, collectDefaultMetrics } from 'prom-client';
+import { register, collectDefaultMetrics, Gauge } from 'prom-client';
+import { readBuildInfo, buildVersionResponse } from './lib/build-info.js';
 
 // Collect default metrics (CPU, memory, etc.)
 collectDefaultMetrics({ prefix: 'litho_api_' });
+
+// Build metadata — exposed via /version and as a Prometheus gauge so an
+// operator can join a metric or alert back to the commit that produced the
+// running binary. Standard Prometheus build-info pattern: value is always 1;
+// the labels carry the data so PromQL can group/join across services.
+const BUILD_INFO = readBuildInfo();
+
+new Gauge({
+  name: 'litho_api_build_info',
+  help: 'API build metadata. Value is always 1; labels carry git_sha / build_time / version.',
+  labelNames: ['git_sha', 'build_time', 'version', 'node_version'],
+}).set(
+  {
+    git_sha: BUILD_INFO.gitSha,
+    build_time: BUILD_INFO.buildTime,
+    version: BUILD_INFO.version,
+    node_version: BUILD_INFO.nodeVersion,
+  },
+  1,
+);
 
 const app = express();
 const EXPLORER_INTERNAL_URL = process.env.EXPLORER_INTERNAL_URL || 'http://explorer:3000';
@@ -78,15 +99,23 @@ async function proxyExplorerRequest(req: Request, res: Response) {
 app.use(cors());
 app.use(express.json());
 
+const PROCESS_START = Date.now();
+
 // Health check endpoint for deployment verification
 app.get('/health', (_req, res) => {
   res.status(200).json({
     status: 'healthy',
     service: 'lithosphere-api',
     timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '1.0.0',
+    version: BUILD_INFO.version,
     environment: process.env.NODE_ENV || 'development',
   });
+});
+
+// Build metadata endpoint — surfaces what's deployed so an operator can join
+// "production is broken" to a specific commit without SSH-and-git-log dancing.
+app.get('/version', (_req, res) => {
+  res.status(200).json(buildVersionResponse('lithosphere-api', PROCESS_START, BUILD_INFO));
 });
 
 // Readiness probe (checks dependencies)

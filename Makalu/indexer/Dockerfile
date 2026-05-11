@@ -35,6 +35,16 @@ RUN pnpm prune --prod
 # ----------------------------------------------------------------------------
 FROM node:20-alpine AS runner
 
+ARG GIT_SHA=""
+ARG BUILD_TIME=""
+ARG VERSION=""
+
+LABEL org.opencontainers.image.revision=$GIT_SHA
+LABEL org.opencontainers.image.created=$BUILD_TIME
+LABEL org.opencontainers.image.version=$VERSION
+LABEL org.opencontainers.image.source="https://github.com/KaJLabs/Lithosphere"
+LABEL org.opencontainers.image.title="lithosphere-indexer"
+
 RUN apk update && apk upgrade --no-cache && apk add --no-cache wget
 
 # Strip bundled npm/yarn — unused at runtime (CMD invokes node directly).
@@ -62,6 +72,10 @@ EXPOSE 3001
 
 ENV NODE_ENV=production
 ENV INDEXER_PORT=3001
+
+ENV GIT_SHA=$GIT_SHA
+ENV BUILD_TIME=$BUILD_TIME
+ENV VERSION=$VERSION
 
 HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=3 \
     CMD wget -q --spider http://localhost:3001/health || exit 1
