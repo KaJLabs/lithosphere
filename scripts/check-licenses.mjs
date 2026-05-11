@@ -40,7 +40,6 @@ function parsePolicy(yaml) {
   const lines = yaml.split(/\r?\n/);
   let section = null;
   let pendingException = null;
-  let pendingReason = null;
   let reasonAccumulator = null;
 
   for (let i = 0; i < lines.length; i++) {

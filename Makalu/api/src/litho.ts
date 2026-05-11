@@ -1,6 +1,4 @@
 import { Request, Response, Router } from 'express';
-import pkg from 'pg';
-const { Pool } = pkg;
 
 export function lithoRouter(): Router {
   const r = Router();

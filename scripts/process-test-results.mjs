@@ -127,7 +127,6 @@ function daysSince(isoDate) {
 
 function appendSummary(quarantinedFailures, staleEntries) {
   if (quarantinedFailures.length === 0 && staleEntries.length === 0) return;
-  if (!existsSync(summaryPath)) return; // no PR-summary step in this run
 
   let md = '\n\n## Quarantined Failures\n\n';
   if (quarantinedFailures.length > 0) {
@@ -151,6 +150,11 @@ function appendSummary(quarantinedFailures, staleEntries) {
     md += '\nThese entries have been quarantined for more than 30 days. The owner should either fix the test or escalate to a team-wide call on permanently retiring it.\n';
   }
 
+  // appendFileSync creates the file with O_APPEND|O_CREAT if it doesn't
+  // exist, so no existsSync pre-check is needed (and that pattern triggered
+  // CodeQL js/file-system-race as a TOCTOU). The PR-summary step in
+  // ci.yaml always runs before this script, so the file is present in
+  // practice; the create-on-demand path is purely defensive.
   appendFileSync(summaryPath, md);
 }
 

@@ -226,13 +226,27 @@ const STALE_TOKEN_ADDRESSES = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Strip trailing '=' padding from a base64-encoded string without regex.
+ *
+ * Avoids the `/=+$/` regex pattern CodeQL flags as `js/polynomial-redos`
+ * on attribute values that come in from the indexer's CometBFT poller \u2014
+ * even though the engine's worst case for that particular regex is O(n),
+ * a non-regex strip is unambiguously linear and reads more clearly.
+ */
+function stripBase64Padding(s: string): string {
+  let end = s.length;
+  while (end > 0 && s.charCodeAt(end - 1) === 0x3d /* '=' */) end--;
+  return end === s.length ? s : s.slice(0, end);
+}
+
 /** Safely decode a CometBFT base64-encoded attribute. Returns null if not valid base64. */
 export function tryBase64(s: string): string | null {
   if (!s) return null;
   try {
     const buf = Buffer.from(s, 'base64');
     // Only accept if round-trip matches (i.e. string is genuine base64, not plain text)
-    if (buf.toString('base64').replace(/=+$/, '') !== s.replace(/=+$/, '')) return null;
+    if (stripBase64Padding(buf.toString('base64')) !== stripBase64Padding(s)) return null;
     const d = buf.toString('utf-8');
     // Reject if it contains replacement characters (invalid UTF-8)
     if (d.includes('\uFFFD')) return null;

@@ -130,6 +130,34 @@ The three layers compose:
 | Container scan | OS/library CVEs | `publish-images.yaml` (Trivy) |
 | Supply chain | image tampering / typo-squat | `publish-images.yaml` (Cosign + SLSA + SBOM) |
 
+### Triage workflow for CodeQL findings
+
+CodeQL's first-scan baseline often contains a long tail of style-level
+notes plus a handful of legitimate-but-false-positive flow alerts (e.g.
+`router.push(\`/blocks/\${userInput}\`)` flagged as DOM-XSS because the
+extractor can't prove the destination route doesn't `innerHTML` the
+segment). The expectation is **not** "zero open alerts" — it's "every
+open alert has been triaged":
+
+1. **Fix at source** when the alert points at a genuine issue. Recent
+   examples (commit landing this section): `js/log-injection` from
+   `console.warn` with raw user input → `sanitizeForLog()` helper that
+   strips ASCII control chars; `js/file-system-race` from an
+   `existsSync`→`appendFileSync` pair → drop the pre-check (the append
+   creates on demand); `js/polynomial-redos` on `/=+$/` → manual
+   trailing-char strip with no regex.
+2. **Dismiss with a comment** when the alert is a false positive. Use
+   the GitHub Security UI ("Dismiss alert" → "False positive" / "Used
+   in tests" / "Won't fix") and include the reason. Don't leave open
+   alerts indefinitely without dismissal — they create noise that
+   masks real findings.
+3. **Track as work** when the alert is real but the fix needs design
+   (e.g. SSRF in a controlled-base proxy endpoint — needs an explicit
+   URL allow-list). Create an issue, link the alert, leave the alert
+   open until the issue closes.
+
+Cadence: triage every Monday alongside the weekly CodeQL cron run.
+
 ## Related
 
 - [License Policy](./license-policy.md) — dependency-side supply chain

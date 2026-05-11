@@ -8,7 +8,6 @@ import { formatNumber, formatTimestamp, timeAgo, truncateHash, formatValue, form
 import { getPreferredTxHash } from '@/lib/tx';
 import type { ApiBlock, ApiTx, StatsSummary } from '@/lib/types';
 import { FormattedValueElement } from '@/components/FormattedValueElement';
-import HashDisplay from '@/components/HashDisplay';
 import DataTable, { type Column } from '@/components/DataTable';
 import { TxStatusBadge } from '@/components/Badges';
 import ErrorState from '@/components/ErrorState';

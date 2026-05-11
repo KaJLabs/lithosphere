@@ -14,6 +14,26 @@ import {
   sanitizeUpstreamMessage,
 } from './tx-utils.js';
 
+/**
+ * Strip control characters from a value before interpolating into a log line.
+ *
+ * User-controlled strings can contain CR/LF that splits a single log entry
+ * across multiple lines (forging fake log rows in shared aggregators) or
+ * ANSI escape codes that corrupt the terminal output during local tail.
+ * Replace anything outside printable ASCII + common whitespace with `?`
+ * before log interpolation. Truncates to 200 chars as belt-and-braces.
+ *
+ * Used at each `console.warn(\`... ${userValue} ...\`)` call site below to
+ * satisfy CodeQL `js/log-injection` while keeping the existing structured
+ * pino fields untouched (those go through JSON serialisation already).
+ */
+function sanitizeForLog(value: unknown): string {
+  const str = typeof value === 'string' ? value : String(value);
+  // Strip ASCII control chars (0x00–0x1F, 0x7F) — covers CR, LF, ESC, etc.
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/[\x00-\x1f\x7f]/g, '?').slice(0, 200);
+}
+
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 const HIDDEN_TOKEN_SYMBOLS = new Set<string>();
@@ -769,8 +789,8 @@ function warnAddressBalanceFallback(
   if (!resolution.rpcAttempted || resolution.balanceSource === 'rpc') return;
 
   console.warn(
-    `[api] /address/${queryAddress} native balance fallback: ${resolution.balanceSource}`
-    + (evmAddress ? ` (evm=${evmAddress})` : ''),
+    `[api] /address/${sanitizeForLog(queryAddress)} native balance fallback: ${resolution.balanceSource}`
+    + (evmAddress ? ` (evm=${sanitizeForLog(evmAddress)})` : ''),
   );
 }
 
@@ -1551,7 +1571,7 @@ export function explorerRouter(): Router {
 
       // Fetch receipt from EVM RPC
       if (!isEvmTxHash(evmHash)) {
-        console.warn(`[api] Skipping receipt lookup for malformed hash: ${String(evmHash).slice(0, 80)}`);
+        console.warn(`[api] Skipping receipt lookup for malformed hash: ${sanitizeForLog(evmHash)}`);
         res.json({ logs: [], raw: null });
         return;
       }
@@ -2635,7 +2655,7 @@ export function explorerRouter(): Router {
       const isEvm = /^0x[a-fA-F0-9]{40}$/.test(normalizedAddress);
       const isCosmos = normalizedAddress.startsWith('litho1');
       if (!isEvm && !isCosmos) {
-        console.warn(`[api] Rejecting faucet claim: invalid address format "${normalizedAddress.slice(0, 80)}"`);
+        console.warn(`[api] Rejecting faucet claim: invalid address format "${sanitizeForLog(normalizedAddress)}"`);
         res.status(400).json({ ok: false, message: 'Invalid wallet address. Use a 0x... address.' });
         return;
       }
@@ -2643,13 +2663,13 @@ export function explorerRouter(): Router {
       // The faucet service only accepts EVM (0x) addresses
       // If cosmos address provided, we can't forward to the EVM faucet
       if (!isEvm) {
-        console.warn(`[api] Rejecting faucet claim for non-EVM address: ${normalizedAddress}`);
+        console.warn(`[api] Rejecting faucet claim for non-EVM address: ${sanitizeForLog(normalizedAddress)}`);
         res.status(400).json({ ok: false, message: 'The faucet currently supports EVM (0x) addresses only. Please use your 0x address.' });
         return;
       }
 
       if (normalizedAmount.invalid) {
-        console.warn(`[api] Rejecting faucet claim: invalid amount "${String(amount).slice(0, 80)}"`);
+        console.warn(`[api] Rejecting faucet claim: invalid amount "${sanitizeForLog(amount)}"`);
         res.status(400).json({
           ok: false,
           message: 'Invalid amount. Provide a numeric faucet amount such as 1 or 5.',
