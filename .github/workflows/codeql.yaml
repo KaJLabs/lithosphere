@@ -1,0 +1,100 @@
+# ============================================================================
+# CodeQL — static analysis for the JS/TS surface.
+#
+# Why this exists: Trivy scans container OS/library CVEs, Gitleaks scans for
+# leaked secrets, the license-check job enforces dep licenses, Slither covers
+# Solidity. None of those catch the kind of bug CodeQL is built for —
+# SQL injection, SSRF, path traversal, prototype pollution, weak crypto,
+# hardcoded credentials in code, taint flows through library boundaries.
+#
+# Scope: Makalu/{api,indexer,explorer,packages,templates,contracts/scripts}.
+# Excludes Solidity sources (Slither has the better DSL for that) and
+# generated artifacts (dist/, .next/, coverage/, node_modules/).
+#
+# Cadence:
+#   - on push to main → fast feedback when something lands
+#   - on PR → review-time signal before merge
+#   - weekly cron → catches new queries / CVE classes shipped by GitHub's
+#     query packs in case the codebase is quiet for a stretch
+#
+# Findings post to the Security tab under the `codeql-javascript` category,
+# alongside the `trivy-{api,indexer,explorer}` categories. Same SARIF
+# upload mechanism Trivy already uses successfully.
+# ============================================================================
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Mondays 06:17 UTC — off-peak, avoids the on-the-hour stampede that
+    # every other org schedules at.
+    - cron: '17 6 * * 1'
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write    # upload SARIF to the Security tab
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # CodeQL JS/TS analysis is "build-mode: none" — no compile step required;
+      # the extractor reads source directly. Faster + simpler than the Java /
+      # Go path that would need a real build invocation.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # Use the default security-and-quality query suite (broader than
+          # security-extended; catches code-quality issues that often
+          # precede vulnerabilities — unused imports, dead branches, etc).
+          queries: security-and-quality
+          # Limit the extractor to source we own. Without this it'd also
+          # try to index node_modules/, coverage/, .next/standalone/, and
+          # the build output dirs — slow and noisy.
+          config: |
+            paths:
+              - Makalu/api
+              - Makalu/indexer
+              - Makalu/explorer
+              - Makalu/packages
+              - Makalu/templates
+              - Makalu/contracts/scripts
+              - Makalu/tooling
+              - scripts
+            paths-ignore:
+              - '**/node_modules'
+              - '**/dist'
+              - '**/build'
+              - '**/.next'
+              - '**/coverage'
+              - '**/test-results.json'
+              - '**/*.test.ts'
+              - '**/*.test.tsx'
+              - '**/__tests__/**'
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: codeql-${{ matrix.language }}

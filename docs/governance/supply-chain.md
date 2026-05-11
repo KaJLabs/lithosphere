@@ -109,6 +109,27 @@ For npm package publishes (SDK), the equivalent identity binding is npm
 provenance attestations — wired in `release.yaml` via `--provenance`.
 See [release-process.md](./release-process.md).
 
+## Code-level static analysis
+
+Image-layer attestations and dependency-license enforcement don't catch
+bugs in the source we own — SQL injection, SSRF, path traversal, weak
+crypto, prototype pollution. That's what
+[`codeql.yaml`](../../.github/workflows/codeql.yaml) covers: GitHub's
+CodeQL runs on every push to `main`, every PR, and weekly via cron. The
+JS/TS extractor (build-mode `none`, query suite `security-and-quality`)
+indexes `Makalu/{api,indexer,explorer,packages,templates,contracts/scripts,tooling}`
+plus repo-level `scripts/`. Findings post to the Security tab under
+the `codeql-javascript-typescript` category, alongside Trivy's
+`trivy-{api,indexer,explorer}` entries.
+
+The three layers compose:
+
+| Layer | Catches | Workflow |
+|---|---|---|
+| Source SAST | bugs in code we wrote | `codeql.yaml` |
+| Container scan | OS/library CVEs | `publish-images.yaml` (Trivy) |
+| Supply chain | image tampering / typo-squat | `publish-images.yaml` (Cosign + SLSA + SBOM) |
+
 ## Related
 
 - [License Policy](./license-policy.md) — dependency-side supply chain
