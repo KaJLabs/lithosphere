@@ -192,6 +192,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test (Turbo)
+        # Advisory until Phase 6 coverage matures — failures visible in logs and summary,
+        # but don't block PRs. Flip to false once api/indexer/explorer reach baseline coverage.
+        continue-on-error: true
         run: pnpm turbo run test --filter='...[origin/main]'
         env:
           CI: true

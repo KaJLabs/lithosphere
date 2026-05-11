@@ -54,7 +54,7 @@ interface RpcBlock {
   };
 }
 
-interface TxEvent {
+export interface TxEvent {
   type: string;
   attributes: Array<{ key: string; value: string }>;
 }
@@ -205,7 +205,7 @@ const STALE_TOKEN_ADDRESSES = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Safely decode a CometBFT base64-encoded attribute. Returns null if not valid base64. */
-function tryBase64(s: string): string | null {
+export function tryBase64(s: string): string | null {
   if (!s) return null;
   try {
     const buf = Buffer.from(s, 'base64');
@@ -219,7 +219,7 @@ function tryBase64(s: string): string | null {
 }
 
 /** Get the first matching event attribute value. Handles both plain and base64-encoded attributes. */
-function attr(events: TxEvent[], eventType: string, key: string): string {
+export function attr(events: TxEvent[], eventType: string, key: string): string {
   for (const ev of events) {
     if (ev.type !== eventType) continue;
     for (const a of ev.attributes) {
@@ -237,7 +237,7 @@ function attr(events: TxEvent[], eventType: string, key: string): string {
 }
 
 /** Scan each `eventType` event as a group, collecting tuples of the requested keys. */
-function attrTuples(events: TxEvent[], eventType: string, keys: string[]): Record<string, string>[] {
+export function attrTuples(events: TxEvent[], eventType: string, keys: string[]): Record<string, string>[] {
   const out: Record<string, string>[] = [];
   for (const ev of events) {
     if (ev.type !== eventType) continue;
@@ -303,12 +303,12 @@ async function setIndexerState(key: string, value: string): Promise<void> {
   );
 }
 
-function parseIntSafe(value: string | number | null | undefined): number {
+export function parseIntSafe(value: string | number | null | undefined): number {
   const parsed = typeof value === 'number' ? value : parseInt(value ?? '0', 10);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function toIsoString(value: Date | string | null | undefined): string | null {
+export function toIsoString(value: Date | string | null | undefined): string | null {
   if (!value) return null;
   if (value instanceof Date) return value.toISOString();
   const d = new Date(value);
@@ -808,7 +808,7 @@ async function evmRpc<T>(method: string, params: unknown[]): Promise<T | null> {
   return null;
 }
 
-function topicToAddress(topic: string | undefined): string | null {
+export function topicToAddress(topic: string | undefined): string | null {
   if (!topic || topic.length < 42) return null;
   return ('0x' + topic.slice(-40)).toLowerCase();
 }
@@ -894,7 +894,7 @@ async function indexEvmTx(
   }
 }
 
-interface DecodedTransfer {
+export interface DecodedTransfer {
   from: string;
   to: string;
   value: string;
@@ -918,7 +918,7 @@ interface DecodedTransfer {
  * constraint on token_transfers permits at most one row per log, so a batch
  * with N (id, value) pairs would need a schema change to store fully.
  */
-function decodeTransferLog(log: { topics: string[]; data: string }): DecodedTransfer | null {
+export function decodeTransferLog(log: { topics: string[]; data: string }): DecodedTransfer | null {
   const topic0 = log.topics[0]?.toLowerCase();
   if (!topic0) return null;
 

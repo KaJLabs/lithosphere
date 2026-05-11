@@ -203,7 +203,7 @@ async function getCachedCount(
  * Lithosphere uses 18 decimals (Ethermint): 1 LITHO = 1e18 ulitho.
  * 1 wei = 1 ulitho, so no conversion needed.
  */
-function weiToUlitho(wei: string | null | undefined): string {
+export function weiToUlitho(wei: string | null | undefined): string {
   if (!wei || wei === '0') return '0';
   try {
     return String(BigInt(wei));
@@ -212,13 +212,13 @@ function weiToUlitho(wei: string | null | undefined): string {
   }
 }
 
-function clamp(val: unknown, def = DEFAULT_LIMIT): number {
+export function clamp(val: unknown, def = DEFAULT_LIMIT): number {
   const n = Number(val);
   if (!n || n < 1) return def;
   return Math.min(n, MAX_LIMIT);
 }
 
-function clampOffset(val: unknown): number {
+export function clampOffset(val: unknown): number {
   const n = Number(val);
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.floor(n);
@@ -233,7 +233,7 @@ function resolveOffset(query: Request['query'], limit: number): number {
   return 0;
 }
 
-function normalizeFaucetAmountInput(value: unknown): { value?: string; invalid: boolean } {
+export function normalizeFaucetAmountInput(value: unknown): { value?: string; invalid: boolean } {
   if (value == null) {
     return { invalid: false };
   }
@@ -258,7 +258,7 @@ function normalizeFaucetAmountInput(value: unknown): { value?: string; invalid: 
 }
 
 /** Convert an EVM 0x address to its Cosmos bech32 equivalent (litho1...). */
-function evmToCosmos(evmAddr: string | null | undefined): string | undefined {
+export function evmToCosmos(evmAddr: string | null | undefined): string | undefined {
   if (!evmAddr) return undefined;
   try {
     const hex = evmAddr.replace(/^0x/i, '');
@@ -272,7 +272,7 @@ function evmToCosmos(evmAddr: string | null | undefined): string | undefined {
 }
 
 /** Convert a Cosmos bech32 address (litho1...) to its EVM 0x equivalent. */
-function cosmosToEvm(cosmosAddr: string | null | undefined): string | undefined {
+export function cosmosToEvm(cosmosAddr: string | null | undefined): string | undefined {
   if (!cosmosAddr) return undefined;
   try {
     const decoded = bech32.decode(cosmosAddr.toLowerCase());
@@ -443,7 +443,7 @@ function cleanMethod(m: string | null | undefined): string | undefined {
 }
 
 /** Classify EVM transaction type based on inputData and toAddr */
-function classifyTxType(inputData?: string | null, toAddr?: string | null, contractAddr?: string | null): 'transfer' | 'call' | 'create' {
+export function classifyTxType(inputData?: string | null, toAddr?: string | null, contractAddr?: string | null): 'transfer' | 'call' | 'create' {
   if (!toAddr && contractAddr) return 'create';
   if (inputData && inputData !== '0x' && inputData.length > 2) return 'call';
   return 'transfer';
@@ -473,7 +473,7 @@ const METHOD_SIGS: Record<string, string> = {
 };
 
 /** Decode method name from input_data's first 4 bytes */
-function decodeMethodName(inputData?: string | null): string | undefined {
+export function decodeMethodName(inputData?: string | null): string | undefined {
   if (!inputData || inputData === '0x' || inputData.length < 10) return undefined;
   const selector = inputData.slice(0, 10).toLowerCase();
   return METHOD_SIGS[selector] ?? selector;
@@ -483,7 +483,7 @@ function decodeMethodName(inputData?: string | null): string | undefined {
  *  function transfer(address to, uint256 amount)
  *  Params: 2nd param (amount) is at offset 64-128 (bytes 32-64 in hex string)
  */
-function decodeTransferAmount(inputData?: string | null): string | null {
+export function decodeTransferAmount(inputData?: string | null): string | null {
   if (!inputData || inputData.length < 138) return null; // Need 0x + 4 + 64 + 64 = 138 chars
   const selector = inputData.slice(0, 10).toLowerCase();
   // 0xa9059cbb is the selector for transfer(address, uint256)
@@ -499,7 +499,7 @@ function decodeTransferAmount(inputData?: string | null): string | null {
 
 /** Compute fee in ulitho from gasUsed and gasPrice (wei string).
  *  Lithosphere: 1 wei = 1 ulitho, so fee = gasUsed * gasPrice  */
-function computeFeeUlitho(gasUsed: string | number | null | undefined, gasPriceWei: string | null | undefined): string | null {
+export function computeFeeUlitho(gasUsed: string | number | null | undefined, gasPriceWei: string | null | undefined): string | null {
   if (!gasUsed || !gasPriceWei || gasPriceWei === '0') return null;
   try {
     const fee = BigInt(gasUsed) * BigInt(gasPriceWei);
@@ -510,17 +510,17 @@ function computeFeeUlitho(gasUsed: string | number | null | undefined, gasPriceW
 }
 
 /** Parse hex string to decimal string using BigInt (safe for large values) */
-function hexToDec(hex: string | null | undefined): string {
+export function hexToDec(hex: string | null | undefined): string {
   if (!hex || hex === '0x0' || hex === '0x') return '0';
   try { return String(BigInt(hex)); } catch { return '0'; }
 }
 
-function parseIntSafe(value: string | number | null | undefined): number {
+export function parseIntSafe(value: string | number | null | undefined): number {
   const parsed = typeof value === 'number' ? value : parseInt(value ?? '0', 10);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function parseHexInteger(value: string | null | undefined): number | null {
+export function parseHexInteger(value: string | null | undefined): number | null {
   if (!value) return null;
   try {
     const parsed = Number(BigInt(value));
@@ -530,14 +530,14 @@ function parseHexInteger(value: string | null | undefined): number | null {
   }
 }
 
-function toIsoString(value: Date | string | null | undefined): string | null {
+export function toIsoString(value: Date | string | null | undefined): string | null {
   if (!value) return null;
   if (value instanceof Date) return value.toISOString();
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
-function hexTimestampToIso(value: string | null | undefined): string | undefined {
+export function hexTimestampToIso(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
   try {
     const millis = Number(BigInt(value) * 1000n);
@@ -776,15 +776,15 @@ function warnAddressBalanceFallback(
 
 type EvmExtra = { value?: string | null; gas_price?: string | null; from_address?: string | null; to_address?: string | null; input_data?: string | null; contract_address?: string | null; nonce?: number | null };
 
-function hasNumericString(value: string | null | undefined): boolean {
+export function hasNumericString(value: string | null | undefined): boolean {
   return typeof value === 'string' && /^\d+$/.test(value);
 }
 
-function hasPositiveNumericString(value: string | null | undefined): boolean {
+export function hasPositiveNumericString(value: string | null | undefined): boolean {
   return hasNumericString(value) && value !== '0';
 }
 
-function preferString(primary?: string | null, fallback?: string | null): string | null | undefined {
+export function preferString(primary?: string | null, fallback?: string | null): string | null | undefined {
   return primary != null && primary !== '' ? primary : fallback;
 }
 

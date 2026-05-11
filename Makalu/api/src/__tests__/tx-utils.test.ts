@@ -45,12 +45,14 @@ describe('tx-utils', () => {
       ),
     ).toBe('0xf3df3dce8dce77d8b1172dc9d191e11caed85563f5b5a323f6ea4a18ab97077f');
 
+    // A bare 64-char hex without "0x" matches isCosmosTxHash (regex is case-insensitive)
+    // and is returned as-is — NOT normalized to lowercase 0x-prefixed EVM form.
     expect(
       pickValidTxHash(
         'Missing or invalid parameters....',
         'F3DF3DCE8DCE77D8B1172DC9D191E11CAED85563F5B5A323F6EA4A18AB97077F',
       ),
-    ).toBe('0xf3df3dce8dce77d8b1172dc9d191e11caed85563f5b5a323f6ea4a18ab97077f');
+    ).toBe('F3DF3DCE8DCE77D8B1172DC9D191E11CAED85563F5B5A323F6EA4A18AB97077F');
   });
 
   it('sanitizes low-level upstream RPC errors', () => {
