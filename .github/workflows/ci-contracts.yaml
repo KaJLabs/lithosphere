@@ -292,6 +292,80 @@ jobs:
           retention-days: 30
 
   # ─────────────────────────────────────────────────────────────────────
+  # Static analysis with Slither — PRODUCTION contracts.
+  # The existing `slither` job above analyses the developer-facing
+  # contracts-template; this one targets the real LEP100 / WLITHO /
+  # LITHONative contracts deployed on Makalu. Same advisory-then-blocking
+  # pattern as Trivy: findings upload to the Security tab under category
+  # `slither-production` for triage; the job is `continue-on-error: true`
+  # while we walk down the first-scan baseline. Flip to blocking once the
+  # baseline is clean (config already has `fail_on: high`).
+  # ─────────────────────────────────────────────────────────────────────
+  slither-production:
+    name: Slither Analysis (production contracts)
+    runs-on: ubuntu-latest
+    needs: compile
+    permissions:
+      contents: read
+      security-events: write
+    defaults:
+      run:
+        working-directory: ./Makalu/contracts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Compile contracts (required by Slither)
+        run: pnpm compile
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Slither
+        run: pip3 install slither-analyzer
+
+      - name: Run Slither (advisory while baseline is established)
+        # Advisory for the first-scan baseline run. Findings post to the
+        # Security tab via SARIF; once the team has triaged whatever the
+        # initial sweep surfaces, remove `continue-on-error` to make
+        # `fail_on: high` from .slither.config.json the gating signal.
+        continue-on-error: true
+        run: slither . --config-file .slither.config.json
+
+      - name: Upload SARIF to Security tab
+        if: always() && hashFiles('Makalu/contracts/slither-report.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: Makalu/contracts/slither-report.sarif
+          # Distinct category so production findings show up separately
+          # from the template ones (which post under the default
+          # codeql-uploaded category).
+          category: slither-production
+        continue-on-error: true
+
+      - name: Upload Slither JSON report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slither-report-production
+          path: |
+            Makalu/contracts/slither-report.json
+            Makalu/contracts/slither-report.sarif
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # ─────────────────────────────────────────────────────────────────────
   # Export compiled ABIs as build artifacts
   # ─────────────────────────────────────────────────────────────────────
   contract-artifacts:

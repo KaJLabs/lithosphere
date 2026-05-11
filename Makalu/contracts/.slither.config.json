@@ -1,0 +1,34 @@
+{
+  "detectors_to_exclude": [
+    "naming-convention",
+    "solc-version",
+    "low-level-calls"
+  ],
+  "exclude_informational": false,
+  "exclude_low": false,
+  "exclude_medium": false,
+  "exclude_high": false,
+  "exclude_optimization": true,
+  "exclude_dependencies": true,
+  "filter_paths": [
+    "node_modules",
+    "lib",
+    "test",
+    "script",
+    "forge-std"
+  ],
+  "solc_remaps": [
+    "@openzeppelin/=node_modules/@openzeppelin/"
+  ],
+  "compile_force_framework": "hardhat",
+  "fail_on": "high",
+  "show_ignored_findings": false,
+  "json": "slither-report.json",
+  "sarif": "slither-report.sarif",
+  "checklist": true,
+  "markdown_root": "https://github.com/KaJLabs/Lithosphere/blob/main/Makalu/contracts/",
+  "printers_to_run": [
+    "contract-summary",
+    "function-summary"
+  ]
+}
