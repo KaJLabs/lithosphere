@@ -12,6 +12,7 @@ in-flight status across all phases see the project memory tracker.
 | 6 | [Test Strategy & Ephemeral Environments](phase-6-completion.md) | ~70% — unit/integration/E2E live, PR preview envs deferred |
 | 7 | [Contract Tooling & Safety Rails](phase-7-completion.md) | ~55% — full CI matrix (compile/test/lint/slither/gas/abi/coverage) |
 | 8 | [SDKs & Developer Experience Portal](phase-8-completion.md) | ~65% — layered SDK shipped, tag-gated npm publish wired |
+| 9 | [Observability & Correlation](phase-9-completion.md) | ~90% — build-info + structured logs + OTel SDK; collector deferred |
 
 ## Format
 
