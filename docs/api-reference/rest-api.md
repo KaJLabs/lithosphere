@@ -1,6 +1,11 @@
 # REST API Reference
 
-> **Work in Progress** -- This document is under active development. Some endpoints and details may change.
+> The machine-readable contract lives in
+> [`openapi.yaml`](./openapi.yaml ':ignore'). A CI drift gate
+> (`openapi-sync-check`) fails any PR that adds, renames, or removes a
+> route in `Makalu/api/src/{routes,litho}.ts` without a matching update
+> there. Use the YAML when generating clients or running Postman/Insomnia
+> against the API; treat this page as the prose tour.
 
 ## Overview
 

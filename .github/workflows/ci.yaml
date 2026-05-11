@@ -433,3 +433,38 @@ jobs:
 
       - name: Verify GraphQL schema is in sync
         run: pnpm run verify-schema-in-sync
+
+  # ─────────────────────────────────────────────────────────────────────
+  # OpenAPI Route Drift Gate — fail if docs/api-reference/openapi.yaml
+  # doesn't list every route registered in src/{routes,litho}.ts and
+  # vice versa. Schema content (response bodies, params) is intentionally
+  # NOT gated — only the route SET is checked. Same drift-gate pattern
+  # as the GraphQL schema and contract-ABI sync jobs.
+  # ─────────────────────────────────────────────────────────────────────
+  openapi-sync-check:
+    name: OpenAPI Sync Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ./Makalu/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: Makalu/pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        working-directory: ./Makalu
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify OpenAPI route set is in sync
+        run: pnpm run verify-openapi-in-sync

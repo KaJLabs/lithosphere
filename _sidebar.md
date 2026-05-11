@@ -39,7 +39,9 @@
 
 - **API Reference**
   - [REST API](docs/api-reference/rest-api.md)
+  - [REST OpenAPI Spec](docs/api-reference/openapi.yaml ':ignore')
   - [GraphQL API](docs/api-reference/graphql-api.md)
+  - [GraphQL Schema](docs/api-reference/schema.graphql ':ignore')
   - [SDK Reference](docs/api-reference/sdk-reference.md)
 
 - **Guides**

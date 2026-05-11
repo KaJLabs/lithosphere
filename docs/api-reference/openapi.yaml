@@ -1,0 +1,403 @@
+# Lithosphere REST API — machine-readable contract.
+#
+# Source of truth for the route SET is `Makalu/api/src/routes.ts` + `litho.ts`.
+# This file is the source of truth for documented shapes, summaries and params.
+# CI gate `openapi-sync-check` (see .github/workflows/ci.yaml) fails if a route
+# is registered in code but not listed here, or vice versa.
+#
+# To regenerate the route list:
+#   cd Makalu/api && pnpm exec tsx scripts/list-routes.ts
+openapi: 3.1.0
+info:
+  title: Lithosphere REST API
+  version: 1.0.0
+  description: |
+    Read-only HTTP endpoints consumed by the Lithosphere Explorer frontend.
+    Backed by the indexer's PostgreSQL store and the chain's Cosmos/EVM RPCs.
+
+    Base URL in production: `https://makalu.litho.ai/api`.
+
+    The route SET is mirrored from the running Express routers via
+    `scripts/list-routes.ts`. A CI job (`openapi-sync-check`) re-runs that
+    introspection and fails if the route SET drifts from `paths:` below.
+    Shape drift (response bodies, query params) is NOT gated — those are
+    enforced by tests, not by this file.
+servers:
+  - url: https://makalu.litho.ai/api
+    description: Makalu testnet
+  - url: http://localhost:4000/api
+    description: Local dev (docker-compose)
+
+tags:
+  - name: Blocks
+  - name: Transactions
+  - name: Addresses
+  - name: Tokens
+  - name: Validators
+  - name: Stats
+  - name: Faucet
+  - name: Meta
+  - name: Litho (demo)
+
+components:
+  parameters:
+    LimitQuery:
+      name: limit
+      in: query
+      description: Page size. Capped server-side at 100.
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    OffsetQuery:
+      name: offset
+      in: query
+      description: Skip the first N results.
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    AddressPath:
+      name: address
+      in: path
+      required: true
+      description: Hex (0x…) or bech32 (`litho1…`) address. Server lowercases hex inputs.
+      schema:
+        type: string
+    TxHashPath:
+      name: hash
+      in: path
+      required: true
+      description: Transaction hash (0x-prefixed 32-byte EVM hash or 64-char Cosmos hash).
+      schema:
+        type: string
+    TokenAddressPath:
+      name: address
+      in: path
+      required: true
+      description: LEP100 token contract address (hex).
+      schema:
+        type: string
+  schemas:
+    JsonObject:
+      type: object
+      additionalProperties: true
+    Pagination:
+      type: object
+      properties:
+        limit: { type: integer }
+        offset: { type: integer }
+        total: { type: integer }
+
+paths:
+  # ───── Blocks ─────────────────────────────────────────────────────────────
+  /blocks:
+    get:
+      tags: [Blocks]
+      summary: List indexed blocks (newest first).
+      parameters:
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
+      responses:
+        '200':
+          description: Paginated block list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /blocks/{height}:
+    get:
+      tags: [Blocks]
+      summary: Get a block by height.
+      parameters:
+        - name: height
+          in: path
+          required: true
+          schema: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: Block detail with tx summary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+        '404': { description: Block not indexed. }
+
+  # ───── Transactions ──────────────────────────────────────────────────────
+  /txs:
+    get:
+      tags: [Transactions]
+      summary: List indexed transactions (newest first).
+      parameters:
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
+      responses:
+        '200':
+          description: Paginated transaction list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /txs/{hash}:
+    get:
+      tags: [Transactions]
+      summary: Get a transaction by hash (Cosmos or EVM).
+      parameters:
+        - $ref: '#/components/parameters/TxHashPath'
+      responses:
+        '200': { description: Transaction detail. }
+        '404': { description: Not found in DB or on-chain. }
+  /txs/{hash}/logs:
+    get:
+      tags: [Transactions]
+      summary: EVM logs emitted by a transaction.
+      parameters:
+        - $ref: '#/components/parameters/TxHashPath'
+      responses:
+        '200':
+          description: Ordered log array.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+
+  # ───── Addresses ─────────────────────────────────────────────────────────
+  /address/{address}:
+    get:
+      tags: [Addresses]
+      summary: Address overview — balance, nonce, type (EOA/contract).
+      parameters:
+        - $ref: '#/components/parameters/AddressPath'
+      responses:
+        '200':
+          description: Address summary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /address/{address}/txs:
+    get:
+      tags: [Addresses]
+      summary: Transactions involving an address.
+      parameters:
+        - $ref: '#/components/parameters/AddressPath'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
+      responses:
+        '200':
+          description: Paginated tx list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /address/{address}/tokens:
+    get:
+      tags: [Addresses]
+      summary: LEP100 token balances held by an address.
+      parameters:
+        - $ref: '#/components/parameters/AddressPath'
+      responses:
+        '200':
+          description: Per-token balance list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /address/{address}/token-transfers:
+    get:
+      tags: [Addresses]
+      summary: Token transfers involving an address.
+      parameters:
+        - $ref: '#/components/parameters/AddressPath'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
+      responses:
+        '200':
+          description: Paginated transfer list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+
+  # ───── Tokens ────────────────────────────────────────────────────────────
+  /tokens:
+    get:
+      tags: [Tokens]
+      summary: List indexed LEP100 tokens.
+      responses:
+        '200':
+          description: Token registry.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /tokens/{address}:
+    get:
+      tags: [Tokens]
+      summary: Token metadata + supply.
+      parameters:
+        - $ref: '#/components/parameters/TokenAddressPath'
+      responses:
+        '200':
+          description: Token detail.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+        '404': { description: Token not indexed. }
+  /tokens/{address}/roles:
+    get:
+      tags: [Tokens]
+      summary: LEP100 role grants for a token (admin / minter / burner).
+      parameters:
+        - $ref: '#/components/parameters/TokenAddressPath'
+      responses:
+        '200':
+          description: Role assignment list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /tokens/{address}/transfers:
+    get:
+      tags: [Tokens]
+      summary: Recent transfers of a token.
+      parameters:
+        - $ref: '#/components/parameters/TokenAddressPath'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
+      responses:
+        '200':
+          description: Paginated transfer list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /tokens/{address}/holders:
+    get:
+      tags: [Tokens]
+      summary: Largest holders of a token.
+      parameters:
+        - $ref: '#/components/parameters/TokenAddressPath'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
+      responses:
+        '200':
+          description: Holder leaderboard (paged).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+
+  # ───── Validators ────────────────────────────────────────────────────────
+  /validators:
+    get:
+      tags: [Validators]
+      summary: Active and inactive validator set.
+      responses:
+        '200':
+          description: Validator metadata array.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+
+  # ───── Stats / Meta ──────────────────────────────────────────────────────
+  /stats/summary:
+    get:
+      tags: [Stats]
+      summary: Chain summary — height, txs, validators, last-block-time.
+      responses:
+        '200':
+          description: Headline metrics.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /price:
+    get:
+      tags: [Stats]
+      summary: LITHO token price snapshot (external feed, cached).
+      responses:
+        '200':
+          description: Price + change-24h.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /config:
+    get:
+      tags: [Meta]
+      summary: Public chain configuration (chain-id, denom, RPC URLs).
+      responses:
+        '200':
+          description: Frontend bootstrap config.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /debug:
+    get:
+      tags: [Meta]
+      summary: Indexer status — head height, lag, last-poll-error.
+      responses:
+        '200':
+          description: Operational debug snapshot. Not authenticated; values are coarse.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+
+  # ───── Faucet ────────────────────────────────────────────────────────────
+  /faucet/info:
+    get:
+      tags: [Faucet]
+      summary: Faucet drip amount, cooldown window, captcha provider.
+      responses:
+        '200':
+          description: Faucet policy snapshot.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /faucet/claim:
+    post:
+      tags: [Faucet]
+      summary: Request a testnet LITHO drip for an address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address]
+              properties:
+                address: { type: string, description: Recipient (hex or bech32). }
+                captcha: { type: string, description: hCaptcha token if enabled. }
+      responses:
+        '200': { description: Drip submitted. Response includes tx hash. }
+        '400': { description: Validation error (bad address, missing captcha). }
+        '429': { description: Cooldown active for this address / IP. }
+
+  # ───── Litho (demo router, kept for backwards-compat with early SDKs) ────
+  /litho/:
+    get:
+      tags: [Litho (demo)]
+      summary: Demo router root — lists demo endpoints.
+      responses:
+        '200':
+          description: Demo router descriptor.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /litho/balance/{address}:
+    get:
+      tags: [Litho (demo)]
+      summary: Stub balance endpoint (returns 0; placeholder for SDK examples).
+      parameters:
+        - $ref: '#/components/parameters/AddressPath'
+      responses:
+        '200':
+          description: Address + placeholder balance.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /litho/transfer:
+    post:
+      tags: [Litho (demo)]
+      summary: Stub transfer endpoint (returns a static demo hash; no signing).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JsonObject' }
+      responses:
+        '200':
+          description: Demo response with a sentinel tx hash.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }

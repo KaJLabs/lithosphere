@@ -13,6 +13,8 @@
     "test:coverage": "vitest run --coverage",
     "print-schema": "tsx scripts/print-schema.ts",
     "verify-schema-in-sync": "tsx scripts/verify-schema-in-sync.ts",
+    "list-routes": "tsx scripts/list-routes.ts",
+    "verify-openapi-in-sync": "tsx scripts/verify-openapi-in-sync.ts",
     "clean": "rimraf dist"
   },
   "dependencies": {
