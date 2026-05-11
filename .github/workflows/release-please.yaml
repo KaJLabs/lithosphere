@@ -32,6 +32,12 @@ permissions:
   contents: write    # create commits / tags / releases
   pull-requests: write   # open / update the release PR
 
+env:
+  # Opt every JavaScript-based action into Node.js 24 ahead of the
+  # 2026-06-02 forced migration (annotations on every run today).
+  # One-line revert if any action breaks.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
