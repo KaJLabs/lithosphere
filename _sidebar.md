@@ -55,6 +55,7 @@
   - [Release Process](docs/governance/release-process.md)
   - [Observability Runbook](docs/governance/observability.md)
   - [Deployment Approvals](docs/governance/deployment-approvals.md)
+  - [License Policy](docs/governance/license-policy.md)
 
 - **Phase Completions**
   - [Overview](docs/phases/README.md)

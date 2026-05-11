@@ -1,0 +1,59 @@
+# Lithosphere license policy — applied by .github/workflows/ci.yaml's
+# License Check job via scripts/check-licenses.mjs.
+#
+# The intent: keep the dependency tree limited to permissive licenses that
+# don't impose copyleft or source-disclosure obligations on Lithosphere
+# binaries or the SDK packages we ship to npm. Anything outside this list
+# requires explicit human review and a per-package exception below.
+#
+# Reference: SPDX license identifiers (https://spdx.org/licenses/).
+
+# Allow-list — packages with these SPDX IDs pass freely.
+allow:
+  - MIT
+  - ISC
+  - Apache-2.0
+  - BSD-2-Clause
+  - BSD-3-Clause
+  - 0BSD
+  - BlueOak-1.0.0       # used by the node-glob ecosystem (permissive, vetted)
+  - CC0-1.0             # public domain dedication
+  - Unlicense
+  - WTFPL
+  - Python-2.0          # historic permissive, found in some build tooling
+
+# Explicit deny-list — copyleft / source-available / commercial-restrictive
+# licenses that would contaminate Lithosphere code if pulled in. A direct hit
+# fails CI with a clear message; no exception path.
+deny:
+  - GPL-2.0
+  - GPL-3.0
+  - GPL-2.0-or-later
+  - GPL-3.0-or-later
+  - AGPL-1.0
+  - AGPL-3.0
+  - AGPL-3.0-or-later
+  - LGPL-2.0
+  - LGPL-2.1
+  - LGPL-3.0
+  - SSPL-1.0
+  - BUSL-1.1
+  - Elastic-2.0
+  - Commons-Clause
+
+# Per-package exceptions — packages whose license isn't in the allow-list
+# but have been reviewed and approved. Each entry needs a human-readable
+# `reason` so the next maintainer doesn't have to re-litigate.
+exceptions:
+  - package: caniuse-lite
+    license: CC-BY-4.0
+    reason: |
+      Browser-compatibility data tables. CC-BY-4.0 imposes only an
+      attribution requirement on derivative *data* works; we redistribute
+      it embedded in build tooling, not as a primary product, and the
+      attribution shipping inside the package.json suffices.
+
+# Compound license expressions — when a package's license is a SPDX
+# expression like "(MIT AND BSD-3-Clause)" or "(MIT OR CC0-1.0)", the
+# checker decomposes it and demands every constituent be in `allow` (for
+# AND-compounds) or at least one (for OR-compounds). No config needed.
