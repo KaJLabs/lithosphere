@@ -1,9 +1,5 @@
 {
-  "detectors_to_exclude": [
-    "naming-convention",
-    "solc-version",
-    "low-level-calls"
-  ],
+  "detectors_to_exclude": "naming-convention,solc-version,low-level-calls",
   "exclude_informational": false,
   "exclude_low": false,
   "exclude_medium": false,
@@ -22,8 +18,5 @@
   "sarif": "slither-report.sarif",
   "checklist": true,
   "markdown_root": "https://github.com/lithosphere/contracts/blob/main/",
-  "printers_to_run": [
-    "contract-summary",
-    "function-summary"
-  ]
+  "printers_to_run": "contract-summary,function-summary"
 }
