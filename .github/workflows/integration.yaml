@@ -1,22 +1,29 @@
 # Dockerized integration tests — boots ephemeral Postgres and exercises the
-# api layer end-to-end against real SQL. Not currently gating; runs on
-# workflow_dispatch and on every PR labelled `integration` to keep cost low.
+# api layer end-to-end against real SQL. Auto-fires on PRs that touch the
+# api, indexer, or the integration test corpus. `workflow_dispatch` stays
+# for manual baseline runs (e.g. when editing chain-state.json without
+# touching service code). The `pull_request: types: [labeled]` trigger
+# was promoted to a path-based PR gate on 2026-05-12 once the workflow
+# was proven end-to-end (sslmode=disable fix; chain-state fixture corpus).
+# Skips on docs / workflow-only PRs to keep CI time bounded — ~1 min added.
 
 name: Integration Tests
 
 on:
   workflow_dispatch:
   pull_request:
-    types: [labeled]
     branches: [main]
+    paths:
+      - 'Makalu/api/**'
+      - 'Makalu/indexer/**'
+      - 'Makalu/docker-compose.test.yml'
+      - '.github/workflows/integration.yaml'
 
 permissions:
   contents: read
 
 jobs:
   integration:
-    # Skip unless the triggering event was the dispatch or the PR was labelled `integration`.
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.label.name == 'integration')
     runs-on: ubuntu-latest
     services:
       postgres:
