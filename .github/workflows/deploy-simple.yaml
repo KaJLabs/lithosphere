@@ -483,8 +483,11 @@ jobs:
           SCRIPT=$(cat << 'VERIFY_SCRIPT'
           #!/bin/bash
           set +e  # we want both endpoints' values even if one fails
+          # api: port 4000 is mapped to the host via docker-compose `ports:`
           API_JSON=$(curl -fsS --max-time 5 http://localhost:4000/version 2>/dev/null || echo '{}')
-          INDEXER_JSON=$(curl -fsS --max-time 5 http://localhost:3001/version 2>/dev/null || echo '{}')
+          # indexer: port 3001 is internal-only (no host port mapping), so
+          # reach it via docker exec instead of host curl.
+          INDEXER_JSON=$(sudo docker exec litho-indexer wget -qO- --timeout=5 http://localhost:3001/version 2>/dev/null || echo '{}')
           echo "API_VERSION_JSON=$API_JSON"
           echo "INDEXER_VERSION_JSON=$INDEXER_JSON"
           VERIFY_SCRIPT
