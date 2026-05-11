@@ -39,6 +39,13 @@ jobs:
     name: Deploy to Server
     runs-on: ubuntu-latest
 
+    # GitHub Environments — admins can attach "Required reviewers" / "Wait timer" /
+    # "Deployment branches" protection rules in repo Settings → Environments
+    # without touching this file. See docs/governance/deployment-approvals.md.
+    environment:
+      name: ${{ github.event.inputs.environment || 'mainnet' }}
+      url: https://makalu.litho.ai
+
     permissions:
       contents: read
       id-token: write
@@ -460,6 +467,73 @@ jobs:
 
           [ "$STATUS" = "Success" ] || { echo "Health checks failed: $STATUS"; exit 1; }
 
+      # ── Verify deployed build matches workflow commit ─────────────────────
+      # Curls the new /version endpoint (Phase 9) on api + indexer over SSM
+      # and compares the returned gitSha to ${{ github.sha }}. If the bastion
+      # ended up building a different SHA (concurrent push, git-clone race),
+      # this surfaces it loudly in the workflow summary rather than letting
+      # the deploy succeed silently with a stale binary.
+      - name: Verify Deployed Build SHA
+        id: verify-sha
+        continue-on-error: true
+        run: |
+          EXPECTED_SHA="${{ github.sha }}"
+          echo "Expected SHA: $EXPECTED_SHA"
+
+          SCRIPT=$(cat << 'VERIFY_SCRIPT'
+          #!/bin/bash
+          set +e  # we want both endpoints' values even if one fails
+          API_JSON=$(curl -fsS --max-time 5 http://localhost:4000/version 2>/dev/null || echo '{}')
+          INDEXER_JSON=$(curl -fsS --max-time 5 http://localhost:3001/version 2>/dev/null || echo '{}')
+          echo "API_VERSION_JSON=$API_JSON"
+          echo "INDEXER_VERSION_JSON=$INDEXER_JSON"
+          VERIFY_SCRIPT
+          )
+
+          jq -n --arg instance "$INSTANCE_ID" --arg script "$SCRIPT" '{
+            InstanceIds: [$instance],
+            DocumentName: "AWS-RunShellScript",
+            TimeoutSeconds: 60,
+            Parameters: { commands: [$script] }
+          }' > /tmp/ssm-verify.json
+
+          COMMAND_ID=$(aws ssm send-command \
+            --cli-input-json file:///tmp/ssm-verify.json \
+            --query "Command.CommandId" --output text)
+
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" || true
+
+          OUTPUT=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query "StandardOutputContent" --output text)
+
+          echo "── /version responses:"
+          echo "$OUTPUT"
+
+          API_JSON=$(echo "$OUTPUT" | grep '^API_VERSION_JSON=' | sed 's/^API_VERSION_JSON=//')
+          INDEXER_JSON=$(echo "$OUTPUT" | grep '^INDEXER_VERSION_JSON=' | sed 's/^INDEXER_VERSION_JSON=//')
+
+          API_SHA=$(echo "$API_JSON" | jq -r '.gitSha // "unknown"')
+          INDEXER_SHA=$(echo "$INDEXER_JSON" | jq -r '.gitSha // "unknown"')
+
+          echo "api_sha=$API_SHA"     >> $GITHUB_OUTPUT
+          echo "indexer_sha=$INDEXER_SHA" >> $GITHUB_OUTPUT
+          echo "expected_sha=$EXPECTED_SHA" >> $GITHUB_OUTPUT
+
+          API_MATCH="false"; [ "$API_SHA" = "$EXPECTED_SHA" ] && API_MATCH="true"
+          INDEXER_MATCH="false"; [ "$INDEXER_SHA" = "$EXPECTED_SHA" ] && INDEXER_MATCH="true"
+          echo "api_match=$API_MATCH"       >> $GITHUB_OUTPUT
+          echo "indexer_match=$INDEXER_MATCH" >> $GITHUB_OUTPUT
+
+          if [ "$API_MATCH" = "true" ] && [ "$INDEXER_MATCH" = "true" ]; then
+            echo "All services report the expected commit."
+          else
+            echo "::warning::SHA mismatch — api=$API_SHA indexer=$INDEXER_SHA expected=$EXPECTED_SHA"
+          fi
+
       - name: Deployment Summary
         if: always()
         run: |
@@ -471,6 +545,13 @@ jobs:
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployed At | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
           echo "| Method | AWS SSM |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Build SHA Verification" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Deployed SHA | Match |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| api | \`${{ steps.verify-sha.outputs.api_sha }}\` | ${{ steps.verify-sha.outputs.api_match == 'true' && '✅' || '⚠️' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| indexer | \`${{ steps.verify-sha.outputs.indexer_sha }}\` | ${{ steps.verify-sha.outputs.indexer_match == 'true' && '✅' || '⚠️' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| expected | \`${{ steps.verify-sha.outputs.expected_sha }}\` | — |" >> $GITHUB_STEP_SUMMARY
 
   rollback:
     name: Rollback on Failure

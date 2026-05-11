@@ -54,6 +54,7 @@
   - [Key Rotation Runbook](docs/governance/key-rotation-runbook.md)
   - [Release Process](docs/governance/release-process.md)
   - [Observability Runbook](docs/governance/observability.md)
+  - [Deployment Approvals](docs/governance/deployment-approvals.md)
 
 - **Phase Completions**
   - [Overview](docs/phases/README.md)
