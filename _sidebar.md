@@ -56,6 +56,8 @@
   - [Observability Runbook](docs/governance/observability.md)
   - [Deployment Approvals](docs/governance/deployment-approvals.md)
   - [License Policy](docs/governance/license-policy.md)
+  - [Release Calendar](docs/governance/release-calendar.md)
+  - [RFC 0001 — Release Trains](docs/governance/rfcs/0001-release-trains.md)
 
 - **Phase Completions**
   - [Overview](docs/phases/README.md)
