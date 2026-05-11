@@ -37,6 +37,15 @@ FROM node:20-alpine AS runner
 
 RUN apk update && apk upgrade --no-cache && apk add --no-cache wget
 
+# Strip bundled npm/yarn — unused at runtime (CMD invokes node directly).
+# Closes HIGH CVEs in npm's transitive deps (cross-spawn, glob, minimatch, tar).
+RUN rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/bin/npm \
+           /usr/local/bin/npx \
+           /opt/yarn-* \
+           /usr/local/bin/yarn \
+           /usr/local/bin/yarnpkg
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 lithosphere
 
