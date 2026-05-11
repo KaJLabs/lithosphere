@@ -1,63 +1,24 @@
 /**
- * @lithosphere/sdk
- * Official TypeScript SDK for the Lithosphere L1 blockchain
+ * Starter scaffold for building a custom SDK on top of Lithosphere.
  *
- * @packageDocumentation
+ * Copied verbatim by `create-litho-app` when the user picks the `sdk`
+ * template. After scaffolding, you own the resulting package — rename it,
+ * publish it under your scope, build your domain abstractions on top.
+ *
+ * What this scaffold gives you:
+ *   - A working `pnpm install && pnpm build && pnpm test` loop
+ *   - `@lithosphere/sdk` already installed as a dependency
+ *   - The `LithosphereExtensions` example class showing the pattern for
+ *     wrapping the official client with your own domain methods
+ *
+ * What it deliberately does NOT do:
+ *   - Re-export the public surface of `@lithosphere/sdk`. Consumers should
+ *     `import { LithoClient } from '@lithosphere/sdk'` directly. This
+ *     package's purpose is to *add* to the SDK, not relay it.
  */
 
-// Main client
-export { LithoClient, default as LithoClientDefault } from './client.js';
-
-// Types
-export type {
-  // Network types
-  NetworkName,
-  NetworkConfig,
-  // Transaction types
-  TransactionStatus,
-  TransactionResponse,
-  TransactionReceipt,
-  Log,
-  // Account types
-  AccountBalance,
-  TokenBalance,
-  // Client types
-  ClientConfig,
-  CallOptions,
-  SendOptions,
-} from './types.js';
-
-// Constants and enums
-export { NETWORKS, ErrorCode, LithoError } from './types.js';
-
-// ABIs
-// Note: JSON imports require bundler support or fs.readFileSync at runtime
-// export { default as ERC20_ABI } from './abis/ERC20.json' with { type: 'json' };
-import ERC20_ABI_DATA from './abis/ERC20.json' with { type: 'json' };
-export const ERC20_ABI = ERC20_ABI_DATA;
-
-// Version
-export const VERSION = '0.1.0';
-
-/**
- * Create a new LithoClient instance
- * Convenience factory function
- *
- * @param rpcUrlOrNetwork - RPC URL or network name
- * @returns LithoClient instance
- *
- * @example
- * ```typescript
- * import { createClient } from '@lithosphere/sdk';
- *
- * const client = createClient('mainnet');
- * const balance = await client.getBalance('0x...');
- * ```
- */
-export async function createClient(
-  rpcUrlOrNetwork: string,
-  config?: Partial<import('./types.js').ClientConfig>
-): Promise<import('./client.js').LithoClient> {
-  const { LithoClient } = await import('./client.js');
-  return new LithoClient(rpcUrlOrNetwork, config);
-}
+export {
+  LithosphereExtensions,
+  type RecentActivity,
+  type RecentActivityEntry,
+} from './extensions.js';

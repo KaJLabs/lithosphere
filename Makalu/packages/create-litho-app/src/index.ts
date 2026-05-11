@@ -135,7 +135,11 @@ async function run(
 
     spinner.succeed(`Created project structure`);
 
-    // Step 6: Update package.json with project name
+    // Step 6: Update package.json with project name + rewrite workspace deps.
+    // Inside the monorepo the sdk-template's `@lithosphere/sdk` is pinned to
+    // `workspace:*` so it links the local package. After scaffolding into a
+    // standalone directory we need a real version specifier — fall back to
+    // `latest` so a fresh `pnpm install` picks up the published SDK.
     const packageJsonPath = path.join(targetPath, 'package.json');
     if (await fs.pathExists(packageJsonPath)) {
       const updateSpinner = ora('Updating package.json...').start();
@@ -143,6 +147,19 @@ async function run(
       const packageJson = await fs.readJson(packageJsonPath);
       packageJson.name = name;
       packageJson.version = '0.1.0';
+
+      for (const field of ['dependencies', 'devDependencies', 'peerDependencies'] as const) {
+        const block = packageJson[field];
+        if (block && typeof block === 'object') {
+          for (const dep of Object.keys(block)) {
+            const value = block[dep];
+            if (typeof value === 'string' && value.startsWith('workspace:')) {
+              block[dep] = 'latest';
+            }
+          }
+        }
+      }
+
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
 
       updateSpinner.succeed('Updated package.json');

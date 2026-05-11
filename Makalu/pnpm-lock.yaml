@@ -438,9 +438,9 @@ importers:
 
   templates/sdk-template:
     dependencies:
-      viem:
-        specifier: ^2.7.0
-        version: 2.43.2(typescript@5.9.3)(zod@4.2.1)
+      '@lithosphere/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
     devDependencies:
       '@size-limit/preset-small-lib':
         specifier: ^11.0.0

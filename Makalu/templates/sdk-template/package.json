@@ -62,7 +62,7 @@
     "docs": "typedoc --out docs src/index.ts"
   },
   "dependencies": {
-    "viem": "^2.7.0"
+    "@lithosphere/sdk": "workspace:*"
   },
   "devDependencies": {
     "@size-limit/preset-small-lib": "^11.0.0",
