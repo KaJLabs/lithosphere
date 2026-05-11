@@ -482,14 +482,18 @@ jobs:
 
           SCRIPT=$(cat << 'VERIFY_SCRIPT'
           #!/bin/bash
-          set +e  # we want both endpoints' values even if one fails
+          set +e  # we want all endpoints' values even if one fails
           # api: port 4000 is mapped to the host via docker-compose `ports:`
           API_JSON=$(curl -fsS --max-time 5 http://localhost:4000/version 2>/dev/null || echo '{}')
           # indexer: port 3001 is internal-only (no host port mapping), so
           # reach it via docker exec instead of host curl.
           INDEXER_JSON=$(sudo docker exec litho-indexer wget -qO- --timeout=5 http://localhost:3001/version 2>/dev/null || echo '{}')
+          # explorer: Next.js standalone on port 3000 inside the container.
+          # No host port mapping in compose, so go via docker exec like indexer.
+          EXPLORER_JSON=$(sudo docker exec litho-explorer wget -qO- --timeout=5 http://localhost:3000/api/version 2>/dev/null || echo '{}')
           echo "API_VERSION_JSON=$API_JSON"
           echo "INDEXER_VERSION_JSON=$INDEXER_JSON"
+          echo "EXPLORER_VERSION_JSON=$EXPLORER_JSON"
           VERIFY_SCRIPT
           )
 
@@ -518,23 +522,28 @@ jobs:
 
           API_JSON=$(echo "$OUTPUT" | grep '^API_VERSION_JSON=' | sed 's/^API_VERSION_JSON=//')
           INDEXER_JSON=$(echo "$OUTPUT" | grep '^INDEXER_VERSION_JSON=' | sed 's/^INDEXER_VERSION_JSON=//')
+          EXPLORER_JSON=$(echo "$OUTPUT" | grep '^EXPLORER_VERSION_JSON=' | sed 's/^EXPLORER_VERSION_JSON=//')
 
           API_SHA=$(echo "$API_JSON" | jq -r '.gitSha // "unknown"')
           INDEXER_SHA=$(echo "$INDEXER_JSON" | jq -r '.gitSha // "unknown"')
+          EXPLORER_SHA=$(echo "$EXPLORER_JSON" | jq -r '.gitSha // "unknown"')
 
-          echo "api_sha=$API_SHA"     >> $GITHUB_OUTPUT
+          echo "api_sha=$API_SHA"         >> $GITHUB_OUTPUT
           echo "indexer_sha=$INDEXER_SHA" >> $GITHUB_OUTPUT
+          echo "explorer_sha=$EXPLORER_SHA" >> $GITHUB_OUTPUT
           echo "expected_sha=$EXPECTED_SHA" >> $GITHUB_OUTPUT
 
           API_MATCH="false"; [ "$API_SHA" = "$EXPECTED_SHA" ] && API_MATCH="true"
           INDEXER_MATCH="false"; [ "$INDEXER_SHA" = "$EXPECTED_SHA" ] && INDEXER_MATCH="true"
-          echo "api_match=$API_MATCH"       >> $GITHUB_OUTPUT
-          echo "indexer_match=$INDEXER_MATCH" >> $GITHUB_OUTPUT
+          EXPLORER_MATCH="false"; [ "$EXPLORER_SHA" = "$EXPECTED_SHA" ] && EXPLORER_MATCH="true"
+          echo "api_match=$API_MATCH"           >> $GITHUB_OUTPUT
+          echo "indexer_match=$INDEXER_MATCH"   >> $GITHUB_OUTPUT
+          echo "explorer_match=$EXPLORER_MATCH" >> $GITHUB_OUTPUT
 
-          if [ "$API_MATCH" = "true" ] && [ "$INDEXER_MATCH" = "true" ]; then
+          if [ "$API_MATCH" = "true" ] && [ "$INDEXER_MATCH" = "true" ] && [ "$EXPLORER_MATCH" = "true" ]; then
             echo "All services report the expected commit."
           else
-            echo "::warning::SHA mismatch — api=$API_SHA indexer=$INDEXER_SHA expected=$EXPECTED_SHA"
+            echo "::warning::SHA mismatch — api=$API_SHA indexer=$INDEXER_SHA explorer=$EXPLORER_SHA expected=$EXPECTED_SHA"
           fi
 
       - name: Deployment Summary
@@ -554,6 +563,7 @@ jobs:
           echo "|---------|--------------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| api | \`${{ steps.verify-sha.outputs.api_sha }}\` | ${{ steps.verify-sha.outputs.api_match == 'true' && '✅' || '⚠️' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| indexer | \`${{ steps.verify-sha.outputs.indexer_sha }}\` | ${{ steps.verify-sha.outputs.indexer_match == 'true' && '✅' || '⚠️' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| explorer | \`${{ steps.verify-sha.outputs.explorer_sha }}\` | ${{ steps.verify-sha.outputs.explorer_match == 'true' && '✅' || '⚠️' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| expected | \`${{ steps.verify-sha.outputs.expected_sha }}\` | — |" >> $GITHUB_STEP_SUMMARY
 
   rollback:
