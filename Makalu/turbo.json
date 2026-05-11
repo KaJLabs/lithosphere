@@ -31,6 +31,13 @@
       "cache": true,
       "env": ["CI", "NODE_ENV"]
     },
+    "test:coverage": {
+      "dependsOn": ["build"],
+      "inputs": ["$TURBO_DEFAULT$", "test/**", "**/*.test.ts", "**/*.spec.ts"],
+      "outputs": ["coverage/**"],
+      "cache": true,
+      "env": ["CI", "NODE_ENV"]
+    },
     "lint": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".eslintrc*", "eslint.config.*"],

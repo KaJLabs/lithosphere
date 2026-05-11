@@ -121,7 +121,7 @@ interface IndexerSyncSnapshot {
   updatedAt: string;
 }
 
-interface IndexBlockOptions {
+export interface IndexBlockOptions {
   replaceExisting?: boolean;
 }
 
@@ -590,7 +590,7 @@ async function ensureChainConsistency(forceReset: boolean): Promise<void> {
 
 // ─── Block Indexing ───────────────────────────────────────────────────────────
 
-async function indexBlock(height: number, options: IndexBlockOptions = {}): Promise<void> {
+export async function indexBlock(height: number, options: IndexBlockOptions = {}): Promise<void> {
   const [blockData, resultsData] = await Promise.all([
     rpcGet<RpcBlock>(`/block?height=${height}`),
     rpcGet<RpcBlockResults>(`/block_results?height=${height}`),

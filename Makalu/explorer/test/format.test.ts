@@ -1,0 +1,261 @@
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import {
+  cleanMethod,
+  formatBlockTime,
+  formatGas,
+  formatLitho,
+  formatNumber,
+  formatStrat,
+  formatSupply,
+  formatTimestamp,
+  formatValue,
+  isBech32Address,
+  isEvmAddress,
+  isValidatorAddress,
+  proposalStatusColor,
+  timeAgo,
+  truncateAddress,
+  truncateHash,
+  txTypeInfo,
+  validatorStatusLabel,
+} from '../lib/format';
+
+describe('truncateHash / truncateAddress', () => {
+  it('truncates long hashes with default lengths', () => {
+    const hash = '0xabcdefghijklmnopqrstuvwxyz1234567890abcdef';
+    expect(truncateHash(hash)).toBe('0xabcdefgh...abcdef');
+  });
+
+  it('returns short hashes unchanged', () => {
+    expect(truncateHash('0xabc')).toBe('0xabc');
+  });
+
+  it('handles empty strings', () => {
+    expect(truncateHash('')).toBe('');
+  });
+
+  it('truncateAddress delegates to truncateHash', () => {
+    const addr = '0x1234567890abcdef1234567890abcdef12345678';
+    expect(truncateAddress(addr)).toBe('0x1234567890...345678');
+  });
+});
+
+describe('formatNumber', () => {
+  it('formats with US locale separators', () => {
+    expect(formatNumber(1234567)).toBe('1,234,567');
+  });
+
+  it('handles string input', () => {
+    expect(formatNumber('1000000')).toBe('1,000,000');
+  });
+
+  it('returns "0" for null/undefined/NaN', () => {
+    expect(formatNumber(null)).toBe('0');
+    expect(formatNumber(undefined)).toBe('0');
+    expect(formatNumber('not-a-number')).toBe('0');
+  });
+});
+
+describe('formatLitho / formatValue', () => {
+  it('formats 1 LITHO (1e18 ulitho) as "1 LITHO"', () => {
+    expect(formatLitho('1000000000000000000')).toBe('1 LITHO');
+  });
+
+  it('formats fractional LITHO with up to 4 decimals', () => {
+    // 1.5 LITHO
+    expect(formatLitho('1500000000000000000')).toBe('1.5000 LITHO');
+  });
+
+  it('formats zero / null', () => {
+    expect(formatLitho('0')).toBe('0 LITHO');
+    expect(formatLitho(null)).toBe('0 LITHO');
+  });
+
+  it('formatValue strips trailing zeros from fractional part', () => {
+    expect(formatValue('1500000000000000000')).toBe('1.5 LITHO');
+    expect(formatValue('1000000000000000000')).toBe('1 LITHO');
+  });
+
+  it('formatValue handles huge values without precision loss', () => {
+    // 1 billion LITHO
+    expect(formatValue('1000000000000000000000000000')).toBe('1,000,000,000 LITHO');
+  });
+});
+
+describe('formatSupply', () => {
+  it('strips decimals and formats whole token count', () => {
+    expect(formatSupply('1000000000000000000000000')).toBe('1,000,000');
+  });
+
+  it('returns "0" for null', () => {
+    expect(formatSupply(null)).toBe('0');
+  });
+
+  it('respects custom decimals', () => {
+    // 100 tokens with 6 decimals
+    expect(formatSupply('100000000', 6)).toBe('100');
+  });
+});
+
+describe('formatStrat (1 Strat = 100 ulitho)', () => {
+  it('formats 100 ulitho as 1 Strat', () => {
+    expect(formatStrat('100')).toBe('1 Strat');
+  });
+
+  it('formats fractional Strat', () => {
+    expect(formatStrat('7')).toBe('0.07 Strat');
+  });
+
+  it('handles zero / null', () => {
+    expect(formatStrat('0')).toBe('0 Strat');
+    expect(formatStrat(null)).toBe('0 Strat');
+  });
+
+  it('strips trailing zeros', () => {
+    expect(formatStrat('150')).toBe('1.5 Strat');
+  });
+});
+
+describe('formatGas / formatBlockTime', () => {
+  it('formatGas applies number formatting', () => {
+    expect(formatGas('21000')).toBe('21,000');
+  });
+
+  it('formatGas returns "-" for null', () => {
+    expect(formatGas(null)).toBe('-');
+  });
+
+  it('formatBlockTime renders 2 decimal seconds', () => {
+    expect(formatBlockTime(0.525)).toBe('0.53s');
+    expect(formatBlockTime(3.0)).toBe('3.00s');
+  });
+
+  it('formatBlockTime returns "-" for null', () => {
+    expect(formatBlockTime(null)).toBe('-');
+  });
+});
+
+describe('timeAgo', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-11T12:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns "just now" for the present moment', () => {
+    expect(timeAgo('2026-05-11T11:59:58Z')).toBe('just now');
+  });
+
+  it('returns seconds for sub-minute deltas', () => {
+    expect(timeAgo('2026-05-11T11:59:30Z')).toBe('30s ago');
+  });
+
+  it('returns minutes for sub-hour deltas', () => {
+    expect(timeAgo('2026-05-11T11:30:00Z')).toBe('30m ago');
+  });
+
+  it('returns hours for sub-day deltas', () => {
+    expect(timeAgo('2026-05-11T06:00:00Z')).toBe('6h ago');
+  });
+
+  it('returns days for sub-month deltas', () => {
+    expect(timeAgo('2026-05-08T12:00:00Z')).toBe('3d ago');
+  });
+
+  it('returns "-" for null/undefined input', () => {
+    expect(timeAgo(null)).toBe('-');
+    expect(timeAgo(undefined)).toBe('-');
+  });
+});
+
+describe('formatTimestamp', () => {
+  it('formats an ISO string into a human-readable date+time', () => {
+    const out = formatTimestamp('2026-05-11T12:34:56Z');
+    expect(out).toMatch(/2026/);
+    expect(out).toMatch(/May/);
+  });
+
+  it('returns "-" for null', () => {
+    expect(formatTimestamp(null)).toBe('-');
+  });
+});
+
+describe('cleanMethod', () => {
+  it('strips Ethereum branding from Cosmos SDK method names', () => {
+    expect(cleanMethod('/lithosphere.MsgEthereumTxResponse')).toBe('/lithosphere.MsgTxResponse');
+  });
+
+  it('returns input unchanged when no match', () => {
+    expect(cleanMethod('/cosmos.bank.MsgSend')).toBe('/cosmos.bank.MsgSend');
+  });
+
+  it('passes through nullish values', () => {
+    expect(cleanMethod(undefined)).toBeUndefined();
+  });
+});
+
+describe('txTypeInfo', () => {
+  it('returns Call info for call', () => {
+    const info = txTypeInfo('call');
+    expect(info.label).toBe('Call');
+    expect(info.color).toContain('blue');
+  });
+
+  it('returns Create info for create', () => {
+    const info = txTypeInfo('create');
+    expect(info.label).toBe('Create');
+    expect(info.color).toContain('violet');
+  });
+
+  it('falls back to Transfer for unknown or missing type', () => {
+    expect(txTypeInfo()).toMatchObject({ label: 'Transfer' });
+    expect(txTypeInfo('weird')).toMatchObject({ label: 'Transfer' });
+  });
+});
+
+describe('address validators', () => {
+  it('isEvmAddress matches 0x + 40-char hex', () => {
+    expect(isEvmAddress('0x22d279d24f0b7ca5d49c5a7a7f032da416f72387')).toBe(true);
+    expect(isEvmAddress('0x123')).toBe(false);
+    expect(isEvmAddress('litho1abc')).toBe(false);
+  });
+
+  it('isBech32Address matches the litho1 prefix exactly (NOT lithovaloper1)', () => {
+    expect(isBech32Address('litho1ytf8n5j0pd72t4yutfa87qed5st0wgu8lvvmtr')).toBe(true);
+    // 'lithovaloper1abc' starts with 'lithov...', not 'litho1', so it does NOT match
+    expect(isBech32Address('lithovaloper1abc')).toBe(false);
+    expect(isBech32Address('0xabc')).toBe(false);
+  });
+
+  it('isValidatorAddress matches the lithovaloper1 prefix', () => {
+    expect(isValidatorAddress('lithovaloper1abc')).toBe(true);
+    expect(isValidatorAddress('litho1abc')).toBe(false);
+  });
+});
+
+describe('validatorStatusLabel', () => {
+  it.each([
+    [1, 'Unbonded'],
+    [2, 'Unbonding'],
+    [3, 'Bonded'],
+    [99, 'Unknown'],
+  ])('maps status %i → %s', (status, label) => {
+    expect(validatorStatusLabel(status)).toBe(label);
+  });
+});
+
+describe('proposalStatusColor', () => {
+  it.each([
+    ['passed', 'badge-success'],
+    ['rejected', 'badge-error'],
+    ['voting_period', 'badge-info'],
+    ['deposit_period', 'badge-warning'],
+    ['unknown', 'badge-neutral'],
+    [null, 'badge-neutral'],
+  ])('maps "%s" → "%s"', (status, expected) => {
+    expect(proposalStatusColor(status as string | null)).toBe(expected);
+  });
+});

@@ -1,0 +1,63 @@
+# Dockerized integration tests — boots ephemeral Postgres and exercises the
+# api layer end-to-end against real SQL. Not currently gating; runs on
+# workflow_dispatch and on every PR labelled `integration` to keep cost low.
+
+name: Integration Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    # Skip unless the triggering event was the dispatch or the PR was labelled `integration`.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.label.name == 'integration')
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: litho
+          POSTGRES_PASSWORD: litho
+          POSTGRES_DB: litho_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U litho -d litho_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: Makalu/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: ./Makalu
+        run: pnpm install --frozen-lockfile
+
+      - name: Build api + indexer
+        working-directory: ./Makalu
+        run: pnpm turbo run build --filter '@lithosphere/api' --filter '@lithosphere/indexer'
+
+      - name: Run integration tests (api)
+        working-directory: ./Makalu/api
+        env:
+          INTEGRATION_TESTS: '1'
+          DATABASE_URL: postgres://litho:litho@localhost:5433/litho_test
+          CI: true
+        run: pnpm vitest run src/__tests__/integration

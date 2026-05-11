@@ -1,0 +1,68 @@
+# E2E smoke tests — Playwright against makalu.litho.ai (or any URL via input)
+#
+# Runs nightly and on workflow_dispatch. Not gating any merge yet — surfaces
+# regressions in the deployed explorer (homepage, search, blocks list).
+
+name: E2E Smoke
+
+on:
+  schedule:
+    # Daily at 03:00 UTC (after typical maintenance windows)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Override base URL (default https://makalu.litho.ai)'
+        required: false
+        default: 'https://makalu.litho.ai'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./e2e
+    env:
+      E2E_BASE_URL: ${{ github.event.inputs.base_url || 'https://makalu.litho.ai' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: e2e/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm install:browsers
+
+      - name: Run smoke tests
+        run: pnpm test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload test results JSON (flake tracker input)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-${{ github.run_id }}
+          path: e2e/test-results.json
+          retention-days: 30
+          if-no-files-found: ignore

@@ -1,0 +1,14 @@
+{
+  "name": "@lithosphere/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end smoke tests for Lithosphere explorer (makalu.litho.ai)",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "install:browsers": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

@@ -191,26 +191,72 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test (Turbo)
+      - name: Test (Turbo) with coverage
         # Advisory until Phase 6 coverage matures — failures visible in logs and summary,
         # but don't block PRs. Flip to false once api/indexer/explorer reach baseline coverage.
         continue-on-error: true
-        run: pnpm turbo run test --filter='...[origin/main]'
+        run: pnpm turbo run test:coverage --filter='...[origin/main]' --continue
         env:
           CI: true
 
-      - name: Test Summary
+      # Explorer is a sibling Next.js project, not a workspace member (it has its
+      # own lockfile + node_modules). Run its tests directly.
+      - name: Explorer tests with coverage
+        continue-on-error: true
+        working-directory: ./Makalu/explorer
+        run: |
+          if [ -f package.json ] && grep -q '"test"' package.json; then
+            pnpm install --frozen-lockfile
+            pnpm test:coverage
+          else
+            echo "explorer has no test script, skipping"
+          fi
+
+      - name: Coverage Summary
         if: always()
         run: |
-          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Test & Coverage Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Package | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
-          for pkg in api indexer templates/service-template templates/sdk-template templates/contracts-template; do
-            if [ -d "$pkg" ] && grep -q '"test"' "$pkg/package.json" 2>/dev/null; then
-              echo "| $pkg | Ran |" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Stmts % | Branch % | Funcs % | Lines % |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------:|---------:|--------:|--------:|" >> $GITHUB_STEP_SUMMARY
+          for pkg in api indexer explorer; do
+            summary="$pkg/coverage/coverage-summary.json"
+            if [ -f "$summary" ]; then
+              stmts=$(jq -r '.total.statements.pct' "$summary")
+              branch=$(jq -r '.total.branches.pct' "$summary")
+              funcs=$(jq -r '.total.functions.pct' "$summary")
+              lines=$(jq -r '.total.lines.pct' "$summary")
+              echo "| $pkg | $stmts | $branch | $funcs | $lines |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $pkg | _no coverage_ | | | |" >> $GITHUB_STEP_SUMMARY
             fi
           done
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            Makalu/api/coverage/
+            Makalu/indexer/coverage/
+            Makalu/explorer/coverage/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      # Upload vitest JSON for the flake tracker. scripts/flake-tracker.sh
+      # consumes these across the last N runs to find tests with mixed pass/fail.
+      - name: Upload test-results JSON (for flake tracker)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_id }}
+          path: |
+            Makalu/api/test-results.json
+            Makalu/indexer/test-results.json
+            Makalu/explorer/test-results.json
+          retention-days: 30
+          if-no-files-found: ignore
 
   # ─────────────────────────────────────────────────────────────────────
   # Typecheck (after build — needs compiled dependencies)

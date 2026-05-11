@@ -172,6 +172,68 @@ jobs:
           retention-days: 30
 
   # ─────────────────────────────────────────────────────────────────────
+  # Solidity test coverage (hardhat solidity-coverage)
+  # ─────────────────────────────────────────────────────────────────────
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    needs: compile
+    defaults:
+      run:
+        working-directory: ./Makalu/contracts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: Makalu/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      # solidity-coverage is bundled inside @nomicfoundation/hardhat-toolbox
+      - name: Run solidity-coverage
+        # Coverage will sometimes fail on optimizer settings or memory limits;
+        # treat the gate as advisory until baseline coverage is established.
+        continue-on-error: true
+        run: pnpm test:coverage
+
+      - name: Coverage Summary
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            stmts=$(jq -r '.total.statements.pct' coverage/coverage-summary.json 2>/dev/null || echo "?")
+            branch=$(jq -r '.total.branches.pct' coverage/coverage-summary.json 2>/dev/null || echo "?")
+            funcs=$(jq -r '.total.functions.pct' coverage/coverage-summary.json 2>/dev/null || echo "?")
+            lines=$(jq -r '.total.lines.pct' coverage/coverage-summary.json 2>/dev/null || echo "?")
+            echo "## Solidity Coverage (Makalu/contracts)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Stmts % | Branch % | Funcs % | Lines % |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------:|---------:|--------:|--------:|" >> $GITHUB_STEP_SUMMARY
+            echo "| $stmts | $branch | $funcs | $lines |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## Solidity Coverage" >> $GITHUB_STEP_SUMMARY
+            echo "_No coverage-summary.json found._" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solidity-coverage
+          path: |
+            Makalu/contracts/coverage/
+            Makalu/contracts/coverage.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────────────
   # Static analysis with Slither
   # ─────────────────────────────────────────────────────────────────────
   slither:

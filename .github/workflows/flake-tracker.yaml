@@ -1,0 +1,64 @@
+# Flake tracker — runs nightly, downloads the last 10 CI test-results
+# artifacts, and reports tests that pass on some runs and fail on others.
+#
+# This is intentionally minimal: the actual flake detection logic lives in
+# scripts/flake-tracker.sh so it can also be invoked locally.
+
+name: Flake Tracker
+
+on:
+  schedule:
+    # Daily at 02:30 UTC
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download last 10 test-results artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p ./flake-results
+          # List the latest 10 CI runs on main (any conclusion — both passes
+          # and failures are useful for flake detection) and download their
+          # test-results artifacts.
+          gh run list \
+            --workflow ci.yaml \
+            --branch main \
+            --limit 10 \
+            --json databaseId,conclusion \
+            --jq '.[] | .databaseId' \
+          | while read -r run_id; do
+              echo "Fetching artifacts from run $run_id..."
+              gh run download "$run_id" \
+                --pattern "test-results-*" \
+                --dir "./flake-results/$run_id" 2>/dev/null || true
+            done
+          # Flatten everything into one dir for the script
+          mkdir -p ./flake-results-flat
+          find ./flake-results -name 'test-results.json' -print0 \
+            | while IFS= read -r -d '' f; do
+                cp "$f" "./flake-results-flat/$(echo "$f" | md5sum | cut -c1-8).json"
+              done
+          echo "Collected $(ls ./flake-results-flat | wc -l) result files."
+
+      - name: Run flake tracker
+        run: |
+          chmod +x scripts/flake-tracker.sh
+          scripts/flake-tracker.sh ./flake-results-flat | tee flake-report.txt
+
+      - name: Summarize
+        if: always()
+        run: |
+          echo "## Flake Tracker Report" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat flake-report.txt >> $GITHUB_STEP_SUMMARY || echo "(no report)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
