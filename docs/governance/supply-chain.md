@@ -89,14 +89,40 @@ in the first place. The CRITICAL gate is hard-fail; HIGH findings upload
 to the GitHub Security tab for triage (see
 [license policy](./license-policy.md) for the parallel dependency-side gate).
 
-## Deployment-side verification (future)
+## Deployment-side verification
 
-Today `deploy-simple.yaml` builds from source on the bastion, so the
-GHCR-side signatures/attestations aren't consulted during deploy. Future
-work — likely once we move to a pull-the-published-image model — would
-add a Cosign + attestation verification gate before the `docker compose
-up`. The verification commands above are the ones to drop into that
-gate.
+The `Verify GHCR Image Signatures` step in `deploy-simple.yaml` runs
+Cosign + `gh attestation verify` against each published image for the
+deploy's commit SHA. Today the bastion still builds from source, so the
+check is **advisory** (`continue-on-error: true`) — a `failed` or
+`skipped` row doesn't block the deploy. Results land in the deployment
+summary's `## Supply Chain Verification` table next to the
+`## Build SHA Verification` table.
+
+Outcomes the step reports:
+
+| Status | Meaning |
+|--------|---------|
+| ✅ verified | Cosign keyless signature AND SLSA Build L2 attestation both match `https://github.com/KaJLabs/Lithosphere/.+` identity. |
+| ⚠️ partial (sig-only) | Image is signed but lacks (or has an invalid) SLSA attestation. Treat as suspicious. |
+| ⚠️ partial (att-only) | Attestation present but the Cosign signature didn't verify. Usually means a stale registry mirror or a key-rotation in progress. |
+| ❌ failed | Neither artifact verified. Investigate before promoting. |
+| — (skipped) | No image for this SHA. Normal when the commit only touched workflows / docs / chain — `publish-images.yaml` runs only on `Makalu/{api,indexer,explorer}/**` path changes. |
+
+### Promotion path to a blocking gate
+
+The day deployments switch from build-from-source to pull-published-image:
+
+1. Remove `continue-on-error: true` from `Verify GHCR Image Signatures`.
+2. Change the bastion deploy script to `docker compose pull` then
+   `docker compose up -d --no-build`.
+3. The verification step now blocks any deploy whose images don't carry
+   matching Cosign + SLSA artifacts. Tampered, typo-squatted, or
+   offline-rebuilt images can't reach production.
+
+Until then, the advisory mode is the right posture: it surfaces the
+signal in every deploy summary without inheriting publish-image's
+schedule constraints.
 
 ## Rotation & key management
 

@@ -65,6 +65,77 @@ jobs:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # ─────────────────────────────────────────────────────────────────────
+      # Supply-chain pre-check (advisory). Verifies the GHCR images for the
+      # current SHA carry a valid Cosign keyless signature AND a SLSA
+      # build-provenance attestation matching this repo's identity. The
+      # bastion still builds from source today, so this is a parallel
+      # check, not a deploy gate. The day we flip to image-pull deploy
+      # this becomes the blocking gate by removing `continue-on-error`.
+      #
+      # Skips gracefully when no published image exists for the SHA —
+      # publish-images.yaml only fires on path changes to Makalu/{api,
+      # indexer,explorer}/**, so SHAs that change only workflows or docs
+      # won't have a corresponding image. That's expected, not failure.
+      #
+      # See docs/governance/supply-chain.md for the verification model
+      # and threats this rules out.
+      # ─────────────────────────────────────────────────────────────────────
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Verify GHCR Image Signatures
+        id: verify-supply-chain
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          TAG="sha-$SHORT_SHA"
+          OWNER_REGEX='https://github.com/KaJLabs/Lithosphere/.+'
+          OIDC_ISSUER='https://token.actions.githubusercontent.com'
+
+          declare -A RESULTS
+          for service in api indexer explorer; do
+            IMAGE="ghcr.io/kajlabs/lithosphere-$service:$TAG"
+            echo "── Checking $IMAGE"
+
+            # Skip silently when no image exists for this SHA — publish-images
+            # only runs on Makalu/{api,indexer,explorer}/** path changes.
+            if ! cosign triangulate "$IMAGE" >/dev/null 2>&1; then
+              echo "  no image for this SHA (publish-images.yaml did not run); skipping"
+              RESULTS[$service]="skipped"
+              continue
+            fi
+
+            SIG_OK=0
+            cosign verify "$IMAGE" \
+              --certificate-identity-regexp "$OWNER_REGEX" \
+              --certificate-oidc-issuer "$OIDC_ISSUER" >/dev/null 2>&1 && SIG_OK=1
+
+            ATT_OK=0
+            gh attestation verify "oci://$IMAGE" --owner KaJLabs >/dev/null 2>&1 && ATT_OK=1
+
+            if [ $SIG_OK -eq 1 ] && [ $ATT_OK -eq 1 ]; then
+              echo "  Cosign sig: OK   SLSA attestation: OK"
+              RESULTS[$service]="ok"
+            elif [ $SIG_OK -eq 1 ]; then
+              echo "::warning::$service signed but SLSA attestation missing/invalid"
+              RESULTS[$service]="sig-only"
+            elif [ $ATT_OK -eq 1 ]; then
+              echo "::warning::$service has attestation but Cosign signature failed"
+              RESULTS[$service]="att-only"
+            else
+              echo "::warning::$service supply-chain verification FAILED (sig + att)"
+              RESULTS[$service]="failed"
+            fi
+          done
+
+          echo "api_supply=${RESULTS[api]}"           >> $GITHUB_OUTPUT
+          echo "indexer_supply=${RESULTS[indexer]}"   >> $GITHUB_OUTPUT
+          echo "explorer_supply=${RESULTS[explorer]}" >> $GITHUB_OUTPUT
+
       - name: Verify SSM Connectivity
         run: |
           STATUS=$(aws ssm describe-instance-information \
@@ -565,6 +636,31 @@ jobs:
           echo "| indexer | \`${{ steps.verify-sha.outputs.indexer_sha }}\` | ${{ steps.verify-sha.outputs.indexer_match == 'true' && '✅' || '⚠️' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| explorer | \`${{ steps.verify-sha.outputs.explorer_sha }}\` | ${{ steps.verify-sha.outputs.explorer_match == 'true' && '✅' || '⚠️' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| expected | \`${{ steps.verify-sha.outputs.expected_sha }}\` | — |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          # Supply-chain pre-check results — Cosign sig + SLSA attestation
+          # verified against the GHCR image for this SHA. Advisory only:
+          # bastion builds from source, so a `skipped` or `failed` here
+          # doesn't fail the deploy today. See docs/governance/supply-chain.md.
+          echo "## Supply Chain Verification" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Cosign + SLSA | Notes |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|---------------|-------|" >> $GITHUB_STEP_SUMMARY
+          API_SUPPLY="${{ steps.verify-supply-chain.outputs.api_supply }}"
+          INDEXER_SUPPLY="${{ steps.verify-supply-chain.outputs.indexer_supply }}"
+          EXPLORER_SUPPLY="${{ steps.verify-supply-chain.outputs.explorer_supply }}"
+          for svc in api indexer explorer; do
+            case "$svc" in
+              api) state="$API_SUPPLY" ;;
+              indexer) state="$INDEXER_SUPPLY" ;;
+              explorer) state="$EXPLORER_SUPPLY" ;;
+            esac
+            case "$state" in
+              ok) echo "| $svc | ✅ verified | Cosign keyless sig + SLSA Build L2 attestation match |" >> $GITHUB_STEP_SUMMARY ;;
+              sig-only) echo "| $svc | ⚠️ partial | Signed but SLSA attestation missing |" >> $GITHUB_STEP_SUMMARY ;;
+              att-only) echo "| $svc | ⚠️ partial | Attestation present but signature failed |" >> $GITHUB_STEP_SUMMARY ;;
+              failed) echo "| $svc | ❌ failed | Neither sig nor attestation verifies — investigate |" >> $GITHUB_STEP_SUMMARY ;;
+              *) echo "| $svc | — | No image for this SHA (publish-images didn't run) |" >> $GITHUB_STEP_SUMMARY ;;
+            esac
+          done
 
   rollback:
     name: Rollback on Failure
