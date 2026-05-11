@@ -173,6 +173,30 @@ For a fuller stack, see
 [the OTel docs](https://opentelemetry.io/docs/collector/quick-start/) on
 piping the collector to Jaeger or Tempo.
 
+## SLO dashboard
+
+Grafana panel "Lithosphere — SLO" (uid `lithosphere-slo`) at
+`Makalu/infra/grafana/dashboards/slo.json` is the single-pane view for
+"are we meeting our service objectives?".
+
+Four stat panels at the top:
+
+- **Availability (24h)** — `1 - 5xx/total` over a trailing day. Target ≥ 99.9%.
+- **Error Rate (5xx, 5m)** — recent share of 5xx responses. Sustained > 1% is the regression signal.
+- **Request Rate (RPS)** — total API throughput.
+- **Indexer Chain Lag** — `litho_indexer_chain_lag_blocks`. Sustained > 100 blocks is the indexing alarm.
+
+Two time-series panels:
+
+- **Request Latency p50 / p95 / p99** — `histogram_quantile()` over `litho_api_http_request_duration_seconds_bucket`.
+- **Requests by Status Class** — stacked 2xx/3xx/4xx/5xx rates so post-deploy regressions are visually obvious.
+
+One table:
+
+- **Build Info** — joins `litho_api_build_info` + `litho_indexer_build_info` so the operator can see which `git_sha` each service is running. If they diverge, it's a partial deploy.
+
+The underlying metrics ship from `Makalu/api/src/lib/http-metrics.ts`. Routes are labeled by Express's normalized `req.route.path` (e.g. `/api/blocks/:height`), not the raw URL, so cardinality stays bounded.
+
 ## Glossary
 
 | Term | Where it lives | What it correlates |

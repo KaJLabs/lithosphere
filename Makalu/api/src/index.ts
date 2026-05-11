@@ -16,6 +16,7 @@ import {
   requestIdStore,
   resolveRequestId,
 } from './lib/logger.js';
+import { metricsMiddleware } from './lib/http-metrics.js';
 
 // Collect default metrics (CPU, memory, etc.)
 collectDefaultMetrics({ prefix: 'litho_api_' });
@@ -107,6 +108,12 @@ async function proxyExplorerRequest(req: Request, res: Response) {
 
 app.use(cors());
 app.use(express.json());
+
+// HTTP request metrics — records counter + histogram on every response so
+// SLO dashboards can compute availability + latency over real traffic.
+// Mounted before the request-id middleware so the timer starts before any
+// downstream middleware adds overhead.
+app.use(metricsMiddleware);
 
 // Request ID middleware — read X-Request-Id from the client or generate a
 // fresh UUID. Store it in AsyncLocalStorage so any downstream `await` (db

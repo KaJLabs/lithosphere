@@ -1,0 +1,210 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Availability (24h)",
+      "description": "1 − (5xx responses / total responses) over the trailing 24h. Target ≥ 99.9%.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.995 },
+              { "color": "green", "value": 0.999 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [
+        {
+          "expr": "1 - (sum(rate(litho_api_http_requests_total{status_code=~\"5..\"}[24h])) / sum(rate(litho_api_http_requests_total[24h])))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Error Rate (5xx, 5m)",
+      "description": "Share of 5xx responses over the last 5 minutes. Sustained > 1% indicates a regression.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.005 },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [
+        {
+          "expr": "sum(rate(litho_api_http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(litho_api_http_requests_total[5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Request Rate (RPS)",
+      "description": "Total api requests per second, averaged over the last 5 minutes.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 1 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [
+        { "expr": "sum(rate(litho_api_http_requests_total[5m]))", "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Indexer Chain Lag",
+      "description": "Blocks the indexer is behind the chain tip. Sustained > 100 indicates indexing has fallen behind.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 100 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [
+        { "expr": "litho_indexer_chain_lag_blocks", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Request Latency (p50 / p95 / p99)",
+      "description": "Server-side request handler duration. Computed from the litho_api_http_request_duration_seconds histogram via histogram_quantile.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 3 } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(litho_api_http_request_duration_seconds_bucket[5m])))",
+          "refId": "p50",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(litho_api_http_request_duration_seconds_bucket[5m])))",
+          "refId": "p95",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(litho_api_http_request_duration_seconds_bucket[5m])))",
+          "refId": "p99",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests by Status Class (5m rate)",
+      "description": "Stacked request rate broken out by 2xx / 3xx / 4xx / 5xx. Reading: a spike of 5xx after a deploy is the SLO-burn signal.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 2 } },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table" } },
+      "targets": [
+        {
+          "expr": "sum(rate(litho_api_http_requests_total{status_code=~\"2..\"}[5m]))",
+          "refId": "2xx",
+          "legendFormat": "2xx"
+        },
+        {
+          "expr": "sum(rate(litho_api_http_requests_total{status_code=~\"3..\"}[5m]))",
+          "refId": "3xx",
+          "legendFormat": "3xx"
+        },
+        {
+          "expr": "sum(rate(litho_api_http_requests_total{status_code=~\"4..\"}[5m]))",
+          "refId": "4xx",
+          "legendFormat": "4xx"
+        },
+        {
+          "expr": "sum(rate(litho_api_http_requests_total{status_code=~\"5..\"}[5m]))",
+          "refId": "5xx",
+          "legendFormat": "5xx"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Build Info",
+      "description": "What's deployed right now. Built from the build_info gauges on api and indexer. If git_sha differs across services you have a partial deploy.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 14 },
+      "fieldConfig": { "defaults": { "custom": { "align": "left" } } },
+      "options": { "showHeader": true, "footer": { "show": false } },
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": { "valueLabel": "service" }
+        },
+        {
+          "id": "merge"
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "Value": true, "instance": true, "job": true, "node_version": true },
+            "indexByName": {},
+            "renameByName": { "service": "Service", "git_sha": "Git SHA", "build_time": "Built At", "version": "Version" }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "expr": "litho_api_build_info",
+          "refId": "api",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "litho_indexer_build_info",
+          "refId": "indexer",
+          "instant": true,
+          "format": "table"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["slo", "lithosphere", "api", "indexer"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Lithosphere — SLO",
+  "uid": "lithosphere-slo",
+  "version": 1,
+  "weekStart": ""
+}
