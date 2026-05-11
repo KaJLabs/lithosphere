@@ -29,9 +29,15 @@ import {
  */
 function sanitizeForLog(value: unknown): string {
   const str = typeof value === 'string' ? value : String(value);
-  // Strip ASCII control chars (0x00–0x1F, 0x7F) — covers CR, LF, ESC, etc.
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/[\x00-\x1f\x7f]/g, '?').slice(0, 200);
+  // The explicit `\r\n` replace is the pattern CodeQL's js/log-injection
+  // taint analysis recognises as a newline sanitizer. The follow-up
+  // control-char strip is belt-and-braces (covers ESC for ANSI escapes,
+  // BEL, etc.). Truncate to 200 chars as a final guard.
+  return str
+    .replace(/[\r\n]/g, ' ')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1f\x7f]/g, '?')
+    .slice(0, 200);
 }
 
 const DEFAULT_LIMIT = 20;
