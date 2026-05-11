@@ -665,9 +665,6 @@ function RolesSection({ contractAddress }: { contractAddress: string }) {
 function InfoTab({ token }: { token: ApiTokenDetail }) {
   const isNative = isNativeAsset(token);
   const isNft = isNftAsset(token);
-  const rawCreationTx = typeof token.creationTx === 'string' ? token.creationTx.trim() : '';
-  const creationTxHash = isValidTransactionHash(rawCreationTx) ? rawCreationTx : null;
-  const hasCreationTx = rawCreationTx.length > 0;
 
   return (
     <div className="p-6 space-y-6">

@@ -81,8 +81,21 @@ function buildExplorerProxyHeaders(req: Request): Record<string, string> {
   return headers;
 }
 
+// Resolved at module load; reused as the SSRF origin allow-list below.
+const EXPLORER_ALLOWED_ORIGIN = new URL(EXPLORER_INTERNAL_URL).origin;
+
 async function proxyExplorerRequest(req: Request, res: Response) {
+  // `new URL(path, base)` resolves protocol-relative paths (`//evil.com/x`)
+  // against the schema rather than the authority, so a request to
+  // `GET //evil.com/foo` would forward to `http://evil.com/foo` despite
+  // EXPLORER_INTERNAL_URL pointing at the in-cluster explorer. Validate the
+  // resolved origin against the configured upstream — anything else is a
+  // request-forgery attempt and gets a 400. Closes CodeQL js/request-forgery.
   const target = new URL(req.originalUrl, EXPLORER_INTERNAL_URL);
+  if (target.origin !== EXPLORER_ALLOWED_ORIGIN) {
+    res.status(400).type('text/plain').send('Bad proxy target');
+    return;
+  }
   const upstream = await fetch(target, {
     method: req.method,
     headers: buildExplorerProxyHeaders(req),

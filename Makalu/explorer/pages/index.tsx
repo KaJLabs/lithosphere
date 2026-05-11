@@ -33,7 +33,7 @@ interface HomeProps {
 // client-only inner component that's conditionally rendered after mount.
 function HomeContent({ initialStats, initialValidators }: HomeProps) {
   const { open } = useWeb3Modal();
-  const { address, isConnected, chainId } = useWeb3ModalAccount();
+  const { isConnected, chainId } = useWeb3ModalAccount();
   const { walletProvider } = useWeb3ModalProvider();
   const [isAddingNetwork, setIsAddingNetwork] = useState(false);
   // Track if user clicked Add/Switch so we can auto-continue after wallet connects
