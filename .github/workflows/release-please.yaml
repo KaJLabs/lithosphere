@@ -1,0 +1,43 @@
+# ============================================================================
+# release-please — automated conventional-commits release PRs.
+#
+# How it works:
+#   1. On every push to main, this job inspects commits since the last
+#      release tag.
+#   2. It opens (or updates) a "Release PR" that bumps
+#      `.github/.release-please-manifest.json` and appends to CHANGELOG.md.
+#      Conventional commit types (feat, fix, sec, obs, deploy, dx, sdk, …)
+#      drive the bump and the changelog sections per `release-please-config.json`.
+#   3. When a release approver merges the PR, release-please creates a git
+#      tag (e.g. `v1.28.0`) and a GitHub release.
+#   4. The existing `release.yaml` workflow fires on `v*` tags — it builds
+#      the SDK packages, syncs their package.json versions to the tag, and
+#      publishes to npm with provenance.
+#
+# Why simple-mode: SDK package versions are owned by release.yaml's inline
+# `node` sync step. release-please's only job here is to bump the manifest
+# and tag — no `extra-files` are needed, no per-package config to drift.
+# Same minimalist stance as the GraphQL / OpenAPI drift gates: own one
+# thing well, leave the rest to the existing pipeline.
+# ============================================================================
+
+name: release-please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write    # create commits / tags / releases
+  pull-requests: write   # open / update the release PR
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: .github/release-please-config.json
+          manifest-file: .github/.release-please-manifest.json
+          token: ${{ secrets.GITHUB_TOKEN }}

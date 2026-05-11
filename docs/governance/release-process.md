@@ -39,6 +39,44 @@ must release together at the same version number.
 
 ## Cutting a release
 
+Releases are now driven by **release-please** parsing conventional commits.
+The manual `git tag` flow at the bottom of this section still works, but
+the automated path is the default.
+
+### Automated path (preferred)
+
+1. Land work on `main` using conventional-commit messages. The types
+   recognised by `.github/release-please-config.json` are:
+   - `feat:` — minor bump (or patch while pre-1.0 per
+     `bump-minor-pre-major`).
+   - `fix:` — patch bump.
+   - `feat!:` / footer `BREAKING CHANGE:` — major bump.
+   - Visible-but-non-bumping sections: `sec`, `obs`, `deploy`, `dx`, `sdk`, `perf`.
+   - Hidden from the changelog: `ci`, `test`, `docs`, `gov`, `chore`, `refactor`, `style`, `build`.
+
+2. Each push to `main` runs `.github/workflows/release-please.yaml`,
+   which opens (or updates) a single **Release PR** named
+   `chore(main): release <next-version>`. The PR:
+   - Bumps `.github/.release-please-manifest.json` from the current
+     version to the next.
+   - Writes/updates `CHANGELOG.md` with one section per type.
+
+3. **Review the Release PR.** If the proposed version or notes look
+   right, merge it. release-please will:
+   - Push a `v<next-version>` tag (e.g. `v1.28.0`).
+   - Create a corresponding GitHub Release.
+
+4. The tag push triggers the existing `Developer Preview Release`
+   workflow (`.github/workflows/release.yaml`) which syncs the SDK
+   package versions, builds, packs, and publishes both packages to npm
+   with provenance.
+
+> If the proposed bump is wrong (e.g. release-please saw a `feat:` but the
+> change is actually internal), amend or revert the offending commit
+> message on `main` and push again — the Release PR will refresh.
+
+### Manual path (fallback)
+
 1. Update `CHANGELOG.md` in both packages with the new version's notes.
 2. Verify locally:
    ```sh
