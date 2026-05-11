@@ -11,6 +11,7 @@ New Files/
 coverage/
 *.lcov
 .nyc_output
+test-results.json
 
 # Production
 dist/

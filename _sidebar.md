@@ -56,6 +56,7 @@
   - [Observability Runbook](docs/governance/observability.md)
   - [Deployment Approvals](docs/governance/deployment-approvals.md)
   - [License Policy](docs/governance/license-policy.md)
+  - [Test Quarantine](docs/governance/test-quarantine.md)
   - [Release Calendar](docs/governance/release-calendar.md)
   - [RFC 0001 — Release Trains](docs/governance/rfcs/0001-release-trains.md)
 

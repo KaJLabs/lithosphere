@@ -1,0 +1,26 @@
+# Lithosphere flaky-test quarantine.
+#
+# Tests listed here will be RUN by CI but their failures will not fail the
+# Test job. Failures are surfaced in the PR test-summary under a
+# "Quarantined Failures" section so reviewers can see the noise.
+#
+# Each entry MUST include:
+#   - package:   api / indexer / explorer
+#   - testName:  the vitest fullName, formed as "<describe path> > <it title>"
+#                — same format as `scripts/flake-tracker.sh` outputs
+#   - reason:    why this test was quarantined (link an issue if you have one)
+#   - since:     YYYY-MM-DD the quarantine was added
+#   - owner:     @github-handle responsible for un-quarantining it
+#
+# Untriaged quarantines older than 30 days are flagged in CI as a reminder
+# to either fix the test or escalate to a team-wide decision.
+#
+# See docs/governance/test-quarantine.md for the full runbook.
+
+entries: []
+  # Example shape (empty for now; first quarantine will fill this in):
+  #   - package: api
+  #     testName: GET /api/blocks > returns mapped blocks with default pagination
+  #     reason: "Flaky against shared CI runner clock — see issue #N"
+  #     since: 2026-05-12
+  #     owner: '@bachal-abro'

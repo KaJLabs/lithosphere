@@ -267,9 +267,22 @@ jobs:
           # Also write into the GitHub Actions step summary so the run page shows it.
           cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
 
+      # ── Quarantine post-processor ─────────────────────────────────────────
+      # Splits vitest failures into "real" vs "quarantined" (entries in
+      # .test-quarantine.yaml). Real failures exit non-zero; quarantined ones
+      # are surfaced as warnings + appended to /tmp/pr-summary.md so reviewers
+      # see the noise without it blocking the PR. Stale entries (>30d) emit
+      # ::warning:: annotations as a reminder to fix-or-retire.
+      - name: Process test results against quarantine
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: node scripts/process-test-results.mjs
+
       # ── Post / update sticky PR comment ──────────────────────────────────
       # Only on pull_request triggers. Replaces the prior comment instead of
       # spamming a new one each push, so the PR conversation stays readable.
+      # Runs AFTER the quarantine processor so the "Quarantined Failures"
+      # subtable is included in the same sticky comment.
       - name: Post PR Comment
         if: always() && github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
