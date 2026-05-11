@@ -38,8 +38,9 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write    # For Cosign keyless signing
+      id-token: write    # For Cosign keyless signing + SLSA provenance OIDC
       security-events: write    # For Trivy SARIF upload
+      attestations: write    # For SLSA build-provenance attestations
 
     strategy:
       fail-fast: false
@@ -184,6 +185,22 @@ jobs:
             echo "⚠️  Could not get digest for signing — skipping"
           fi
 
+      # SLSA build-provenance attestation. Generates an in-toto SLSA
+      # Provenance v1.0 statement signed via the GitHub Actions OIDC token,
+      # binding the published image digest to the exact workflow run +
+      # source commit + build invocation that produced it. Stored as a
+      # registry attestation reachable via:
+      #   gh attestation verify oci://<image>@<digest> --owner KaJLabs
+      # Lifts the SLSA posture from "image is signed (Cosign keyless)" to
+      # "image carries a verifiable build provenance" (SLSA build L2).
+      - name: Generate SLSA build provenance attestation
+        if: steps.build.outputs.digest || steps.build_explorer.outputs.digest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ matrix.image }}
+          subject-digest: ${{ steps.build.outputs.digest || steps.build_explorer.outputs.digest }}
+          push-to-registry: true
+
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
@@ -215,7 +232,14 @@ jobs:
             echo "- \`${tag}\`" >> $GITHUB_STEP_SUMMARY
           done
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Verify:**" >> $GITHUB_STEP_SUMMARY
+          echo "**Verify signature (Cosign keyless):**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "cosign verify ${{ matrix.image }}@${IMAGE_DIGEST}" >> $GITHUB_STEP_SUMMARY
+          echo "cosign verify ${{ matrix.image }}@${IMAGE_DIGEST} \\" >> $GITHUB_STEP_SUMMARY
+          echo "  --certificate-identity-regexp 'https://github.com/KaJLabs/Lithosphere/.+' \\" >> $GITHUB_STEP_SUMMARY
+          echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Verify SLSA build provenance:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "gh attestation verify oci://${{ matrix.image }}@${IMAGE_DIGEST} --owner KaJLabs" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
