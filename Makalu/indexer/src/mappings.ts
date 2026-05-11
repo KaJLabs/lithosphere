@@ -1209,18 +1209,22 @@ async function recordNetworkStats(): Promise<void> {
   }
 }
 
-// ─── Main Loop ────────────────────────────────────────────────────────────────
+// ─── HTTP Servers ─────────────────────────────────────────────────────────────
+//
+// Bound BEFORE the DB wait + bootstrap so /version and /health are reachable
+// the moment Node starts the process. Phase 4's post-deploy SHA verification
+// curls /version with a tight timeout; if the indexer is still waiting on
+// Postgres when the curl fires, it gets "unknown" and the verification table
+// reports a spurious mismatch.
+//
+// Resolvers reference module-scope state (BUILD_INFO, PROCESS_START,
+// syncSnapshot — all initialised at import time with safe defaults), so the
+// handlers stay responsive even before main() runs. /debug invokes
+// refreshSyncSnapshot() which needs the pool; if the pool isn't ready, the
+// handler returns 500 (gated by try/catch) — acceptable, since /debug is
+// only meaningful once indexing is live.
 
-async function main(): Promise<void> {
-  console.log(`[indexer] RPC=${RPC_URL}  LCD=${LCD_URL}  EVM_RPC=${EVM_RPC_ENDPOINTS.join(', ') || '(disabled)'}  START=${START_BLOCK}  BATCH=${BATCH_SIZE}`);
-
-  // Wait for PostgreSQL
-  for (let i = 1; i <= 15; i++) {
-    try { await pool.query('SELECT 1'); console.log('[indexer] DB connected'); break; }
-    catch { console.log(`[indexer] Waiting for DB (${i}/15)…`); await new Promise(r => setTimeout(r, 3000)); }
-  }
-
-  // Health endpoint
+function startHealthServer(): void {
   const app = express();
   app.get('/health', (_, res) =>
     res.json({
@@ -1249,13 +1253,29 @@ async function main(): Promise<void> {
   });
   app.listen(process.env.INDEXER_PORT ?? 3001, () => logger.info({ port: 3001, build: BUILD_INFO }, 'indexer_health_listening'));
 
-  // Metrics endpoint
   const metricsApp = express();
   metricsApp.get('/metrics', async (_, res) => {
     res.set('Content-Type', register.contentType);
     res.end(await register.metrics());
   });
   metricsApp.listen(process.env.METRICS_PORT ?? 9090, () => logger.info({ port: 9090 }, 'indexer_metrics_listening'));
+}
+
+// ─── Main Loop ────────────────────────────────────────────────────────────────
+
+async function main(): Promise<void> {
+  console.log(`[indexer] RPC=${RPC_URL}  LCD=${LCD_URL}  EVM_RPC=${EVM_RPC_ENDPOINTS.join(', ') || '(disabled)'}  START=${START_BLOCK}  BATCH=${BATCH_SIZE}`);
+
+  // Bind the health + version + metrics servers FIRST. Anything that comes
+  // after — DB wait, schema introspection, EVM backfill — could take minutes
+  // and used to leave /version 404-ing through that whole window.
+  startHealthServer();
+
+  // Wait for PostgreSQL
+  for (let i = 1; i <= 15; i++) {
+    try { await pool.query('SELECT 1'); console.log('[indexer] DB connected'); break; }
+    catch { console.log(`[indexer] Waiting for DB (${i}/15)…`); await new Promise(r => setTimeout(r, 3000)); }
+  }
 
   // Log database schema for diagnostics
   try {
@@ -1425,7 +1445,12 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  logger.fatal({ err }, 'indexer_fatal');
-  process.exit(1);
-});
+// Skip auto-start under Vitest — the test runner imports this module to
+// exercise indexBlock() directly, and we don't want every test worker
+// fighting for :3001 / :9090 (EADDRINUSE) or spinning up a polling loop.
+if (!process.env.VITEST) {
+  main().catch((err) => {
+    logger.fatal({ err }, 'indexer_fatal');
+    process.exit(1);
+  });
+}
