@@ -5,6 +5,7 @@ const { Pool } = pkg;
 import { Gauge, register, collectDefaultMetrics } from 'prom-client';
 import express from 'express';
 import { readBuildInfo, buildVersionResponse } from './lib/build-info.js';
+import { logger, cycleIdStore, newCycleId } from './lib/logger.js';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -1244,7 +1245,7 @@ async function main(): Promise<void> {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
-  app.listen(process.env.INDEXER_PORT ?? 3001, () => console.log('[indexer] Health: :3001'));
+  app.listen(process.env.INDEXER_PORT ?? 3001, () => logger.info({ port: 3001, build: BUILD_INFO }, 'indexer_health_listening'));
 
   // Metrics endpoint
   const metricsApp = express();
@@ -1252,7 +1253,7 @@ async function main(): Promise<void> {
     res.set('Content-Type', register.contentType);
     res.end(await register.metrics());
   });
-  metricsApp.listen(process.env.METRICS_PORT ?? 9090, () => console.log('[indexer] Metrics: :9090'));
+  metricsApp.listen(process.env.METRICS_PORT ?? 9090, () => logger.info({ port: 9090 }, 'indexer_metrics_listening'));
 
   // Log database schema for diagnostics
   try {
@@ -1359,6 +1360,8 @@ async function main(): Promise<void> {
   let lastSyncSnapshotRefresh = Date.now();
 
   while (true) {
+    const cycleId = newCycleId();
+    await cycleIdStore.run({ cycleId }, async () => {
     try {
       const status = await rpcGet<RpcStatus>('/status');
       const chainTip = parseInt(status.sync_info.latest_block_height);
@@ -1377,11 +1380,11 @@ async function main(): Promise<void> {
         }
         // Fully caught up — wait for next block
         await new Promise(r => setTimeout(r, POLL_MS));
-        continue;
+        return;
       }
 
       const lag = chainTip - from;
-      console.log(`[indexer] Syncing ${from + 1}→${to}  (${lag} blocks behind)`);
+      logger.info({ from: from + 1, to, lag }, 'cycle_sync_range');
 
       for (let h = from + 1; h <= to; h++) {
         await indexBlock(h);
@@ -1413,13 +1416,14 @@ async function main(): Promise<void> {
       await new Promise(r => setTimeout(r, delay));
 
     } catch (err) {
-      console.error('[indexer] Error:', err instanceof Error ? err.message : String(err));
+      logger.error({ err }, 'cycle_failed');
       await new Promise(r => setTimeout(r, 10_000));
     }
+    });
   }
 }
 
 main().catch((err) => {
-  console.error('[indexer] Fatal:', err);
+  logger.fatal({ err }, 'indexer_fatal');
   process.exit(1);
 });

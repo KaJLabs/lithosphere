@@ -7,6 +7,11 @@ import { lithoRouter } from './litho.js';
 import { explorerRouter } from './routes.js';
 import { register, collectDefaultMetrics, Gauge } from 'prom-client';
 import { readBuildInfo, buildVersionResponse } from './lib/build-info.js';
+import {
+  logger,
+  requestIdStore,
+  resolveRequestId,
+} from './lib/logger.js';
 
 // Collect default metrics (CPU, memory, etc.)
 collectDefaultMetrics({ prefix: 'litho_api_' });
@@ -99,6 +104,31 @@ async function proxyExplorerRequest(req: Request, res: Response) {
 app.use(cors());
 app.use(express.json());
 
+// Request ID middleware — read X-Request-Id from the client or generate a
+// fresh UUID. Store it in AsyncLocalStorage so any downstream `await` (db
+// queries, fetch calls, logger.* calls) can read the same id without
+// threading it through arguments. Echo it back as a response header so
+// callers can include it in bug reports.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const requestId = resolveRequestId(req.headers['x-request-id']);
+  res.setHeader('X-Request-Id', requestId);
+  requestIdStore.run({ requestId }, () => {
+    const start = Date.now();
+    res.on('finish', () => {
+      logger.info(
+        {
+          method: req.method,
+          url: req.originalUrl,
+          status: res.statusCode,
+          durationMs: Date.now() - start,
+        },
+        'request_completed',
+      );
+    });
+    next();
+  });
+});
+
 const PROCESS_START = Date.now();
 
 // Health check endpoint for deployment verification
@@ -140,7 +170,7 @@ metricsApp.get('/metrics', async (_req, res) => {
 
 const metricsPort = process.env.METRICS_PORT || 9090;
 metricsApp.listen(metricsPort, () => {
-  console.log(`Metrics server running on :${metricsPort}`);
+  logger.info({ port: metricsPort }, 'metrics_server_listening');
 });
 
 async function start() {
@@ -160,7 +190,15 @@ async function start() {
       await proxyExplorerRequest(req, res);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`[explorer-proxy] ${req.method} ${req.originalUrl} failed: ${message}`);
+      logger.error(
+        {
+          err: error,
+          module: 'explorer-proxy',
+          method: req.method,
+          url: req.originalUrl,
+        },
+        `explorer_proxy_failed: ${message}`,
+      );
       const isTimeout = error instanceof Error && error.name === 'TimeoutError';
       res.status(isTimeout ? 504 : 502).json({
         error: 'Explorer unavailable',
@@ -172,6 +210,6 @@ async function start() {
   });
 
   const port = process.env.API_PORT || 4000;
-  app.listen(port, () => console.log(`API running on :${port}`));
+  app.listen(port, () => logger.info({ port, build: BUILD_INFO }, 'api_listening'));
 }
 start();
