@@ -85,13 +85,22 @@ function buildExplorerProxyHeaders(req: Request): Record<string, string> {
 const EXPLORER_ALLOWED_ORIGIN = new URL(EXPLORER_INTERNAL_URL).origin;
 
 async function proxyExplorerRequest(req: Request, res: Response) {
-  // `new URL(path, base)` resolves protocol-relative paths (`//evil.com/x`)
-  // against the schema rather than the authority, so a request to
-  // `GET //evil.com/foo` would forward to `http://evil.com/foo` despite
-  // EXPLORER_INTERNAL_URL pointing at the in-cluster explorer. Validate the
-  // resolved origin against the configured upstream — anything else is a
-  // request-forgery attempt and gets a 400. Closes CodeQL js/request-forgery.
-  const target = new URL(req.originalUrl, EXPLORER_INTERNAL_URL);
+  // Two-layer SSRF defence:
+  //   1. Pre-construction path check — `req.originalUrl` MUST be a true
+  //      single-slash absolute path. `//evil.com/x` would parse as an
+  //      authority change in the URL constructor; reject it before we
+  //      compose the upstream URL. CodeQL's js/request-forgery query
+  //      recognises this `startsWith('/')` + double-slash exclusion as
+  //      a sanitizer.
+  //   2. Post-resolution origin allow-list — the resolved upstream MUST
+  //      match EXPLORER_ALLOWED_ORIGIN exactly. Catches any future
+  //      URL-constructor quirk that bypasses (1).
+  const path = req.originalUrl;
+  if (!path.startsWith('/') || path.startsWith('//')) {
+    res.status(400).type('text/plain').send('Bad proxy target');
+    return;
+  }
+  const target = new URL(path, EXPLORER_INTERNAL_URL);
   if (target.origin !== EXPLORER_ALLOWED_ORIGIN) {
     res.status(400).type('text/plain').send('Bad proxy target');
     return;
