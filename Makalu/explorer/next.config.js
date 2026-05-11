@@ -4,13 +4,6 @@ const nextConfig = {
   output: 'standalone',
   eslint: { ignoreDuringBuilds: true },
 
-  // Enables `instrumentation.ts` at the project root so the OpenTelemetry SDK
-  // can patch http/undici/pg before request handlers load. Required on Next 14;
-  // becomes the default behaviour from Next 15 onward. Safe to remove on bump.
-  experimental: {
-    instrumentationHook: true,
-  },
-
   // Permanent redirects for common URL aliases (singular → plural routes).
   // External links and block explorers often use /tx/, /block/, etc.
   async redirects() {
