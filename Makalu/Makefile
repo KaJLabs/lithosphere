@@ -23,7 +23,7 @@ TSX         := pnpm dlx tsx
 # Targets
 # ============================================================================
 
-.PHONY: up down clean logs seed status restart dev test faucet-fund help
+.PHONY: up down clean logs seed status restart dev test integration-test integration-up integration-down faucet-fund help
 
 ## -- up -----------------------------------------------------------------------
 ## Start all services and wait for every container to report healthy.
@@ -114,6 +114,37 @@ test:
 	pnpm --filter @lithosphere/indexer test 2>/dev/null || echo "  [indexer] no tests or test failed"
 	@echo "  Test run complete."
 
+## -- integration-up -----------------------------------------------------------
+## Boot the ephemeral Postgres used by the api integration tests.
+## Idempotent — safe to run repeatedly. Stop with `make integration-down`.
+integration-up:
+	@echo "  Starting integration-test Postgres on :5433..."
+	@docker compose -f docker-compose.test.yml up -d postgres
+	@echo "  Waiting for pg_isready..."
+	@for i in $$(seq 1 30); do \
+		docker compose -f docker-compose.test.yml exec -T postgres pg_isready -U litho -d litho_test >/dev/null 2>&1 && break; \
+		sleep 1; \
+	done
+	@echo "  Ready. DATABASE_URL=postgres://litho:litho@localhost:5433/litho_test?sslmode=disable"
+
+## -- integration-down ---------------------------------------------------------
+## Tear down the integration-test Postgres + volume.
+integration-down:
+	@echo "  Stopping integration-test Postgres..."
+	docker compose -f docker-compose.test.yml down -v --timeout 10
+
+## -- integration-test ---------------------------------------------------------
+## Run the api integration suite end-to-end against ephemeral Postgres.
+## Mirrors what .github/workflows/integration.yaml runs in CI; useful when
+## debugging a fixture-corpus change locally before pushing.
+integration-test: integration-up
+	@echo "  Running api integration tests..."
+	INTEGRATION_TESTS=1 \
+		DATABASE_URL=postgres://litho:litho@localhost:5433/litho_test?sslmode=disable \
+		pnpm --filter @lithosphere/api exec vitest run src/__tests__/integration
+	@echo ""
+	@echo "  Done. Run 'make integration-down' to free the Postgres container."
+
 ## -- faucet-fund --------------------------------------------------------------
 ## Top up the faucet wallet from Anvil genesis account.
 ## Sends 100 LITHO from Anvil account #1 to the faucet wallet (account #0).
@@ -142,5 +173,8 @@ help:
 	@echo "  make restart      Stop -> Start"
 	@echo "  make dev          Full setup: up + seed (one command)"
 	@echo "  make test         Run all service tests"
+	@echo "  make integration-test  Boot ephemeral Postgres + run api integration suite"
+	@echo "  make integration-up    Boot just the ephemeral Postgres on :5433"
+	@echo "  make integration-down  Tear down the integration Postgres"
 	@echo "  make faucet-fund  Top up faucet wallet from genesis"
 	@echo ""
