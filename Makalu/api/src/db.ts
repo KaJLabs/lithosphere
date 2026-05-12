@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { logger } from './lib/logger.js';
 
 let _pool: Pool | null = null;
 const DATABASE_QUERY_TIMEOUT_MS = 15_000;
@@ -17,7 +18,7 @@ export function getPool(): Pool {
         : { rejectUnauthorized: false },
     });
     _pool.on('error', (err) => {
-      console.error('PostgreSQL pool error:', err.message);
+      logger.error({ err: err.message }, 'PostgreSQL pool error');
     });
   }
   return _pool;

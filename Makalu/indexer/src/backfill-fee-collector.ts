@@ -16,6 +16,11 @@
  *   TO_HEIGHT     - skip blocks above this height (default: infinity)
  *   DRY_RUN=1     - log the diffs but don't write
  *   BATCH_SLEEP_MS- ms to sleep every 50 blocks (default: 50)
+ *
+ * Logging note: this file uses `console.*` instead of the pino logger because
+ * it's a one-shot CLI run interactively from a developer's terminal — plain
+ * TTY output is more readable here than structured JSON. The running indexer
+ * (`src/mappings.ts`) uses pino so its output is Loki-ingestible.
  */
 import 'dotenv/config';
 import pkg from 'pg';

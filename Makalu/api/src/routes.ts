@@ -7,6 +7,7 @@
 import { Router, type Request, type Response } from 'express';
 import { bech32 } from 'bech32';
 import { query } from './db.js';
+import { logger } from './lib/logger.js';
 import {
   isEvmTxHash,
   normalizeEvmTxHash,
@@ -23,9 +24,9 @@ import {
  * Replace anything outside printable ASCII + common whitespace with `?`
  * before log interpolation. Truncates to 200 chars as belt-and-braces.
  *
- * Used at each `console.warn(\`... ${userValue} ...\`)` call site below to
- * satisfy CodeQL `js/log-injection` while keeping the existing structured
- * pino fields untouched (those go through JSON serialisation already).
+ * Used at each `logger.warn({ field: sanitizeForLog(userValue) }, ...)` call site
+ * below to satisfy CodeQL `js/log-injection` while keeping the structured pino
+ * fields safe (those go through JSON serialisation already, but defence in depth).
  */
 function sanitizeForLog(value: unknown): string {
   const str = typeof value === 'string' ? value : String(value);
@@ -602,7 +603,7 @@ async function fetchChainTipHeight(): Promise<number> {
     };
     return parseIntSafe(payload.result?.sync_info?.latest_block_height);
   } catch (err) {
-    console.warn('[api] chain tip fetch failed:', err instanceof Error ? err.message : String(err));
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[api] chain tip fetch failed');
     return 0;
   }
 }
@@ -684,17 +685,17 @@ async function evmRpcCall(method: string, params: unknown[]): Promise<unknown> {
         signal: AbortSignal.timeout(10000),
       });
       if (!resp.ok) {
-        console.error(`[evmRpcCall] ${method} HTTP ${resp.status} from ${endpoint}`);
+        logger.error({ method, status: resp.status, endpoint }, '[evmRpcCall] HTTP error');
         continue;
       }
       const data = await resp.json() as { result?: unknown; error?: unknown };
       if (data.error) {
-        console.error(`[evmRpcCall] ${method} RPC error from ${endpoint}:`, data.error);
+        logger.error({ method, endpoint, rpcError: data.error }, '[evmRpcCall] RPC error');
         continue;
       }
       if (data.result != null) return data.result;
     } catch (err) {
-      console.error(`[evmRpcCall] ${method} fetch exception from ${endpoint}:`, err);
+      logger.error({ method, endpoint, err: err instanceof Error ? err.message : String(err) }, '[evmRpcCall] fetch exception');
     }
   }
 
@@ -794,9 +795,13 @@ function warnAddressBalanceFallback(
 ): void {
   if (!resolution.rpcAttempted || resolution.balanceSource === 'rpc') return;
 
-  console.warn(
-    `[api] /address/${sanitizeForLog(queryAddress)} native balance fallback: ${resolution.balanceSource}`
-    + (evmAddress ? ` (evm=${sanitizeForLog(evmAddress)})` : ''),
+  logger.warn(
+    {
+      queryAddress: sanitizeForLog(queryAddress),
+      balanceSource: resolution.balanceSource,
+      ...(evmAddress ? { evmAddress: sanitizeForLog(evmAddress) } : {}),
+    },
+    '[api] address native balance fallback',
   );
 }
 
@@ -873,7 +878,7 @@ async function enrichEvmFromRpc(evmHash: string, evmExtra: EvmExtra): Promise<Ev
   if (!needsRpcEnrichment(evmExtra)) return evmExtra;
 
   if (!isEvmTxHash(evmHash)) {
-    console.warn(`[api] Skipping EVM enrichment for malformed hash: ${String(evmHash).slice(0, 80)}`);
+    logger.warn({ evmHash: String(evmHash).slice(0, 80) }, '[api] Skipping EVM enrichment for malformed hash');
     return evmExtra;
   }
 
@@ -1294,7 +1299,7 @@ export function explorerRouter(): Router {
     try {
       res.json(await getStatsSummaryResponse());
     } catch (err) {
-      console.error('[api] /stats/summary error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /stats/summary error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -1320,7 +1325,7 @@ export function explorerRouter(): Router {
       );
       res.json(rows.map(mapBlock));
     } catch (err) {
-      console.error('[api] /blocks error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /blocks error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -1427,7 +1432,7 @@ export function explorerRouter(): Router {
 
       res.json(detail);
     } catch (err) {
-      console.error('[api] /blocks/:height error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /blocks/:height error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -1472,7 +1477,7 @@ export function explorerRouter(): Router {
         offset,
       });
     } catch (err) {
-      console.error('[api] /txs error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /txs error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -1552,7 +1557,7 @@ export function explorerRouter(): Router {
 
       res.status(404).json({ message: 'Transaction not found' });
     } catch (err) {
-      console.error('[api] /txs/:hash error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /txs/:hash error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -1577,7 +1582,7 @@ export function explorerRouter(): Router {
 
       // Fetch receipt from EVM RPC
       if (!isEvmTxHash(evmHash)) {
-        console.warn(`[api] Skipping receipt lookup for malformed hash: ${sanitizeForLog(evmHash)}`);
+        logger.warn({ evmHash: sanitizeForLog(evmHash) }, '[api] Skipping receipt lookup for malformed hash');
         res.json({ logs: [], raw: null });
         return;
       }
@@ -1610,7 +1615,7 @@ export function explorerRouter(): Router {
 
       res.json({ logs, raw: receipt });
     } catch (err) {
-      console.error('[api] /txs/:hash/logs error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /txs/:hash/logs error');
       res.json({ logs: [], raw: null });
     }
   });
@@ -1776,7 +1781,7 @@ export function explorerRouter(): Router {
 
       res.status(404).json({ message: 'Account not found' });
     } catch (err) {
-      console.error('[api] /address/:address error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /address/:address error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -1864,7 +1869,7 @@ export function explorerRouter(): Router {
         hasMore: offset + items.length < total,
       });
     } catch (err) {
-      console.error('[api] /address/:address/txs error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /address/:address/txs error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -1913,7 +1918,7 @@ export function explorerRouter(): Router {
         balance: r.balance,
       })));
     } catch (err) {
-      console.error('[api] /address/:address/tokens error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /address/:address/tokens error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -1980,7 +1985,7 @@ export function explorerRouter(): Router {
         hasMore: offset + rows.length < total,
       });
     } catch (err) {
-      console.error('[api] /address/:address/token-transfers error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /address/:address/token-transfers error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -1994,7 +1999,7 @@ export function explorerRouter(): Router {
       );
       res.json(rows.map(mapValidator));
     } catch (err) {
-      console.error('[api] /validators error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /validators error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -2071,7 +2076,7 @@ export function explorerRouter(): Router {
 
       res.json(tokens);
     } catch (err) {
-      console.error('[api] /tokens error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /tokens error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -2184,7 +2189,7 @@ export function explorerRouter(): Router {
         verified: c.verified ?? false,
       });
     } catch (err) {
-      console.error('[api] /tokens/:address error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /tokens/:address error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -2244,7 +2249,7 @@ export function explorerRouter(): Router {
 
       res.json({ roles });
     } catch (err) {
-      console.error('[api] /tokens/:address/roles error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /tokens/:address/roles error');
       res.json({ roles: [] });
     }
   });
@@ -2343,7 +2348,7 @@ export function explorerRouter(): Router {
         });
       }
     } catch (err) {
-      console.error('[api] /tokens/:address/transfers error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /tokens/:address/transfers error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -2474,7 +2479,7 @@ export function explorerRouter(): Router {
         });
       }
     } catch (err) {
-      console.error('[api] /tokens/:address/holders error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /tokens/:address/holders error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -2533,7 +2538,7 @@ export function explorerRouter(): Router {
 
       res.json({ price: price ?? null, symbol: 'LITHO', currency: 'USD' });
     } catch (err) {
-      console.error('[api] /price error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /price error');
       res.json({ price: null, symbol: 'LITHO', currency: 'USD' });
     }
   });
@@ -2637,7 +2642,7 @@ export function explorerRouter(): Router {
         ...data,
       });
     } catch (err) {
-      console.error('[api] /faucet/info error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /faucet/info error');
       res.status(502).json({
         ok: false,
         message: 'Faucet service is unavailable. Please try again later.',
@@ -2652,7 +2657,7 @@ export function explorerRouter(): Router {
       const normalizedAmount = normalizeFaucetAmountInput(amount);
 
       if (!normalizedAddress) {
-        console.warn('[api] Rejecting faucet claim: missing address');
+        logger.warn('[api] Rejecting faucet claim: missing address');
         res.status(400).json({ ok: false, message: 'Wallet address is required.' });
         return;
       }
@@ -2661,7 +2666,7 @@ export function explorerRouter(): Router {
       const isEvm = /^0x[a-fA-F0-9]{40}$/.test(normalizedAddress);
       const isCosmos = normalizedAddress.startsWith('litho1');
       if (!isEvm && !isCosmos) {
-        console.warn(`[api] Rejecting faucet claim: invalid address format "${sanitizeForLog(normalizedAddress)}"`);
+        logger.warn({ address: sanitizeForLog(normalizedAddress) }, '[api] Rejecting faucet claim: invalid address format');
         res.status(400).json({ ok: false, message: 'Invalid wallet address. Use a 0x... address.' });
         return;
       }
@@ -2669,13 +2674,13 @@ export function explorerRouter(): Router {
       // The faucet service only accepts EVM (0x) addresses
       // If cosmos address provided, we can't forward to the EVM faucet
       if (!isEvm) {
-        console.warn(`[api] Rejecting faucet claim for non-EVM address: ${sanitizeForLog(normalizedAddress)}`);
+        logger.warn({ address: sanitizeForLog(normalizedAddress) }, '[api] Rejecting faucet claim for non-EVM address');
         res.status(400).json({ ok: false, message: 'The faucet currently supports EVM (0x) addresses only. Please use your 0x address.' });
         return;
       }
 
       if (normalizedAmount.invalid) {
-        console.warn(`[api] Rejecting faucet claim: invalid amount "${sanitizeForLog(amount)}"`);
+        logger.warn({ amount: sanitizeForLog(amount) }, '[api] Rejecting faucet claim: invalid amount');
         res.status(400).json({
           ok: false,
           message: 'Invalid amount. Provide a numeric faucet amount such as 1 or 5.',
@@ -2702,7 +2707,7 @@ export function explorerRouter(): Router {
           (data.message as string) || (data.error as string),
           'Faucet request failed.',
         );
-        console.warn(`[api] Faucet claim failed upstream (${upstream.status}) for ${normalizedAddress}: ${sanitizedMessage}`);
+        logger.warn({ status: upstream.status, address: normalizedAddress, message: sanitizedMessage }, '[api] Faucet claim failed upstream');
         res.status(upstream.status).json({
           ok: false,
           message: sanitizedMessage,
@@ -2715,7 +2720,7 @@ export function explorerRouter(): Router {
         ? (data.txHash as string).trim()
         : null;
       if (data.txHash && !txHash) {
-        console.warn(`[api] Faucet upstream returned malformed tx hash for ${normalizedAddress}`);
+        logger.warn({ address: normalizedAddress }, '[api] Faucet upstream returned malformed tx hash');
       }
 
       res.json({
@@ -2729,7 +2734,7 @@ export function explorerRouter(): Router {
         assetId: data.assetId ?? (typeof assetId === 'string' ? assetId : asset ?? null),
       });
     } catch (err) {
-      console.error('[api] /faucet/claim error:', err);
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /faucet/claim error');
       res.status(502).json({
         ok: false,
         message: 'Faucet service is unavailable. Please try again later.',

@@ -37,7 +37,7 @@ const pool = new Pool({
     ? false
     : { rejectUnauthorized: false },
 });
-pool.on('error', (err) => console.error('[db] Pool error:', err.message));
+pool.on('error', (err) => logger.error({ err: err.message }, '[db] Pool error'));
 
 // ─── Prometheus ───────────────────────────────────────────────────────────────
 
@@ -455,16 +455,16 @@ async function repairInconsistentBlocks(limit = CONSISTENCY_REPAIR_BATCH): Promi
     return 0;
   }
 
-  console.warn(`[indexer] Repairing ${heights.length} inconsistent block(s)`);
+  logger.warn({ count: heights.length }, '[indexer] Repairing inconsistent block(s)');
   let repaired = 0;
   for (const height of heights) {
     try {
       await indexBlock(height, { replaceExisting: true });
       repaired += 1;
     } catch (err) {
-      console.warn(
-        `[indexer] Consistency repair failed for block ${height}:`,
-        err instanceof Error ? err.message : String(err)
+      logger.warn(
+        { height, err: err instanceof Error ? err.message : String(err) },
+        '[indexer] Consistency repair failed',
       );
     }
   }
@@ -478,7 +478,7 @@ async function repairInconsistentBlocks(limit = CONSISTENCY_REPAIR_BATCH): Promi
 }
 
 async function resetIndexedData(reason: string): Promise<void> {
-  console.warn(`[indexer] Resetting indexed data: ${reason}`);
+  logger.warn({ reason }, '[indexer] Resetting indexed data');
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -571,18 +571,18 @@ async function seedTokenContracts(): Promise<void> {
 async function seedStaticData(): Promise<void> {
   try {
     await seedGenesisAccounts();
-    console.log(`[indexer] Genesis accounts seeded: ${GENESIS_ACCOUNTS.length}`);
+    logger.info({ count: GENESIS_ACCOUNTS.length }, '[indexer] Genesis accounts seeded');
   } catch (err) {
-    console.warn('[indexer] Genesis account seed failed:', err instanceof Error ? err.message : String(err));
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[indexer] Genesis account seed failed');
   }
 
   try {
     await migrateTokenAddresses();
     await seedTokenContracts();
     const tokenCount = await pool.query("SELECT COUNT(*) AS count FROM contracts WHERE contract_type = 'token'");
-    console.log(`[indexer] LEP100 tokens seeded: ${tokenCount.rows[0]?.count ?? 0} tokens in contracts table`);
+    logger.info({ count: tokenCount.rows[0]?.count ?? 0 }, '[indexer] LEP100 tokens seeded in contracts table');
   } catch (err) {
-    console.warn('[indexer] Token seed failed (contracts table may not exist yet):', err instanceof Error ? err.message : String(err));
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[indexer] Token seed failed (contracts table may not exist yet)');
   }
 }
 
@@ -678,15 +678,18 @@ export async function indexBlock(height: number, options: IndexBlockOptions = {}
 
     await client.query('COMMIT');
     if (rawTxs.length > 0) {
-      console.log(`[indexer] Block ${height}: ${rawTxs.length} tx(s) indexed`);
+      logger.info({ height, txCount: rawTxs.length }, '[indexer] Block indexed');
     }
   } catch (err) {
     await client.query('ROLLBACK');
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[indexer] Block ${height} FAILED: ${msg}`);
+    logger.error({ height, err: msg }, '[indexer] Block FAILED');
     // Log the first block failure in detail to help diagnose schema mismatches
     if (height <= 10 || rawTxs.length > 0) {
-      console.error(`[indexer] Block ${height} detail — txs: ${rawTxs.length}, hash: ${blockData.block_id.hash.substring(0, 16)}…`);
+      logger.error(
+        { height, txs: rawTxs.length, hash: blockData.block_id.hash.substring(0, 16) },
+        '[indexer] Block failure detail',
+      );
     }
     throw err;
   } finally {
@@ -714,7 +717,7 @@ async function indexTx(
   const txType = action ? (action.split('.').pop() ?? action) : 'Unknown';
   const isEvm  = txType === 'MsgEthereumTx';
   // Log EVM tx details for diagnostics (non-EVM txs are too frequent)
-  if (isEvm) console.log(`[tx] EVM tx at height=${height} hash=${hash.substring(0, 16)}… action=${action}`);
+  if (isEvm) logger.info({ height, hash: hash.substring(0, 16), action }, '[tx] EVM tx');
 
   // Sender / receiver / amount — pulled from emitted events (no protobuf needed).
   // Cosmos SDK emits the fee transfer FIRST (sender → fee_collector), then the
@@ -769,10 +772,10 @@ async function indexTx(
   if (isEvm) {
     const evmHash = attr(evts, 'ethereum_tx', 'ethereumTxHash');
     if (evmHash) {
-      console.log(`[evm] Indexing EVM tx ${evmHash} (cosmos: ${hash}) at height ${height}`);
+      logger.info({ evmHash, cosmosHash: hash, height }, '[evm] Indexing EVM tx');
       await indexEvmTx(client, evmHash, hash, height, index, blockTime, evts, result, gasUsed);
     } else {
-      console.warn(`[evm] MsgEthereumTx at height ${height} has no ethereumTxHash event`);
+      logger.warn({ height }, '[evm] MsgEthereumTx has no ethereumTxHash event');
     }
   }
 }
@@ -822,7 +825,7 @@ async function evmRpc<T>(method: string, params: unknown[]): Promise<T | null> {
         signal: AbortSignal.timeout(10_000),
       });
       if (!r.ok) {
-        console.warn(`[evm] ${method} HTTP ${r.status} from ${endpoint}`);
+        logger.warn({ method, status: r.status, endpoint }, '[evm] HTTP error');
         continue;
       }
       const j = await r.json() as { result?: T; error?: { message?: string } | unknown };
@@ -830,14 +833,14 @@ async function evmRpc<T>(method: string, params: unknown[]): Promise<T | null> {
         const msg = typeof j.error === 'object' && j.error && 'message' in j.error
           ? String((j.error as { message?: string }).message ?? 'unknown error')
           : String(j.error);
-        console.warn(`[evm] ${method} RPC error from ${endpoint}: ${msg}`);
+        logger.warn({ method, endpoint, rpcError: msg }, '[evm] RPC error');
         continue;
       }
       if (j.result != null) {
         return j.result;
       }
     } catch (err) {
-      console.warn(`[evm] ${method} request failed via ${endpoint}:`, err instanceof Error ? err.message : String(err));
+      logger.warn({ method, endpoint, err: err instanceof Error ? err.message : String(err) }, '[evm] request failed');
     }
   }
 
@@ -888,7 +891,7 @@ async function indexEvmTx(
       }
       receipt = rcpt;
     } catch (err) {
-      console.warn(`[evm] RPC enrichment failed for ${evmHash}:`, err instanceof Error ? err.message : String(err));
+      logger.warn({ evmHash, err: err instanceof Error ? err.message : String(err) }, '[evm] RPC enrichment failed');
     }
   }
 
@@ -1016,7 +1019,7 @@ async function indexTransferLogs(
     inserted++;
   }
   if (inserted > 0) {
-    console.log(`[evm] Indexed ${inserted} Transfer log(s) for tx ${evmHash.substring(0, 16)}…`);
+    logger.info({ count: inserted, evmHash: evmHash.substring(0, 16) }, '[evm] Indexed Transfer log(s)');
   }
 }
 
@@ -1043,7 +1046,7 @@ interface EvmLog {
 
 async function backfillTokenTransfers(): Promise<void> {
   if (EVM_RPC_ENDPOINTS.length === 0) {
-    console.log('[backfill] Token transfers: skipped (no EVM RPC endpoint available)');
+    logger.info('[backfill] Token transfers: skipped (no EVM RPC endpoint available)');
     return;
   }
 
@@ -1071,7 +1074,7 @@ async function backfillTokenTransfers(): Promise<void> {
   const maxH = parseInt(rangeQ.rows[0]?.max_height ?? '0');
   if (!minH || !maxH) return;
 
-  console.log(`[backfill] Token transfers: scanning blocks ${minH}..${maxH} for ERC20 Transfer + LEP100 TransferSingle logs`);
+  logger.info({ minH, maxH }, '[backfill] Token transfers: scanning blocks for ERC20 Transfer + LEP100 TransferSingle logs');
   const CHUNK = 5000;
   let totalInserted = 0;
   let totalScanned = 0;
@@ -1113,14 +1116,14 @@ async function backfillTokenTransfers(): Promise<void> {
         );
         totalInserted += r.rowCount ?? 0;
       }
-      console.log(`[backfill] Chunk ${chunkStart}..${chunkEnd}: scanned ${logs.length} logs, ${totalInserted} inserted so far`);
+      logger.info({ chunkStart, chunkEnd, scanned: logs.length, insertedSoFar: totalInserted }, '[backfill] Chunk processed');
     } catch (err) {
-      console.warn(`[backfill] Chunk ${chunkStart}..${chunkEnd} failed:`, err instanceof Error ? err.message : String(err));
+      logger.warn({ chunkStart, chunkEnd, err: err instanceof Error ? err.message : String(err) }, '[backfill] Chunk failed');
     }
   }
 
   await setIndexerState('token_transfers_backfill_v2_completed', '1').catch(() => {});
-  console.log(`[backfill] Token transfers complete: ${totalInserted}/${totalScanned} transfers inserted`);
+  logger.info({ totalInserted, totalScanned }, '[backfill] Token transfers complete');
 }
 
 // ─── Account Upsert ───────────────────────────────────────────────────────────
@@ -1145,7 +1148,7 @@ async function refreshValidators(): Promise<void> {
       `${LCD_URL}/cosmos/staking/v1beta1/validators?pagination.limit=100&status=BOND_STATUS_BONDED`,
       { signal: AbortSignal.timeout(15_000) }
     );
-    if (!r.ok) { console.warn(`[validators] LCD ${r.status}`); return; }
+    if (!r.ok) { logger.warn({ status: r.status }, '[validators] LCD non-OK'); return; }
 
     const data = await r.json() as {
       validators?: Array<{
@@ -1198,9 +1201,9 @@ async function refreshValidators(): Promise<void> {
         ]
       );
     }
-    console.log(`[validators] Refreshed ${data.validators?.length ?? 0} bonded validators`);
+    logger.info({ count: data.validators?.length ?? 0 }, '[validators] Refreshed bonded validators');
   } catch (err) {
-    console.warn('[validators]', err instanceof Error ? err.message : String(err));
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[validators] refresh failed');
   }
 }
 
@@ -1219,7 +1222,7 @@ async function recordNetworkStats(): Promise<void> {
       [parseInt(tx.rows[0].count), parseInt(acc.rows[0].count), parseInt(ct.rows[0].count)]
     );
   } catch (err) {
-    console.warn('[stats]', err instanceof Error ? err.message : String(err));
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[stats] refresh failed');
   }
 }
 
@@ -1278,7 +1281,10 @@ function startHealthServer(): void {
 // ─── Main Loop ────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  console.log(`[indexer] RPC=${RPC_URL}  LCD=${LCD_URL}  EVM_RPC=${EVM_RPC_ENDPOINTS.join(', ') || '(disabled)'}  START=${START_BLOCK}  BATCH=${BATCH_SIZE}`);
+  logger.info(
+    { rpc: RPC_URL, lcd: LCD_URL, evmRpc: EVM_RPC_ENDPOINTS.join(', ') || '(disabled)', start: START_BLOCK, batch: BATCH_SIZE },
+    '[indexer] booting',
+  );
 
   // Bind the health + version + metrics servers FIRST. Anything that comes
   // after — DB wait, schema introspection, EVM backfill — could take minutes
@@ -1287,8 +1293,8 @@ async function main(): Promise<void> {
 
   // Wait for PostgreSQL
   for (let i = 1; i <= 15; i++) {
-    try { await pool.query('SELECT 1'); console.log('[indexer] DB connected'); break; }
-    catch { console.log(`[indexer] Waiting for DB (${i}/15)…`); await new Promise(r => setTimeout(r, 3000)); }
+    try { await pool.query('SELECT 1'); logger.info('[indexer] DB connected'); break; }
+    catch { logger.info({ attempt: i }, '[indexer] Waiting for DB'); await new Promise(r => setTimeout(r, 3000)); }
   }
 
   // Log database schema for diagnostics
@@ -1300,13 +1306,14 @@ async function main(): Promise<void> {
         [t]
       );
       if (cols.rows.length > 0) {
-        console.log(`[schema] ${t}: ${cols.rows.map((c: Record<string, unknown>) => `${c.column_name}(${c.data_type}${c.character_maximum_length ? ':' + c.character_maximum_length : ''})`).join(', ')}`);
+        const cols_str = cols.rows.map((c: Record<string, unknown>) => `${c.column_name}(${c.data_type}${c.character_maximum_length ? ':' + c.character_maximum_length : ''})`).join(', ');
+        logger.info({ table: t, columns: cols_str }, '[schema]');
       } else {
-        console.warn(`[schema] Table '${t}' NOT FOUND in database`);
+        logger.warn({ table: t }, '[schema] Table NOT FOUND in database');
       }
     }
   } catch (err) {
-    console.warn('[schema] Could not inspect schema:', err instanceof Error ? err.message : String(err));
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[schema] Could not inspect schema');
   }
 
   // Ensure indexer_state table exists (RDS may have been created by another indexer)
@@ -1339,7 +1346,7 @@ async function main(): Promise<void> {
       END$$;
     `);
   } catch (err) {
-    console.warn('[migration] token_transfers unique constraint failed:', err instanceof Error ? err.message : String(err));
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[migration] token_transfers unique constraint failed');
   }
 
   const shouldForceReset = process.env.FORCE_REINDEX === '1' || process.env.FORCE_REINDEX === 'true';
@@ -1359,23 +1366,23 @@ async function main(): Promise<void> {
         `SELECT DISTINCT block_height FROM transactions ORDER BY block_height`
       );
       if (txBlocks.rows.length > 0) {
-        console.log(`[indexer] EVM backfill: re-processing ${txBlocks.rows.length} blocks with transactions`);
+        logger.info({ count: txBlocks.rows.length }, '[indexer] EVM backfill: re-processing blocks with transactions');
         for (const row of txBlocks.rows) {
           const h = parseInt(row.block_height);
           try {
             await indexBlock(h);
             await setLastIndexedEvmBlock(h);
-            console.log(`[indexer] EVM backfill: re-processed block ${h}`);
+            logger.info({ height: h }, '[indexer] EVM backfill: re-processed block');
           } catch (err) {
-            console.warn(`[indexer] EVM backfill block ${h} failed:`, err instanceof Error ? err.message : String(err));
+            logger.warn({ height: h, err: err instanceof Error ? err.message : String(err) }, '[indexer] EVM backfill block failed');
           }
         }
         const evmAfter = await pool.query('SELECT COUNT(*) AS count FROM evm_transactions');
-        console.log(`[indexer] EVM backfill complete: ${evmAfter.rows[0]?.count ?? 0} EVM txs now`);
+        logger.info({ evmTxs: evmAfter.rows[0]?.count ?? 0 }, '[indexer] EVM backfill complete');
       }
     }
   } catch (err) {
-    console.warn('[indexer] EVM backfill check failed:', err instanceof Error ? err.message : String(err));
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[indexer] EVM backfill check failed');
   }
 
   // Token Transfer backfill: scan historical EVM logs for Transfer events.
@@ -1384,7 +1391,7 @@ async function main(): Promise<void> {
   try {
     await backfillTokenTransfers();
   } catch (err) {
-    console.warn('[indexer] Token transfer backfill failed:', err instanceof Error ? err.message : String(err));
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[indexer] Token transfer backfill failed');
   }
 
   // Initial validator load
