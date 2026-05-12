@@ -36,9 +36,15 @@ jobs:
       matrix:
         node-version: [18, 20, 22]
 
+    # Operate from the workspace root, NOT the template subdir. The template
+    # declares `@lithosphere/sdk: workspace:*`, so its tsup build needs the
+    # dist/ of @lithosphere/sdk (and transitively @lithosphere/blockchain-core)
+    # to already exist for type imports to resolve. Running pnpm from the
+    # subdir doesn't trigger upstream builds. Turbo's `^build` dependency in
+    # Makalu/turbo.json takes care of the build order via `--filter`.
     defaults:
       run:
-        working-directory: ./Makalu/templates/sdk-template
+        working-directory: ./Makalu
 
     steps:
       - uses: actions/checkout@v4
@@ -53,23 +59,29 @@ jobs:
           cache: pnpm
           cache-dependency-path: Makalu/pnpm-lock.yaml
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile || pnpm install
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm build
+      # Turbo's `--filter @lithosphere/sdk-template` honours the `^build`
+      # task dependency, so this single invocation builds
+      # @lithosphere/blockchain-core → @lithosphere/sdk → @lithosphere/sdk-template
+      # in topological order. The previous CI ran `pnpm build` from the
+      # template dir, which produced TS2307 ("Cannot find module
+      # @lithosphere/sdk") because the upstream dist wasn't there yet.
+      - name: Build SDK packages + template (topological)
+        run: pnpm turbo run build --filter @lithosphere/sdk-template
 
       - name: Test
-        run: pnpm test
+        run: pnpm --filter @lithosphere/sdk-template test
         env:
           CI: true
 
       - name: Lint
-        run: pnpm lint
+        run: pnpm --filter @lithosphere/sdk-template lint
         continue-on-error: true
 
       - name: Typecheck
-        run: pnpm typecheck
+        run: pnpm --filter @lithosphere/sdk-template typecheck
 
       - name: Test Summary
         if: always()
@@ -84,7 +96,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./Makalu/templates/sdk-template
+        working-directory: ./Makalu
     steps:
       - uses: actions/checkout@v4
 
@@ -98,12 +110,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: Makalu/pnpm-lock.yaml
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile || pnpm install
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm build
+      - name: Build SDK packages + template (topological)
+        run: pnpm turbo run build --filter @lithosphere/sdk-template
 
       - name: Check bundle size
-        run: pnpm size
+        run: pnpm --filter @lithosphere/sdk-template size
         continue-on-error: true
