@@ -34,6 +34,7 @@ jobs:
   gitleaks:
     name: Secret Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -53,6 +54,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     defaults:
@@ -119,6 +121,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     defaults:
@@ -158,6 +161,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     needs: build
     permissions:
       contents: read
@@ -336,6 +340,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   typecheck:
     name: Typecheck
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     needs: build
     permissions:
@@ -391,6 +396,7 @@ jobs:
   license-check:
     name: License Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -428,6 +434,7 @@ jobs:
   schema-sync-check:
     name: Schema Sync Check
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     defaults:
@@ -463,6 +470,7 @@ jobs:
   openapi-sync-check:
     name: OpenAPI Sync Check
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     defaults:
@@ -491,6 +499,7 @@ jobs:
   openapi-codegen-check:
     name: OpenAPI SDK Codegen Check
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     defaults:

@@ -34,6 +34,7 @@ jobs:
   compile:
     name: Compile
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: ./Makalu/contracts
@@ -71,6 +72,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: compile
     steps:
       - uses: actions/checkout@v4
@@ -118,6 +120,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -146,6 +149,7 @@ jobs:
   gas-report:
     name: Gas Report
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: compile
     defaults:
       run:
@@ -185,6 +189,7 @@ jobs:
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: compile
     defaults:
       run:
@@ -247,6 +252,7 @@ jobs:
   slither:
     name: Slither Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: compile
     permissions:
       contents: read
@@ -312,6 +318,7 @@ jobs:
   slither-production:
     name: Slither Analysis (production contracts)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: compile
     permissions:
       contents: read
@@ -383,6 +390,7 @@ jobs:
   foundry-fuzz:
     name: Foundry Fuzz (production contracts)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: compile
     defaults:
       run:
@@ -435,6 +443,7 @@ jobs:
   contract-artifacts:
     name: Contract Artifacts (ABI + bytecode)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: compile
     defaults:
       run:
@@ -552,6 +561,7 @@ jobs:
   abi-sync-check:
     name: ABI Sync Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: compile
     defaults:
       run:

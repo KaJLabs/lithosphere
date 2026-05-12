@@ -20,6 +20,12 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel older runs against the same PR head as new commits arrive.
+# wagoid/commitlint-github-action only needs the most recent state.
+concurrency:
+  group: commitlint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: read
@@ -31,6 +37,7 @@ jobs:
   commitlint:
     name: Conventional Commits
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:

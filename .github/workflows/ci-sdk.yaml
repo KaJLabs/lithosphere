@@ -31,6 +31,7 @@ jobs:
   test:
     name: SDK — Node ${{ matrix.node-version }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -76,9 +77,12 @@ jobs:
         env:
           CI: true
 
+      # Blocking after 2026-05-12 (P2 closure). The sdk-template scaffold is
+      # small and stable; any lint failure here is a real signal worth
+      # blocking the build for. Bundle-size below stays advisory because
+      # no budget is set yet — flip blocking when a budget lands.
       - name: Lint
         run: pnpm --filter @lithosphere/sdk-template lint
-        continue-on-error: true
 
       - name: Typecheck
         run: pnpm --filter @lithosphere/sdk-template typecheck
@@ -94,6 +98,7 @@ jobs:
   size-check:
     name: SDK — Bundle Size
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: ./Makalu
