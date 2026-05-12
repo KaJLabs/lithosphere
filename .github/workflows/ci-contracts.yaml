@@ -134,9 +134,11 @@ jobs:
         run: pnpm install --frozen-lockfile || pnpm install
 
       - name: Lint Solidity
+        # Flipped from advisory to blocking 2026-05-12 after multiple green
+        # runs in a row. Solhint findings now gate the contracts pipeline
+        # like every other lint job.
         working-directory: ./Makalu/templates/contracts-template
         run: pnpm lint
-        continue-on-error: true
 
   # ─────────────────────────────────────────────────────────────────────
   # Gas report (Hardhat gas reporter)
