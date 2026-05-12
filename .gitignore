@@ -61,7 +61,10 @@ Thumbs.db
 artifacts/
 cache/
 typechain-types/
-deployments/
+# Note: `deployments/` is NOT globally ignored — production chainId
+# manifests (e.g. Makalu/contracts/deployments/700777.json) ship to git
+# so the SDK + verifier read them. Local-chain manifests (31337.json,
+# 1337.json) are scoped-ignored by Makalu/contracts/deployments/.gitignore.
 
 # Docsify build artifacts
 _site/

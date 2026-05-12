@@ -1,0 +1,9 @@
+# Local hardhat in-memory chain — manifests for chainId 31337 are
+# ephemeral and shouldn't be committed (each `pnpm hardhat node` run
+# produces different addresses).
+31337.json
+
+# Localhost via `pnpm hardhat node` — same reasoning, but the chainId
+# default for the "localhost" network is 31337, so the above covers it.
+# Listed separately in case someone overrides hardhat.config.ts.
+1337.json
