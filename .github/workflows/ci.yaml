@@ -487,3 +487,36 @@ jobs:
 
       - name: Verify OpenAPI route set is in sync
         run: pnpm run verify-openapi-in-sync
+
+  openapi-codegen-check:
+    name: OpenAPI SDK Codegen Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ./Makalu/packages/sdk
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: Makalu/pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        working-directory: ./Makalu
+        run: pnpm install --frozen-lockfile
+
+      # Regenerate src/generated/openapi.ts from docs/api-reference/openapi.yaml
+      # and fail if `git diff` reports a change. Symmetric with openapi-sync-check
+      # (which guards the producer side): the route set is auto-introspected
+      # from the running Express routers; this gate guards the consumer side
+      # — "if the YAML changed, the generated SDK types must be regenerated."
+      - name: Verify SDK OpenAPI codegen is in sync
+        run: pnpm run verify-openapi-codegen
