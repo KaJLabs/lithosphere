@@ -198,15 +198,24 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test (Turbo) with coverage
-        # Advisory until Phase 6 coverage matures — failures visible in logs and summary,
-        # but don't block PRs. Flip to false once api/indexer/explorer reach baseline coverage.
+        # `continue-on-error: true` is intentional — it's the quarantine
+        # plumbing, NOT an "advisory" label. The downstream
+        # `Process test results against quarantine` step
+        # (scripts/process-test-results.mjs, no continue-on-error) splits
+        # vitest failures into real-vs-quarantined via .test-quarantine.yaml
+        # and exits 1 on real failures, gating the job. Without this flag
+        # here, a quarantined flake would still fail the job at this step,
+        # bypassing the processor's classification.
         continue-on-error: true
         run: pnpm turbo run test:coverage --filter='...[origin/main]' --continue
         env:
           CI: true
 
-      # Explorer is a sibling Next.js project, not a workspace member (it has its
-      # own lockfile + node_modules). Run its tests directly.
+      # Explorer is a sibling Next.js project, not a workspace member (it has
+      # its own lockfile + node_modules). Run its tests directly. Same
+      # quarantine plumbing as the Test step above: `continue-on-error: true`
+      # routes failures through the processor for real-vs-quarantined
+      # classification, not advisory bypass.
       - name: Explorer tests with coverage
         continue-on-error: true
         working-directory: ./Makalu/explorer
@@ -367,8 +376,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck (Turbo)
+        # Promoted from advisory to blocking 2026-05-12. Typecheck has been
+        # green across every recent run in the visible history; flipping
+        # to a real gate prevents type-error regressions from landing on
+        # main with a green checkmark. Compile-time errors should never
+        # have been a soft signal — strict TS is the contract.
         run: pnpm turbo run typecheck --filter='...[origin/main]'
-        continue-on-error: true
 
   # ─────────────────────────────────────────────────────────────────────
   # License Check — enforces .license-policy.yaml against the prod
