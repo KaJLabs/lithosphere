@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LithoClient } from '../client.js';
 import { ErrorCode, LithoError, NETWORKS } from '@lithosphere/blockchain-core';
 

@@ -6,6 +6,11 @@
  */
 
 export { LithoClient } from './client.js';
+export {
+  createLithoRestClient,
+  type CreateRestClientOptions,
+  type LithoRestClient,
+} from './rest-client.js';
 
 // Re-export the most-used primitives so consumers can do a single install:
 //   import { LithoClient, NETWORKS, LEP100_ABI, LithoError } from '@lithosphere/sdk';

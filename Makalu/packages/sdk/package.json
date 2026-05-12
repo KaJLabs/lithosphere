@@ -51,7 +51,8 @@
     "directory": "Makalu/packages/sdk"
   },
   "dependencies": {
-    "@lithosphere/blockchain-core": "workspace:*"
+    "@lithosphere/blockchain-core": "workspace:*",
+    "openapi-fetch": "^0.17.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
