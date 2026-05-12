@@ -158,6 +158,15 @@ faucet-fund:
 		echo "  Sent 100 LITHO to faucet wallet" || \
 		echo "  Failed -- is the stack running? (make up)"
 
+## -- hooks --------------------------------------------------------------------
+## Enable git hooks tracked in `../.githooks/`. One-shot per clone; safe to
+## re-run. Currently wires the commit-msg hook that runs commitlint locally
+## before the commit is created, mirroring the PR-time gate.
+hooks:
+	@cd .. && git config core.hooksPath .githooks
+	@echo "✓ git hooks enabled (core.hooksPath = .githooks)"
+	@echo "  commit-msg → local commitlint (mirrors PR-time gate)"
+
 ## -- help ---------------------------------------------------------------------
 ## Print this help.
 help:
@@ -177,4 +186,5 @@ help:
 	@echo "  make integration-up    Boot just the ephemeral Postgres on :5433"
 	@echo "  make integration-down  Tear down the integration Postgres"
 	@echo "  make faucet-fund  Top up faucet wallet from genesis"
+	@echo "  make hooks        Enable local git hooks (commit-msg → commitlint)"
 	@echo ""

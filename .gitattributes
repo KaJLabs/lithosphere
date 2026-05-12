@@ -1,0 +1,41 @@
+# Line-ending normalization for cross-platform contributors.
+#
+# Without this file, every Windows checkout warns "LF will be replaced by CRLF"
+# on every staged file, AND a contributor with core.autocrlf=true can silently
+# commit CRLF line endings that break shebangs in shell scripts and confuse
+# diff tooling.
+#
+# Default: every text file is normalised to LF on commit, regardless of the
+# contributor's autocrlf setting. Git auto-detects text vs binary, then this
+# enforces LF on the text bucket.
+* text=auto eol=lf
+
+# Explicit overrides for files where LF is non-negotiable (Unix scripts that
+# run in Docker containers or on the indexer EC2 box).
+*.sh         text eol=lf
+*.bash       text eol=lf
+Dockerfile   text eol=lf
+*.dockerfile text eol=lf
+
+# Explicit overrides for files that MUST stay CRLF (Windows batch scripts).
+*.bat        text eol=crlf
+*.cmd        text eol=crlf
+*.ps1        text eol=crlf
+
+# Binary types — never touch.
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.gif        binary
+*.ico        binary
+*.pdf        binary
+*.zip        binary
+*.tar.gz     binary
+*.woff       binary
+*.woff2      binary
+*.wasm       binary
+
+# Generated lockfiles — keep LF (they're checked in, not edited by hand) and
+# treat as binary in diffs to keep PR noise down on large pnpm-lock changes.
+pnpm-lock.yaml    text eol=lf -diff
+package-lock.json text eol=lf -diff

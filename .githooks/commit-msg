@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Local commit-msg hook — validates conventional-commits shape BEFORE the
+# commit is created, so malformed messages never reach `main` or even the
+# remote. Mirrors the PR-time .github/workflows/commitlint.yaml gate; failing
+# locally costs ~200ms, failing on a PR costs a CI minute + a force-push.
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+# Or from the Makalu workspace:
+#   make hooks
+#
+# The hook runs commitlint via `pnpm exec` from Makalu/ where the devDep is
+# installed. If commitlint isn't installed yet (fresh clone before `pnpm
+# install`), the hook prints a hint and lets the commit proceed — refusing
+# to commit on a not-yet-bootstrapped clone would be hostile.
+
+set -e
+
+MSG_FILE="$1"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+WORKSPACE="$REPO_ROOT/Makalu"
+
+# Skip merge / fixup / revert commits — those don't follow the conventional
+# shape and shouldn't.
+FIRST_LINE="$(head -n1 "$MSG_FILE")"
+case "$FIRST_LINE" in
+  "Merge "*|"Revert "*|"fixup! "*|"squash! "*)
+    exit 0
+    ;;
+esac
+
+# If commitlint isn't installed, bail with a hint rather than block.
+if ! [ -d "$WORKSPACE/node_modules/@commitlint" ]; then
+  cat <<'EOF' >&2
+[commit-msg hook] commitlint not installed; skipping local validation.
+                  Run `cd Makalu && pnpm install` to enable, or trust the
+                  PR-time gate (.github/workflows/commitlint.yaml).
+EOF
+  exit 0
+fi
+
+cd "$WORKSPACE"
+exec pnpm exec commitlint --config "$REPO_ROOT/.commitlintrc.json" --edit "$MSG_FILE"
