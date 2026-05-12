@@ -40,14 +40,20 @@ The mainnet deployment process follows a controlled, auditable pipeline:
 
 ## Rollback Procedures
 
-### ArgoCD Rollback
+### Application Rollback (current flow)
 
-- **Automatic** -- ArgoCD performs an automatic rollback when health checks fail after a deployment. The previous known-good revision is restored without manual intervention.
-- **Manual** -- Operators can trigger a manual rollback at any time:
+> Note: This page previously documented an ArgoCD-based rollback. The
+> ArgoCD/Kubernetes deployment was never wired into Makalu — production
+> runs on EC2 + Docker Compose. Updated 2026-05-12 to match reality.
 
-```bash
-argocd app rollback <application-name>
-```
+- **Automatic** -- `.github/workflows/deploy-simple.yaml` has a
+  `rollback` job that runs on `failure()` and restores the previous
+  `docker-compose.yaml` + `.env` snapshot taken at deploy start. No
+  operator intervention needed when CI itself detects deploy failure.
+- **Manual** -- Operators can re-run a previous green deploy by
+  triggering `deploy-simple.yaml` via `workflow_dispatch` and pinning
+  the `tag` input to the prior successful image SHA. The post-deploy
+  SHA-verify step confirms the rollback landed.
 
 ### Database Rollback
 

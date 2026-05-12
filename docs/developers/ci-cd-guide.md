@@ -1,5 +1,15 @@
 # CI/CD Guide
 
+> ⚠️ **Aspirational / roadmap doc.** Describes the K8s + ArgoCD future
+> state. **Current production is EC2 + Docker Compose** via
+> `deploy-simple.yaml` (SSM-over-OIDC to bastion, then `docker compose
+> up`). For the live deployment flow see
+> [`docs/governance/deployment-approvals.md`](../governance/deployment-approvals.md)
+> and [`docs/governance/release-process.md`](../governance/release-process.md).
+> The `clusters/` + `infra/k8s/` directories this guide references
+> were removed on 2026-05-12 — they had been unused boilerplate
+> since project inception.
+
 This guide describes the Lithosphere CI/CD pipeline, covering the 4-environment deployment strategy, GitHub Actions workflow structure, ArgoCD GitOps deployment, and the environment comparison matrix. It is derived from the architectural decisions documented in ADR-001 (Environment Strategy) and ADR-002 (Technology Stack).
 
 ---

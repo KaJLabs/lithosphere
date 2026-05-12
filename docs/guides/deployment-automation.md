@@ -1,5 +1,13 @@
 # Deployment Automation
 
+> ⚠️ **Aspirational / roadmap doc.** The Kubernetes / GitOps flow below
+> describes a future state. **Current production deploys to EC2 +
+> Docker Compose** via `.github/workflows/deploy-simple.yaml` (SSM-
+> over-OIDC to the bastion, then `docker compose up`). For the live
+> flow see [`docs/governance/deployment-approvals.md`](../governance/deployment-approvals.md).
+> The `clusters/` directory referenced below was removed on 2026-05-12
+> — it had been unused boilerplate since project inception.
+
 This guide covers local development setup, production deployment to Kubernetes, GitOps workflows, CI/CD pipeline structure, and infrastructure as code for the Lithosphere project.
 
 ## Local Development with Docker

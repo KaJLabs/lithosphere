@@ -18,7 +18,6 @@ lithosphere/
 │   ├── blockchain-core/        # Core blockchain SDK & utilities
 │   ├── create-litho-app/       # CLI tool for scaffolding projects
 │   └── docs/                   # Documentation & technical specs
-├── clusters/                   # Kubernetes configs (devnet, staging, mainnet)
 ├── infra/                      # Infrastructure as Code & monitoring
 ├── scripts/                    # Deployment & utility scripts
 └── templates/                  # Project templates for developers
