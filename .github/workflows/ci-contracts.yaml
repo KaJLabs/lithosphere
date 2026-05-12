@@ -415,7 +415,11 @@ jobs:
         run: forge install --no-git foundry-rs/forge-std
 
       - name: Run fuzz tests (CI profile — 10k runs)
-        run: forge test --profile ci -vv
+        env:
+          # Profile selection in Foundry is env-driven; there is no --profile
+          # CLI flag on `forge test`.
+          FOUNDRY_PROFILE: ci
+        run: forge test -vv
 
       - name: Test Summary
         if: always()

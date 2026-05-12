@@ -12,8 +12,8 @@
     "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
     "sync-abis": "node scripts/sync-abis.mjs",
     "verify-abis-in-sync": "node scripts/sync-abis.mjs && git diff --exit-code -- ../packages/blockchain-core/src/abis/",
-    "forge-test": "forge test --profile default -vv",
-    "forge-test:ci": "forge test --profile ci -vv"
+    "forge-test": "forge test -vv",
+    "forge-test:ci": "FOUNDRY_PROFILE=ci forge test -vv"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
