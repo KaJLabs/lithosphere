@@ -53,6 +53,7 @@
 - **Governance**
   - [RFC Template](docs/governance/rfc-template.md)
   - [Post-Incident Review Template](docs/governance/pir-template.md)
+  - [CAB Approvals](docs/governance/cab.md)
   - [Key Rotation Runbook](docs/governance/key-rotation-runbook.md)
   - [Release Process](docs/governance/release-process.md)
   - [Observability Runbook](docs/governance/observability.md)
