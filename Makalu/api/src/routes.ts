@@ -8,6 +8,7 @@ import { Router, type Request, type Response } from 'express';
 import { bech32 } from 'bech32';
 import { query } from './db.js';
 import { logger } from './lib/logger.js';
+import { audit } from './lib/audit.js';
 import {
   isEvmTxHash,
   normalizeEvmTxHash,
@@ -2658,6 +2659,7 @@ export function explorerRouter(): Router {
 
       if (!normalizedAddress) {
         logger.warn('[api] Rejecting faucet claim: missing address');
+        audit({ action: 'faucet_claim_rejected', reason: 'missing_address' }, 'missing address');
         res.status(400).json({ ok: false, message: 'Wallet address is required.' });
         return;
       }
@@ -2667,6 +2669,10 @@ export function explorerRouter(): Router {
       const isCosmos = normalizedAddress.startsWith('litho1');
       if (!isEvm && !isCosmos) {
         logger.warn({ address: sanitizeForLog(normalizedAddress) }, '[api] Rejecting faucet claim: invalid address format');
+        audit(
+          { action: 'faucet_claim_rejected', reason: 'invalid_address_format', actor: sanitizeForLog(normalizedAddress) },
+          'invalid address format',
+        );
         res.status(400).json({ ok: false, message: 'Invalid wallet address. Use a 0x... address.' });
         return;
       }
@@ -2675,12 +2681,20 @@ export function explorerRouter(): Router {
       // If cosmos address provided, we can't forward to the EVM faucet
       if (!isEvm) {
         logger.warn({ address: sanitizeForLog(normalizedAddress) }, '[api] Rejecting faucet claim for non-EVM address');
+        audit(
+          { action: 'faucet_claim_rejected', reason: 'non_evm_address', actor: sanitizeForLog(normalizedAddress) },
+          'non-EVM address',
+        );
         res.status(400).json({ ok: false, message: 'The faucet currently supports EVM (0x) addresses only. Please use your 0x address.' });
         return;
       }
 
       if (normalizedAmount.invalid) {
         logger.warn({ amount: sanitizeForLog(amount) }, '[api] Rejecting faucet claim: invalid amount');
+        audit(
+          { action: 'faucet_claim_rejected', reason: 'invalid_amount', actor: normalizedAddress, amount: sanitizeForLog(amount) },
+          'invalid amount',
+        );
         res.status(400).json({
           ok: false,
           message: 'Invalid amount. Provide a numeric faucet amount such as 1 or 5.',
@@ -2708,6 +2722,10 @@ export function explorerRouter(): Router {
           'Faucet request failed.',
         );
         logger.warn({ status: upstream.status, address: normalizedAddress, message: sanitizedMessage }, '[api] Faucet claim failed upstream');
+        audit(
+          { action: 'faucet_claim_upstream_failed', actor: normalizedAddress, status: upstream.status, message: sanitizedMessage },
+          'upstream faucet refused',
+        );
         res.status(upstream.status).json({
           ok: false,
           message: sanitizedMessage,
@@ -2722,6 +2740,17 @@ export function explorerRouter(): Router {
       if (data.txHash && !txHash) {
         logger.warn({ address: normalizedAddress }, '[api] Faucet upstream returned malformed tx hash');
       }
+
+      audit(
+        {
+          action: 'faucet_claim_success',
+          actor: normalizedAddress,
+          amount: normalizedAmount.value,
+          assetId: typeof assetId === 'string' ? assetId : asset ?? null,
+          txHash,
+        },
+        'faucet claim succeeded',
+      );
 
       res.json({
         ok: true,

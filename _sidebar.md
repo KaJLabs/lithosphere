@@ -64,6 +64,7 @@
   - [Supply Chain Hardening](docs/governance/supply-chain.md)
   - [Artifact Catalog](docs/governance/artifact-catalog.md)
   - [Contract Deployment](docs/governance/contract-deployment.md)
+  - [Audit Trail](docs/governance/audit-trail.md)
   - [Release Calendar](docs/governance/release-calendar.md)
   - [RFC 0001 — Release Trains](docs/governance/rfcs/0001-release-trains.md)
 
