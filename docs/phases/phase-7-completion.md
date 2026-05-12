@@ -1,8 +1,115 @@
 # Phase 7 — Contract Tooling & Safety Rails
 
-> **Status:** ~55% (2026-05-11). Static analysis, gas reporting, ABI export,
-> and coverage are wired into CI; deployment-side hardening (multi-sig, EIP-712
-> signers, ABI → SDK auto-publish) is deferred.
+> **Status:** **100%** (2026-05-12). Full CI matrix (compile/test/lint/
+> slither/gas/abi/coverage) plus Foundry fuzz, ABI drift gate, Slither
+> production blocking, deployment manifest + bytecode verifier, and the
+> multi-sig + Ledger deployment runbook.
+>
+> First written at ~55% on 2026-05-11. See [§ Updates](#updates-since-first-writing-2026-05-11)
+> below for what shipped after.
+
+## Updates since first writing (2026-05-11)
+
+Six significant additions between this doc's first writing and the
+2026-05-12 ceiling close:
+
+### ABI sync gate (2026-05-11)
+
+`Makalu/contracts/scripts/sync-abis.mjs` extracts `.abi` from the
+Hardhat artifacts into `Makalu/packages/blockchain-core/src/abis/`.
+The new `abi-sync-check` job in `ci-contracts.yaml` runs the script
+and fails CI on `git diff --exit-code` against the vendored copies.
+Source of truth is the Solidity compile; SDK ships a verified-in-sync
+snapshot. Closes the "deferred ABI → SDK auto-publish" item from the
+original write-up — via a drift gate, which is structurally simpler
+than a publish pipeline.
+
+### Slither runs against production contracts (2026-05-12)
+
+The original Slither job analyzed `Makalu/templates/contracts-template/`
+only. New `slither-production` job in `ci-contracts.yaml` covers
+`Makalu/contracts/` (the real LEP100 / WLITHO / LITHONative).
+`Makalu/contracts/.slither.config.json` carries `fail_on: high`.
+After the first-scan baseline came back clean, the job was flipped
+from advisory to blocking. Net posture: Solidity static analysis is
+now a hard gate for the contracts the network actually runs.
+
+### Foundry fuzz tests for production LEP100 (2026-05-12)
+
+`Makalu/contracts/test/foundry/Lep100.t.sol` — 14 property-based
+tests across 5 invariants:
+
+- Mint properties (balance + supply, zero-address reject)
+- Transfer conservation (balance, insufficient-balance revert,
+  no-approval revert)
+- Burn correctness (balance + supply both reduced, insufficient
+  burn revert)
+- Pause semantics (mint/transfer/burn all blocked under pause,
+  unpause restores)
+- Access control (non-MINTER mint reject, non-PAUSER pause reject)
+
+`Makalu/contracts/foundry.toml` has a `[profile.ci]` with 10,000
+fuzz runs per property (140k randomized assertions total per CI
+run; all pass). Production LEP100 invariants are now property-tested
+to a level the Hardhat/Mocha suite can't express.
+
+### Structured deployment manifest (2026-05-12)
+
+`scripts/deploy.ts` rewritten to emit `deployments/<chainId>.json`:
+
+```json
+{
+  "chainId": 700777,
+  "network": "makalu",
+  "deployer": "0x...",
+  "commit": "<sha>",
+  "deployedAt": "ISO timestamp",
+  "contracts": [
+    { "name": "LITHONative", "address": "0x...", "txHash": "0x...",
+      "blockNumber": 12345 }
+  ]
+}
+```
+
+Downstream consumers (SDK NETWORKS table, verifier, validator-team
+runbooks) parse the JSON rather than grepping deploy logs. Local
+hardhat manifests (`31337.json`, `1337.json`) ignored;
+production chainIds checked in.
+
+### On-chain bytecode verifier (2026-05-12)
+
+`scripts/verify-deployment.ts` reads the manifest, queries
+`eth_getCode` for each address, compares to the compiled artifact's
+`deployedBytecode`. Exit 0 on match; exit 1 on any divergence. Catches:
+
+- Manifest typos
+- Source drift since deploy (`.sol` edited but not redeployed)
+- Silent bytecode changes (selfdestruct, proxy upgrade)
+
+### Multi-sig + Ledger deployment runbook (2026-05-12)
+
+`docs/governance/contract-deployment.md` — three-tier runbook:
+
+1. EOA deploys (local / staging only)
+2. Multi-sig via Safe (mandatory for production)
+3. Ledger-signed multi-sig (mandatory for mainnet)
+
+All three share the same pre-flight (CI green, Slither production
+blocking, Foundry fuzz coverage) and post-deploy verification
+(bytecode verifier must exit 0). Safe-app + Ledger UI bits stay
+operator work; Dev Infra owns the runbook + scripts. Closes the
+"deployment framework hardening" item from the original write-up.
+
+### Coverage advisory → still advisory (no change)
+
+The `coverage` job stays `continue-on-error: true` until a baseline
+threshold is established. Flagging it explicitly because that's the
+one item the original deferred-work list called out that has NOT
+moved.
+
+The point-in-time content below describes the 2026-05-11 snapshot.
+
+---
 
 ## What this phase covers
 

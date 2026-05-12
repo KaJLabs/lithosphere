@@ -1,8 +1,83 @@
 # Phase 6 — Test Strategy & Ephemeral Environments
 
-> **Status:** ~70% (2026-05-11). Unit tests, coverage, flake tracking, integration
-> scaffolding, and a Playwright smoke spec all landed. PR preview environments
-> are explicitly deferred — see [§ Deferred work](#deferred-work).
+> **Status:** **100% Dev-Infra ceiling** (2026-05-12). PR preview environments
+> remain K8s-blocked (out-of-scope per the Out-of-Scope table) but everything
+> achievable on EC2 + docker-compose is shipped: 254 unit tests, all 21 api
+> endpoints covered, chain-state fixture corpus + integration replayer, flake
+> quarantine, E2E smoke, coverage dashboards.
+>
+> First written at ~70% on 2026-05-11. See [§ Updates](#updates-since-first-writing-2026-05-11) below for what shipped after.
+
+## Updates since first writing (2026-05-11)
+
+Between this doc's first publication and 2026-05-12 (P6 ceiling), the
+test surface grew as follows:
+
+### Coverage broadened: 220 → 254 unit tests, all 21 api endpoints
+
+- **api 134** (was 122). New `routes-remaining.test.ts` covers
+  `/stats/summary`, `/txs`, `/address/:address*`, `/tokens` list, and
+  `/debug` — the 8 routes the original write-up flagged as needing
+  handler tests. Multi-query supertest mocks with fake timers age out
+  per-route module caches between tests.
+- **indexer 41** (was 33). `indexBlock` exercised end-to-end with
+  `vi.mock('pg')` + stubbed fetch (BEGIN/INSERT/COMMIT flow,
+  lowercasing, rollback, `replaceExisting` DELETE order).
+- **explorer 79**. New `lib/format`, `lib/tx` helper coverage plus
+  jsdom-bootstrapped component tests for `Pagination` (7) and
+  `CopyButton` (4).
+
+### Chain-state fixture corpus + integration replayer (2026-05-12)
+
+`Makalu/api/src/__tests__/integration/fixtures/`:
+
+- `chain-state.json` — 10 deterministic blocks at 525ms cadence,
+  15 cosmos+EVM transactions, 5 validators including one jailed.
+  Hand-crafted hashes `0x0000…<height>` so assertion failures point
+  at a specific block.
+- `schema.sql` — idempotent `CREATE TABLE IF NOT EXISTS` matching the
+  indexer's INSERT shapes.
+- `load.ts` — `applySchema(pool)` + `loadFixtures(pool, corpus)`
+  helpers + typed corpus interfaces.
+- `chain-state.integration.test.ts` — 7 tests covering `/api/blocks`
+  (sort/paginate/clamp/shape), `/api/validators` (token sort, jailed
+  last, voting-power conversion, commission %), plus a cross-cutting
+  consistency property (`sum(block.txCount) == |transactions|`).
+
+Vitest hardening: `fileParallelism: false` under `INTEGRATION_TESTS=1`
+so two integration files don't `TRUNCATE` each other; tightened
+`include` so `load.ts` isn't picked up as an empty test file.
+
+### Integration suite auto-fires on PRs (2026-05-12)
+
+`integration.yaml` promoted from PR-label-only to a path-based PR
+gate once proven green end-to-end (`sslmode=disable` fix + fixture
+corpus). Now auto-runs on PRs touching `Makalu/{api,indexer}/**`,
+`docker-compose.test.yml`, or the workflow itself.
+
+### Flaky-test quarantine (2026-05-12)
+
+`.test-quarantine.yaml` + `scripts/process-test-results.mjs` splits
+vitest failures into real vs quarantined via an allowlist; appends a
+"Quarantined Failures" subtable to the sticky PR comment; emits
+`::warning::` for entries older than 30 days. Empty allowlist today.
+Runbook: `docs/governance/test-quarantine.md`.
+
+### `make integration-test` one-command setup (2026-05-12)
+
+Three new Makefile targets — `integration-up`, `integration-down`,
+`integration-test` — boot the ephemeral Postgres on `:5433` and run
+the api integration suite in one command. Local parity with CI.
+
+### Test summary in PR comments (polished 2026-05-12)
+
+`ci.yaml` test job builds `/tmp/pr-summary.md` with per-package test
+counts + coverage table; writes to `$GITHUB_STEP_SUMMARY` and
+posts/updates a sticky PR comment (header `ci-test-summary`).
+
+The point-in-time content below describes the 2026-05-11 snapshot.
+
+---
 
 ## What this phase covers
 

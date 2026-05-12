@@ -1,8 +1,112 @@
 # Phase 9 — Observability & Correlation
 
-> **Status:** ~90% (2026-05-11). Build metadata, structured logging,
-> request-ID correlation, and the OpenTelemetry SDK skeleton all shipped.
-> Collector deployment and the SLO / cost dashboards are deferred.
+> **Status:** **100% Dev-Infra ceiling** (2026-05-12). Build-info chain
+> across all 3 services + full helper-level pino sweep + OTel SDK +
+> HTTP request metrics + SLO + Cost dashboards. OTel collector deploy
+> is a validator-team infra ticket (external blocker); explorer OTel
+> re-deferred after f8109de broke 4 deploys via webpack/grpc-js.
+>
+> First written at ~90% on 2026-05-11. See [§ Updates](#updates-since-first-writing-2026-05-11)
+> below for what shipped after.
+
+## Updates since first writing (2026-05-11)
+
+Six observability deltas between the original write-up and the
+2026-05-12 ceiling close.
+
+### HTTP request metrics + SLO dashboard (2026-05-11)
+
+`Makalu/api/src/lib/http-metrics.ts` exposes:
+
+- `litho_api_http_requests_total` (Counter)
+- `litho_api_http_request_duration_seconds` (Histogram)
+
+Labeled by `method` / `route` (Express normalized pattern, not raw URL —
+keeps cardinality bounded) / `status_code`.
+
+Grafana dashboard at `Makalu/infra/grafana/dashboards/slo.json` (uid
+`lithosphere-slo`), 7 panels: 24h availability, 5m error rate, RPS,
+indexer lag, p50/p95/p99 latency, status-class breakdown, build-info
+table. 4 new metrics tests on api (138 total at the time).
+
+### Cost dashboard (2026-05-11)
+
+`Makalu/infra/grafana/dashboards/cost.json` (uid `lithosphere-cost`),
+9 panels: budget stat (template variable), host CPU/memory/disk,
+network egress/ingress timeseries, per-container CPU/memory timeseries,
+"egress per 1k requests" marginal-cost proxy, resource-footprint
+summary table. Pure analysis on the existing node-exporter + cAdvisor +
+`litho_api_http_requests_total` metrics — no new scrape targets.
+
+### Explorer build-info chain (2026-05-12)
+
+`Makalu/explorer/lib/build-info.ts` + `Makalu/explorer/pages/api/version.ts`
+(Pages-router handler beats the `/api/*` rewrite for the literal path)
+surface the same `gitSha` / `buildTime` / `version` triple as api +
+indexer. `deploy-simple.yaml` SHA-verify step hits all three `/version`
+endpoints (explorer via `docker exec litho-explorer wget ... /api/version`)
+and reports a three-row match table.
+
+Lockfile note: explorer is intentionally NOT a workspace member, but
+pnpm walks up to find `Makalu/pnpm-workspace.yaml` by default. The
+committed `.npmrc` carries `ignore-workspace=true` so both local and
+CI `pnpm install` operate on the explorer's own lockfile.
+
+5 new build-info tests bring the explorer suite to 84 (was 79).
+
+### Full helper-level pino sweep (2026-05-12)
+
+`Makalu/api/src/routes.ts` (~30 `console.{error,warn}` call sites),
+`Makalu/api/src/db.ts` (pg pool error handler), and every
+`console.*` in `Makalu/indexer/src/mappings.ts` migrated to the
+existing pino logger with structured fields:
+
+```ts
+// Before
+console.error('[api] /blocks error:', err);
+
+// After
+logger.error({ err: err instanceof Error ? err.message : String(err) },
+             '[api] /blocks error');
+```
+
+Loki ingests structured `err` / `height` / `evmHash` / `address` /
+etc. as queryable JSON keys instead of free-form text.
+
+`backfill-fee-collector.ts` intentionally keeps `console.*` — it's a
+one-shot CLI invoked from a developer terminal where plain TTY output
+beats JSON. Documented inline.
+
+User-controlled values continue to flow through `sanitizeForLog()`
+before interpolation, satisfying CodeQL's `js/log-injection` flow
+analysis.
+
+### Explorer OTel instrumentation — re-deferred (2026-05-12)
+
+Attempted in `f8109de` via `instrumentation.ts` + `@opentelemetry/sdk-node`.
+Broke 4 consecutive deploys (auto-rollback ran each time): Next.js's
+webpack tries to bundle sdk-node's transitive dep `@grpc/grpc-js`
+and fails on `Module not found: Can't resolve 'zlib'` (a Node built-
+in). `experimental.serverComponentsExternalPackages` only covers
+server components, not `instrumentation.ts`.
+
+Path forward when revisited: switch to the lighter
+`@opentelemetry/sdk-trace-node` (no grpc, no metrics) OR add a
+webpack hook in `next.config.js` that externalizes `@opentelemetry/*`
++ `@grpc/grpc-js` AND ensures those packages are copied into the
+Next standalone output's `node_modules/`. Reverted in `a9d2a6d`.
+
+### Audit-trail emission (P10 overlap, 2026-05-12)
+
+`Makalu/api/src/lib/audit.ts` adds a pino child with
+`category: 'audit'` baked in so security-sensitive off-chain actions
+(faucet claims, future admin endpoints) emit on a separate Loki-
+filterable channel. Strictly P10's deliverable but uses the same
+logger infrastructure this phase built.
+
+The point-in-time content below describes the 2026-05-11 snapshot.
+
+---
 
 ## What this phase covers
 

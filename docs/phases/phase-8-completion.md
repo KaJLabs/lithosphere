@@ -1,9 +1,116 @@
 # Phase 8 — SDKs & Developer Experience Portal
 
-> **Status:** ~65% (2026-05-11). A real, layered TypeScript SDK ships in
-> `Makalu/packages/`, the developer portal has end-to-end usage examples, and
-> the npm publish workflow is wired tag-gated with provenance. OpenAPI /
-> GraphQL schema auto-generation is deferred.
+> **Status:** **100%** (2026-05-12). Layered SDK + tag-gated npm publish with
+> provenance + GraphQL schema artifact + OpenAPI REST artifact + OpenAPI → SDK
+> type codegen + typed REST runtime client + runnable examples — all live,
+> all drift-gated where applicable.
+>
+> First written at ~65% on 2026-05-11. See [§ Updates](#updates-since-first-writing-2026-05-11)
+> below for what shipped after.
+
+## Updates since first writing (2026-05-11)
+
+Both items the original write-up listed as deferred ("OpenAPI / GraphQL
+schema auto-generation") shipped, plus a typed runtime REST client and
+runnable examples.
+
+### GraphQL schema artifact + drift gate (2026-05-11)
+
+`Makalu/api/scripts/print-schema.ts` re-prints `typeDefs` via
+`graphql.print()`. Committed at `docs/api-reference/schema.graphql`
+(210 lines, 18 types). CI's `schema-sync-check` job runs
+`verify-schema-in-sync.ts` and fails on drift (cross-platform Node
+diff, no shell redirects). A third-party integrator can fork the SDL
+and codegen against it without running our server.
+
+### OpenAPI REST artifact + drift gate (2026-05-12)
+
+`Makalu/api/scripts/list-routes.ts` introspects both Express routers
+(`explorerRouter` + `lithoRouter`) without starting a server (db pool
+is lazy). `scripts/verify-openapi-in-sync.ts` compares the
+`(METHOD, path)` set against `paths:` in `docs/api-reference/openapi.yaml`,
+normalising Express `:param` ↔ OpenAPI `{param}` and stripping the
+`/api` server prefix. CI job `openapi-sync-check` fails PRs that
+add/rename/remove a route without updating the YAML. 24 endpoints
+documented (21 explorer + 3 demo `/api/litho/*`).
+
+Response-body shapes intentionally NOT gated — that surface is
+test-owned. The route SET is the contract; the shapes are the
+implementation.
+
+Hand-parsed YAML for the `paths:` keys (same pattern as
+`scripts/check-licenses.mjs`), no extra deps.
+
+### OpenAPI → SDK type codegen + drift gate (2026-05-12)
+
+`Makalu/packages/sdk/scripts/codegen-openapi.mjs` reads
+`docs/api-reference/openapi.yaml` via `openapi-typescript@^7` (devDep,
+no runtime cost) and emits a `paths` / `components` / `operations`
+type tree at `src/generated/openapi.ts` (~1016 LoC). Re-exported from
+`@lithosphere/sdk`. Drift-gated by a new `openapi-codegen-check` CI
+job that re-runs the codegen and fails on `git diff --exit-code` —
+symmetric with the producer-side `openapi-sync-check`. The route
+contract is now drift-protected on both sides.
+
+```ts
+import type { paths } from '@lithosphere/sdk';
+type BlocksResp = paths['/blocks']['get']['responses']['200']['content']['application/json'];
+```
+
+### Typed REST runtime client (2026-05-12)
+
+`createLithoRestClient({ baseUrl })` returns a `Client<paths>` from
+`openapi-fetch` typed against the generated paths interface. End-to-
+end type safety: path strings autocomplete, query params validate,
+response bodies type-narrow against the OpenAPI schema. Factory
+pattern (not singleton) so tests + multi-network setups can have
+independent clients. 4 tests cover URL composition, path-param
+substitution, non-2xx surfaced as `{ error }` (not thrown), and
+custom-header forwarding.
+
+```ts
+import { createLithoRestClient } from '@lithosphere/sdk';
+const api = createLithoRestClient({ baseUrl: 'https://makalu.litho.ai/api' });
+const { data, error } = await api.GET('/blocks', { params: { query: { limit: 10 } } });
+```
+
+### Runnable examples (2026-05-12)
+
+`Makalu/packages/sdk/examples/`:
+
+| Script | Exercises |
+|--------|-----------|
+| `01-balances.ts` | `LithoClient` against EVM JSON-RPC (chain head + native balance) |
+| `02-rest-blocks.ts` | `createLithoRestClient` end-to-end with paginated `/blocks` + per-height detail |
+| `03-contracts-viem.ts` | Pair `LEP100_ABI` from `@lithosphere/blockchain-core` with viem for a typed `readContract` |
+
+Each script is self-contained, hits the live Makalu testnet, and
+doubles as a smoke check that the chain + indexer are healthy.
+`examples/README.md` covers both the monorepo-internal and standalone-
+npm-install invocation paths.
+
+### sdk-template scaffold refresh (2026-05-11)
+
+`create-litho-app`'s SDK template no longer copies `client.ts` (484
+LoC) + `types.ts` (275 LoC) verbatim. It now `pnpm add @lithosphere/sdk`
+(pinned to `workspace:*` inside the monorepo; rewritten to `latest`
+by the CLI at scaffold time) and demonstrates the extension pattern
+via a `LithosphereExtensions` class. Bundle 1.87 KB (was an order of
+magnitude bigger). 5 tests cover invalid-address rejection,
+pending/success/failure paths, mixed batches.
+
+### Bundle size
+
+- SDK `dist/index.js`: 1.87 KB → **9.02 KB** (+7.15 KB) — the openapi-
+  fetch runtime addition.
+- SDK `dist/index.d.ts`: ~24 KB → **34.9 KB** (+11 KB) — the paths /
+  components / operations type tree.
+
+Both reasonable for what they buy.
+
+The point-in-time content below describes the 2026-05-11 snapshot.
+
+---
 
 ## What this phase covers
 
