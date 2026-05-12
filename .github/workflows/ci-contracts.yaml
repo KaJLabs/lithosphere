@@ -341,7 +341,7 @@ jobs:
       - name: Install Slither
         run: pip3 install slither-analyzer
 
-      - name: Run Slither (blocking on fail_on: high)
+      - name: 'Run Slither (blocking on fail_on: high)'
         # Flipped from advisory to blocking 2026-05-12 after the baseline
         # run on production contracts surfaced 0 alerts. `.slither.config.json`
         # has `fail_on: high`, so any future HIGH-severity finding now
