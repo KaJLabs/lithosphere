@@ -1,0 +1,52 @@
+# Foundry config for the PRODUCTION Lithosphere contracts (Makalu/contracts/).
+# Hardhat remains the primary tooling (deploy scripts, gas reporter, slither);
+# Foundry adds property-based fuzz testing that Hardhat/Mocha can't express.
+#
+# The contracts-template at Makalu/templates/contracts-template/ has its own
+# foundry.toml on solc 0.8.20 for the developer scaffold; this one tracks
+# the production solc 0.8.24 and the actual on-chain contracts.
+
+[profile.default]
+src = "src"
+out = "forge-out"
+libs = ["lib", "node_modules"]
+test = "test/foundry"
+cache_path = "forge-cache"
+
+solc_version = "0.8.24"
+evm_version = "paris"
+via_ir = true
+
+optimizer = true
+optimizer_runs = 200
+
+auto_detect_solc = false
+build_info = true
+
+verbosity = 2
+fuzz = { runs = 256, max_test_rejects = 65536 }
+invariant = { runs = 256, depth = 15 }
+
+# All production contract imports are in-tree (./ILep100.sol,
+# ./Lep100Access.sol, ./libs/Strings.sol) — no OpenZeppelin remap needed.
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+]
+
+[profile.ci]
+# CI bumps fuzz runs to widen the state-space we cover before a contract
+# upgrade reaches mainnet. Trade-off: ~30s -> ~3m. Acceptable because this
+# job only fires on Makalu/contracts/** path changes, not every PR.
+fuzz = { runs = 10000 }
+invariant = { runs = 1000, depth = 50 }
+verbosity = 3
+
+[fmt]
+bracket_spacing = true
+int_types = "long"
+line_length = 120
+multiline_func_header = "all"
+number_underscore = "thousands"
+quote_style = "double"
+tab_width = 4
+wrap_comments = true

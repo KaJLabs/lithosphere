@@ -374,6 +374,58 @@ jobs:
           retention-days: 30
 
   # ─────────────────────────────────────────────────────────────────────
+  # Foundry fuzz tests against PRODUCTION contracts (Makalu/contracts/).
+  # Property-based tests for Lep100 invariants — balance/supply
+  # conservation, access control, pause semantics, transfer correctness
+  # — that the Hardhat unit suite can't express. Runs with the `ci`
+  # profile (10k fuzz runs, 1k invariant runs).
+  # ─────────────────────────────────────────────────────────────────────
+  foundry-fuzz:
+    name: Foundry Fuzz (production contracts)
+    runs-on: ubuntu-latest
+    needs: compile
+    defaults:
+      run:
+        working-directory: ./Makalu/contracts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: Makalu/pnpm-lock.yaml
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install forge-std
+        # forge-std isn't in npm; vendor it via forge install at job time.
+        # The contracts dir's .gitignore excludes lib/forge-std/ so the
+        # repo stays slim.
+        run: forge install --no-git foundry-rs/forge-std
+
+      - name: Run fuzz tests (CI profile — 10k runs)
+        run: forge test --profile ci -vv
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## Foundry Fuzz Tests (production contracts)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Profile: \`ci\` (10000 fuzz runs, 1000 invariant runs)" >> $GITHUB_STEP_SUMMARY
+          echo "- Source: \`Makalu/contracts/test/foundry/\`" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────────────────────────────
   # Export compiled ABIs as build artifacts
   # ─────────────────────────────────────────────────────────────────────
   contract-artifacts:

@@ -1,0 +1,13 @@
+# Hardhat
+artifacts/
+cache/
+typechain-types/
+
+# Foundry
+forge-out/
+forge-cache/
+lib/forge-std/
+
+# Coverage
+coverage/
+coverage.json
