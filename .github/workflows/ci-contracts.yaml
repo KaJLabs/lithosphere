@@ -341,12 +341,12 @@ jobs:
       - name: Install Slither
         run: pip3 install slither-analyzer
 
-      - name: Run Slither (advisory while baseline is established)
-        # Advisory for the first-scan baseline run. Findings post to the
-        # Security tab via SARIF; once the team has triaged whatever the
-        # initial sweep surfaces, remove `continue-on-error` to make
-        # `fail_on: high` from .slither.config.json the gating signal.
-        continue-on-error: true
+      - name: Run Slither (blocking on fail_on: high)
+        # Flipped from advisory to blocking 2026-05-12 after the baseline
+        # run on production contracts surfaced 0 alerts. `.slither.config.json`
+        # has `fail_on: high`, so any future HIGH-severity finding now
+        # gates the merge. Lower-severity findings continue to upload to
+        # the Security tab (category `slither-production`) for triage.
         run: slither . --config-file .slither.config.json
 
       - name: Upload SARIF to Security tab
