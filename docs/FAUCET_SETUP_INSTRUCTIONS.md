@@ -47,7 +47,7 @@ Send LITHO to the faucet address from a funded account (e.g., a genesis account 
 **Using `litho` CLI (Cosmos SDK):**
 ```bash
 lithod tx bank send <funded-account> <faucet-0x-address> 100000000000000000000000ulitho \
-  --chain-id lithosphere_700777-1 \
+  --chain-id lithosphere_700777-2 \
   --gas auto --gas-adjustment 1.5 \
   --fees 1000ulitho \
   --node https://rpc.litho.ai:26657

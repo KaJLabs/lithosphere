@@ -283,7 +283,7 @@ jobs:
           {
             "version": "${RELEASE_VERSION}",
             "tag": "${RELEASE_TAG}",
-            "chain": "lithosphere_700777-1",
+            "chain": "lithosphere_700777-2",
             "compiler": "solc",
             "commit": "${GITHUB_SHA}",
             "generatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"

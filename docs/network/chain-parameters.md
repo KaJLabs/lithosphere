@@ -41,7 +41,7 @@ Lithosphere is built on the following technology stack:
 | **Framework** | Cosmos-SDK |
 | **Consensus Engine** | CometBFT |
 | **Virtual Machine** | LithoVM (EVM-compatible) |
-| **Chain ID** | `lithosphere_700777-1` |
+| **Chain ID** | `lithosphere_700777-2` |
 | **EVM Chain ID** | `700777` |
 | **Block Time** | ~525ms (timeout_commit 500ms) |
 
@@ -74,7 +74,7 @@ A machine-readable JSON configuration bundle is available at [`network-parameter
 
 | Parameter | Value |
 |-----------|-------|
-| Cosmos Chain ID | `lithosphere_700777-1` |
+| Cosmos Chain ID | `lithosphere_700777-2` |
 | EVM Chain ID | `700777` (hex: `0xab169`) |
 | Bech32 Prefix | `litho` |
 | Native Denom | `ulitho` (display: `LITHO`, 18 decimals) |

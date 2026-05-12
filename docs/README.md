@@ -26,7 +26,7 @@ Official documentation for the Lithosphere blockchain — an Ethermint-based (Co
 
 | Parameter | Value |
 |-----------|-------|
-| Chain ID | `lithosphere_700777-1` |
+| Chain ID | `lithosphere_700777-2` |
 | EVM Chain ID | `700777` |
 | Bech32 Prefix | `litho` |
 | Native Denom | `ulitho` |

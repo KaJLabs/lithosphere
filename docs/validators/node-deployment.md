@@ -105,7 +105,7 @@ By default, `lithod` stores all data under `~/.lithod/`. The directory is create
 ### Initialize the Node
 
 ```bash
-lithod init <moniker> --chain-id lithosphere_700777-1
+lithod init <moniker> --chain-id lithosphere_700777-2
 ```
 
 Replace `<moniker>` with a human-readable name for your node. This command creates the default directory structure under `~/.lithod/`.
