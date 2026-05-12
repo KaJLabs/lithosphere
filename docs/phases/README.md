@@ -9,10 +9,12 @@ in-flight status across all phases see the project memory tracker.
 
 | Phase | Title | Status |
 |-------|-------|--------|
-| 6 | [Test Strategy & Ephemeral Environments](phase-6-completion.md) | ~70% — unit/integration/E2E live, PR preview envs deferred |
-| 7 | [Contract Tooling & Safety Rails](phase-7-completion.md) | ~55% — full CI matrix (compile/test/lint/slither/gas/abi/coverage) |
-| 8 | [SDKs & Developer Experience Portal](phase-8-completion.md) | ~65% — layered SDK shipped, tag-gated npm publish wired |
-| 9 | [Observability & Correlation](phase-9-completion.md) | ~90% — build-info + structured logs + OTel SDK; collector deferred |
+| 6 | [Test Strategy & Ephemeral Environments](phase-6-completion.md) | 100% Dev-Infra ceiling — 254 unit + integration + E2E live; PR preview envs K8s-blocked |
+| 7 | [Contract Tooling & Safety Rails](phase-7-completion.md) | 100% — full CI matrix + Foundry fuzz + deploy manifest + bytecode verifier + multi-sig runbook |
+| 8 | [SDKs & Developer Experience Portal](phase-8-completion.md) | 100% — layered SDK + OpenAPI codegen + typed REST client + runnable examples |
+| 9 | [Observability & Correlation](phase-9-completion.md) | 100% Dev-Infra ceiling — build-info + structured logs + OTel SDK + SLO/cost dashboards; collector deploy external |
+| 10 | [Security, Compliance & Supply Chain](phase-10-completion.md) | 100% Dev-Infra ceiling — Cosign + SLSA L2 + CodeQL (23→0) + license policy + audit-trail emission; SIEM out-of-scope |
+| 11 | [Governance & Change Management](phase-11-completion.md) | 100% Dev-Infra ceiling — templates + RFC + release calendar + CAB + IR runbook + doc-governance meta-runbook; cadence sign-off pending validator team |
 
 ## Format
 
