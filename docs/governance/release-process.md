@@ -54,6 +54,12 @@ the automated path is the default.
    - Visible-but-non-bumping sections: `sec`, `obs`, `deploy`, `dx`, `sdk`, `perf`.
    - Hidden from the changelog: `ci`, `test`, `docs`, `gov`, `chore`, `refactor`, `style`, `build`.
 
+   PR-time enforcement: the **Commitlint** workflow
+   (`.github/workflows/commitlint.yaml`) runs `wagoid/commitlint-github-action@v6`
+   against every PR commit. The `type-enum` in `.commitlintrc.json` is locked
+   to the same list above — adding a new type means editing both
+   `.commitlintrc.json` and `release-please-config.json` together.
+
 2. Each push to `main` runs `.github/workflows/release-please.yaml`,
    which opens (or updates) a single **Release PR** named
    `chore(main): release <next-version>`. The PR:

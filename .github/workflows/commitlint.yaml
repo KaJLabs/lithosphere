@@ -1,0 +1,49 @@
+# Validate that PR commits follow Conventional Commits.
+#
+# release-please (release-please.yaml) consumes commit messages to generate the
+# rolling Release PR; a malformed message ("WIP fix thing") silently fails to
+# populate the changelog and can push the wrong semver bump. This workflow
+# catches the malformed message at PR-review time instead of post-merge.
+#
+# Config: .commitlintrc.json at repo root. The type-enum is locked to match
+# release-please-config.json's changelog-sections — adding a new type means
+# editing BOTH files (intentional: the type universe is small).
+#
+# Scope is optional (e.g., `fix(slither): ...` is fine; `fix: ...` is also fine).
+# subject-case / subject-full-stop / body-max-line-length are disabled because
+# our commits routinely include URLs and code blocks that legitimately exceed
+# 100 chars; the discipline that matters is the type/scope shape.
+
+name: Commitlint
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  commitlint:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # commitlint needs the full PR commit range to lint against the base.
+          fetch-depth: 0
+
+      - uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: .commitlintrc.json
+          # `failOnWarnings: false` (default) — we have no warning-level rules,
+          # all rules are level 2 (error) or 0 (off). Kept explicit for clarity.
+          failOnWarnings: false
+          # PR title is NOT linted — the squash-merge default uses the PR title
+          # as the merge commit message, but we don't squash-merge; we keep the
+          # commit-by-commit history. So per-commit linting is sufficient.
+          failOnErrors: true
