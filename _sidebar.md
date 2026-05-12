@@ -62,6 +62,7 @@
   - [Test Quarantine](docs/governance/test-quarantine.md)
   - [RACI Matrix](docs/governance/raci.md)
   - [Supply Chain Hardening](docs/governance/supply-chain.md)
+  - [Artifact Catalog](docs/governance/artifact-catalog.md)
   - [Release Calendar](docs/governance/release-calendar.md)
   - [RFC 0001 — Release Trains](docs/governance/rfcs/0001-release-trains.md)
 

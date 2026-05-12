@@ -6,7 +6,7 @@
 # ----------------------------------------------------------------------------
 # Stage 1: Build
 # ----------------------------------------------------------------------------
-FROM node:20-alpine AS builder
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS builder
 
 RUN apk update && apk upgrade --no-cache
 
@@ -29,7 +29,7 @@ RUN pnpm prune --prod
 # ----------------------------------------------------------------------------
 # Stage 2: Production Runner
 # ----------------------------------------------------------------------------
-FROM node:20-alpine AS runner
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS runner
 
 # Build-time metadata (injected by CI; defaults are dev-friendly fallbacks)
 ARG GIT_SHA=""

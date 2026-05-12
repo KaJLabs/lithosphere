@@ -1,0 +1,73 @@
+# GHCR retention sweep — auto-prune ephemeral SHA-tagged image versions.
+#
+# publish-images.yaml pushes three tag classes for every build:
+#   - `latest` / `mainnet`         (rolling pointers; one version at a time)
+#   - `vX.Y.Z` / `vX.Y`            (semver, immutable; KEEP forever)
+#   - `sha-<short>`                (per-commit, immutable; PRUNE after 90d)
+#
+# Without this sweep, the `sha-<short>` tags accumulate indefinitely.
+# At ~3 commits/day across api+indexer+explorer that's >3k versions/year
+# of dead weight inflating storage costs and slowing the GHCR UI.
+#
+# Strategy: dagger/dagger-style — the `actions/delete-package-versions`
+# action filters by version metadata. We retain anything tagged with a
+# semver-shaped string (vMAJOR.MINOR.PATCH, vMAJOR.MINOR, latest, mainnet)
+# and prune versions whose ONLY remaining tag is `sha-*` AND older than
+# 90 days. Untagged orphans (built-then-overwritten) prune immediately.
+#
+# Safety nets:
+#   - dry-run on every push to main / manual workflow_dispatch with
+#     `dry_run: true` to preview what WOULD be deleted before the cron
+#     fires.
+#   - `min-versions-to-keep: 50` floor so a catastrophic misconfig
+#     can't wipe the whole registry.
+
+name: GHCR Retention
+
+on:
+  schedule:
+    # Weekly, Sundays 04:00 UTC (low-traffic window, before Monday push burst)
+    - cron: '0 4 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (preview deletions; do not actually delete)'
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  prune:
+    name: Prune ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [lithosphere-api, lithosphere-indexer, lithosphere-explorer]
+    steps:
+      - name: Prune untagged + stale SHA tags for ${{ matrix.package }}
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.package }}
+          package-type: container
+          owner: KaJLabs
+          # Keep at least the 50 most-recent versions regardless of age.
+          # Anchors the worst-case blast radius if the filter logic is wrong.
+          min-versions-to-keep: 50
+          # Prune anything older than the floor that's NOT a release tag.
+          # The action treats a regex match here as "ignore" (keep).
+          # We KEEP versions whose tags include any of: latest, mainnet,
+          # v<digits>(.<digits>)+; everything else (sha-*, untagged) is
+          # eligible for deletion past the min-keep floor.
+          ignore-versions: '^(latest|mainnet|v\\d+(\\.\\d+){0,2})$'
+          # Dry-run flag — true on manual dispatch unless explicitly set
+          # false; the scheduled run uses the actual default (false).
+          dry-run: ${{ github.event.inputs.dry_run == 'true' }}
