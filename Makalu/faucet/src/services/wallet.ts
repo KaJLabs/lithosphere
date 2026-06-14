@@ -128,5 +128,16 @@ export async function getFaucetAssetBalances(): Promise<Record<string, string>> 
 
 export function getFaucetAddress(): string {
   if (!config.privateKey) return '0x0';
-  return getAccount().address;
+  try {
+    return getAccount().address;
+  } catch (error) {
+    // A malformed FAUCET_PRIVATE_KEY makes privateKeyToAccount throw. Degrade
+    // gracefully so /health still reports (as 0x0) instead of 503-ing the whole
+    // faucet — dripping will still fail loudly, but info/status stays visible.
+    console.warn(
+      '[faucet] Invalid FAUCET_PRIVATE_KEY — cannot derive faucet address:',
+      error instanceof Error ? error.message : String(error),
+    );
+    return '0x0';
+  }
 }

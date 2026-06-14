@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import { getFaucetAssetBalances, getFaucetBalance, getFaucetAddress } from '../services/wallet.js';
 
 export async function healthRoutes(app: FastifyInstance) {
-  app.get('/health', async (_request, reply) => {
+  app.get('/health', async (request, reply) => {
     try {
       const [balance, balances] = await Promise.all([
         getFaucetBalance(),
@@ -34,8 +34,19 @@ export async function healthRoutes(app: FastifyInstance) {
         cooldownHours: config.cooldownHours,
         timestamp: new Date().toISOString(),
       });
-    } catch {
-      return reply.status(503).send({ status: 'error', service: 'lithosphere-faucet' });
+    } catch (error) {
+      // Surface the cause — a bare 503 here previously gave ops no signal why
+      // the faucet appeared "unavailable" (e.g. a malformed FAUCET_PRIVATE_KEY
+      // throwing in getFaucetAddress, or the RPC being unreachable).
+      request.log.error(
+        { err: error instanceof Error ? error.message : String(error) },
+        '[faucet] /health check failed',
+      );
+      return reply.status(503).send({
+        status: 'error',
+        service: 'lithosphere-faucet',
+        message: error instanceof Error ? error.message : 'Faucet health check failed',
+      });
     }
   });
 }

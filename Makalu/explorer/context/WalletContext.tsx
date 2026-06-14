@@ -38,10 +38,14 @@ if (typeof window !== 'undefined') {
       ethersConfig,
       chains,
       projectId: PROJECT_ID,
+      // WalletConnect Explorer IDs, in display order. Trust Wallet IS already
+      // featured here (any injected/WalletConnect wallet still works regardless).
+      // To make Thanos.fi the primary wallet, prepend its WalletConnect ID above
+      // MetaMask once it's confirmed in the WalletConnect registry.
       featuredWalletIds: [
-        'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96',
-        '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0',
-        'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e18e4a0eb6f0f94bd4',
+        'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
+        '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
+        'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e18e4a0eb6f0f94bd4', // Coinbase Wallet
       ],
       themeMode: 'dark',
       themeVariables: {
