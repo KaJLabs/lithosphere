@@ -175,28 +175,38 @@ async function getTokenTransferIndexStatus(): Promise<{
 
 async function getTokenStatsByContract(): Promise<Map<string, { holders: number; transfers: number }>> {
   const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+  // Holders = addresses with a positive *net* balance (received − sent),
+  // not every address that ever appeared in a transfer. This matches the
+  // per-token /tokens/:address/holders logic so the list and detail pages
+  // agree. NUMERIC keeps the big-int aggregation exact.
   const rows = await query<{
     contract_address: string;
     holders: number;
     transfers: number;
   }>(
-    `WITH transfer_counts AS (
+    `WITH flows AS (
+       SELECT LOWER(contract_address) AS contract_address, to_address   AS addr,  value::numeric AS amt
+       FROM token_transfers
+       UNION ALL
+       SELECT LOWER(contract_address) AS contract_address, from_address AS addr, -value::numeric AS amt
+       FROM token_transfers
+     ),
+     balances AS (
+       SELECT contract_address, addr, SUM(amt) AS bal
+       FROM flows
+       WHERE addr IS NOT NULL AND addr != $1
+       GROUP BY contract_address, addr
+     ),
+     holder_counts AS (
+       SELECT contract_address, COUNT(*)::int AS holders
+       FROM balances
+       WHERE bal > 0
+       GROUP BY contract_address
+     ),
+     transfer_counts AS (
        SELECT LOWER(contract_address) AS contract_address, COUNT(*)::int AS transfers
        FROM token_transfers
        GROUP BY LOWER(contract_address)
-     ),
-     holder_counts AS (
-       SELECT contract_address, COUNT(DISTINCT addr)::int AS holders
-       FROM (
-         SELECT LOWER(contract_address) AS contract_address, from_address AS addr
-         FROM token_transfers
-         WHERE from_address IS NOT NULL AND from_address != $1
-         UNION
-         SELECT LOWER(contract_address) AS contract_address, to_address AS addr
-         FROM token_transfers
-         WHERE to_address IS NOT NULL AND to_address != $1
-       ) holder_flows
-       GROUP BY contract_address
      )
      SELECT COALESCE(t.contract_address, h.contract_address) AS contract_address,
             COALESCE(h.holders, 0)::int AS holders,
