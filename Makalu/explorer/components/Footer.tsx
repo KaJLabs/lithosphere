@@ -39,7 +39,15 @@ export default function Footer() {
           </div>
         </div>
         <div className="mt-8 border-t border-white/5 pt-6 text-center text-sm font-medium tracking-tight text-white/55 sm:text-base">
-          Lithosphere Core Protocol • Operated by The LITHO Community
+          Lithosphere Core Protocol • Operated by{' '}
+          <a
+            href="https://litho.foundation"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-litho-400 transition-colors"
+          >
+            LITHO Foundation
+          </a>
         </div>
       </div>
     </footer>
