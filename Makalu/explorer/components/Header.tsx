@@ -30,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Blocks', href: '/blocks' },
   { label: 'Transactions', href: '/txs' },
   { label: 'Tokens', href: '/tokens' },
+  { label: 'NFTs', href: '/nfts' },
   { label: 'Faucet', href: '/faucet' },
 ];
 

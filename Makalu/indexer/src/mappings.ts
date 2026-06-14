@@ -1009,14 +1009,30 @@ async function indexTransferLogs(
 
     const logIndex = log.logIndex ? Number(BigInt(log.logIndex)) : 0;
 
+    const contractAddress = log.address.toLowerCase();
     await client.query(
       `INSERT INTO token_transfers
          (tx_hash, log_index, contract_address, from_address, to_address, value, token_id, block_height, timestamp)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT ON CONSTRAINT token_transfers_tx_log_unique DO NOTHING`,
-      [evmHash, logIndex, log.address.toLowerCase(), decoded.from, decoded.to, decoded.value, decoded.tokenId, height, blockTime]
+      [evmHash, logIndex, contractAddress, decoded.from, decoded.to, decoded.value, decoded.tokenId, height, blockTime]
     );
     inserted++;
+
+    // A non-null token_id means this is an ERC-721 (NFT) Transfer, so classify
+    // the emitting contract as an NFT collection. Guarded so a contract already
+    // seeded as a fungible 'token' is never reclassified.
+    if (decoded.tokenId !== null) {
+      await client.query(
+        `INSERT INTO contracts (address, contract_type)
+         VALUES ($1, 'nft')
+         ON CONFLICT (address) DO UPDATE SET
+           contract_type = 'nft',
+           updated_at = NOW()
+         WHERE contracts.contract_type IS DISTINCT FROM 'token'`,
+        [contractAddress]
+      );
+    }
   }
   if (inserted > 0) {
     logger.info({ count: inserted, evmHash: evmHash.substring(0, 16) }, '[evm] Indexed Transfer log(s)');
@@ -1124,6 +1140,33 @@ async function backfillTokenTransfers(): Promise<void> {
 
   await setIndexerState('token_transfers_backfill_v2_completed', '1').catch(() => {});
   logger.info({ totalInserted, totalScanned }, '[backfill] Token transfers complete');
+}
+
+// ─── NFT Contract Classification Backfill ───────────────────────────────────────
+//
+// Runtime indexing tags NFT collections as contract_type='nft' the moment they
+// emit an ERC-721 transfer (see indexTransferLogs). This one-shot backfill picks
+// up collections whose ERC-721 transfers were already indexed before that tagging
+// existed. Idempotent: re-runs are a cheap no-op once every collection is tagged.
+// Seeded fungible 'token' contracts are never reclassified.
+async function backfillNftContractTypes(): Promise<void> {
+  try {
+    const result = await pool.query(
+      `INSERT INTO contracts (address, contract_type)
+       SELECT DISTINCT LOWER(contract_address), 'nft'
+       FROM token_transfers
+       WHERE token_id IS NOT NULL
+       ON CONFLICT (address) DO UPDATE SET
+         contract_type = 'nft',
+         updated_at = NOW()
+       WHERE contracts.contract_type IS DISTINCT FROM 'token'`
+    );
+    if ((result.rowCount ?? 0) > 0) {
+      logger.info({ classified: result.rowCount }, '[backfill] NFT contracts classified');
+    }
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[backfill] NFT contract classification failed');
+  }
 }
 
 // ─── Account Upsert ───────────────────────────────────────────────────────────
@@ -1392,6 +1435,14 @@ async function main(): Promise<void> {
     await backfillTokenTransfers();
   } catch (err) {
     logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[indexer] Token transfer backfill failed');
+  }
+
+  // NFT classification backfill: tag collections whose ERC-721 transfers were
+  // indexed before contract_type='nft' tagging existed.
+  try {
+    await backfillNftContractTypes();
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[indexer] NFT contract classification backfill failed');
   }
 
   // Initial validator load

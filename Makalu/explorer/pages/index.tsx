@@ -173,7 +173,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
               <div className="mb-3 inline-flex rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">
                 Lithosphere Makalu Testnet
               </div>
-              <h1 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">
+              <h1 className="max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl md:text-5xl">
                 Explore blocks, contracts, AI activity, and LEP100 assets on Makalu.
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-white/65 md:text-lg">

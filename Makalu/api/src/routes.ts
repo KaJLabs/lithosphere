@@ -214,6 +214,61 @@ async function getTokenStatsByContract(): Promise<Map<string, { holders: number;
   );
 }
 
+/**
+ * Per-collection NFT (ERC-721) stats keyed by lowercased contract address.
+ *  - items:     distinct token_ids ever minted in the collection
+ *  - holders:   distinct *current* owners (latest to_address per token_id),
+ *               excluding the zero address (burned tokens have no holder)
+ *  - transfers: total ERC-721 Transfer events for the collection
+ * Current ownership is derived from the most recent transfer per token_id,
+ * unlike fungible holder counts which approximate from transfer participants.
+ */
+async function getNftStatsByContract(): Promise<Map<string, { items: number; holders: number; transfers: number }>> {
+  const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+  const rows = await query<{
+    contract_address: string;
+    items: number;
+    holders: number;
+    transfers: number;
+  }>(
+    `WITH nft AS (
+       SELECT LOWER(contract_address) AS contract_address, token_id, to_address, block_height, log_index
+       FROM token_transfers
+       WHERE token_id IS NOT NULL
+     ),
+     latest AS (
+       SELECT DISTINCT ON (contract_address, token_id)
+              contract_address, token_id, to_address
+       FROM nft
+       ORDER BY contract_address, token_id, block_height DESC, log_index DESC
+     ),
+     transfer_counts AS (
+       SELECT contract_address, COUNT(*)::int AS transfers
+       FROM nft
+       GROUP BY contract_address
+     )
+     SELECT l.contract_address,
+            COUNT(DISTINCT l.token_id)::int AS items,
+            COUNT(DISTINCT l.to_address) FILTER (WHERE l.to_address <> $1)::int AS holders,
+            COALESCE(MAX(t.transfers), 0)::int AS transfers
+     FROM latest l
+     LEFT JOIN transfer_counts t ON t.contract_address = l.contract_address
+     GROUP BY l.contract_address`,
+    [ZERO_ADDR]
+  ).catch(() => []);
+
+  return new Map(
+    rows.map((row) => [
+      row.contract_address.toLowerCase(),
+      {
+        items: Number(row.items ?? 0),
+        holders: Number(row.holders ?? 0),
+        transfers: Number(row.transfers ?? 0),
+      },
+    ])
+  );
+}
+
 async function getCachedCount(
   key: string,
   sql: string,
@@ -2078,6 +2133,113 @@ export function explorerRouter(): Router {
       res.json(tokens);
     } catch (err) {
       logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /tokens error');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── NFT collections (LEP100-6 / ERC-721) ────────────────────────────
+  // Lists every contract classified as an NFT collection by the indexer
+  // (contract_type='nft'), with current-owner holder counts, item counts,
+  // and transfer counts. Powers the explorer's /nfts page.
+
+  r.get('/nfts', async (_req: Request, res: Response) => {
+    try {
+      const [collections, stats] = await Promise.all([
+        query<{
+          address: string;
+          name: string | null;
+          symbol: string | null;
+          total_supply: string | null;
+          creator: string | null;
+          created_at: Date;
+        }>(
+          `SELECT address, name, symbol, total_supply, creator, created_at
+           FROM contracts
+           WHERE contract_type = 'nft'
+           ORDER BY created_at DESC
+           LIMIT 100`
+        ).catch(() => []),
+        getNftStatsByContract(),
+      ]);
+
+      const nfts = collections
+        .filter((c) => !isHiddenToken({ address: c.address, symbol: c.symbol }))
+        .map((c) => {
+          const s = stats.get(c.address.toLowerCase());
+          return {
+            contractAddress: c.address,
+            name: c.name ?? 'Unknown Collection',
+            symbol: c.symbol ?? 'NFT',
+            type: 'LEP100-6' as const,
+            standard: 'LEP100-6',
+            items: s?.items ?? 0,
+            holders: s?.holders ?? 0,
+            transfers: s?.transfers ?? 0,
+            totalSupply: c.total_supply,
+            creator: c.creator,
+            createdAt: c.created_at instanceof Date
+              ? c.created_at.toISOString()
+              : (c.created_at ? String(c.created_at) : null),
+          };
+        });
+
+      res.json(nfts);
+    } catch (err) {
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /nfts error');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Recent NFT transfers across all collections ─────────────────────
+
+  r.get('/nfts/transfers', async (req: Request, res: Response) => {
+    try {
+      const limit = clamp(req.query.limit, 25);
+      const offset = resolveOffset(req.query, limit);
+      const [rows, countResult] = await Promise.all([
+        query<{
+          tx_hash: string;
+          contract_address: string;
+          from_address: string;
+          to_address: string;
+          token_id: string | null;
+          block_height: string;
+          timestamp: Date;
+          name: string | null;
+          symbol: string | null;
+        }>(
+          `SELECT tt.tx_hash, tt.contract_address, tt.from_address, tt.to_address,
+                  tt.token_id, tt.block_height, tt.timestamp, c.name, c.symbol
+           FROM token_transfers tt
+           LEFT JOIN contracts c ON LOWER(c.address) = LOWER(tt.contract_address)
+           WHERE tt.token_id IS NOT NULL
+           ORDER BY tt.block_height DESC, tt.log_index DESC
+           LIMIT $1 OFFSET $2`,
+          [limit, offset]
+        ).catch(() => []),
+        query<CountRow>(
+          `SELECT COUNT(*) AS count FROM token_transfers WHERE token_id IS NOT NULL`
+        ).catch(() => [{ count: '0' }]),
+      ]);
+
+      res.json({
+        transfers: rows.map((r) => ({
+          txHash: pickValidTxHash(r.tx_hash) ?? '',
+          contractAddress: r.contract_address,
+          collectionName: r.name ?? null,
+          collectionSymbol: r.symbol ?? null,
+          fromAddress: r.from_address,
+          toAddress: r.to_address,
+          tokenId: r.token_id ?? null,
+          blockHeight: Number(r.block_height),
+          timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
+        })),
+        total: parseInt(countResult[0]?.count ?? '0'),
+        limit,
+        offset,
+      });
+    } catch (err) {
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /nfts/transfers error');
       res.status(500).json({ error: 'Internal server error' });
     }
   });

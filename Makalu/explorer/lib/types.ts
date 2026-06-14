@@ -214,6 +214,42 @@ export interface ApiTokenHolderList {
   offset: number;
 }
 
+export interface ApiNftCollection {
+  contractAddress: string;
+  name: string;
+  symbol: string;
+  type: 'LEP100-6';
+  standard: string;
+  /** distinct token_ids ever minted */
+  items: number;
+  /** distinct current owners (excl. burn address) */
+  holders: number;
+  /** total ERC-721 Transfer events */
+  transfers: number;
+  totalSupply?: string | null;
+  creator?: string | null;
+  createdAt?: string | null;
+}
+
+export interface ApiNftTransfer {
+  txHash: string;
+  contractAddress: string;
+  collectionName: string | null;
+  collectionSymbol: string | null;
+  fromAddress: string;
+  toAddress: string;
+  tokenId: string | null;
+  blockHeight: number;
+  timestamp: string;
+}
+
+export interface ApiNftTransferList {
+  transfers: ApiNftTransfer[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface ApiValidator {
   address: string;
   moniker: string;
