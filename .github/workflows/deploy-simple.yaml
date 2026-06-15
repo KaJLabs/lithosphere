@@ -1,18 +1,27 @@
 # ============================================================================
-# Lithosphere Deployment Pipeline
-# Deploys to EC2 via AWS Systems Manager (SSM) — no SSH/bastion needed
+# Lithosphere Makalu Explorer Deploy  → vps1 (the LIVE public host)
+# ----------------------------------------------------------------------------
+# makalu.litho.ai is served from vps1 (93.115.16.13) /opt/lithoscan since the
+# 2026-06-03 migration. The previous pipeline deployed via SSM + build-from-source
+# to the AWS indexer (i-057bf8e4baabd9f31, /opt/lithosphere/Makalu) — which is NO
+# LONGER in the public path, so its "green" never reached the live site.
+#
+# This pipeline deploys the published GHCR images to vps1 over SSH and gates on
+# the PUBLIC URL. It deliberately only `pull`s + `up -d`s the web/api services and
+# NEVER overwrites vps1's hand-edited docker-compose.yml / .env, which carry the
+# "§4.4" hotfix wiring (drops the DB-hiding patch-live-chain-data/validators from
+# the api command, sets EXPLORER_INTERNAL_URL=http://web:3000, FORCE_REINDEX=0,
+# MAKALU_CHAIN_TIP_TOLERANCE=500). Overwriting them regresses the public site.
+# Full context: litho-validator-infra repo docs/MAKALU_STATE_AND_DEPLOY_HANDOFF.md
 # ============================================================================
-
-name: Deploy to VPS
+name: Deploy Makalu Explorer (vps1)
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - 'Makalu/**'
       - '.github/workflows/deploy-simple.yaml'
-
   workflow_dispatch:
     inputs:
       environment:
@@ -20,708 +29,107 @@ on:
         required: true
         default: 'mainnet'
         type: choice
-        options:
-          - testnet
-          - staging
-          - mainnet
+        options: [testnet, staging, mainnet]
 
 env:
-  # Opt every JavaScript-based action into Node.js 24 ahead of the
-  # 2026-06-02 forced migration (annotations on every run today).
-  # One-line revert if any action breaks.
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-  DEPLOY_PATH: /opt/lithosphere/Makalu
-  INSTANCE_ID: i-057bf8e4baabd9f31
-  AWS_REGION: us-east-1
+  VPS_HOST: 93.115.16.13          # vps1 — serves makalu.litho.ai (/opt/lithoscan)
+  VPS_USER: root
+  DEPLOY_PATH: /opt/lithoscan
+  PUBLIC_URL: https://makalu.litho.ai
+  REGISTRY: ghcr.io/kajlabs
 
 concurrency:
-  group: deploy-${{ github.event.inputs.environment || 'mainnet' }}
+  group: deploy-makalu-${{ github.event.inputs.environment || 'mainnet' }}
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy to Server
+    name: Deploy to vps1
     runs-on: ubuntu-latest
-
-    # GitHub Environments — admins can attach "Required reviewers" / "Wait timer" /
-    # "Deployment branches" protection rules in repo Settings → Environments
-    # without touching this file. See docs/governance/deployment-approvals.md.
     environment:
       name: ${{ github.event.inputs.environment || 'mainnet' }}
       url: https://makalu.litho.ai
-
     permissions:
       contents: read
-      id-token: write
-
+      packages: read
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: Resolve commit short SHA
+        id: sha
+        run: echo "short=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve Effective Environment
-        id: resolve-env
-        run: echo "name=${{ github.event.inputs.environment || 'mainnet' }}" >> $GITHUB_OUTPUT
-
-      - name: Configure AWS Credentials (OIDC)
-        id: aws-creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      # ─────────────────────────────────────────────────────────────────────
-      # Supply-chain pre-check (advisory). Verifies the GHCR images for the
-      # current SHA carry a valid Cosign keyless signature AND a SLSA
-      # build-provenance attestation matching this repo's identity. The
-      # bastion still builds from source today, so this is a parallel
-      # check, not a deploy gate. The day we flip to image-pull deploy
-      # this becomes the blocking gate by removing `continue-on-error`.
-      #
-      # Skips gracefully when no published image exists for the SHA —
-      # publish-images.yaml only fires on path changes to Makalu/{api,
-      # indexer,explorer}/**, so SHAs that change only workflows or docs
-      # won't have a corresponding image. That's expected, not failure.
-      #
-      # See docs/governance/supply-chain.md for the verification model
-      # and threats this rules out.
-      # ─────────────────────────────────────────────────────────────────────
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3
-
-      - name: Verify GHCR Image Signatures
-        id: verify-supply-chain
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # publish-images.yaml builds + pushes the GHCR images on the same push.
+      # Wait for THIS commit's images so we never deploy a stale :mainnet.
+      - name: Wait for published images (sha-${{ steps.sha.outputs.short }})
         run: |
-          set +e
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          TAG="sha-$SHORT_SHA"
-          OWNER_REGEX='https://github.com/KaJLabs/Lithosphere/.+'
-          OIDC_ISSUER='https://token.actions.githubusercontent.com'
-
-          declare -A RESULTS
-          for service in api indexer explorer; do
-            IMAGE="ghcr.io/kajlabs/lithosphere-$service:$TAG"
-            echo "── Checking $IMAGE"
-
-            # Skip silently when no image exists for this SHA — publish-images
-            # only runs on Makalu/{api,indexer,explorer}/** path changes.
-            if ! cosign triangulate "$IMAGE" >/dev/null 2>&1; then
-              echo "  no image for this SHA (publish-images.yaml did not run); skipping"
-              RESULTS[$service]="skipped"
-              continue
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          TAG="sha-${{ steps.sha.outputs.short }}"
+          for i in $(seq 1 30); do
+            if docker manifest inspect "$REGISTRY/lithosphere-explorer:$TAG" >/dev/null 2>&1 \
+               && docker manifest inspect "$REGISTRY/lithosphere-api:$TAG" >/dev/null 2>&1; then
+              echo "images for $TAG are published"; exit 0
             fi
-
-            SIG_OK=0
-            cosign verify "$IMAGE" \
-              --certificate-identity-regexp "$OWNER_REGEX" \
-              --certificate-oidc-issuer "$OIDC_ISSUER" >/dev/null 2>&1 && SIG_OK=1
-
-            ATT_OK=0
-            gh attestation verify "oci://$IMAGE" --owner KaJLabs >/dev/null 2>&1 && ATT_OK=1
-
-            if [ $SIG_OK -eq 1 ] && [ $ATT_OK -eq 1 ]; then
-              echo "  Cosign sig: OK   SLSA attestation: OK"
-              RESULTS[$service]="ok"
-            elif [ $SIG_OK -eq 1 ]; then
-              echo "::warning::$service signed but SLSA attestation missing/invalid"
-              RESULTS[$service]="sig-only"
-            elif [ $ATT_OK -eq 1 ]; then
-              echo "::warning::$service has attestation but Cosign signature failed"
-              RESULTS[$service]="att-only"
-            else
-              echo "::warning::$service supply-chain verification FAILED (sig + att)"
-              RESULTS[$service]="failed"
-            fi
+            echo "  [$i/30] waiting for $TAG ..."; sleep 20
           done
+          echo "::error::images for $TAG not published after ~10m (publish-images.yaml failed?)"; exit 1
 
-          echo "api_supply=${RESULTS[api]}"           >> $GITHUB_OUTPUT
-          echo "indexer_supply=${RESULTS[indexer]}"   >> $GITHUB_OUTPUT
-          echo "explorer_supply=${RESULTS[explorer]}" >> $GITHUB_OUTPUT
-
-      - name: Verify SSM Connectivity
+      - name: Setup SSH to vps1
         run: |
-          STATUS=$(aws ssm describe-instance-information \
-            --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
-            --query "InstanceInformationList[0].PingStatus" --output text)
-          echo "SSM agent status: $STATUS"
-          [ "$STATUS" = "Online" ] || { echo "SSM agent not online"; exit 1; }
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS1_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Fetch RDS Credentials
-        if: steps.resolve-env.outputs.name == 'mainnet'
-        id: rds-creds
+      # The deploy key is LOCKED on vps1 (authorized_keys `command=`) to a wrapper
+      # that runs ONLY /opt/lithoscan/ci/ci-deploy.sh on the literal arg `deploy`
+      # (and ci-rollback.sh on `rollback`); any other command is rejected, plus
+      # `restrict` (no pty/forwarding). So we just send `deploy` — the actual
+      # pull + `up -d` web/api logic (compose/.env preserved) lives in that host
+      # script. See litho-validator-infra docs/MAKALU_STATE_AND_DEPLOY_HANDOFF.md.
+      - name: Deploy to vps1 (pull + recreate, compose preserved)
+        run: ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" deploy
+
+      # The step the old pipeline lacked: verify the change is live on the PUBLIC
+      # URL (not just containers healthy on a host). Retries to cover publish/deploy lag.
+      - name: Public health gate
         run: |
-          SECRET_JSON=$(aws secretsmanager get-secret-value \
-            --secret-id "litho-mainnet-db-credentials" \
-            --query SecretString --output text)
-          echo "::add-mask::$(echo "$SECRET_JSON" | jq -r '.password')"
-          echo "rds_endpoint=$(echo "$SECRET_JSON" | jq -r '.host')" >> $GITHUB_OUTPUT
-          echo "rds_username=$(echo "$SECRET_JSON" | jq -r '.username')" >> $GITHUB_OUTPUT
-          echo "rds_password=$(echo "$SECRET_JSON" | jq -r '.password')" >> $GITHUB_OUTPUT
-
-      - name: Build DATABASE_URL
-        if: steps.resolve-env.outputs.name == 'mainnet' && steps.rds-creds.outcome == 'success'
-        id: db-url
-        shell: python
-        env:
-          RDS_ENDPOINT: ${{ steps.rds-creds.outputs.rds_endpoint }}
-          RDS_USERNAME: ${{ steps.rds-creds.outputs.rds_username }}
-          RDS_PASSWORD: ${{ steps.rds-creds.outputs.rds_password }}
-        run: |
-          import os
-          from urllib.parse import quote
-          user = os.environ.get('RDS_USERNAME', '')
-          pw = quote(os.environ.get('RDS_PASSWORD', ''), safe='')
-          host = os.environ.get('RDS_ENDPOINT', '')
-          if user and pw and host:
-              url = f"postgresql://{user}:{pw}@{host}:5432/lithoscan?sslmode=require"
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write(f"url={url}\n")
-              print(f"DATABASE_URL built for host: {host}")
-          else:
-              print("::warning::RDS credentials incomplete")
-
-      # ── Deploy ──────────────────────────────────────────────────────────────
-      - name: Deploy Code to Server
-        run: |
-          ENV_NAME="${{ github.event.inputs.environment || 'mainnet' }}"
-
-          # Write deploy script to a temp file — avoids nested quoting issues
-          cat > /tmp/deploy.sh << 'DEPLOY_SCRIPT'
-          #!/bin/bash
-          set -e
-
-          echo "── Preparing deployment..."
-          sudo mkdir -p /opt/lithosphere
-          sudo chown ec2-user:ec2-user /opt/lithosphere
-          cd /opt/lithosphere
-
-          echo "── Saving rollback snapshot..."
-          if [ -d Makalu ]; then
-            mkdir -p Makalu/.rollback
-            cp Makalu/docker-compose.yaml Makalu/.rollback/docker-compose.yaml.bak 2>/dev/null || true
-            cp Makalu/.env Makalu/.rollback/.env.bak 2>/dev/null || true
-          fi
-
-          echo "── Pulling latest code..."
-          rm -rf lithosphere
-          git clone --depth 1 https://github.com/KaJLabs/lithosphere.git
-          BUILD_GIT_SHA=$(git -C lithosphere rev-parse HEAD 2>/dev/null || echo "unknown")
-          export BUILD_GIT_SHA
-
-          # Preserve server-side .env before copying new code
-          # (git clone brings .env.mainnet with placeholder secrets;
-          #  the server .env has real DATABASE_URL, RPC_URL, BATCH_SIZE, etc.)
-          if [ -f Makalu/.env ]; then
-            cp Makalu/.env /tmp/.env.preserve
-            echo "Preserved existing .env"
-          fi
-
-          # Clean old source dirs so deleted files don't linger (preserve .env, data, node_modules)
-          mkdir -p Makalu
-          for d in api explorer indexer faucet infra; do
-            rm -rf "Makalu/$d"
-          done
-          cp -r lithosphere/Makalu/. Makalu/
-          rm -rf lithosphere
-
-          # Restore preserved .env (takes priority over repo defaults)
-          if [ -f /tmp/.env.preserve ]; then
-            cp /tmp/.env.preserve Makalu/.env
-            rm -f /tmp/.env.preserve
-            echo "Restored server .env"
-          fi
-
-          echo "── Configuring environment..."
-          cd Makalu
-          ENV_FILE=".env.DEPLOY_ENV"
-          if [ ! -f .env ] && [ -f "$ENV_FILE" ]; then
-            cp "$ENV_FILE" .env
-            echo "Using $ENV_FILE (no existing .env found)"
-          fi
-
-          echo "── Ensuring critical env vars..."
-          sed -i 's|lithosphere_700777-1|lithosphere_700777-2|g' .env 2>/dev/null || true
-          sed -i 's|testnet-rpc\.lithosphere\.network|rpc.litho.ai|g' .env 2>/dev/null || true
-          grep -q '^RPC_URL=' .env || echo 'RPC_URL=https://rpc.litho.ai' >> .env
-          grep -q '^LCD_URL=' .env || echo 'LCD_URL=https://api.litho.ai' >> .env
-          sed -i 's|^EVM_RPC_URL=http://litho-mainnet-rpc-nlb-90cbce98dabd2453\.elb\.us-east-1\.amazonaws\.com:8545.*|EVM_RPC_URL=https://rpc.litho.ai|' .env 2>/dev/null || true
-          grep -q '^EVM_RPC_URL=' .env || echo 'EVM_RPC_URL=https://rpc.litho.ai' >> .env
-          sed -i 's|^FAUCET_RPC_URL=http://litho-mainnet-rpc-nlb-90cbce98dabd2453\.elb\.us-east-1\.amazonaws\.com:8545.*|FAUCET_RPC_URL=https://rpc.litho.ai|' .env 2>/dev/null || true
-          grep -q '^FAUCET_RPC_URL=' .env || echo 'FAUCET_RPC_URL=https://rpc.litho.ai' >> .env
-          sed -i 's/^FAUCET_CHAIN_ID=.*/FAUCET_CHAIN_ID=700777/' .env 2>/dev/null || true
-          grep -q '^FAUCET_CHAIN_ID=' .env || echo 'FAUCET_CHAIN_ID=700777' >> .env
-          if [ -f "$ENV_FILE" ] && grep -q '^FAUCET_TOKEN_ASSETS=' "$ENV_FILE"; then
-            sed -i '/^FAUCET_TOKEN_ASSETS=/d' .env 2>/dev/null || true
-            grep '^FAUCET_TOKEN_ASSETS=' "$ENV_FILE" >> .env
-          fi
-          # Prevent full re-index on every deploy/restart
-          sed -i 's/^FORCE_REINDEX=1/FORCE_REINDEX=0/' .env 2>/dev/null || true
-          grep -q '^FORCE_REINDEX=' .env || echo 'FORCE_REINDEX=0' >> .env
-
-          echo "── Stopping conflicting lithoscan services..."
-          if [ -f /opt/lithoscan/docker-compose.yml ]; then
-            for SVC in $(sudo docker compose -f /opt/lithoscan/docker-compose.yml ps --services 2>/dev/null); do
-              case "$SVC" in
-                *index*|*redis*|*postgres*|*db*) echo "  Keeping: $SVC" ;;
-                *) echo "  Stopping: $SVC"
-                   sudo docker compose -f /opt/lithoscan/docker-compose.yml stop "$SVC" 2>/dev/null || true
-                   sudo docker compose -f /opt/lithoscan/docker-compose.yml rm -f "$SVC" 2>/dev/null || true ;;
-              esac
-            done
-          fi
-
-          echo "── Cleaning up ports..."
-          for PORT in 3100 8080; do
-            CIDS=$(sudo docker ps -aq --filter "publish=$PORT" 2>/dev/null)
-            [ -n "$CIDS" ] && sudo docker rm -f $CIDS 2>/dev/null || true
-          done
-
-          echo "── Recording build metadata..."
-          # Inject git SHA + build time so /version and the build_info Prometheus
-          # gauge expose what's actually running. SHA was captured at clone time.
-          BUILD_TIME_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          BUILD_VERSION="bastion-${BUILD_GIT_SHA:0:7}"
-          sed -i '/^GIT_SHA=/d; /^BUILD_TIME=/d; /^VERSION=/d' .env 2>/dev/null || true
-          {
-            echo "GIT_SHA=${BUILD_GIT_SHA}"
-            echo "BUILD_TIME=${BUILD_TIME_UTC}"
-            echo "VERSION=${BUILD_VERSION}"
-          } >> .env
-          echo "  GIT_SHA=${BUILD_GIT_SHA}"
-          echo "  BUILD_TIME=${BUILD_TIME_UTC}"
-          echo "  VERSION=${BUILD_VERSION}"
-
-          echo "── Building and starting services..."
-          sudo docker compose up -d redis
-          sudo docker compose up -d --build --force-recreate explorer api indexer faucet
-
-          echo "Deployment complete!"
-          DEPLOY_SCRIPT
-
-          # Replace placeholder with actual env name
-          sed -i "s/DEPLOY_ENV/$ENV_NAME/g" /tmp/deploy.sh
-
-          # Read script as a single command string for SSM
-          SCRIPT=$(cat /tmp/deploy.sh)
-
-          # Send via SSM using cli-input-json for clean quoting
-          jq -n --arg instance "$INSTANCE_ID" --arg script "$SCRIPT" '{
-            InstanceIds: [$instance],
-            DocumentName: "AWS-RunShellScript",
-            TimeoutSeconds: 600,
-            Parameters: { commands: [$script] }
-          }' > /tmp/ssm-input.json
-
-          COMMAND_ID=$(aws ssm send-command \
-            --cli-input-json file:///tmp/ssm-input.json \
-            --query "Command.CommandId" --output text)
-
-          echo "Command ID: $COMMAND_ID"
-
-          echo "Waiting for deployment (polling up to 10 minutes)..."
-          for i in $(seq 1 60); do
-            sleep 10
-            STATUS=$(aws ssm get-command-invocation \
-              --command-id "$COMMAND_ID" \
-              --instance-id "$INSTANCE_ID" \
-              --query "Status" --output text 2>/dev/null || echo "Pending")
-            echo "  [$i/60] Status: $STATUS"
-            case "$STATUS" in
-              Success|Failed|Cancelled|TimedOut) break ;;
-            esac
-          done
-
-          RESULT=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --query "[Status,StandardOutputContent,StandardErrorContent]" --output json)
-
-          STATUS=$(echo "$RESULT" | jq -r '.[0]')
-          echo "Deploy status: $STATUS"
-          echo "$RESULT" | jq -r '.[1]' | tail -80
-          STDERR=$(echo "$RESULT" | jq -r '.[2]')
-          [ -n "$STDERR" ] && [ "$STDERR" != "null" ] && echo "STDERR:" && echo "$STDERR" | tail -20
-
-          [ "$STATUS" = "Success" ] || { echo "Deploy failed: $STATUS"; exit 1; }
-
-      # ── Inject DATABASE_URL ─────────────────────────────────────────────────
-      - name: Inject RDS DATABASE_URL
-        if: steps.db-url.outputs.url != ''
-        run: |
-          DB_URL="${{ steps.db-url.outputs.url }}"
-
-          jq -n --arg instance "$INSTANCE_ID" --arg dburl "$DB_URL" '{
-            InstanceIds: [$instance],
-            DocumentName: "AWS-RunShellScript",
-            TimeoutSeconds: 120,
-            Parameters: { commands: [
-              "cd /opt/lithosphere/Makalu",
-              "if grep -q '\''^DATABASE_URL='\'' .env; then sed -i '\''s|^DATABASE_URL=.*|DATABASE_URL=" + $dburl + "|'\'' .env; else echo '\''DATABASE_URL=" + $dburl + "'\'' >> .env; fi",
-              "echo DATABASE_URL injected",
-              "sudo docker compose up -d --force-recreate api indexer",
-              "echo API + Indexer restarted"
-            ]}
-          }' > /tmp/ssm-inject.json
-
-          COMMAND_ID=$(aws ssm send-command \
-            --cli-input-json file:///tmp/ssm-inject.json \
-            --query "Command.CommandId" --output text)
-
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" || true
-
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --query "Status" --output text)
-          echo "Inject status: $STATUS"
-
-      # ── Inject FAUCET_PRIVATE_KEY ──────────────────────────────────────────────
-      - name: Inject Faucet Private Key
-        env:
-          FAUCET_PK: ${{ secrets.FAUCET_PRIVATE_KEY }}
-        run: |
-          if [ -z "$FAUCET_PK" ]; then
-            echo "FAUCET_PRIVATE_KEY secret not set — skipping faucet key injection"
-            exit 0
-          fi
-
-          jq -n --arg instance "$INSTANCE_ID" --arg pk "$FAUCET_PK" '{
-            InstanceIds: [$instance],
-            DocumentName: "AWS-RunShellScript",
-            TimeoutSeconds: 60,
-            Parameters: { commands: [
-              "cd /opt/lithosphere/Makalu",
-              "if grep -q '\''^FAUCET_PRIVATE_KEY='\'' .env; then sed -i '\''s|^FAUCET_PRIVATE_KEY=.*|FAUCET_PRIVATE_KEY=" + $pk + "|'\'' .env; else echo '\''FAUCET_PRIVATE_KEY=" + $pk + "'\'' >> .env; fi",
-              "echo FAUCET_PRIVATE_KEY injected",
-              "sudo docker compose up -d --force-recreate faucet",
-              "echo Faucet restarted"
-            ]}
-          }' > /tmp/ssm-faucet.json
-
-          COMMAND_ID=$(aws ssm send-command \
-            --cli-input-json file:///tmp/ssm-faucet.json \
-            --query "Command.CommandId" --output text)
-
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" || true
-
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --query "Status" --output text)
-          echo "Faucet inject status: $STATUS"
-
-      # ── Health Checks ───────────────────────────────────────────────────────
-      - name: Wait for Services
-        run: sleep 30
-
-      - name: Health Checks
-        run: |
-          SCRIPT=$(cat << 'HEALTHCHECK'
-          #!/bin/bash
-          set -euo pipefail
-          echo "── Container Status:"
-          sudo docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "litho-|NAME"
-
-          echo ""
-          echo "Waiting for critical containers to become healthy..."
-          deadline=$((SECONDS + 240))
-          containers=(litho-api litho-explorer litho-indexer litho-faucet)
-          while true; do
-            all_ready=true
-            for container in "${containers[@]}"; do
-              STATUS=$(sudo docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container")
-              echo "  $container: $STATUS"
-              case "$STATUS" in
-                healthy|running) ;;
-                starting)
-                  all_ready=false
-                  ;;
-                *)
-                  echo "Container $container entered unhealthy state: $STATUS"
-                  sudo docker logs "$container" --tail 50 2>&1 || true
-                  exit 1
-                  ;;
-              esac
-            done
-
-            if [ "$all_ready" = true ]; then
-              break
-            fi
-
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "Timed out waiting for critical containers to become healthy"
-              for container in "${containers[@]}"; do
-                echo ""
-                echo "Logs for $container (last 50):"
-                sudo docker logs "$container" --tail 50 2>&1 || true
-              done
-              exit 1
-            fi
-
-            echo "Sleeping 10s before re-checking container health..."
+          expected="$GITHUB_SHA"; ok=false
+          for i in $(seq 1 18); do
+            ver=$(curl -fsS --max-time 10 "$PUBLIC_URL/api/version" 2>/dev/null || echo '{}')
+            sha=$(echo "$ver" | jq -r '.gitSha // "unknown"')
+            nfts=$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 10 "$PUBLIC_URL/nfts" 2>/dev/null || echo 000)
+            summary=$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 10 "$PUBLIC_URL/api/stats/summary" 2>/dev/null || echo 000)
+            echo "  [$i/18] /api/version gitSha=$sha  /nfts=$nfts  /api/stats/summary=$summary"
+            if [ "$sha" = "$expected" ] && [ "$nfts" = "200" ] && [ "$summary" = "200" ]; then ok=true; break; fi
             sleep 10
           done
+          if [ "$ok" != true ]; then echo "::error::public health gate failed — makalu.litho.ai not serving $expected"; exit 1; fi
+          echo "makalu.litho.ai is serving $expected"
 
-          echo ""
-          echo "── API Health:"
-          curl -fsS http://localhost:4000/health
-
-          echo ""
-          echo "── Explorer:"
-          curl -fsS -o /dev/null -w "HTTP %{http_code}\n" http://localhost:3100
-
-          echo ""
-          echo "Faucet Health:"
-          curl -fsS http://localhost:8081/health
-
-          echo ""
-          echo "── API Debug:"
-          curl -fsS http://localhost:4000/api/debug | head -c 500
-
-          echo ""
-          echo "── Deployment Diagnostics:"
-          cd /opt/lithosphere/Makalu
-          echo "Git SHA: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
-          echo "FORCE_REINDEX: $(grep '^FORCE_REINDEX=' .env 2>/dev/null || echo unset)"
-          echo "Compose SHA256: $(sha256sum docker-compose.yaml | awk '{print $1}')"
-          sudo docker ps --format "table {{.Names}}\t{{.RunningFor}}\t{{.Image}}" | grep -E "litho-|NAME"
-
-          echo ""
-          echo "Critical Container Health:"
-          for container in litho-api litho-explorer litho-indexer litho-faucet; do
-            STATUS=$(sudo docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container")
-            echo "  $container: $STATUS"
-            case "$STATUS" in
-              healthy|running) ;;
-              *)
-                echo "Container $container is not healthy"
-                exit 1
-                ;;
-            esac
-          done
-
-          echo ""
-          echo "── Indexer Logs (last 15):"
-          sudo docker logs litho-indexer --tail 15 2>&1
-          echo ""
-          echo "Faucet Logs (last 20):"
-          sudo docker logs litho-faucet --tail 20 2>&1
-          HEALTHCHECK
-          )
-
-          jq -n --arg instance "$INSTANCE_ID" --arg script "$SCRIPT" '{
-            InstanceIds: [$instance],
-            DocumentName: "AWS-RunShellScript",
-            TimeoutSeconds: 300,
-            Parameters: { commands: [$script] }
-          }' > /tmp/ssm-health.json
-
-          COMMAND_ID=$(aws ssm send-command \
-            --cli-input-json file:///tmp/ssm-health.json \
-            --query "Command.CommandId" --output text)
-
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" || true
-
-          RESULT=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --query "[Status,StandardOutputContent,StandardErrorContent]" --output json)
-
-          STATUS=$(echo "$RESULT" | jq -r '.[0]')
-          echo "$(echo "$RESULT" | jq -r '.[1]')"
-          STDERR=$(echo "$RESULT" | jq -r '.[2]')
-          [ -n "$STDERR" ] && [ "$STDERR" != "null" ] && echo "STDERR:" && echo "$STDERR"
-
-          [ "$STATUS" = "Success" ] || { echo "Health checks failed: $STATUS"; exit 1; }
-
-      # ── Verify deployed build matches workflow commit ─────────────────────
-      # Curls the new /version endpoint (Phase 9) on api + indexer over SSM
-      # and compares the returned gitSha to ${{ github.sha }}. If the bastion
-      # ended up building a different SHA (concurrent push, git-clone race),
-      # this surfaces it loudly in the workflow summary rather than letting
-      # the deploy succeed silently with a stale binary.
-      - name: Verify Deployed Build SHA
-        id: verify-sha
-        continue-on-error: true
-        run: |
-          EXPECTED_SHA="${{ github.sha }}"
-          echo "Expected SHA: $EXPECTED_SHA"
-
-          SCRIPT=$(cat << 'VERIFY_SCRIPT'
-          #!/bin/bash
-          set +e  # we want all endpoints' values even if one fails
-          # api: port 4000 is mapped to the host via docker-compose `ports:`
-          API_JSON=$(curl -fsS --max-time 5 http://localhost:4000/version 2>/dev/null || echo '{}')
-          # indexer: port 3001 is internal-only (no host port mapping), so
-          # reach it via docker exec instead of host curl.
-          INDEXER_JSON=$(sudo docker exec litho-indexer wget -qO- --timeout=5 http://localhost:3001/version 2>/dev/null || echo '{}')
-          # explorer: Next.js standalone on port 3000 inside the container.
-          # No host port mapping in compose, so go via docker exec like indexer.
-          EXPLORER_JSON=$(sudo docker exec litho-explorer wget -qO- --timeout=5 http://localhost:3000/api/version 2>/dev/null || echo '{}')
-          echo "API_VERSION_JSON=$API_JSON"
-          echo "INDEXER_VERSION_JSON=$INDEXER_JSON"
-          echo "EXPLORER_VERSION_JSON=$EXPLORER_JSON"
-          VERIFY_SCRIPT
-          )
-
-          jq -n --arg instance "$INSTANCE_ID" --arg script "$SCRIPT" '{
-            InstanceIds: [$instance],
-            DocumentName: "AWS-RunShellScript",
-            TimeoutSeconds: 60,
-            Parameters: { commands: [$script] }
-          }' > /tmp/ssm-verify.json
-
-          COMMAND_ID=$(aws ssm send-command \
-            --cli-input-json file:///tmp/ssm-verify.json \
-            --query "Command.CommandId" --output text)
-
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" || true
-
-          OUTPUT=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --query "StandardOutputContent" --output text)
-
-          echo "── /version responses:"
-          echo "$OUTPUT"
-
-          API_JSON=$(echo "$OUTPUT" | grep '^API_VERSION_JSON=' | sed 's/^API_VERSION_JSON=//')
-          INDEXER_JSON=$(echo "$OUTPUT" | grep '^INDEXER_VERSION_JSON=' | sed 's/^INDEXER_VERSION_JSON=//')
-          EXPLORER_JSON=$(echo "$OUTPUT" | grep '^EXPLORER_VERSION_JSON=' | sed 's/^EXPLORER_VERSION_JSON=//')
-
-          API_SHA=$(echo "$API_JSON" | jq -r '.gitSha // "unknown"')
-          INDEXER_SHA=$(echo "$INDEXER_JSON" | jq -r '.gitSha // "unknown"')
-          EXPLORER_SHA=$(echo "$EXPLORER_JSON" | jq -r '.gitSha // "unknown"')
-
-          echo "api_sha=$API_SHA"         >> $GITHUB_OUTPUT
-          echo "indexer_sha=$INDEXER_SHA" >> $GITHUB_OUTPUT
-          echo "explorer_sha=$EXPLORER_SHA" >> $GITHUB_OUTPUT
-          echo "expected_sha=$EXPECTED_SHA" >> $GITHUB_OUTPUT
-
-          API_MATCH="false"; [ "$API_SHA" = "$EXPECTED_SHA" ] && API_MATCH="true"
-          INDEXER_MATCH="false"; [ "$INDEXER_SHA" = "$EXPECTED_SHA" ] && INDEXER_MATCH="true"
-          EXPLORER_MATCH="false"; [ "$EXPLORER_SHA" = "$EXPECTED_SHA" ] && EXPLORER_MATCH="true"
-          echo "api_match=$API_MATCH"           >> $GITHUB_OUTPUT
-          echo "indexer_match=$INDEXER_MATCH"   >> $GITHUB_OUTPUT
-          echo "explorer_match=$EXPLORER_MATCH" >> $GITHUB_OUTPUT
-
-          if [ "$API_MATCH" = "true" ] && [ "$INDEXER_MATCH" = "true" ] && [ "$EXPLORER_MATCH" = "true" ]; then
-            echo "All services report the expected commit."
-          else
-            echo "::warning::SHA mismatch — api=$API_SHA indexer=$INDEXER_SHA explorer=$EXPLORER_SHA expected=$EXPECTED_SHA"
-          fi
-
-      - name: Deployment Summary
+      - name: Summary
         if: always()
         run: |
-          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Environment | ${{ github.event.inputs.environment || 'mainnet' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Instance | \`$INSTANCE_ID\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Deployed At | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
-          echo "| Method | AWS SSM |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Build SHA Verification" >> $GITHUB_STEP_SUMMARY
-          echo "| Service | Deployed SHA | Match |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|--------------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| api | \`${{ steps.verify-sha.outputs.api_sha }}\` | ${{ steps.verify-sha.outputs.api_match == 'true' && '✅' || '⚠️' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| indexer | \`${{ steps.verify-sha.outputs.indexer_sha }}\` | ${{ steps.verify-sha.outputs.indexer_match == 'true' && '✅' || '⚠️' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| explorer | \`${{ steps.verify-sha.outputs.explorer_sha }}\` | ${{ steps.verify-sha.outputs.explorer_match == 'true' && '✅' || '⚠️' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| expected | \`${{ steps.verify-sha.outputs.expected_sha }}\` | — |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          # Supply-chain pre-check results — Cosign sig + SLSA attestation
-          # verified against the GHCR image for this SHA. Advisory only:
-          # bastion builds from source, so a `skipped` or `failed` here
-          # doesn't fail the deploy today. See docs/governance/supply-chain.md.
-          echo "## Supply Chain Verification" >> $GITHUB_STEP_SUMMARY
-          echo "| Service | Cosign + SLSA | Notes |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|---------------|-------|" >> $GITHUB_STEP_SUMMARY
-          API_SUPPLY="${{ steps.verify-supply-chain.outputs.api_supply }}"
-          INDEXER_SUPPLY="${{ steps.verify-supply-chain.outputs.indexer_supply }}"
-          EXPLORER_SUPPLY="${{ steps.verify-supply-chain.outputs.explorer_supply }}"
-          for svc in api indexer explorer; do
-            case "$svc" in
-              api) state="$API_SUPPLY" ;;
-              indexer) state="$INDEXER_SUPPLY" ;;
-              explorer) state="$EXPLORER_SUPPLY" ;;
-            esac
-            case "$state" in
-              ok) echo "| $svc | ✅ verified | Cosign keyless sig + SLSA Build L2 attestation match |" >> $GITHUB_STEP_SUMMARY ;;
-              sig-only) echo "| $svc | ⚠️ partial | Signed but SLSA attestation missing |" >> $GITHUB_STEP_SUMMARY ;;
-              att-only) echo "| $svc | ⚠️ partial | Attestation present but signature failed |" >> $GITHUB_STEP_SUMMARY ;;
-              failed) echo "| $svc | ❌ failed | Neither sig nor attestation verifies — investigate |" >> $GITHUB_STEP_SUMMARY ;;
-              *) echo "| $svc | — | No image for this SHA (publish-images didn't run) |" >> $GITHUB_STEP_SUMMARY ;;
-            esac
-          done
+          {
+            echo "## Makalu Deploy (vps1)"
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| Host | makalu.litho.ai → vps1 (\`$VPS_HOST\`) \`/opt/lithoscan\` |"
+            echo "| Commit | \`${{ github.sha }}\` |"
+            echo "| Method | SSH + GHCR image pull (compose/.env preserved) |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   rollback:
-    name: Rollback on Failure
+    name: Rollback on failure
     runs-on: ubuntu-latest
     needs: deploy
     if: failure()
-
-    permissions:
-      id-token: write
-      contents: read
-
     steps:
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Rollback via SSM
-        env:
-          INSTANCE_ID: i-057bf8e4baabd9f31
+      - name: Setup SSH to vps1
         run: |
-          SCRIPT=$(cat << 'ROLLBACK'
-          #!/bin/bash
-          cd /opt/lithosphere/Makalu
-          if [ -f .rollback/.env.bak ]; then
-            cp .rollback/.env.bak .env
-            echo "Restored .env"
-          fi
-          if [ -f .rollback/docker-compose.yaml.bak ]; then
-            cp .rollback/docker-compose.yaml.bak docker-compose.yaml
-            echo "Restored docker-compose.yaml"
-          fi
-          sudo docker compose down --timeout 30
-          sudo docker compose up -d --remove-orphans
-          echo "Rollback complete"
-          ROLLBACK
-          )
-
-          jq -n --arg instance "$INSTANCE_ID" --arg script "$SCRIPT" '{
-            InstanceIds: [$instance],
-            DocumentName: "AWS-RunShellScript",
-            TimeoutSeconds: 300,
-            Parameters: { commands: [$script] }
-          }' > /tmp/ssm-rollback.json
-
-          COMMAND_ID=$(aws ssm send-command \
-            --cli-input-json file:///tmp/ssm-rollback.json \
-            --query "Command.CommandId" --output text)
-
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" || true
-
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --query "Status" --output text)
-          echo "Rollback status: $STATUS"
-          echo "::warning::Deployment was rolled back"
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS1_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Revert web + api to :previous
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" rollback
+          echo "::warning::Makalu deploy rolled back to previous images"
