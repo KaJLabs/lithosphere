@@ -17,11 +17,17 @@
 name: Deploy Makalu Explorer (vps1)
 
 on:
+  # Trigger ONLY on image-producing changes — these are the exact paths that
+  # publish-images.yaml builds from. A workflow/doc-only change does NOT publish
+  # an image, so triggering a deploy on it would wait forever for a sha image
+  # that never gets built (and then needlessly roll back). Use workflow_dispatch
+  # to deploy a commit manually.
   push:
     branches: [main]
     paths:
-      - 'Makalu/**'
-      - '.github/workflows/deploy-simple.yaml'
+      - 'Makalu/api/**'
+      - 'Makalu/indexer/**'
+      - 'Makalu/explorer/**'
   workflow_dispatch:
     inputs:
       environment:
@@ -46,6 +52,11 @@ jobs:
   deploy:
     name: Deploy to vps1
     runs-on: ubuntu-latest
+    outputs:
+      # "true" once we get past the image-wait and actually touch vps1. Gates the
+      # rollback job so a wait-for-images failure (nothing deployed) does NOT
+      # trigger a needless rollback/restart of the live site.
+      deployed: ${{ steps.deploy.outputs.deployed }}
     environment:
       name: ${{ github.event.inputs.environment || 'mainnet' }}
       url: https://makalu.litho.ai
@@ -86,7 +97,10 @@ jobs:
       # pull + `up -d` web/api logic (compose/.env preserved) lives in that host
       # script. See litho-validator-infra docs/MAKALU_STATE_AND_DEPLOY_HANDOFF.md.
       - name: Deploy to vps1 (pull + recreate, compose preserved)
-        run: ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" deploy
+        id: deploy
+        run: |
+          echo "deployed=true" >> "$GITHUB_OUTPUT"   # mark: we are now mutating vps1
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" deploy
 
       # The step the old pipeline lacked: verify the change is live on the PUBLIC
       # URL (not just containers healthy on a host). Retries to cover publish/deploy lag.
@@ -121,7 +135,9 @@ jobs:
     name: Rollback on failure
     runs-on: ubuntu-latest
     needs: deploy
-    if: failure()
+    # Only roll back if we actually deployed (got past the image-wait). A
+    # wait-for-images failure means nothing changed on vps1 — nothing to revert.
+    if: failure() && needs.deploy.outputs.deployed == 'true'
     steps:
       - name: Setup SSH to vps1
         run: |
