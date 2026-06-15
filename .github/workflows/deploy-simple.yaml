@@ -79,25 +79,14 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      # Pull the freshly published :mainnet images and recreate web + api.
-      # `pull` + `up -d` ONLY — compose/.env (the §4.4 hotfix wiring) is preserved.
-      # vps1 retains a GHCR login in /root/.docker/config.json; if a pull ever 403s,
-      # add a GHCR_PAT secret and a `docker login` line here.
+      # The deploy key is LOCKED on vps1 (authorized_keys `command=`) to a wrapper
+      # that runs ONLY /opt/lithoscan/ci/ci-deploy.sh on the literal arg `deploy`
+      # (and ci-rollback.sh on `rollback`); any other command is rejected, plus
+      # `restrict` (no pty/forwarding). So we just send `deploy` — the actual
+      # pull + `up -d` web/api logic (compose/.env preserved) lives in that host
+      # script. See litho-validator-infra docs/MAKALU_STATE_AND_DEPLOY_HANDOFF.md.
       - name: Deploy to vps1 (pull + recreate, compose preserved)
-        run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" bash -se <<'REMOTE'
-          set -euo pipefail
-          cd /opt/lithoscan
-          echo "── tag current images :previous (rollback parachute)"
-          for svc in explorer api; do
-            cur=$(docker inspect --format '{{.Id}}' "ghcr.io/kajlabs/lithosphere-$svc:mainnet" 2>/dev/null || true)
-            [ -n "$cur" ] && docker tag "$cur" "ghcr.io/kajlabs/lithosphere-$svc:previous" || true
-          done
-          echo "── pull + recreate web + api"
-          docker compose pull web api
-          docker compose up -d web api
-          docker ps --format '{{.Names}} {{.Status}} {{.Image}}' | grep -E 'lithoscan-(web|api)'
-          REMOTE
+        run: ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" deploy
 
       # The step the old pipeline lacked: verify the change is live on the PUBLIC
       # URL (not just containers healthy on a host). Retries to cover publish/deploy lag.
@@ -142,15 +131,5 @@ jobs:
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
       - name: Revert web + api to :previous
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" bash -se <<'REMOTE'
-          set -euo pipefail
-          cd /opt/lithoscan
-          for svc in explorer api; do
-            if docker image inspect "ghcr.io/kajlabs/lithosphere-$svc:previous" >/dev/null 2>&1; then
-              docker tag "ghcr.io/kajlabs/lithosphere-$svc:previous" "ghcr.io/kajlabs/lithosphere-$svc:mainnet"
-            fi
-          done
-          docker compose up -d --no-pull web api 2>/dev/null || docker compose up -d web api
-          echo "rolled back web + api to :previous"
-          REMOTE
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" rollback
           echo "::warning::Makalu deploy rolled back to previous images"
