@@ -1321,6 +1321,47 @@ function startHealthServer(): void {
   metricsApp.listen(process.env.METRICS_PORT ?? 9090, () => logger.info({ port: 9090 }, 'indexer_metrics_listening'));
 }
 
+// ─── Performance index migration ───────────────────────────────────────────────
+
+// Source of truth: infra/postgres/performance-indexes.sql. Kept in sync here so
+// existing prod databases (created before these indexes landed in init.sql) get
+// them applied at indexer startup. The first index fixes the /txs full-table sort.
+const PERFORMANCE_INDEXES: string[] = [
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_time_height ON transactions(timestamp DESC, block_height DESC)',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_evm_tx_cosmos_hash ON evm_transactions(cosmos_tx_hash)',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_block_index ON transactions(block_height, tx_index)',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_sender_lower ON transactions(LOWER(sender))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_receiver_lower ON transactions(LOWER(receiver))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_evm_tx_hash_lower ON evm_transactions(LOWER(hash))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_evm_tx_cosmos_hash_lower ON evm_transactions(LOWER(cosmos_tx_hash))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_evm_tx_from_lower ON evm_transactions(LOWER(from_address))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_evm_tx_to_lower ON evm_transactions(LOWER(to_address))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_evm_tx_contract_lower ON evm_transactions(LOWER(contract_address))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_address_lower ON accounts(LOWER(address))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_evm_lower ON accounts(LOWER(evm_address))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transfers_tx_lower ON token_transfers(LOWER(tx_hash))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transfers_contract_lower ON token_transfers(LOWER(contract_address))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transfers_from_lower ON token_transfers(LOWER(from_address))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transfers_to_lower ON token_transfers(LOWER(to_address))',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_contracts_address_lower ON contracts(LOWER(address))',
+];
+
+async function ensurePerformanceIndexes(): Promise<void> {
+  for (const sql of PERFORMANCE_INDEXES) {
+    // Each statement runs on its own (autocommit) connection: CREATE INDEX
+    // CONCURRENTLY cannot run inside a transaction block.
+    try {
+      await pool.query(sql);
+      logger.info({ sql }, '[migration] performance index ensured');
+    } catch (err) {
+      // A failed CONCURRENTLY build can leave an INVALID index that IF NOT EXISTS
+      // will skip — log clearly so it can be dropped/rebuilt manually if needed.
+      logger.warn({ sql, err: err instanceof Error ? err.message : String(err) }, '[migration] performance index failed');
+    }
+  }
+  logger.info('[migration] performance index migration complete');
+}
+
 // ─── Main Loop ────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -1391,6 +1432,15 @@ async function main(): Promise<void> {
   } catch (err) {
     logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[migration] token_transfers unique constraint failed');
   }
+
+  // Runtime migration: performance indexes (mirror of infra/postgres/performance-indexes.sql).
+  // New DBs get these from init.sql, but Postgres only runs init scripts on an empty data dir,
+  // so existing prod volumes (millions of rows) are missing them — leaving /txs to do a full
+  // table sort on every request (~9s). CREATE INDEX CONCURRENTLY avoids locking the table
+  // against this indexer's continuous writes; IF NOT EXISTS makes it a fast no-op once built.
+  // Fired non-blocking so block catch-up proceeds while the (one-time) builds run in background.
+  // NOTE: this pool has no statement_timeout — required, as these builds can take minutes.
+  void ensurePerformanceIndexes();
 
   const shouldForceReset = process.env.FORCE_REINDEX === '1' || process.env.FORCE_REINDEX === 'true';
   await ensureChainConsistency(shouldForceReset);
