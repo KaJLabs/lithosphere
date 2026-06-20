@@ -33,6 +33,7 @@ tags:
   - name: Transactions
   - name: Addresses
   - name: Tokens
+  - name: NFTs
   - name: Validators
   - name: Stats
   - name: Faucet
@@ -275,6 +276,31 @@ paths:
       responses:
         '200':
           description: Holder leaderboard (paged).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+
+  # ───── NFTs (LEP100-6 collections) ───────────────────────────────────────
+  /nfts:
+    get:
+      tags: [NFTs]
+      summary: List indexed NFT (LEP100-6) collections with item / holder / transfer counts.
+      responses:
+        '200':
+          description: NFT collection array.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /nfts/transfers:
+    get:
+      tags: [NFTs]
+      summary: Recent NFT transfers across all collections.
+      parameters:
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
+      responses:
+        '200':
+          description: Paginated NFT transfer list.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/JsonObject' }
