@@ -1329,6 +1329,8 @@ function startHealthServer(): void {
 const PERFORMANCE_INDEXES: string[] = [
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_time_height ON transactions(timestamp DESC, block_height DESC)',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_evm_tx_cosmos_hash ON evm_transactions(cosmos_tx_hash)',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_blocks_time ON blocks(block_time DESC)',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_blocks_proposer ON blocks(proposer_address)',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_block_index ON transactions(block_height, tx_index)',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_sender_lower ON transactions(LOWER(sender))',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_receiver_lower ON transactions(LOWER(receiver))',

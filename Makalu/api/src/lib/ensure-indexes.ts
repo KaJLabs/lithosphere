@@ -13,6 +13,10 @@ import { logger } from './logger.js';
 const PERFORMANCE_INDEXES: string[] = [
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_time_height ON transactions(timestamp DESC, block_height DESC)',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_evm_tx_cosmos_hash ON evm_transactions(cosmos_tx_hash)',
+  // blocks: idx_blocks_time fixes MAX(block_time) on /stats/summary (full scan
+  // of ~6.6M blocks otherwise); idx_blocks_proposer powers the validator detail page.
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_blocks_time ON blocks(block_time DESC)',
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_blocks_proposer ON blocks(proposer_address)',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_block_index ON transactions(block_height, tx_index)',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_sender_lower ON transactions(LOWER(sender))',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_receiver_lower ON transactions(LOWER(receiver))',
