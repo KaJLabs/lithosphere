@@ -57,6 +57,10 @@ const PUBLIC_EVM_RPC_URL = (process.env.PUBLIC_EVM_RPC_URL || 'https://rpc.litho
 const EVM_RPC_ENDPOINTS = [...new Set([EVM_RPC_URL, RPC_URL, PUBLIC_EVM_RPC_URL].filter(Boolean))];
 const COUNT_CACHE_TTL_MS = 10_000;
 const STATS_SUMMARY_TTL_MS = 15_000;
+// Data-integrity diagnostic: full GROUP BY over the whole transactions table
+// (~5M rows, ~8s). It drifts slowly and only needs to be roughly fresh, so it
+// gets a long TTL and is kept OFF the 15s stats hot path.
+const INCONSISTENT_BLOCKS_TTL_MS = 300_000;
 const EVM_ENRICH_TTL_MS = 600_000;
 const MAX_RUNTIME_CACHE_ENTRIES = 2_000;
 
@@ -682,10 +686,12 @@ async function getSyncSummary(): Promise<SyncSummary> {
     query<{ height: string; timestamp: Date | string | null }>(
       'SELECT COALESCE(MAX(block_height), 0)::text AS height, MAX(timestamp) AS timestamp FROM transactions'
     ),
-    query<CountRow>(`
-      ${INCONSISTENT_BLOCKS_CTE}
-      SELECT COUNT(*) AS count FROM inconsistent_blocks
-    `).catch(() => [{ count: '0' }]),
+    loadCached('inconsistent-blocks', INCONSISTENT_BLOCKS_TTL_MS, () =>
+      query<CountRow>(`
+        ${INCONSISTENT_BLOCKS_CTE}
+        SELECT COUNT(*) AS count FROM inconsistent_blocks
+      `).catch(() => [{ count: '0' }])
+    ),
     fetchChainTipHeight(),
   ]);
 
