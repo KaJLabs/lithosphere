@@ -56,8 +56,8 @@ const EVM_RPC_URL = (process.env.EVM_RPC_URL || '').replace(/\/$/, '');
 const PUBLIC_EVM_RPC_URL = (process.env.PUBLIC_EVM_RPC_URL || 'https://rpc.litho.ai').replace(/\/$/, '');
 const EVM_RPC_ENDPOINTS = [...new Set([EVM_RPC_URL, RPC_URL, PUBLIC_EVM_RPC_URL].filter(Boolean))];
 const COUNT_CACHE_TTL_MS = 10_000;
-const STATS_SUMMARY_TTL_MS = 5_000;
-const EVM_ENRICH_TTL_MS = 60_000;
+const STATS_SUMMARY_TTL_MS = 15_000;
+const EVM_ENRICH_TTL_MS = 600_000;
 const MAX_RUNTIME_CACHE_ENTRIES = 2_000;
 
 interface CacheEntry<T> {
@@ -1521,8 +1521,8 @@ export function explorerRouter(): Router {
         getCachedCount('transactions-total', 'SELECT COUNT(*) AS count FROM transactions'),
       ]);
 
-      const baseRows = await Promise.all(rows.map(async (row) => {
-        let evmExtra: EvmExtra = {
+      const baseRows = rows.map((row) => {
+        const evmExtra: EvmExtra = {
           input_data: row.evm_input_data,
           contract_address: row.evm_contract_address,
           from_address: row.evm_from_address,
@@ -1531,9 +1531,8 @@ export function explorerRouter(): Router {
           gas_price: row.evm_gas_price,
           nonce: row.evm_nonce,
         };
-        if (row.evm_hash) evmExtra = await enrichEvmFromRpc(row.evm_hash, evmExtra);
         return mapTx(row, row.evm_hash, evmExtra);
-      }));
+      });
       const enrichedRows = await enrichTokenInfoBatch(baseRows);
 
       res.json({
@@ -2107,7 +2106,7 @@ export function explorerRouter(): Router {
         getTokenTransferIndexStatus(),
       ]);
       const tokenStatsByAddress = tokenTransferIndex.ready
-        ? await getTokenStatsByContract()
+        ? await loadCached('token-stats-by-contract', 30_000, getTokenStatsByContract)
         : new Map<string, { holders: number; transfers: number }>();
 
       const visibleContractTokens = contractTokens.filter((token) => !isHiddenToken(token));
