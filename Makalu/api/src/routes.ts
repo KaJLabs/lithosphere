@@ -61,6 +61,10 @@ const STATS_SUMMARY_TTL_MS = 15_000;
 // (~5M rows, ~8s). It drifts slowly and only needs to be roughly fresh, so it
 // gets a long TTL and is kept OFF the 15s stats hot path.
 const INCONSISTENT_BLOCKS_TTL_MS = 300_000;
+// Heavy aggregate counts on the stats summary (total txs, distinct wallet
+// addresses over ~5M rows). Slow-drifting, so cache them well beyond the 15s
+// stats TTL — otherwise each stats miss re-runs the full-table scans.
+const STATS_COUNT_TTL_MS = 300_000;
 const EVM_ENRICH_TTL_MS = 600_000;
 const MAX_RUNTIME_CACHE_ENTRIES = 2_000;
 
@@ -715,7 +719,10 @@ async function getStatsSummaryResponse(): Promise<StatsSummaryResponse> {
   return loadCached<StatsSummaryResponse>('stats:summary', STATS_SUMMARY_TTL_MS, async () => {
     const [syncSummary, totalTransactions, walletAddresses, avgBlockTime, gasPriceWei] = await Promise.all([
       getSyncSummary(),
-      getCachedCount('transactions-total', 'SELECT COUNT(*) AS count FROM transactions'),
+      // Slow-drifting totals on a ~5M-row table. The default 10s count TTL is
+      // SHORTER than the 15s stats cache, so it would re-run the heavy scans on
+      // every stats miss — give them a long TTL to keep them off the hot path.
+      getCachedCount('transactions-total', 'SELECT COUNT(*) AS count FROM transactions', [], STATS_COUNT_TTL_MS),
       getCachedCount(
         'wallet-addresses',
         `SELECT COUNT(*) AS count FROM (
@@ -724,7 +731,9 @@ async function getStatsSummaryResponse(): Promise<StatsSummaryResponse> {
            SELECT DISTINCT from_address FROM evm_transactions WHERE from_address IS NOT NULL
            UNION
            SELECT DISTINCT to_address FROM evm_transactions WHERE to_address IS NOT NULL
-         ) all_addrs`
+         ) all_addrs`,
+        [],
+        STATS_COUNT_TTL_MS,
       ),
       query<{ avg_seconds: string }>(
         `SELECT COALESCE(EXTRACT(EPOCH FROM AVG(diff)), 0) AS avg_seconds FROM (
