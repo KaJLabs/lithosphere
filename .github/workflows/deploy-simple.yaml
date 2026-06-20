@@ -13,6 +13,14 @@
 # the api command, sets EXPLORER_INTERNAL_URL=http://web:3000, FORCE_REINDEX=0,
 # MAKALU_CHAIN_TIP_TOLERANCE=500). Overwriting them regresses the public site.
 # Full context: litho-validator-infra repo docs/MAKALU_STATE_AND_DEPLOY_HANDOFF.md
+#
+# ⚠️ INDEXER BLIND SPOT: the host ci-deploy.sh recreates ONLY web/api — the
+# indexer container keeps its old image across deploys. So an indexer-only code
+# change (e.g. a new src/mappings.ts migration) does NOT take effect here. Until
+# the host script is updated to also recreate the indexer, anything that must run
+# on deploy (DB migrations, index creation) belongs in the API startup, which IS
+# recreated — see Makalu/api/src/lib/ensure-indexes.ts. The image-wait below now
+# also waits for the indexer image so it is ready once the host script recreates it.
 # ============================================================================
 name: Deploy Makalu Explorer (vps1)
 
@@ -76,7 +84,8 @@ jobs:
           TAG="sha-${{ steps.sha.outputs.short }}"
           for i in $(seq 1 30); do
             if docker manifest inspect "$REGISTRY/lithosphere-explorer:$TAG" >/dev/null 2>&1 \
-               && docker manifest inspect "$REGISTRY/lithosphere-api:$TAG" >/dev/null 2>&1; then
+               && docker manifest inspect "$REGISTRY/lithosphere-api:$TAG" >/dev/null 2>&1 \
+               && docker manifest inspect "$REGISTRY/lithosphere-indexer:$TAG" >/dev/null 2>&1; then
               echo "images for $TAG are published"; exit 0
             fi
             echo "  [$i/30] waiting for $TAG ..."; sleep 20
