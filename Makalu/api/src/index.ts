@@ -17,6 +17,7 @@ import {
   resolveRequestId,
 } from './lib/logger.js';
 import { metricsMiddleware } from './lib/http-metrics.js';
+import { ensurePerformanceIndexes } from './lib/ensure-indexes.js';
 
 // Collect default metrics (CPU, memory, etc.)
 collectDefaultMetrics({ prefix: 'litho_api_' });
@@ -244,5 +245,10 @@ async function start() {
 
   const port = process.env.API_PORT || 4000;
   app.listen(port, () => logger.info({ port, build: BUILD_INFO }, 'api_listening'));
+
+  // Fire-and-forget: ensure DB performance indexes exist. Non-blocking so the
+  // server starts serving immediately while any (one-time) index build runs in
+  // the background. Idempotent — a fast no-op once the indexes are present.
+  void ensurePerformanceIndexes();
 }
 start();
