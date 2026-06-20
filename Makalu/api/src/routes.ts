@@ -9,6 +9,7 @@ import { bech32 } from 'bech32';
 import { query } from './db.js';
 import { logger } from './lib/logger.js';
 import { audit } from './lib/audit.js';
+import { loadCachedShared } from './lib/shared-cache.js';
 import {
   isEvmTxHash,
   normalizeEvmTxHash,
@@ -690,7 +691,7 @@ async function getSyncSummary(): Promise<SyncSummary> {
     query<{ height: string; timestamp: Date | string | null }>(
       'SELECT COALESCE(MAX(block_height), 0)::text AS height, MAX(timestamp) AS timestamp FROM transactions'
     ),
-    loadCached('inconsistent-blocks', INCONSISTENT_BLOCKS_TTL_MS, () =>
+    loadCachedShared('inconsistent-blocks', INCONSISTENT_BLOCKS_TTL_MS, () =>
       query<CountRow>(`
         ${INCONSISTENT_BLOCKS_CTE}
         SELECT COUNT(*) AS count FROM inconsistent_blocks
@@ -716,25 +717,30 @@ async function getSyncSummary(): Promise<SyncSummary> {
 }
 
 async function getStatsSummaryResponse(): Promise<StatsSummaryResponse> {
-  return loadCached<StatsSummaryResponse>('stats:summary', STATS_SUMMARY_TTL_MS, async () => {
+  // Redis-backed so every API replica shares one warm copy (the stack runs
+  // multiple replicas, each with its own in-memory cache). The heavy inner
+  // aggregates below are ALSO shared, so even the replica that recomputes the
+  // summary on a 15s miss reuses warm counts/CTE instead of re-scanning ~5M rows.
+  return loadCachedShared<StatsSummaryResponse>('stats:summary', STATS_SUMMARY_TTL_MS, async () => {
     const [syncSummary, totalTransactions, walletAddresses, avgBlockTime, gasPriceWei] = await Promise.all([
       getSyncSummary(),
-      // Slow-drifting totals on a ~5M-row table. The default 10s count TTL is
-      // SHORTER than the 15s stats cache, so it would re-run the heavy scans on
-      // every stats miss — give them a long TTL to keep them off the hot path.
-      getCachedCount('transactions-total', 'SELECT COUNT(*) AS count FROM transactions', [], STATS_COUNT_TTL_MS),
-      getCachedCount(
-        'wallet-addresses',
-        `SELECT COUNT(*) AS count FROM (
-           SELECT address FROM accounts
-           UNION
-           SELECT DISTINCT from_address FROM evm_transactions WHERE from_address IS NOT NULL
-           UNION
-           SELECT DISTINCT to_address FROM evm_transactions WHERE to_address IS NOT NULL
-         ) all_addrs`,
-        [],
-        STATS_COUNT_TTL_MS,
-      ),
+      // Slow-drifting totals on a ~5M-row table — long TTL, shared across replicas.
+      loadCachedShared('count:transactions-total', STATS_COUNT_TTL_MS, async () => {
+        const rows = await query<CountRow>('SELECT COUNT(*) AS count FROM transactions');
+        return parseInt(rows[0]?.count ?? '0', 10);
+      }),
+      loadCachedShared('count:wallet-addresses', STATS_COUNT_TTL_MS, async () => {
+        const rows = await query<CountRow>(
+          `SELECT COUNT(*) AS count FROM (
+             SELECT address FROM accounts
+             UNION
+             SELECT DISTINCT from_address FROM evm_transactions WHERE from_address IS NOT NULL
+             UNION
+             SELECT DISTINCT to_address FROM evm_transactions WHERE to_address IS NOT NULL
+           ) all_addrs`
+        );
+        return parseInt(rows[0]?.count ?? '0', 10);
+      }),
       query<{ avg_seconds: string }>(
         `SELECT COALESCE(EXTRACT(EPOCH FROM AVG(diff)), 0) AS avg_seconds FROM (
            SELECT block_time - LAG(block_time) OVER (ORDER BY height) AS diff
