@@ -531,7 +531,10 @@ interface SyncSummary {
 
 interface StatsSummaryResponse extends SyncSummary {
   totalTransactions: number;
+  /** Cumulative count of every address ever seen on-chain (all-time, not current holders). */
   walletAddresses: number;
+  /** Distinct addresses that currently hold a non-zero native LITHO balance. */
+  currentHolders: number;
   avgBlockTime: number;
   gasPriceWei: string | null;
 }
@@ -722,7 +725,7 @@ async function getStatsSummaryResponse(): Promise<StatsSummaryResponse> {
   // aggregates below are ALSO shared, so even the replica that recomputes the
   // summary on a 15s miss reuses warm counts/CTE instead of re-scanning ~5M rows.
   return loadCachedShared<StatsSummaryResponse>('stats:summary', STATS_SUMMARY_TTL_MS, async () => {
-    const [syncSummary, totalTransactions, walletAddresses, avgBlockTime, gasPriceWei] = await Promise.all([
+    const [syncSummary, totalTransactions, walletAddresses, currentHolders, avgBlockTime, gasPriceWei] = await Promise.all([
       getSyncSummary(),
       // Slow-drifting totals on a ~5M-row table — long TTL, shared across replicas.
       loadCachedShared('count:transactions-total', STATS_COUNT_TTL_MS, async () => {
@@ -741,6 +744,15 @@ async function getStatsSummaryResponse(): Promise<StatsSummaryResponse> {
         );
         return parseInt(rows[0]?.count ?? '0', 10);
       }),
+      // Current holders = addresses with a non-zero native balance. The indexer's
+      // balance sweep keeps accounts.balance warm via eth_getBalance, so this is a
+      // real owner count rather than the historical-participant figure above.
+      loadCachedShared('count:current-holders', STATS_COUNT_TTL_MS, async () => {
+        const rows = await query<CountRow>(
+          `SELECT COUNT(*) AS count FROM accounts WHERE balance IS NOT NULL AND balance <> '0'`
+        );
+        return parseInt(rows[0]?.count ?? '0', 10);
+      }),
       query<{ avg_seconds: string }>(
         `SELECT COALESCE(EXTRACT(EPOCH FROM AVG(diff)), 0) AS avg_seconds FROM (
            SELECT block_time - LAG(block_time) OVER (ORDER BY height) AS diff
@@ -754,6 +766,7 @@ async function getStatsSummaryResponse(): Promise<StatsSummaryResponse> {
       ...syncSummary,
       totalTransactions,
       walletAddresses,
+      currentHolders,
       avgBlockTime: Math.round(parseFloat(avgBlockTime[0]?.avg_seconds ?? '0') * 10) / 10,
       gasPriceWei,
     };
@@ -2112,16 +2125,12 @@ export function explorerRouter(): Router {
          LIMIT 100`
       ).catch(() => []);
 
-      // Get holder count for native LITHO (accounts + unique EVM addresses)
+      // Native LITHO holders = addresses with a non-zero current balance (kept
+      // warm by the indexer's eth_getBalance sweep). The old query unioned every
+      // address that ever sent/received, which counted historical participants.
       const [holderCount, totalTxCount, tokenTransferIndex] = await Promise.all([
         query<CountRow>(
-          `SELECT COUNT(*) AS count FROM (
-             SELECT address FROM accounts WHERE balance != '0'
-             UNION
-             SELECT DISTINCT from_address FROM evm_transactions WHERE from_address IS NOT NULL
-             UNION
-             SELECT DISTINCT to_address FROM evm_transactions WHERE to_address IS NOT NULL
-           ) all_holders`
+          `SELECT COUNT(*) AS count FROM accounts WHERE balance IS NOT NULL AND balance <> '0'`
         ).catch(() => [{ count: '0' }]),
         query<CountRow>('SELECT COUNT(*) AS count FROM transactions').catch(() => [{ count: '0' }]),
         getTokenTransferIndexStatus(),
@@ -2283,14 +2292,10 @@ export function explorerRouter(): Router {
       // Native LITHO token
       if (address === 'native') {
         const [holderCount, totalTxCount] = await Promise.all([
+          // Current owners: non-zero native balance (warmed by the indexer sweep),
+          // not the historical set of every address that ever transacted.
           query<CountRow>(
-            `SELECT COUNT(*) AS count FROM (
-               SELECT address FROM accounts WHERE balance != '0'
-               UNION
-               SELECT DISTINCT from_address FROM evm_transactions WHERE from_address IS NOT NULL
-               UNION
-               SELECT DISTINCT to_address FROM evm_transactions WHERE to_address IS NOT NULL
-             ) all_holders`
+            `SELECT COUNT(*) AS count FROM accounts WHERE balance IS NOT NULL AND balance <> '0'`
           ).catch(() => [{ count: '0' }]),
           query<CountRow>('SELECT COUNT(*) AS count FROM transactions').catch(() => [{ count: '0' }]),
         ]);
@@ -2559,42 +2564,32 @@ export function explorerRouter(): Router {
       }
 
       if (address === 'native') {
-        // Native LITHO: dynamically fetch for active EVM addresses (since indexer accounts lacks balances)
+        // Native LITHO holders read from accounts.balance, kept warm by the
+        // indexer's eth_getBalance sweep. Only non-zero balances are real holders,
+        // so the list, its total, and ranking all come from the same source as the
+        // headline holder count (no per-row live RPC, no historical-participant rows).
+        const totalSupplyWei = 1_000_000_000e18; // 1B LITHO in wei
         const [rows, countResult] = await Promise.all([
-          query<{ address: string }>(
-            `SELECT addr AS address FROM (
-               SELECT DISTINCT from_address AS addr FROM evm_transactions WHERE from_address IS NOT NULL
-               UNION
-               SELECT DISTINCT to_address AS addr FROM evm_transactions WHERE to_address IS NOT NULL
-             ) all_holders
-             LIMIT $1 OFFSET $2`,
+          query<{ address: string; evm_address: string | null; balance: string }>(
+            `SELECT address, evm_address, balance
+               FROM accounts
+              WHERE balance IS NOT NULL AND balance <> '0'
+              ORDER BY balance::numeric DESC
+              LIMIT $1 OFFSET $2`,
             [limit, offset]
-          ),
+          ).catch(() => []),
           query<CountRow>(
-            `SELECT COUNT(*) AS count FROM (
-               SELECT DISTINCT from_address AS addr FROM evm_transactions WHERE from_address IS NOT NULL
-               UNION
-               SELECT DISTINCT to_address AS addr FROM evm_transactions WHERE to_address IS NOT NULL
-             ) all_holders`
-          ),
+            `SELECT COUNT(*) AS count FROM accounts WHERE balance IS NOT NULL AND balance <> '0'`
+          ).catch(() => [{ count: '0' }]),
         ]);
 
-        const totalSupplyWei = 1_000_000_000e18; // 1B LITHO in wei
-        const holders = await Promise.all(rows.map(async (r) => {
-          const liveBal = (await fetchLiveBalance(r.address)) ?? '0';
-          const balUlitho = weiToUlitho(liveBal);
+        const holders = rows.map((r) => {
+          const balUlitho = weiToUlitho(r.balance);
           return {
-            address: r.address,
+            address: r.evm_address || r.address,
             balance: balUlitho,
-            percentage: totalSupplyWei > 0 ? (parseFloat(liveBal) / totalSupplyWei) * 100 : 0,
+            percentage: totalSupplyWei > 0 ? (parseFloat(r.balance) / totalSupplyWei) * 100 : 0,
           };
-        }));
-
-        // Sort dynamically fetched balances correctly
-        holders.sort((a, b) => {
-          const balA = BigInt(a.balance);
-          const balB = BigInt(b.balance);
-          return balA < balB ? 1 : balA > balB ? -1 : 0;
         });
 
         res.json({

@@ -10,7 +10,10 @@ export interface StatsSummary {
   isSyncing: boolean;
   inconsistentBlocks: number;
   totalTransactions: number;
+  /** Cumulative count of every address ever seen on-chain (all-time, not current holders). */
   walletAddresses: number;
+  /** Distinct addresses currently holding a non-zero native LITHO balance. */
+  currentHolders?: number;
   avgBlockTime: number;
   /** Live chain gas price in wei (= ulitho on Lithosphere). null if RPC unreachable. */
   gasPriceWei?: string | null;

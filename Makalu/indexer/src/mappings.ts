@@ -1269,6 +1269,58 @@ async function recordNetworkStats(): Promise<void> {
   }
 }
 
+// ─── Native Balance Refresh ─────────────────────────────────────────────────────
+//
+// Current native LITHO balances cannot be derived from indexed events: native
+// value moves via gas fees, staking, rewards and bank sends that are not all
+// captured as Transfer logs. The live chain is the only source of truth. We keep
+// `accounts.balance` warm with a bounded, rolling `eth_getBalance` sweep so that
+// "current holder" counts (accounts WHERE balance <> '0') reflect real owners
+// instead of the historical-participant overcount (every address ever seen).
+//
+// Bounded: NATIVE_BALANCE_BATCH accounts per pass, ordered stalest-checked first
+// (balance_block ASC) then most-recently-active (last_seen_block DESC), so
+// never-checked and hot accounts converge first and coverage rotates over time.
+// Accounts without a known EVM address are skipped — their balance stays at the
+// default 0 and they count as non-holders, which under-counts rather than
+// over-counts. RPC misses leave balance_block untouched so they retry next pass.
+const NATIVE_BALANCE_BATCH = Number(process.env.NATIVE_BALANCE_BATCH || 250);
+
+async function refreshNativeBalances(chainTip: number): Promise<void> {
+  if (EVM_RPC_ENDPOINTS.length === 0 || chainTip <= 0) return;
+  try {
+    const candidates = await pool.query<{ address: string; evm_address: string }>(
+      `SELECT address, evm_address
+         FROM accounts
+        WHERE evm_address IS NOT NULL AND evm_address <> ''
+        ORDER BY balance_block ASC, last_seen_block DESC NULLS LAST
+        LIMIT $1`,
+      [NATIVE_BALANCE_BATCH]
+    );
+    if (candidates.rows.length === 0) return;
+
+    let refreshed = 0;
+    let nonzero = 0;
+    for (const acc of candidates.rows) {
+      const hex = await evmRpc<string>('eth_getBalance', [acc.evm_address, 'latest']);
+      if (hex == null) continue; // RPC miss — leave balance + balance_block as-is so it retries next pass
+      let bal: string;
+      try { bal = BigInt(hex).toString(); } catch { continue; }
+      await pool.query(
+        `UPDATE accounts SET balance = $1, balance_block = $2, updated_at = NOW() WHERE address = $3`,
+        [bal, chainTip, acc.address]
+      );
+      refreshed++;
+      if (bal !== '0') nonzero++;
+    }
+    if (refreshed > 0) {
+      logger.info({ refreshed, nonzero, batch: candidates.rows.length }, '[balances] native balance sweep');
+    }
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[balances] refresh failed');
+  }
+}
+
 // ─── HTTP Servers ─────────────────────────────────────────────────────────────
 //
 // Bound BEFORE the DB wait + bootstrap so /version and /health are reachable
@@ -1341,6 +1393,11 @@ const PERFORMANCE_INDEXES: string[] = [
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_evm_tx_contract_lower ON evm_transactions(LOWER(contract_address))',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_address_lower ON accounts(LOWER(address))',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_evm_lower ON accounts(LOWER(evm_address))',
+  // Current-holder count: COUNT(*) FROM accounts WHERE balance <> '0'. Partial
+  // index so the count touches only the (small) set of actual holders.
+  `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_nonzero_balance ON accounts(address) WHERE balance IS NOT NULL AND balance <> '0'`,
+  // Balance-sweep candidate selection: ORDER BY balance_block ASC, last_seen_block DESC.
+  'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_balance_sweep ON accounts(balance_block ASC, last_seen_block DESC)',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transfers_tx_lower ON token_transfers(LOWER(tx_hash))',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transfers_contract_lower ON token_transfers(LOWER(contract_address))',
   'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transfers_from_lower ON token_transfers(LOWER(from_address))',
@@ -1435,6 +1492,17 @@ async function main(): Promise<void> {
     logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[migration] token_transfers unique constraint failed');
   }
 
+  // Runtime migration: native-balance refresh marker. The balance sweep
+  // (refreshNativeBalances) keeps accounts.balance warm via eth_getBalance and
+  // records the chain height it was last checked at, so the rolling sweep can
+  // rotate fairly (stalest-checked accounts first). Must run BEFORE
+  // ensurePerformanceIndexes() below, which builds an index over this column.
+  try {
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS balance_block BIGINT NOT NULL DEFAULT 0`);
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[migration] accounts.balance_block failed');
+  }
+
   // Runtime migration: performance indexes (mirror of infra/postgres/performance-indexes.sql).
   // New DBs get these from init.sql, but Postgres only runs init scripts on an empty data dir,
   // so existing prod volumes (millions of rows) are missing them — leaving /txs to do a full
@@ -1504,6 +1572,7 @@ async function main(): Promise<void> {
   let lastStatsRefresh     = Date.now();
   let lastConsistencyRepair = Date.now();
   let lastSyncSnapshotRefresh = Date.now();
+  let lastNativeBalanceRefresh = 0; // 0 → run on the first cycle so holder counts warm up immediately
 
   while (true) {
     const cycleId = newCycleId();
@@ -1547,6 +1616,10 @@ async function main(): Promise<void> {
       if (Date.now() - lastStatsRefresh > 300_000) {
         await recordNetworkStats();
         lastStatsRefresh = Date.now();
+      }
+      if (Date.now() - lastNativeBalanceRefresh > 60_000) {
+        await refreshNativeBalances(lastKnownChainTip);
+        lastNativeBalanceRefresh = Date.now();
       }
       if (Date.now() - lastConsistencyRepair > CONSISTENCY_REPAIR_INTERVAL_MS) {
         await repairInconsistentBlocks();

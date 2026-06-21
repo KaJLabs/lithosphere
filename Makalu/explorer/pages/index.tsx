@@ -136,7 +136,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
     },
   ];
 
-  const networkMetrics = [
+  const networkMetrics: Array<{ label: string; value: string; subtitle?: string }> = [
     {
       label: 'Average Block Time',
       value: statsLoading ? '—' : `${stats?.avgBlockTime ?? 0}s`,
@@ -146,8 +146,13 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
       value: statsLoading ? '—' : formatNumber(stats?.totalTransactions ?? 0),
     },
     {
-      label: 'Wallet Addresses',
+      label: 'LITHO Holders',
+      value: statsLoading ? '—' : formatNumber(stats?.currentHolders ?? 0),
+    },
+    {
+      label: 'Total Addresses',
       value: statsLoading ? '—' : formatNumber(stats?.walletAddresses ?? 0),
+      subtitle: 'all-time, incl. inactive',
     },
     {
       label: 'Gas Tracker',
@@ -234,7 +239,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
           </section>
 
           {/* Network metrics (real data from chain) */}
-          <section className="mt-6 grid w-full min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="mt-6 grid w-full min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-5">
             {networkMetrics.map((item) => (
               <div
                 key={item.label}
@@ -242,6 +247,9 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
               >
                 <div className="text-sm text-violet-200/65">{item.label}</div>
                 <div className="mt-2 text-2xl font-semibold text-violet-100">{item.value}</div>
+                {item.subtitle && (
+                  <div className="mt-1 text-xs text-violet-200/45">{item.subtitle}</div>
+                )}
               </div>
             ))}
           </section>
