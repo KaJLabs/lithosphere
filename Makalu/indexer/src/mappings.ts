@@ -194,8 +194,8 @@ const SEEDED_TOKENS: SeedToken[] = [
   { address: '0xAcD98E323968647936887aD4934e64B01060727e', name: 'Imagen Network', symbol: 'IMAGE', decimals: 18, totalSupply: '10000000000000000000000000000' },
   { address: '0x10052B8ccD2160b8F9880C6b4F5DD117fF253B1c', name: 'AGII', symbol: 'AGII', decimals: 18, totalSupply: '1000000000000000000000000000' },
   { address: '0x798eD6bFc5bfCFc60938d5098825b354427A0786', name: 'Built AI', symbol: 'BLDR', decimals: 18, totalSupply: '1000000000000000000000000000' },
-  { address: '0xDB829befCF8E582379E2c034FA2589b8D2EA1c5D', name: 'FurGPT', symbol: 'FGPT', decimals: 18, totalSupply: '1000000000000000000000000000' },
-  { address: '0x151ef362eA96853702Cc5e7728107e3961fbD22e', name: 'Mansa AI', symbol: 'MUSA', decimals: 18, totalSupply: '1000000000000000000000000000' },
+  { address: '0xDB829befCF8E582379E2c034FA2589b8D2EA1c5D', name: 'Mansa AI', symbol: 'MUSA', decimals: 18, totalSupply: '1000000000000000000000000000' },
+  { address: '0x151ef362eA96853702Cc5e7728107e3961fbD22e', name: 'FurGPT', symbol: 'FGPT', decimals: 18, totalSupply: '1000000000000000000000000000' },
 ];
 
 // Legacy LEP100 addresses evicted on startup by migrateTokenAddresses():
