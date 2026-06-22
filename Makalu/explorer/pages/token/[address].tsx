@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatValue } from '@/lib/format';
+import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatValue, evmToCosmos } from '@/lib/format';
 import { isValidTransactionHash } from '@/lib/tx';
 import type {
   ApiTokenDetail,
@@ -707,6 +707,15 @@ function InfoTab({ token }: { token: ApiTokenDetail }) {
                   {token.contractAddress}
                 </Link>
                 <CopyBtn text={token.contractAddress} />
+                {evmToCosmos(token.contractAddress) && (
+                  <div className="mt-1.5 text-xs text-white/40">
+                    <span className="text-white/30">Lithosphere format: </span>
+                    <Link href={`/address/${token.contractAddress}`} className="text-white/55 hover:text-emerald-300 transition break-all">
+                      {evmToCosmos(token.contractAddress)}
+                    </Link>
+                    <CopyBtn text={evmToCosmos(token.contractAddress)!} />
+                  </div>
+                )}
               </div>
             </div>
           )}
