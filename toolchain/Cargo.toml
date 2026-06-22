@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/lithic-syntax",
+    "crates/lithc",
+    "crates/lithfmt",
+    "crates/lithlint",
+    "crates/lithls",
+    "crates/lithdev",
+    "crates/lithtest",
+    "crates/lithsec",
+    "crates/lithpkg",
+]
+
+# The Lithosphere developer toolchain. Std-only by design (zero external crates)
+# so the scaffold builds offline without a crates.io fetch.
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/KaJLabs/lithosphere"

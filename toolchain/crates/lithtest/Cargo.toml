@@ -1,0 +1,10 @@
+[package]
+name = "lithtest"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "lithtest — the Lithic test runner (spec-only stub)."
+
+[[bin]]
+name = "lithtest"
+path = "src/main.rs"
