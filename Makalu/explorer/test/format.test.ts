@@ -12,6 +12,9 @@ import {
   isBech32Address,
   isEvmAddress,
   isValidatorAddress,
+  evmToCosmos,
+  cosmosToEvm,
+  altAddressFormat,
   proposalStatusColor,
   timeAgo,
   truncateAddress,
@@ -19,6 +22,43 @@ import {
   txTypeInfo,
   validatorStatusLabel,
 } from '../lib/format';
+
+describe('address format conversion (litho1 ⇄ 0x)', () => {
+  // Verified equivalent pair: same 20-byte account, two encodings.
+  const EVM = '0x599a7e135f1790ae117b4eddc0422d24bc766161';
+  const LITHO = 'litho1txd8uy6lz7g2uytmfmwuqs3dyj78vctpkg0ynr';
+
+  it('converts EVM 0x to Lithosphere bech32', () => {
+    expect(evmToCosmos(EVM)).toBe(LITHO);
+  });
+
+  it('converts Lithosphere bech32 to EVM 0x (lowercase)', () => {
+    expect(cosmosToEvm(LITHO)).toBe(EVM);
+  });
+
+  it('round-trips both directions', () => {
+    expect(cosmosToEvm(evmToCosmos(EVM)!)).toBe(EVM);
+    expect(evmToCosmos(cosmosToEvm(LITHO)!)).toBe(LITHO);
+  });
+
+  it('is case-insensitive on the bech32 input', () => {
+    expect(cosmosToEvm(LITHO.toUpperCase().replace('LITHO1', 'litho1'))).toBe(EVM);
+  });
+
+  it('altAddressFormat returns the opposite encoding', () => {
+    expect(altAddressFormat(EVM)).toBe(LITHO);
+    expect(altAddressFormat(LITHO)).toBe(EVM);
+  });
+
+  it('returns undefined for invalid / empty input', () => {
+    expect(evmToCosmos('0x123')).toBeUndefined();
+    expect(evmToCosmos('not-an-address')).toBeUndefined();
+    expect(evmToCosmos(null)).toBeUndefined();
+    expect(cosmosToEvm('cosmos1abc')).toBeUndefined();
+    expect(cosmosToEvm(undefined)).toBeUndefined();
+    expect(altAddressFormat('garbage')).toBeUndefined();
+  });
+});
 
 describe('truncateHash / truncateAddress', () => {
   it('truncates long hashes with default lengths', () => {

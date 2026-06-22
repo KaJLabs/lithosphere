@@ -150,6 +150,104 @@ export function isBech32Address(addr: string): boolean {
   return addr.startsWith('litho1');
 }
 
+// ── Address format conversion (Bech32 litho1 ⇄ EVM 0x) ──────────────────────
+// Lithosphere accounts are a single 20-byte value with two encodings: the
+// chain-branded Bech32 `litho1…` (BIP-173, includes a checksum) and the
+// EVM-standard `0x…` hex. They are the SAME identity, never separate accounts.
+// Self-contained codec (no dependency) — mirrors the API's evmToCosmos/cosmosToEvm.
+const BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+const BECH32_GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+
+function bech32Polymod(values: number[]): number {
+  let chk = 1;
+  for (const v of values) {
+    const b = chk >>> 25;
+    chk = (((chk & 0x1ffffff) << 5) >>> 0) ^ v;
+    chk >>>= 0;
+    for (let i = 0; i < 5; i++) if ((b >>> i) & 1) chk = (chk ^ BECH32_GEN[i]) >>> 0;
+  }
+  return chk >>> 0;
+}
+
+function bech32HrpExpand(hrp: string): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < hrp.length; i++) out.push(hrp.charCodeAt(i) >>> 5);
+  out.push(0);
+  for (let i = 0; i < hrp.length; i++) out.push(hrp.charCodeAt(i) & 31);
+  return out;
+}
+
+function bech32Checksum(hrp: string, data: number[]): number[] {
+  const values = bech32HrpExpand(hrp).concat(data, [0, 0, 0, 0, 0, 0]);
+  const mod = (bech32Polymod(values) ^ 1) >>> 0;
+  const ret: number[] = [];
+  for (let i = 0; i < 6; i++) ret.push((mod >>> (5 * (5 - i))) & 31);
+  return ret;
+}
+
+function convertBits(data: number[], from: number, to: number, pad: boolean): number[] | null {
+  let acc = 0;
+  let bits = 0;
+  const ret: number[] = [];
+  const maxv = (1 << to) - 1;
+  for (const value of data) {
+    if (value < 0 || value >> from !== 0) return null;
+    acc = ((acc << from) | value) >>> 0;
+    bits += from;
+    while (bits >= to) {
+      bits -= to;
+      ret.push((acc >>> bits) & maxv);
+    }
+  }
+  if (pad) {
+    if (bits > 0) ret.push((acc << (to - bits)) & maxv);
+  } else if (bits >= from || ((acc << (to - bits)) & maxv)) {
+    return null;
+  }
+  return ret;
+}
+
+/** Convert an EVM 0x address to its Lithosphere Bech32 equivalent (litho1…). */
+export function evmToCosmos(evmAddr: string | null | undefined): string | undefined {
+  if (!evmAddr || !isEvmAddress(evmAddr)) return undefined;
+  const hex = evmAddr.slice(2);
+  const bytes: number[] = [];
+  for (let i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.slice(i, i + 2), 16));
+  const words = convertBits(bytes, 8, 5, true);
+  if (!words) return undefined;
+  let out = 'litho1';
+  for (const d of words.concat(bech32Checksum('litho', words))) out += BECH32_CHARSET[d];
+  return out;
+}
+
+/** Convert a Lithosphere Bech32 address (litho1…) to its EVM 0x equivalent. */
+export function cosmosToEvm(cosmosAddr: string | null | undefined): string | undefined {
+  if (!cosmosAddr) return undefined;
+  const lower = cosmosAddr.toLowerCase();
+  if (!lower.startsWith('litho1')) return undefined;
+  const pos = lower.lastIndexOf('1');
+  const words: number[] = [];
+  for (const c of lower.slice(pos + 1)) {
+    const v = BECH32_CHARSET.indexOf(c);
+    if (v === -1) return undefined;
+    words.push(v);
+  }
+  const bytes = convertBits(words.slice(0, words.length - 6), 5, 8, false);
+  if (!bytes || bytes.length !== 20) return undefined;
+  return '0x' + bytes.map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Return the equivalent address in the *other* format, or undefined if the
+ * input isn't a recognized address. 0x → litho1…, litho1… → 0x.
+ */
+export function altAddressFormat(addr: string | null | undefined): string | undefined {
+  if (!addr) return undefined;
+  if (isEvmAddress(addr)) return evmToCosmos(addr);
+  if (isBech32Address(addr)) return cosmosToEvm(addr);
+  return undefined;
+}
+
 export function isValidatorAddress(addr: string): boolean {
   return addr.startsWith('lithovaloper1');
 }

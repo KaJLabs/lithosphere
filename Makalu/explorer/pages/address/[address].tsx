@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatLitho, formatValue } from '@/lib/format';
+import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatLitho, formatValue, evmToCosmos } from '@/lib/format';
 import { getPreferredTxHash, isValidTransactionHash } from '@/lib/tx';
 import type { ApiAddress, ApiTx, ApiTokenDetail, ApiTokenHolderList, ApiPrice, ApiAddressTxList, PageInfo, ApiAddressToken, ApiAddressTokenTransferList, ApiTokenTransferList } from '@/lib/types';
 import { FormattedValueElement } from '@/components/FormattedValueElement';
@@ -1160,6 +1160,15 @@ function TokenContractLayout({
             <span className="inline-block ml-2 align-middle">
               <CopyBtn text={account.address} />
             </span>
+            {evmToCosmos(account.address) && (
+              <div className="mt-1.5 text-xs text-white/40">
+                <span className="text-white/30">Lithosphere format: </span>
+                {evmToCosmos(account.address)}
+                <span className="inline-block ml-2 align-middle">
+                  <CopyBtn text={evmToCosmos(account.address)!} />
+                </span>
+              </div>
+            )}
           </div>
         </div>
         {tokenDetail?.creator && (
