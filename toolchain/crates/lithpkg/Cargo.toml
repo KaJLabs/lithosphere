@@ -1,0 +1,10 @@
+[package]
+name = "lithpkg"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "lithpkg — the Lithic package manager (spec-only stub)."
+
+[[bin]]
+name = "lithpkg"
+path = "src/main.rs"

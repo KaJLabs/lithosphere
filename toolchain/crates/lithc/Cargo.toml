@@ -1,0 +1,13 @@
+[package]
+name = "lithc"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "lithc — the Lithic compiler (front-end scaffold: parse, check, emit ABI/AST)."
+
+[[bin]]
+name = "lithc"
+path = "src/main.rs"
+
+[dependencies]
+lithic-syntax = { path = "../lithic-syntax" }

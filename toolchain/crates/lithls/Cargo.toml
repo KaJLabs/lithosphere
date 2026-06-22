@@ -1,0 +1,10 @@
+[package]
+name = "lithls"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "lithls — the Lithic language server (spec-only stub)."
+
+[[bin]]
+name = "lithls"
+path = "src/main.rs"

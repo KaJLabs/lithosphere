@@ -2958,5 +2958,95 @@ export function explorerRouter(): Router {
     }
   });
 
+  // ── MultX bridge proxy (forwards to bridge-api, serves static route config) ──
+  //
+  // The bridge backend (bridge.litho.ai) is shared across chains and is not
+  // CORS-open to the explorer origin, so the browser talks to these same-origin
+  // /api/bridge/* routes and we forward server-side — same pattern as the faucet.
+  const BRIDGE_API_URL = (process.env.BRIDGE_API_URL || 'https://bridge.litho.ai').replace(/\/$/, '');
+
+  // Route 1 (Makalu ↔ Kamet) token pairs. Makalu addresses from
+  // makalu-bridge-latest.json; Kamet addresses from the bridge token registry.
+  const BRIDGE_TOKENS = [
+    { symbol: 'wLITHO', name: 'Wrapped Lithosphere', decimals: 18, makalu: '0x599a7E135f1790ae117b4EdDc0422D24Bc766161', kamet: '0xC0FC628e3aB128fe387e7ed5e729bD809C017888' },
+    { symbol: 'LitBTC', name: 'Lithosphere LitBTC',  decimals: 18, makalu: '0xC4645CA5411D6E27556780AB4cdd0DF7e609df74', kamet: '0x3A8D5FdC6c8dA9f14C535424b6F7206eC1996016' },
+    { symbol: 'LAX',    name: 'Lithosphere Algo',     decimals: 18, makalu: '0x1Cde2Ca6c2ab8622003ebe06e382bC07850d4B8d', kamet: '0xe8f504f9cE5391Fb5968b317f0b24b8A0306ACeb' },
+    { symbol: 'JOT',    name: 'Jot Art',              decimals: 18, makalu: '0xEF2f35f6d0fb7DC9E87b8ca8252AE2E6ffb2a25e', kamet: '0x6AE14CEb3962664b13c5dEF29EB172De76bd0ac9' },
+    { symbol: 'COLLE',  name: 'Colle AI',             decimals: 18, makalu: '0x10D4BB600c96e9243E2f50baFED8b2478F25af61', kamet: '0x0573f66cb4bC34618e7AB8a941F7883DD2515dCA' },
+    { symbol: 'IMAGE',  name: 'Imagen Network',       decimals: 18, makalu: '0xAcD98E323968647936887aD4934e64B01060727e', kamet: '0x8Ba6E3A0759144245f2939eB54164e32bb78B8E0' },
+    { symbol: 'AGII',   name: 'AGII',                 decimals: 18, makalu: '0x10052B8ccD2160b8F9880C6b4F5DD117fF253B1c', kamet: '0x17D506aF1d0Dc2f4f64f15748a5aC46FAd3f06D7' },
+    { symbol: 'BLDR',   name: 'Built AI',             decimals: 18, makalu: '0x798eD6bFc5bfCFc60938d5098825b354427A0786', kamet: '0xF05f1F79273874E554F02ce06585E16132a3B62B' },
+    { symbol: 'FGPT',   name: 'FurGPT',               decimals: 18, makalu: '0x151ef362eA96853702Cc5e7728107e3961fbD22e', kamet: '0x2F366c6350A6b211f6D6F847c3D56738C2E847ca' },
+    { symbol: 'MUSA',   name: 'Mansa AI',             decimals: 18, makalu: '0xDB829befCF8E582379E2c034FA2589b8D2EA1c5D', kamet: '0x17A357262097B4e70acFfe8B71bC61e8bBcc3B42' },
+  ];
+
+  const BRIDGE_CONFIG = {
+    apiUrl: BRIDGE_API_URL,
+    signaturesRequired: 2,
+    chains: {
+      makalu: { chainId: 700777, name: 'Lithosphere Makalu', bridge: '0x5832D5E609c6690f74c7683606Eb20F89ff096a6' },
+      kamet:  { chainId: 900523, name: 'Lithosphere Kamet',  bridge: '0x3a896BDF3a1088287FA84aB5a43bB30e2535F263' },
+    },
+    tokens: BRIDGE_TOKENS,
+  };
+
+  async function proxyBridgeGet(upstreamPath: string, res: Response): Promise<void> {
+    try {
+      const upstream = await fetch(`${BRIDGE_API_URL}${upstreamPath}`, {
+        signal: AbortSignal.timeout(10_000),
+      });
+      const text = await upstream.text();
+      let data: unknown = null;
+      try { data = JSON.parse(text); } catch { /* non-JSON upstream */ }
+
+      if (!upstream.ok || data === null) {
+        res.status(upstream.ok ? 502 : upstream.status).json({
+          ok: false,
+          message: 'Bridge service is unavailable. Please try again later.',
+        });
+        return;
+      }
+      res.json(data);
+    } catch (err) {
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /bridge proxy error');
+      res.status(502).json({ ok: false, message: 'Bridge service is unavailable. Please try again later.' });
+    }
+  }
+
+  r.get('/bridge/config', (_req: Request, res: Response) => {
+    res.json({ ok: true, ...BRIDGE_CONFIG });
+  });
+
+  r.get('/bridge/chains', (_req: Request, res: Response) => {
+    void proxyBridgeGet('/chains', res);
+  });
+
+  r.get('/bridge/status/:txHash', (req: Request, res: Response) => {
+    const h = String(req.params.txHash ?? '');
+    if (!/^0x[0-9a-fA-F]{64}$/.test(h)) {
+      res.status(400).json({ ok: false, message: 'Invalid bridge transaction hash.' });
+      return;
+    }
+    void proxyBridgeGet(`/bridge/status/${h}`, res);
+  });
+
+  r.get('/bridge/signatures/:txHash', (req: Request, res: Response) => {
+    const h = String(req.params.txHash ?? '');
+    if (!/^0x[0-9a-fA-F]{64}$/.test(h)) {
+      res.status(400).json({ ok: false, message: 'Invalid bridge transaction hash.' });
+      return;
+    }
+    void proxyBridgeGet(`/bridge/signatures/${h}`, res);
+  });
+
+  r.get('/bridge/transactions/:address', (req: Request, res: Response) => {
+    const a = String(req.params.address ?? '');
+    if (!/^0x[0-9a-fA-F]{40}$/.test(a)) {
+      res.status(400).json({ ok: false, message: 'Invalid wallet address.' });
+      return;
+    }
+    void proxyBridgeGet(`/bridge/transactions/${a}`, res);
+  });
+
   return r;
 }

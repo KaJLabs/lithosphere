@@ -40,8 +40,14 @@ if (typeof window !== 'undefined') {
       projectId: PROJECT_ID,
       // WalletConnect Explorer IDs, in display order. Trust Wallet IS already
       // featured here (any injected/WalletConnect wallet still works regardless).
-      // To make Thanos.fi the primary wallet, prepend its WalletConnect ID above
-      // MetaMask once it's confirmed in the WalletConnect registry.
+      //
+      // Thanos wallet: as of 2026-06-22 it is NOT in the WalletConnect registry
+      // (explorer-api search for "thanos" returns 0 listings), so there is no ID
+      // to feature yet. A Thanos *browser extension* that implements EIP-6963
+      // already appears automatically via enableEIP6963/enableInjected above — no
+      // change needed for that path. Once the wallet team confirms Thanos's
+      // WalletConnect registry ID, prepend it here (above MetaMask) to make it
+      // the primary featured wallet.
       featuredWalletIds: [
         'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
         '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
