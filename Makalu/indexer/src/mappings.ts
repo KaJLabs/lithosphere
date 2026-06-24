@@ -1158,8 +1158,7 @@ async function backfillNftContractTypes(): Promise<void> {
        WHERE token_id IS NOT NULL
        ON CONFLICT (address) DO UPDATE SET
          contract_type = 'nft',
-         updated_at = NOW()
-       WHERE contracts.contract_type IS DISTINCT FROM 'token'`
+         updated_at = NOW()`
     );
     if ((result.rowCount ?? 0) > 0) {
       logger.info({ classified: result.rowCount }, '[backfill] NFT contracts classified');
