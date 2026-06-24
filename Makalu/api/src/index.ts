@@ -214,8 +214,14 @@ async function start() {
 
   // The public edge currently reaches the API for non-API routes.
   // Proxy those GET/HEAD requests to the explorer so makalu.litho.ai still serves the site.
+  // Guard: never proxy /api/* or /graphql back to the explorer — those are our own routes,
+  // and proxying them causes an infinite loop (explorer rewrites /api/* back to this API).
   app.use(async (req: Request, res: Response, next: NextFunction) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
+      next();
+      return;
+    }
+    if (req.path.startsWith('/api') || req.path === '/graphql') {
       next();
       return;
     }
