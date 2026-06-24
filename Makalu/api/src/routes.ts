@@ -2120,7 +2120,7 @@ export function explorerRouter(): Router {
       }>(
         `SELECT address, name, symbol, decimals, total_supply, contract_type, creator, created_at
          FROM contracts
-         WHERE contract_type IN ('token', 'nft') OR symbol IS NOT NULL
+         WHERE contract_type = 'token' OR (symbol IS NOT NULL AND contract_type IS DISTINCT FROM 'nft')
          ORDER BY created_at DESC
          LIMIT 100`
       ).catch(() => []);
