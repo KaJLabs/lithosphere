@@ -2,6 +2,7 @@ import 'dotenv/config';
 // Must come before any pg / http / fetch imports — see tracing.ts.
 import './tracing.js';
 import { createHash } from 'crypto';
+import { bech32 } from 'bech32';
 import pkg, { type PoolClient } from 'pg';
 const { Pool } = pkg;
 import { Gauge, register, collectDefaultMetrics } from 'prom-client';
@@ -1170,15 +1171,47 @@ async function backfillNftContractTypes(): Promise<void> {
 
 // ─── Account Upsert ───────────────────────────────────────────────────────────
 
+/**
+ * Convert a Cosmos bech32 address (litho1...) to its EVM 0x equivalent.
+ * Ethermint accounts share the same 20-byte payload between the bech32 and 0x
+ * encodings, so `eth_getBalance` on the derived 0x address returns the account's
+ * native (unified bank) balance. Returns undefined for non-litho1 or non-20-byte
+ * addresses (e.g. 32-byte module accounts), which have no EVM holder balance.
+ * Mirrors the API's `cosmosToEvm` in api/src/routes.ts.
+ */
+function cosmosToEvm(cosmosAddr: string | null | undefined): string | undefined {
+  if (!cosmosAddr) return undefined;
+  try {
+    const decoded = bech32.decode(cosmosAddr.toLowerCase());
+    if (decoded.prefix !== 'litho') return undefined;
+    const bytes = Buffer.from(bech32.fromWords(decoded.words));
+    if (bytes.length !== 20) return undefined;
+    return `0x${bytes.toString('hex')}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/** EVM 0x form for any account address (pass-through for 0x, bech32-derived otherwise). */
+function deriveEvmAddress(address: string): string | undefined {
+  return address.startsWith('0x') ? address.toLowerCase() : cosmosToEvm(address);
+}
+
 async function upsertAccount(client: DbClient, address: string, height: number): Promise<void> {
   if (!address || address.length < 5) return;
+  // Populate evm_address so the native-balance sweep (refreshNativeBalances) can
+  // include this account. Cosmos events emit litho1 bech32 addresses; without the
+  // derived 0x form the sweep's `WHERE evm_address IS NOT NULL` skipped every
+  // non-genesis account, pinning the native holder count at the genesis count.
+  const evmAddress = deriveEvmAddress(address) ?? null;
   await client.query(
-    `INSERT INTO accounts (address, first_seen_block, last_seen_block, updated_at)
-     VALUES ($1, $2, $2, NOW())
+    `INSERT INTO accounts (address, evm_address, first_seen_block, last_seen_block, updated_at)
+     VALUES ($1, $2, $3, $3, NOW())
      ON CONFLICT (address) DO UPDATE SET
+       evm_address = COALESCE(NULLIF(accounts.evm_address, ''), EXCLUDED.evm_address),
        last_seen_block = GREATEST(accounts.last_seen_block, EXCLUDED.last_seen_block),
        updated_at = NOW()`,
-    [address, height]
+    [address, evmAddress, height]
   );
 }
 
@@ -1288,10 +1321,15 @@ const NATIVE_BALANCE_BATCH = Number(process.env.NATIVE_BALANCE_BATCH || 250);
 async function refreshNativeBalances(chainTip: number): Promise<void> {
   if (EVM_RPC_ENDPOINTS.length === 0 || chainTip <= 0) return;
   try {
-    const candidates = await pool.query<{ address: string; evm_address: string }>(
+    // Sweep ALL accounts (stalest balance_block first), not only those that
+    // already have an evm_address. Older rows were inserted with evm_address=NULL
+    // (upsertAccount didn't derive it), so the previous `WHERE evm_address IS NOT
+    // NULL` filter excluded every non-genesis account — the native holder count
+    // never grew past the genesis seed. We now derive the 0x form on the fly and
+    // backfill it as we go.
+    const candidates = await pool.query<{ address: string; evm_address: string | null }>(
       `SELECT address, evm_address
          FROM accounts
-        WHERE evm_address IS NOT NULL AND evm_address <> ''
         ORDER BY balance_block ASC, last_seen_block DESC NULLS LAST
         LIMIT $1`,
       [NATIVE_BALANCE_BATCH]
@@ -1300,20 +1338,40 @@ async function refreshNativeBalances(chainTip: number): Promise<void> {
 
     let refreshed = 0;
     let nonzero = 0;
+    let skipped = 0;
     for (const acc of candidates.rows) {
-      const hex = await evmRpc<string>('eth_getBalance', [acc.evm_address, 'latest']);
+      const evm = (acc.evm_address && acc.evm_address.startsWith('0x'))
+        ? acc.evm_address
+        : deriveEvmAddress(acc.address);
+      if (!evm) {
+        // No EVM form (e.g. 32-byte module account) — it can't hold a native
+        // holder balance. Advance balance_block so it isn't reselected every pass
+        // (otherwise the stalest-first ordering would loop on it forever).
+        await pool.query(
+          `UPDATE accounts SET balance_block = $1 WHERE address = $2`,
+          [chainTip, acc.address]
+        );
+        skipped++;
+        continue;
+      }
+      const hex = await evmRpc<string>('eth_getBalance', [evm, 'latest']);
       if (hex == null) continue; // RPC miss — leave balance + balance_block as-is so it retries next pass
       let bal: string;
       try { bal = BigInt(hex).toString(); } catch { continue; }
       await pool.query(
-        `UPDATE accounts SET balance = $1, balance_block = $2, updated_at = NOW() WHERE address = $3`,
-        [bal, chainTip, acc.address]
+        `UPDATE accounts
+            SET balance = $1,
+                balance_block = $2,
+                evm_address = COALESCE(NULLIF(evm_address, ''), $3),
+                updated_at = NOW()
+          WHERE address = $4`,
+        [bal, chainTip, evm, acc.address]
       );
       refreshed++;
       if (bal !== '0') nonzero++;
     }
-    if (refreshed > 0) {
-      logger.info({ refreshed, nonzero, batch: candidates.rows.length }, '[balances] native balance sweep');
+    if (refreshed > 0 || skipped > 0) {
+      logger.info({ refreshed, nonzero, skipped, batch: candidates.rows.length }, '[balances] native balance sweep');
     }
   } catch (err) {
     logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[balances] refresh failed');
