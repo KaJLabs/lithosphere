@@ -8,7 +8,7 @@ import cors from 'cors';
 import { ApolloServer } from 'apollo-server-express';
 import { typeDefs, resolvers } from './schema.js';
 import { lithoRouter } from './litho.js';
-import { explorerRouter } from './routes.js';
+import { explorerRouter, prewarmStatsSummary } from './routes.js';
 import { register, collectDefaultMetrics, Gauge } from 'prom-client';
 import { readBuildInfo, buildVersionResponse } from './lib/build-info.js';
 import {
@@ -266,5 +266,10 @@ async function start() {
   // server starts serving immediately while any (one-time) index build runs in
   // the background. Idempotent — a fast no-op once the indexes are present.
   void ensurePerformanceIndexes();
+
+  // Fire-and-forget: warm the stats:summary cache (heavy distinct-wallet aggregate)
+  // so the deploy health gate and first users hit a warm cache rather than a
+  // multi-second recompute right after a restart.
+  void prewarmStatsSummary();
 }
 start();
