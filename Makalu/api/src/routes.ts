@@ -6,7 +6,7 @@
  */
 import { Router, type Request, type Response } from 'express';
 import { bech32 } from 'bech32';
-import { query } from './db.js';
+import { query, slowQuery } from './db.js';
 import { logger } from './lib/logger.js';
 import { audit } from './lib/audit.js';
 import { loadCachedShared } from './lib/shared-cache.js';
@@ -66,6 +66,11 @@ const INCONSISTENT_BLOCKS_TTL_MS = 300_000;
 // addresses over ~5M rows). Slow-drifting, so cache them well beyond the 15s
 // stats TTL — otherwise each stats miss re-runs the full-table scans.
 const STATS_COUNT_TTL_MS = 300_000;
+// Distinct-wallet count is the heaviest stats aggregate (UNION + DISTINCT over the
+// ~5M-row evm_transactions table, ~17s and growing). It's an all-time, slowly-
+// drifting figure, so cache it for an hour and compute it on the slow pool so a
+// recompute can't 500 /stats/summary.
+const STATS_WALLET_TTL_MS = 3_600_000;
 const EVM_ENRICH_TTL_MS = 600_000;
 const MAX_RUNTIME_CACHE_ENTRIES = 2_000;
 
@@ -728,18 +733,23 @@ async function getStatsSummaryResponse(): Promise<StatsSummaryResponse> {
     const [syncSummary, totalTransactions, walletAddresses, currentHolders, avgBlockTime, gasPriceWei] = await Promise.all([
       getSyncSummary(),
       // Slow-drifting totals on a ~5M-row table — long TTL, shared across replicas.
+      // slowQuery: COUNT(*) over the whole table can exceed the 15s pool timeout.
       loadCachedShared('count:transactions-total', STATS_COUNT_TTL_MS, async () => {
-        const rows = await query<CountRow>('SELECT COUNT(*) AS count FROM transactions');
+        const rows = await slowQuery<CountRow>('SELECT COUNT(*) AS count FROM transactions');
         return parseInt(rows[0]?.count ?? '0', 10);
       }),
-      loadCachedShared('count:wallet-addresses', STATS_COUNT_TTL_MS, async () => {
-        const rows = await query<CountRow>(
+      // Distinct wallets across cosmos accounts + EVM tx participants. The outer
+      // UNION already dedupes, so the inner DISTINCTs are redundant. Runs ~17s on
+      // the slow pool (would 500 the endpoint on the 15s main pool) and is cached
+      // for an hour since it's an all-time figure.
+      loadCachedShared('count:wallet-addresses', STATS_WALLET_TTL_MS, async () => {
+        const rows = await slowQuery<CountRow>(
           `SELECT COUNT(*) AS count FROM (
              SELECT address FROM accounts
              UNION
-             SELECT DISTINCT from_address FROM evm_transactions WHERE from_address IS NOT NULL
+             SELECT from_address FROM evm_transactions WHERE from_address IS NOT NULL
              UNION
-             SELECT DISTINCT to_address FROM evm_transactions WHERE to_address IS NOT NULL
+             SELECT to_address FROM evm_transactions WHERE to_address IS NOT NULL
            ) all_addrs`
         );
         return parseInt(rows[0]?.count ?? '0', 10);
@@ -771,6 +781,21 @@ async function getStatsSummaryResponse(): Promise<StatsSummaryResponse> {
       gasPriceWei,
     };
   });
+}
+
+/**
+ * Fire-and-forget warm of the stats:summary cache (and its heavy sub-counts) so the
+ * first request — and the deploy health-gate poll — after a restart hits a warm
+ * cache instead of paying the multi-second aggregate recompute. Best-effort: any
+ * error is swallowed so it never affects startup.
+ */
+export async function prewarmStatsSummary(): Promise<void> {
+  try {
+    await getStatsSummaryResponse();
+    logger.info('[stats] summary cache prewarmed');
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[stats] prewarm failed');
+  }
 }
 
 async function evmRpcCall(method: string, params: unknown[]): Promise<unknown> {
