@@ -182,6 +182,16 @@ app.get('/version', (_req, res) => {
   res.status(200).json(buildVersionResponse('lithosphere-api', PROCESS_START, BUILD_INFO));
 });
 
+// Same payload under /api/version. The public health gate (deploy-simple.yaml)
+// polls https://makalu.litho.ai/api/version for the deployed SHA. Express owns
+// the whole /api/* surface, so serve it directly here instead of relying on the
+// explorer-proxy fallback — the /api/* proxy guard in start() intentionally
+// blocks that fallback to break the Express↔Next.js rewrite loop, which would
+// otherwise make /api/version (and every unmatched /api/* path) 431 / "unknown".
+app.get('/api/version', (_req, res) => {
+  res.status(200).json(buildVersionResponse('lithosphere-api', PROCESS_START, BUILD_INFO));
+});
+
 // Readiness probe (checks dependencies)
 app.get('/ready', async (_req, res) => {
   try {
