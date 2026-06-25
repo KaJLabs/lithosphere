@@ -389,6 +389,114 @@ paths:
         '400': { description: Validation error (bad address, missing captcha). }
         '429': { description: Cooldown active for this address / IP. }
 
+  # ───── MultX Bridge (same-origin proxy to bridge.litho.ai) ────
+  /bridge/config:
+    get:
+      tags: [Bridge]
+      summary: Static bridge config — addresses, chains, and Route-1 token pairs.
+      responses:
+        '200':
+          description: Bridge configuration.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /bridge/chains:
+    get:
+      tags: [Bridge]
+      summary: Supported chains + bridge addresses (proxied from the bridge API).
+      responses:
+        '200':
+          description: Supported chains.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /bridge/status/{txHash}:
+    get:
+      tags: [Bridge]
+      summary: Bridge transfer status for an internal bridge tx hash.
+      parameters:
+        - name: txHash
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Transfer status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+        '400': { description: Invalid bridge transaction hash. }
+  /bridge/signatures/{txHash}:
+    get:
+      tags: [Bridge]
+      summary: Collected validator signatures for a bridge transfer.
+      parameters:
+        - name: txHash
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Signature list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+        '400': { description: Invalid bridge transaction hash. }
+  /bridge/transactions/{address}:
+    get:
+      tags: [Bridge]
+      summary: Bridge transfer history for an address.
+      parameters:
+        - $ref: '#/components/parameters/AddressPath'
+      responses:
+        '200':
+          description: Transfer history.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+        '400': { description: Invalid wallet address. }
+
+  # ───── Sign in with Thanos (SIWE auth) ────
+  /auth/nonce:
+    get:
+      tags: [Auth]
+      summary: Issue a one-time SIWE nonce for an address (returned as plain text).
+      parameters:
+        - name: address
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Plain-text nonce.
+          content:
+            text/plain:
+              schema: { type: string }
+        '400': { description: Invalid address. }
+  /auth/verify:
+    post:
+      tags: [Auth]
+      summary: Verify a signed SIWE message and issue a session token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, signature, address]
+              properties:
+                message: { type: string }
+                signature: { type: string }
+                address: { type: string }
+      responses:
+        '200':
+          description: Session issued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+        '400': { description: Missing or invalid fields. }
+        '401': { description: Bad signature or invalid/expired nonce. }
+
   # ───── Litho (demo router, kept for backwards-compat with early SDKs) ────
   /litho/:
     get:

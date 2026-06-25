@@ -23,8 +23,8 @@
  * ```
  */
 import LEP100 from './LEP100.json' with { type: 'json' };
-import WLITHO from './WLITHO.json' with { type: 'json' };
 import LITHONative from './LITHONative.json' with { type: 'json' };
+import WLITHO from './WLITHO.json' with { type: 'json' };
 
 /**
  * Note on typing: these are exported as the imported JSON value (not `as const`).
