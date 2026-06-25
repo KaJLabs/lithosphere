@@ -2145,9 +2145,18 @@ export function explorerRouter(): Router {
         creator: string | null;
         created_at: Date;
       }>(
+        // Dedupe by lower(address): the same contract can exist as two rows that
+        // differ only by EVM-address casing — a checksummed seeded row and a
+        // lowercased indexer-detected row. Collapse them with DISTINCT ON, keeping
+        // the checksummed (seeded) row, which carries the canonical name/symbol.
         `SELECT address, name, symbol, decimals, total_supply, contract_type, creator, created_at
-         FROM contracts
-         WHERE contract_type = 'token' OR (symbol IS NOT NULL AND contract_type IS DISTINCT FROM 'nft')
+         FROM (
+           SELECT DISTINCT ON (lower(address))
+                  address, name, symbol, decimals, total_supply, contract_type, creator, created_at
+           FROM contracts
+           WHERE contract_type = 'token' OR (symbol IS NOT NULL AND contract_type IS DISTINCT FROM 'nft')
+           ORDER BY lower(address), (address = lower(address)), created_at ASC
+         ) deduped
          ORDER BY created_at DESC
          LIMIT 100`
       ).catch(() => []);
