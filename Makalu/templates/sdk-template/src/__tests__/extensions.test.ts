@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
 import { LithoError, ErrorCode } from '@lithosphere/sdk';
+import { describe, expect, it, vi } from 'vitest';
+
 import { LithosphereExtensions } from '../extensions.js';
 
 function fakeClient(overrides: Partial<{

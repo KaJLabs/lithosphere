@@ -4,13 +4,15 @@ import request from 'supertest';
 
 vi.mock('../db.js', () => ({
   query: vi.fn(),
+  slowQuery: vi.fn(),
   getPool: vi.fn(),
 }));
 
-const { query } = await import('../db.js');
+const { query, slowQuery } = await import('../db.js');
 const { explorerRouter } = await import('../routes.js');
 
 const mockQuery = vi.mocked(query);
+const mockSlowQuery = vi.mocked(slowQuery);
 
 function makeApp(): Express {
   const app = express();
@@ -28,6 +30,7 @@ beforeEach(() => {
   testTime += 30 * 60 * 1000;
   vi.setSystemTime(new Date(testTime));
   mockQuery.mockReset();
+  mockSlowQuery.mockReset();
   global.fetch = vi.fn(async () => new Response('{}', { status: 200 })) as any;
 });
 
@@ -54,6 +57,14 @@ describe('GET /api/stats/summary', () => {
       if (/FROM accounts\s*UNION/.test(sql)) return [{ count: '42' }] as any;
       if (/avg_seconds/.test(sql)) return [{ avg_seconds: '0.525' }] as any;
       if (/FROM blocks$/m.test(sql)) return [{ count: '12345' }] as any;
+      return [] as any;
+    });
+
+    // The heavy COUNT(*) totals moved to the slow pool (slowQuery) in the
+    // slow-pool fix, so they must be mocked separately from `query`.
+    mockSlowQuery.mockImplementation(async (sql: string) => {
+      if (/all_addrs/.test(sql)) return [{ count: '42' }] as any; // wallet UNION
+      if (/FROM transactions/.test(sql)) return [{ count: '100' }] as any;
       return [] as any;
     });
 
