@@ -6,6 +6,8 @@
  */
 import { Router, type Request, type Response } from 'express';
 import { bech32 } from 'bech32';
+import { randomBytes, createHmac } from 'node:crypto';
+import { verifyMessage, isAddress, getAddress } from 'ethers';
 import { query, slowQuery } from './db.js';
 import { logger } from './lib/logger.js';
 import { audit } from './lib/audit.js';
@@ -3071,6 +3073,109 @@ export function explorerRouter(): Router {
       return;
     }
     void proxyBridgeGet(`/bridge/transactions/${a}`, res);
+  });
+
+  // ── Sign in with Thanos (SIWE auth) ─────────────────────────────────────────
+  // Backend half of the `thanos-connect` flow: issue a one-time nonce, then
+  // verify the signed SIWE message and mint a session token. The SDK calls these
+  // exact default paths (GET /auth/nonce?address=…, POST /auth/verify).
+  const AUTH_SESSION_TTL_SEC = 24 * 60 * 60; // 24h session
+  const AUTH_NONCE_TTL_MS = 10 * 60 * 1000; // 10 min nonce
+  const AUTH_ALLOWED_CHAIN = 700777;
+
+  // A stable secret keeps sessions valid across restarts; without one we fall
+  // back to an ephemeral per-process secret (sessions reset on restart).
+  const sessionSecret = process.env.AUTH_SESSION_SECRET || randomBytes(32).toString('hex');
+  if (!process.env.AUTH_SESSION_SECRET) {
+    logger.warn('[api] AUTH_SESSION_SECRET not set — using an ephemeral secret; Thanos sessions reset on restart');
+  }
+
+  // One-time nonce store: nonce → { address(lowercased), expiresAt }.
+  const authNonces = new Map<string, { address: string; expiresAt: number }>();
+  const pruneNonces = () => {
+    const now = Date.now();
+    for (const [n, v] of authNonces) if (v.expiresAt <= now) authNonces.delete(n);
+  };
+
+  const b64url = (buf: Buffer): string =>
+    buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  const signSession = (address: string): { token: string; expiresAt: number } => {
+    const now = Math.floor(Date.now() / 1000);
+    const exp = now + AUTH_SESSION_TTL_SEC;
+    const payload = b64url(Buffer.from(JSON.stringify({ sub: address, chainId: AUTH_ALLOWED_CHAIN, iat: now, exp })));
+    const sig = b64url(createHmac('sha256', sessionSecret).update(payload).digest());
+    return { token: `${payload}.${sig}`, expiresAt: exp };
+  };
+
+  // GET /auth/nonce?address=0x… → text/plain nonce (per the thanos-connect contract).
+  r.get('/auth/nonce', (req: Request, res: Response) => {
+    const address = String(req.query.address ?? '').trim();
+    if (!isAddress(address)) {
+      res.status(400).type('text/plain').send('invalid address');
+      return;
+    }
+    pruneNonces();
+    const nonce = randomBytes(16).toString('hex'); // 32 hex chars — EIP-4361-valid
+    authNonces.set(nonce, { address: address.toLowerCase(), expiresAt: Date.now() + AUTH_NONCE_TTL_MS });
+    res.type('text/plain').send(nonce);
+  });
+
+  // POST /auth/verify { message, signature, address } → { ok, sessionToken, address, expiresAt }.
+  r.post('/auth/verify', (req: Request, res: Response) => {
+    try {
+      const { message, signature, address } = req.body ?? {};
+      if (typeof message !== 'string' || typeof signature !== 'string' || typeof address !== 'string') {
+        res.status(400).json({ ok: false, error: 'message, signature, and address are required' });
+        return;
+      }
+      if (!isAddress(address)) {
+        res.status(400).json({ ok: false, error: 'invalid address' });
+        return;
+      }
+
+      // 1. Recover the EIP-191 personal_sign signer and confirm it matches.
+      let recovered: string;
+      try {
+        recovered = verifyMessage(message, signature);
+      } catch {
+        res.status(401).json({ ok: false, error: 'bad signature' });
+        return;
+      }
+      if (getAddress(recovered) !== getAddress(address)) {
+        res.status(401).json({ ok: false, error: 'signature does not match address' });
+        return;
+      }
+
+      // 2. Pull the nonce + chain from the SIWE message body (EIP-4361 labels).
+      const nonce = /\nNonce: ([^\n]+)/.exec(message)?.[1]?.trim();
+      const chainId = Number(/\nChain ID: (\d+)/.exec(message)?.[1]);
+      if (!nonce) {
+        res.status(400).json({ ok: false, error: 'no nonce in message' });
+        return;
+      }
+      if (chainId && chainId !== AUTH_ALLOWED_CHAIN) {
+        res.status(400).json({ ok: false, error: `unexpected chain id ${chainId}` });
+        return;
+      }
+
+      // 3. One-time nonce: must exist, be bound to this address, and be unexpired. Consume it.
+      pruneNonces();
+      const rec = authNonces.get(nonce);
+      if (!rec || rec.expiresAt <= Date.now() || rec.address !== getAddress(address).toLowerCase()) {
+        res.status(401).json({ ok: false, error: 'invalid or expired nonce' });
+        return;
+      }
+      authNonces.delete(nonce);
+
+      // 4. Mint the session token.
+      const { token, expiresAt } = signSession(getAddress(address));
+      audit({ action: 'thanos_signin', actor: getAddress(address) }, 'thanos sign-in');
+      res.json({ ok: true, sessionToken: token, address: getAddress(address), expiresAt });
+    } catch (err) {
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /auth/verify error');
+      res.status(500).json({ ok: false, error: 'verification failed' });
+    }
   });
 
   return r;

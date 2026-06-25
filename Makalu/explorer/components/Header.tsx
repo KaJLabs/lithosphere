@@ -33,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'NFTs', href: '/nfts' },
   { label: 'Bridge', href: '/bridge' },
   { label: 'Faucet', href: '/faucet' },
+  { label: 'Sign In', href: '/signin' },
 ];
 
 const MORE_ITEMS: NavItem[] = [
