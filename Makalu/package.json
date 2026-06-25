@@ -50,5 +50,10 @@
     "*.{json,md,yaml,yml}": [
       "prettier --write"
     ]
+  },
+  "pnpm": {
+    "overrides": {
+      "@coinbase/wallet-sdk": "^4.3.7"
+    }
   }
 }
