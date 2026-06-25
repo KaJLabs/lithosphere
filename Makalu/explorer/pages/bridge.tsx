@@ -4,22 +4,25 @@ import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3mo
 import { parseUnits, type Eip1193Provider } from 'ethers';
 import { EXPLORER_TITLE } from '@/lib/constants';
 import {
-  BRIDGE_CHAINS,
+  BRIDGE_CHAIN_LIST,
+  BRIDGE_SOURCE_CHAINS,
   BRIDGE_TOKENS,
   approveIfNeeded,
+  chainByKey,
   fetchSignatures,
   fetchStatus,
   lockTokens,
   releaseTokens,
-  sourceChainFor,
-  targetChainFor,
-  type BridgeDirection,
+  tokenAddressFor,
   type BridgeStatus,
 } from '@/lib/bridge';
 
 const PRIMARY_CTA_CLASSES =
   'rounded-2xl border border-sky-300/20 bg-gradient-to-r from-[#1cc7ff] via-[#227dff] to-[#3157ff] px-5 py-3 text-sm font-medium text-white shadow-[0_18px_40px_rgba(37,99,235,0.35)] transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0';
 
+// Wallet add/switch params — only the source (Lithosphere) chains need these,
+// since the lock happens on the source chain. External destinations are reached
+// by the bridge relayer, not the user's wallet.
 const CHAIN_PARAMS: Record<number, {
   chainId: string;
   chainName: string;
@@ -43,35 +46,36 @@ const CHAIN_PARAMS: Record<number, {
   },
 };
 
-function chainName(id: number): string {
-  return CHAIN_PARAMS[id]?.chainName ?? `chain ${id}`;
-}
-
 function BridgeContent() {
   const { open } = useWeb3Modal();
-  const { address, isConnected, chainId } = useWeb3ModalAccount();
+  const { isConnected, chainId } = useWeb3ModalAccount();
   const { walletProvider } = useWeb3ModalProvider();
 
-  const [direction, setDirection] = useState<BridgeDirection>('makalu-to-kamet');
+  const [fromKey, setFromKey] = useState('makalu');
+  const [toKey, setToKey] = useState('kamet');
   const [symbol, setSymbol] = useState(BRIDGE_TOKENS[0].symbol);
   const [amount, setAmount] = useState('10');
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<string>('');
+  const [status, setStatus] = useState('');
   const [statusType, setStatusType] = useState<'info' | 'error' | 'success'>('info');
   const [bridgeTxHash, setBridgeTxHash] = useState('');
   const [transfer, setTransfer] = useState<BridgeStatus | null>(null);
 
+  const source = chainByKey(fromKey)!;
+  // Destinations = every chain except the chosen source.
+  const destOptions = useMemo(() => BRIDGE_CHAIN_LIST.filter((c) => c.key !== fromKey), [fromKey]);
+  const dest = chainByKey(toKey) ?? destOptions[0];
   const token = useMemo(
     () => BRIDGE_TOKENS.find((t) => t.symbol === symbol) ?? BRIDGE_TOKENS[0],
     [symbol],
   );
-  const sourceChain = sourceChainFor(direction);
-  const targetChain = targetChainFor(direction);
-  const sourceBridge =
-    direction === 'makalu-to-kamet' ? BRIDGE_CHAINS.makalu.bridge : BRIDGE_CHAINS.kamet.bridge;
-  const destBridge =
-    direction === 'makalu-to-kamet' ? BRIDGE_CHAINS.kamet.bridge : BRIDGE_CHAINS.makalu.bridge;
-  const sourceTokenAddr = direction === 'makalu-to-kamet' ? token.makalu : token.kamet;
+
+  // Keep the destination valid when the source changes (can't equal source).
+  useEffect(() => {
+    if (toKey === fromKey) setToKey(destOptions[0]?.key ?? 'kamet');
+  }, [fromKey, toKey, destOptions]);
+
+  const sourceTokenAddr = tokenAddressFor(token, source.key);
 
   function show(msg: string, type: 'info' | 'error' | 'success' = 'info') {
     setStatus(msg);
@@ -83,6 +87,7 @@ function BridgeContent() {
       if (!walletProvider) throw new Error('Wallet not connected');
       if (Number(chainId) === targetId) return;
       const params = CHAIN_PARAMS[targetId];
+      if (!params) throw new Error(`No wallet config for chain ${targetId}`);
       const provider = walletProvider as Eip1193Provider;
       try {
         await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: params.chainId }] });
@@ -97,7 +102,6 @@ function BridgeContent() {
     [walletProvider, chainId],
   );
 
-  // Poll status while a transfer is in flight.
   useEffect(() => {
     if (!bridgeTxHash) return;
     let cancelled = false;
@@ -106,7 +110,7 @@ function BridgeContent() {
       if (cancelled || !s) return;
       setTransfer(s);
       if (s.status === 'completed') {
-        show('Bridge transfer completed — tokens released on the destination chain.', 'success');
+        show(`Bridge transfer completed — tokens released on ${dest.name}.`, 'success');
       }
     };
     void tick();
@@ -115,7 +119,7 @@ function BridgeContent() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [bridgeTxHash]);
+  }, [bridgeTxHash, dest.name]);
 
   async function handleLock() {
     if (!isConnected || !walletProvider) {
@@ -130,29 +134,31 @@ function BridgeContent() {
     setTransfer(null);
     setBridgeTxHash('');
     try {
-      show(`Switching wallet to ${chainName(sourceChain)}…`);
-      await ensureChain(sourceChain);
+      show(`Switching wallet to ${source.name}…`);
+      await ensureChain(source.chainId);
 
       show('Approving bridge allowance…');
       await approveIfNeeded(
         walletProvider as Eip1193Provider,
         sourceTokenAddr,
-        sourceBridge,
+        source.bridge,
         parseUnits(amount, token.decimals),
       );
 
-      show(`Locking ${amount} ${token.symbol} on ${chainName(sourceChain)}…`);
+      show(`Locking ${amount} ${token.symbol} on ${source.name}…`);
       const { bridgeTxHash: h } = await lockTokens(
         walletProvider as Eip1193Provider,
-        sourceBridge,
+        source.bridge,
         sourceTokenAddr,
         amount,
         token.decimals,
-        targetChain,
+        dest.chainId,
       );
       setBridgeTxHash(h);
       show(
-        `Locked. Validators are signing your transfer. It will be released on ${chainName(targetChain)} automatically, or you can claim it below.`,
+        dest.litho
+          ? `Locked. Validators are signing; it will be released on ${dest.name} automatically, or you can claim it below.`
+          : `Locked. Validators are signing; the relayer will release the wrapped ${token.symbol} on ${dest.name}. Track status below.`,
         'success',
       );
     } catch (err: unknown) {
@@ -163,14 +169,14 @@ function BridgeContent() {
   }
 
   async function handleClaim() {
-    if (!transfer || !walletProvider) return;
+    if (!transfer || !walletProvider || !dest.litho) return;
     setBusy(true);
     try {
-      show(`Switching wallet to ${chainName(targetChain)} to claim…`);
-      await ensureChain(targetChain);
+      show(`Switching wallet to ${dest.name} to claim…`);
+      await ensureChain(dest.chainId);
       const sigs = await fetchSignatures(bridgeTxHash);
       show('Submitting release transaction…');
-      const txHash = await releaseTokens(walletProvider as Eip1193Provider, destBridge, transfer, sigs);
+      const txHash = await releaseTokens(walletProvider as Eip1193Provider, dest.bridge, transfer, sigs);
       show(`Release submitted: ${txHash}`, 'success');
     } catch (err: unknown) {
       show((err as Error)?.message || 'Claim failed.', 'error');
@@ -179,7 +185,11 @@ function BridgeContent() {
     }
   }
 
+  // Manual claim is only offered for Lithosphere destinations (Makalu/Kamet),
+  // where the wallet can switch to the dest chain and submit releaseTokens.
+  // External chains are released by the relayer.
   const canClaim =
+    dest.litho &&
     transfer &&
     transfer.status !== 'completed' &&
     !transfer.releaseTxHash &&
@@ -190,6 +200,9 @@ function BridgeContent() {
     error: 'border-red-400/20 bg-red-400/10 text-red-200',
     success: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200',
   };
+
+  const selectCls =
+    'w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-sky-400/50';
 
   return (
     <>
@@ -204,8 +217,9 @@ function BridgeContent() {
             </div>
             <h1 className="text-4xl font-semibold tracking-tight">Cross-chain bridge</h1>
             <p className="mt-3 max-w-xl text-base leading-7 text-white/70">
-              Bridge LEP-100 assets between Lithosphere Makalu and Kamet. Lock on the source chain;
-              tokens are released on the destination chain after validators sign.
+              Bridge LEP-100 assets from Lithosphere Makalu or Kamet to other chains — Ethereum
+              Sepolia, Base Sepolia, and BNB testnet. Lock on the source chain; tokens are released
+              on the destination after validators sign.
             </p>
           </div>
 
@@ -214,35 +228,31 @@ function BridgeContent() {
           )}
 
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <div className="mb-5 grid grid-cols-2 gap-3">
-              {(['makalu-to-kamet', 'kamet-to-makalu'] as BridgeDirection[]).map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDirection(d)}
-                  className={`rounded-2xl border px-4 py-3 text-sm transition ${
-                    direction === d
-                      ? 'border-sky-400/50 bg-sky-500/15 text-white'
-                      : 'border-white/10 bg-black/30 text-white/70 hover:border-white/25'
-                  }`}
-                >
-                  {d === 'makalu-to-kamet' ? 'Makalu → Kamet' : 'Kamet → Makalu'}
-                </button>
-              ))}
-            </div>
-
             <div className="grid gap-4 md:grid-cols-2">
               <div>
+                <label className="mb-2 block text-sm text-white/70">From</label>
+                <select value={fromKey} onChange={(e) => setFromKey(e.target.value)} className={selectCls}>
+                  {BRIDGE_SOURCE_CHAINS.map((c) => (
+                    <option key={c.key} value={c.key}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-white/70">To</label>
+                <select value={dest.key} onChange={(e) => setToKey(e.target.value)} className={selectCls}>
+                  {destOptions.map((c) => (
+                    <option key={c.key} value={c.key}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
                 <label className="mb-2 block text-sm text-white/70">Token</label>
-                <select
-                  value={symbol}
-                  onChange={(e) => setSymbol(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-sky-400/50"
-                >
+                <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className={selectCls}>
                   {BRIDGE_TOKENS.map((t) => (
-                    <option key={t.symbol} value={t.symbol}>
-                      {t.symbol} — {t.name}
-                    </option>
+                    <option key={t.symbol} value={t.symbol}>{t.symbol} — {t.name}</option>
                   ))}
                 </select>
               </div>
@@ -259,9 +269,18 @@ function BridgeContent() {
             </div>
 
             <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/65">
-              Source: <span className="text-white">{chainName(sourceChain)}</span> → Destination:{' '}
-              <span className="text-white">{chainName(targetChain)}</span>
+              Source: <span className="text-white">{source.name}</span> → Destination:{' '}
+              <span className="text-white">{dest.name}</span>
             </div>
+
+            {!dest.litho && (
+              <div className="mt-3 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-xs leading-5 text-amber-200/90">
+                External-chain routes ({dest.name}) are in testnet validation. The lock executes on{' '}
+                {source.name} immediately; the relayer releases the wrapped {token.symbol} on {dest.name}{' '}
+                once validators sign — completion depends on relayer funding + wrapped-token registration
+                on the destination.
+              </div>
+            )}
 
             <div className="mt-5 flex flex-wrap gap-3">
               <button onClick={handleLock} disabled={busy} className={PRIMARY_CTA_CLASSES}>
@@ -269,7 +288,7 @@ function BridgeContent() {
               </button>
               {canClaim && (
                 <button onClick={handleClaim} disabled={busy} className={PRIMARY_CTA_CLASSES}>
-                  Claim on {chainName(targetChain)}
+                  Claim on {dest.name}
                 </button>
               )}
             </div>
@@ -279,9 +298,7 @@ function BridgeContent() {
                 <div className="mb-2 font-medium text-white">Transfer status</div>
                 <div className="grid gap-1">
                   <div>Status: <span className="text-white">{transfer.status}</span></div>
-                  <div>
-                    Signatures: {transfer.signaturesCollected}/{transfer.signaturesRequired}
-                  </div>
+                  <div>Signatures: {transfer.signaturesCollected}/{transfer.signaturesRequired}</div>
                   {transfer.releaseTxHash && (
                     <div className="break-all">Release tx: {transfer.releaseTxHash}</div>
                   )}
