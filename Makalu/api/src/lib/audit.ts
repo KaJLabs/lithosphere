@@ -38,7 +38,8 @@ export const auditLogger = logger.child({ category: 'audit' });
 export type AuditAction =
   | 'faucet_claim_success'
   | 'faucet_claim_rejected'
-  | 'faucet_claim_upstream_failed';
+  | 'faucet_claim_upstream_failed'
+  | 'thanos_signin';
 
 export interface AuditFields {
   action: AuditAction;

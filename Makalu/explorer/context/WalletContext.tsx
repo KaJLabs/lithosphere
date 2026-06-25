@@ -46,9 +46,9 @@ if (typeof window !== 'undefined') {
       // in featuredWalletIds, and the empty registry search). It is discovered
       // automatically via enableEIP6963/enableInjected above, so it already
       // appears in this modal and works for connect + signing on Makalu (700777).
-      // For first-class "Sign in with Thanos" placement (SIWE auth + session),
-      // use the `thanos-connect` SDK (ThanosConnectButton / useThanos, chainId
-      // 700777) per https://thanos.fi/docs — deferred (adds a dep + auth flow).
+      // First-class "Sign in with Thanos" (SIWE auth + session) is implemented
+      // at /signin (components/ThanosSignIn.tsx via the `thanos-connect` SDK),
+      // backed by the API's /api/auth/nonce + /api/auth/verify endpoints.
       featuredWalletIds: [
         'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
         '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
