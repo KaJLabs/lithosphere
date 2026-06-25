@@ -38,6 +38,40 @@ export const BRIDGE_TOKENS: BridgeToken[] = [
   { symbol: 'MUSA', name: 'Mansa AI', decimals: 18, makalu: '0xDB829befCF8E582379E2c034FA2589b8D2EA1c5D', kamet: '0x17A357262097B4e70acFfe8B71bC61e8bBcc3B42' },
 ];
 
+export interface ChainInfo {
+  key: string;
+  chainId: number;
+  name: string;
+  short: string;
+  bridge: string;
+  /** Lithosphere chain (Makalu/Kamet) where the LEP-100 tokens natively live. */
+  litho: boolean;
+}
+
+// All chains the MultX bridge is wired to (mirrors the live bridge-api /chains).
+// Makalu/Kamet are the source chains (LEP-100 tokens live there); Sepolia, Base
+// Sepolia and BNB testnet are external destinations (release lands as the wrapped
+// token on that chain, auto-submitted by the relayer once validators sign).
+export const BRIDGE_CHAIN_LIST: ChainInfo[] = [
+  { key: 'makalu', chainId: 700777, name: 'Lithosphere Makalu', short: 'Makalu', bridge: '0x5832D5E609c6690f74c7683606Eb20F89ff096a6', litho: true },
+  { key: 'kamet', chainId: 900523, name: 'Lithosphere Kamet', short: 'Kamet', bridge: '0x3a896BDF3a1088287FA84aB5a43bB30e2535F263', litho: true },
+  { key: 'sepolia', chainId: 11155111, name: 'Ethereum Sepolia', short: 'Sepolia', bridge: '0xfdA3b83FE8438123eAF5153945A46F8fcF6175f4', litho: false },
+  { key: 'base', chainId: 84532, name: 'Base Sepolia', short: 'Base Sepolia', bridge: '0xfdA3b83FE8438123eAF5153945A46F8fcF6175f4', litho: false },
+  { key: 'bnb', chainId: 97, name: 'BNB Chain Testnet', short: 'BNB Testnet', bridge: '0x6714951EFC1ED9C703c946c48F7cD666948BBB06', litho: false },
+];
+
+/** Chains a user can lock FROM — the Lithosphere chains where LEP-100s live. */
+export const BRIDGE_SOURCE_CHAINS = BRIDGE_CHAIN_LIST.filter((c) => c.litho);
+
+export function chainByKey(key: string): ChainInfo | undefined {
+  return BRIDGE_CHAIN_LIST.find((c) => c.key === key);
+}
+
+/** The source-chain token contract address for a given source chain key. */
+export function tokenAddressFor(token: BridgeToken, sourceKey: string): string {
+  return sourceKey === 'makalu' ? token.makalu : token.kamet;
+}
+
 const BRIDGE_ABI = [
   'function lockTokens(address token, uint256 amount, uint256 targetChain) returns (bytes32)',
   'function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] signatures)',
