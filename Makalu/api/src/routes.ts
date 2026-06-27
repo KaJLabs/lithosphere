@@ -1905,6 +1905,27 @@ export function explorerRouter(): Router {
         return;
       }
 
+      // 5. Valid EVM address with no indexed presence (no account, contract, txs
+      //    or proposed blocks). A freshly-funded wallet has a real on-chain
+      //    balance but no indexed activity yet, so resolve it live via RPC and
+      //    return a synthetic zero-activity account instead of 404-ing. Only when
+      //    the RPC actually answers (balanceSource 'rpc'); otherwise keep the 404.
+      if (forms.evmAddress) {
+        const balanceState = await resolveNativeBalance(forms.evmAddress, null);
+        if (balanceState.balanceSource === 'rpc') {
+          res.json({
+            address: forms.queryLower.startsWith('0x') ? forms.evmAddress : (forms.cosmosAddress ?? forms.evmAddress),
+            evmAddress: forms.evmAddress,
+            cosmosAddress: forms.cosmosAddress,
+            balance: balanceState.balance,
+            balanceSource: balanceState.balanceSource,
+            txCount: 0,
+            lastSeen: new Date().toISOString(),
+          });
+          return;
+        }
+      }
+
       res.status(404).json({ message: 'Account not found' });
     } catch (err) {
       logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /address/:address error');
