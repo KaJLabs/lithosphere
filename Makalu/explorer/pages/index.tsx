@@ -289,10 +289,10 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                   : (Array.isArray(blocks) ? blocks : []).map((block) => (
                       <div
                         key={block.height}
-                        className="grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 xl:grid-cols-[minmax(0,18rem)_minmax(0,22.5rem)] xl:justify-between xl:gap-6 xl:items-center"
+                        className="grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 xl:grid-cols-[auto_minmax(0,22.5rem)] xl:justify-between xl:gap-6 xl:items-center"
                       >
-                        <div className="grid grid-cols-2 gap-3 sm:gap-x-6 sm:grid-cols-[max-content_minmax(0,0.8fr)_minmax(4.75rem,0.45fr)] xl:max-w-[18rem]">
-                          <div className="min-w-0">
+                        <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
+                          <div className="shrink-0">
                             <div className="text-xs text-white/45">Height</div>
                             <Link
                               href={`/blocks/${block.height}`}
@@ -301,11 +301,11 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                               #{formatNumber(block.height)}
                             </Link>
                           </div>
-                          <div className="min-w-0">
+                          <div className="shrink-0">
                             <div className="text-xs text-white/45">Age</div>
                             <div className="mt-1 whitespace-nowrap font-medium tabular-nums">{timeAgo(block.timestamp)}</div>
                           </div>
-                          <div className="min-w-0 sm:justify-self-start">
+                          <div className="shrink-0">
                             <div className="text-xs text-white/45">
                               <span className="sm:hidden">Txns</span>
                               <span className="hidden sm:inline">Transactions</span>
