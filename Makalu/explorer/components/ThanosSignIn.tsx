@@ -23,6 +23,13 @@ function shorten(addr: string): string {
   return addr.length > 12 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
 }
 
+/** Notify the Header (same tab) that the sign-in state changed. */
+function notifySessionChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('thanos-session-changed'));
+  }
+}
+
 export default function ThanosSignIn() {
   const [session, setSession] = useState<StoredSession | null>(null);
   const [error, setError] = useState('');
@@ -57,6 +64,7 @@ export default function ThanosSignIn() {
     } catch {
       /* storage may be unavailable (private mode) — session stays in memory */
     }
+    notifySessionChanged();
   }
 
   function signOut() {
@@ -67,6 +75,7 @@ export default function ThanosSignIn() {
     } catch {
       /* ignore */
     }
+    notifySessionChanged();
   }
 
   if (session) {
