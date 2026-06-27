@@ -115,9 +115,11 @@ function HeaderContent() {
     };
   }, []);
 
+  // A connected wallet OR a persisted Thanos SIWE session both count as signed in,
+  // so the nav reflects either path instead of always showing "Sign In".
   const navItems = NAV_ITEMS.map((item) =>
     item.href === '/signin'
-      ? { ...item, label: thanosSignedIn ? 'Signed In' : 'Sign In' }
+      ? { ...item, label: thanosSignedIn || isConnected ? 'Signed In' : 'Sign In' }
       : item,
   );
 
@@ -332,31 +334,31 @@ function HeaderContent() {
         const provider =
           (walletProvider as EthereumRequestProvider | undefined) ?? injectedProvider;
 
-        // 1) Live value straight from the connected wallet when it's on Makalu.
-        if (provider?.request && chainId === MAKALU_CHAIN_ID) {
+        // 1) Same-origin API first — proven reliable for every address form
+        //    (bech32, lowercase and checksummed 0x). nginx proxies /api → Express,
+        //    which resolves the live native balance server-side, so this avoids the
+        //    CORS failures a direct browser POST to rpc.litho.ai hits from the
+        //    makalu.litho.ai origin (the original cause of "Unavailable"). Trying it
+        //    first also means a stalled wallet provider can't block the display.
+        try {
+          const data = await apiFetch<{ balance?: string; balanceSource?: string }>(
+            `/address/${address}`,
+          );
+          if (data.balanceSource !== 'unavailable' && typeof data.balance === 'string') {
+            wei = BigInt(data.balance);
+          }
+        } catch {
+          /* fall through to the wallet/RPC fallbacks */
+        }
+
+        // 2) Cross-check via the connected wallet only if the API gave nothing.
+        if (wei === null && provider?.request && chainId === MAKALU_CHAIN_ID) {
           try {
             const result = await provider.request({
               method: 'eth_getBalance',
               params: [address, 'latest'],
             });
             if (typeof result === 'string') wei = toWei(result);
-          } catch {
-            /* fall through to the API/RPC fallbacks */
-          }
-        }
-
-        // 2) Same-origin API (nginx proxies /api → Express, which resolves the
-        //    native balance server-side). This avoids the CORS failures that a
-        //    direct browser POST to rpc.litho.ai hits from the makalu.litho.ai
-        //    origin — the reason the balance showed "Unavailable".
-        if (wei === null) {
-          try {
-            const data = await apiFetch<{ balance?: string; balanceSource?: string }>(
-              `/address/${address}`,
-            );
-            if (data.balanceSource !== 'unavailable' && typeof data.balance === 'string') {
-              wei = BigInt(data.balance);
-            }
           } catch {
             /* fall through to the public RPC fallback */
           }
