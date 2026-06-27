@@ -291,7 +291,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                         key={block.height}
                         className="grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 xl:grid-cols-[minmax(0,18rem)_minmax(0,22.5rem)] xl:justify-between xl:gap-6 xl:items-center"
                       >
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(4.75rem,0.45fr)] xl:max-w-[18rem]">
+                        <div className="grid grid-cols-2 gap-3 sm:gap-x-6 sm:grid-cols-[max-content_minmax(0,0.8fr)_minmax(4.75rem,0.45fr)] xl:max-w-[18rem]">
                           <div className="min-w-0">
                             <div className="text-xs text-white/45">Height</div>
                             <Link

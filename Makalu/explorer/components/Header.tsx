@@ -11,6 +11,9 @@ import {
 import SearchBar from './SearchBar';
 import { EXPLORER_TITLE } from '@/lib/constants';
 import { formatValue } from '@/lib/format';
+import { apiFetch } from '@/lib/api';
+
+const THANOS_SESSION_KEY = 'thanos_session';
 
 type EthereumRequestProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -61,6 +64,7 @@ function HeaderContent() {
   const [walletMenuOpen, setWalletMenuOpen] = useState(false);
   const [lithoBalance, setLithoBalance] = useState<string | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
+  const [thanosSignedIn, setThanosSignedIn] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const walletMenuRef = useRef<HTMLDivElement>(null);
@@ -84,6 +88,38 @@ function HeaderContent() {
     window.addEventListener('open-wallet-menu', handleOpenWalletMenu);
     return () => window.removeEventListener('open-wallet-menu', handleOpenWalletMenu);
   }, []);
+
+  // Reflect the Thanos SIWE session (persisted by ThanosSignIn in localStorage)
+  // so the "Sign In" nav link updates to "Signed In" without a page reload.
+  useEffect(() => {
+    const readSession = () => {
+      try {
+        const raw = localStorage.getItem(THANOS_SESSION_KEY);
+        if (!raw) {
+          setThanosSignedIn(false);
+          return;
+        }
+        const session = JSON.parse(raw) as { expiresAt?: number | null };
+        setThanosSignedIn(!session.expiresAt || session.expiresAt * 1000 > Date.now());
+      } catch {
+        setThanosSignedIn(false);
+      }
+    };
+
+    readSession();
+    window.addEventListener('thanos-session-changed', readSession);
+    window.addEventListener('storage', readSession);
+    return () => {
+      window.removeEventListener('thanos-session-changed', readSession);
+      window.removeEventListener('storage', readSession);
+    };
+  }, []);
+
+  const navItems = NAV_ITEMS.map((item) =>
+    item.href === '/signin'
+      ? { ...item, label: thanosSignedIn ? 'Signed In' : 'Sign In' }
+      : item,
+  );
 
   // Close "More" dropdown when clicking outside
   useEffect(() => {
@@ -282,8 +318,11 @@ function HeaderContent() {
         setBalanceLoading(true);
       }
 
+      const toWei = (value: string): bigint =>
+        BigInt(value.startsWith('0x') ? value : `0x${value}`);
+
       try {
-        let hexBalance: string | null = null;
+        let wei: bigint | null = null;
 
         const injectedProvider =
           typeof window !== 'undefined'
@@ -293,53 +332,65 @@ function HeaderContent() {
         const provider =
           (walletProvider as EthereumRequestProvider | undefined) ?? injectedProvider;
 
+        // 1) Live value straight from the connected wallet when it's on Makalu.
         if (provider?.request && chainId === MAKALU_CHAIN_ID) {
-          const result = await provider.request({
-            method: 'eth_getBalance',
-            params: [address, 'latest'],
-          });
-          if (typeof result === 'string') {
-            hexBalance = result;
-          }
-        }
-
-        // Fallback to public RPC to keep balance visible even when wallet is on another chain.
-        if (!hexBalance) {
-          const response = await fetch('https://rpc.litho.ai', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              jsonrpc: '2.0',
+          try {
+            const result = await provider.request({
               method: 'eth_getBalance',
               params: [address, 'latest'],
-              id: 1,
-            }),
-          });
-
-          if (response.ok) {
-            const data: { result?: unknown } = await response.json();
-            if (typeof data.result === 'string') {
-              hexBalance = data.result;
-            }
+            });
+            if (typeof result === 'string') wei = toWei(result);
+          } catch {
+            /* fall through to the API/RPC fallbacks */
           }
         }
 
-        if (!hexBalance) {
-          throw new Error('Balance unavailable');
+        // 2) Same-origin API (nginx proxies /api → Express, which resolves the
+        //    native balance server-side). This avoids the CORS failures that a
+        //    direct browser POST to rpc.litho.ai hits from the makalu.litho.ai
+        //    origin — the reason the balance showed "Unavailable".
+        if (wei === null) {
+          try {
+            const data = await apiFetch<{ balance?: string; balanceSource?: string }>(
+              `/address/${address}`,
+            );
+            if (data.balanceSource !== 'unavailable' && typeof data.balance === 'string') {
+              wei = BigInt(data.balance);
+            }
+          } catch {
+            /* fall through to the public RPC fallback */
+          }
         }
 
-        const normalizedHex = hexBalance.startsWith('0x') ? hexBalance : `0x${hexBalance}`;
-        const wei = BigInt(normalizedHex);
-        const formattedBalance = formatValue(wei.toString());
-
-        if (!cancelled) {
-          setLithoBalance(formattedBalance);
+        // 3) Last resort: direct public RPC (works only where CORS is permitted).
+        if (wei === null) {
+          try {
+            const response = await fetch('https://rpc.litho.ai', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'eth_getBalance',
+                params: [address, 'latest'],
+                id: 1,
+              }),
+            });
+            if (response.ok) {
+              const data: { result?: unknown } = await response.json();
+              if (typeof data.result === 'string') wei = toWei(data.result);
+            }
+          } catch {
+            /* keep the last-known balance below */
+          }
         }
+
+        if (!cancelled && wei !== null) {
+          setLithoBalance(formatValue(wei.toString()));
+        }
+        // On a transient miss we intentionally keep the last-known balance rather
+        // than flashing "Unavailable" until the next poll succeeds.
       } catch (error) {
         console.error('Failed to fetch LITHO balance:', error);
-        if (!cancelled) {
-          setLithoBalance(null);
-        }
       } finally {
         if (showLoader && !cancelled) {
           setBalanceLoading(false);
@@ -574,7 +625,7 @@ function HeaderContent() {
         </div>
 
         <nav className="space-y-1">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -685,7 +736,7 @@ function HeaderContent() {
 
           {/* Desktop nav */}
           <nav className="hidden lg:flex items-center gap-1">
-            {NAV_ITEMS.map((item) => (
+            {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
