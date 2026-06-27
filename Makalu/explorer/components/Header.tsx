@@ -115,13 +115,13 @@ function HeaderContent() {
     };
   }, []);
 
-  // A connected wallet OR a persisted Thanos SIWE session both count as signed in,
-  // so the nav reflects either path instead of always showing "Sign In".
-  const navItems = NAV_ITEMS.map((item) =>
-    item.href === '/signin'
-      ? { ...item, label: thanosSignedIn || isConnected ? 'Signed In' : 'Sign In' }
-      : item,
-  );
+  // A connected wallet OR a persisted Thanos SIWE session both count as signed in.
+  // Once signed in, hide the "Sign In" nav link entirely (the wallet pill already
+  // shows the account) rather than leaving a redundant button in the nav.
+  const isSignedIn = thanosSignedIn || isConnected;
+  const navItems = isSignedIn
+    ? NAV_ITEMS.filter((item) => item.href !== '/signin')
+    : NAV_ITEMS;
 
   // Close "More" dropdown when clicking outside
   useEffect(() => {
