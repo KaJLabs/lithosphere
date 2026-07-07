@@ -9,6 +9,20 @@ import {
 const MAKALU_CHAIN_ID = 700777;
 const MAKALU_CHAIN_HEX = '0xab169';
 
+// Chains the app legitimately operates on. Makalu is the primary chain, but the
+// cross-chain bridge lets a connected wallet sit on Kamet (the other source
+// chain) or on a destination chain (Ethereum Sepolia, Base Sepolia, BNB
+// testnet) to import/view the wrapped token after a transfer. Only nag the user
+// when the wallet is on a chain outside this set — otherwise every bridge user
+// gets a "switch to Makalu" popover the moment they change networks.
+const SUPPORTED_CHAIN_IDS = new Set<number>([
+  MAKALU_CHAIN_ID, // Lithosphere Makalu
+  900523, // Lithosphere Kamet
+  11155111, // Ethereum Sepolia
+  84532, // Base Sepolia
+  97, // BNB Smart Chain Testnet
+]);
+
 const MAKALU_CHAIN_FOR_WALLET = {
   chainId: MAKALU_CHAIN_HEX,
   chainName: 'Lithosphere Makalu Testnet',
@@ -45,9 +59,9 @@ function NetworkSwitchModalContent() {
     setMounted(true);
   }, []);
 
-  // Reset dismissed state when the user disconnects or lands on Makalu
+  // Reset dismissed state when the user disconnects or lands on a supported chain
   useEffect(() => {
-    if (!isConnected || chainId === MAKALU_CHAIN_ID) {
+    if (!isConnected || (chainId != null && SUPPORTED_CHAIN_IDS.has(chainId))) {
       setDismissed(false);
     }
   }, [isConnected, chainId]);
@@ -56,7 +70,7 @@ function NetworkSwitchModalContent() {
     mounted &&
     isConnected &&
     Boolean(address) &&
-    chainId !== MAKALU_CHAIN_ID &&
+    (chainId == null || !SUPPORTED_CHAIN_IDS.has(chainId)) &&
     !dismissed;
 
   const handleSwitch = useCallback(async () => {
