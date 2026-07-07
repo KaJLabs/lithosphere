@@ -89,21 +89,38 @@ function BridgeContent() {
   const ensureChain = useCallback(
     async (targetId: number) => {
       if (!walletProvider) throw new Error('Wallet not connected');
-      if (Number(chainId) === targetId) return;
       const params = CHAIN_PARAMS[targetId];
       if (!params) throw new Error(`No wallet config for chain ${targetId}`);
       const provider = walletProvider as Eip1193Provider;
+
+      // The wallet's real chain, straight from the provider — the hook's
+      // chainId can lag, and a "successful" switch prompt does not guarantee
+      // the wallet actually landed on the target chain (seen live: MetaMask
+      // stayed on Makalu while the flow proceeded to approve a Kamet token).
+      const actualChain = async () =>
+        Number(await provider.request({ method: 'eth_chainId' }));
+
+      if ((await actualChain()) === targetId) return;
       try {
         await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: params.chainId }] });
       } catch (err: unknown) {
-        if ((err as { code?: number })?.code === 4902) {
-          await provider.request({ method: 'wallet_addEthereumChain', params: [params] });
-        } else {
-          throw err;
-        }
+        // MetaMask signals "unknown chain" as 4902, but sometimes wraps it in
+        // a -32603 internal error — attempt the add on any failure and let the
+        // verification below be the arbiter.
+        await provider.request({ method: 'wallet_addEthereumChain', params: [params] });
       }
+      // Hard gate: never proceed to approve/lock until the wallet is really
+      // on the target chain (some wallets apply the switch asynchronously).
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if ((await actualChain()) === targetId) return;
+        await new Promise((r) => setTimeout(r, 700));
+      }
+      throw new Error(
+        `Wallet is still on chain ${await actualChain()}, not ${params.chainName} (${targetId}). ` +
+        `Switch manually in the wallet — network RPC must be ${params.rpcUrls[0]} — then retry.`,
+      );
     },
-    [walletProvider, chainId],
+    [walletProvider],
   );
 
   useEffect(() => {
