@@ -11,6 +11,17 @@ const chains = [
     explorerUrl: 'https://makalu.litho.ai',
     rpcUrl: 'https://rpc.litho.ai',
   },
+  // Kamet is a first-class chain for the bridge flow (lock/claim happen there
+  // for Kamet-origin routes). Without it in this list, Web3Modal flags a
+  // Kamet-connected wallet as "unsupported network" and nags the user to
+  // switch back to Makalu on every connect/refresh.
+  {
+    chainId: 900523,
+    name: 'Lithosphere Kamet',
+    currency: 'LITHO',
+    explorerUrl: 'https://kamet.litho.ai',
+    rpcUrl: 'https://rpc-3.litho.ai',
+  },
 ];
 
 const metadata = {
