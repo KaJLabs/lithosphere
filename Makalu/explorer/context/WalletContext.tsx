@@ -22,6 +22,33 @@ const chains = [
     explorerUrl: 'https://kamet.litho.ai',
     rpcUrl: 'https://rpc-3.litho.ai',
   },
+  // Bridge destination chains. The lock always runs on a Lithosphere source
+  // chain (Makalu/Kamet), so the wallet never has to sign here — but bridge
+  // users routinely switch their wallet to a destination chain to import and
+  // view the wrapped token after a transfer. Whitelisting these stops the
+  // "app doesn't support your current network" popover from firing whenever a
+  // wallet legitimately sits on Sepolia / Base / BNB.
+  {
+    chainId: 11155111,
+    name: 'Ethereum Sepolia',
+    currency: 'ETH',
+    explorerUrl: 'https://sepolia.etherscan.io',
+    rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
+  },
+  {
+    chainId: 84532,
+    name: 'Base Sepolia',
+    currency: 'ETH',
+    explorerUrl: 'https://sepolia.basescan.org',
+    rpcUrl: 'https://sepolia.base.org',
+  },
+  {
+    chainId: 97,
+    name: 'BNB Smart Chain Testnet',
+    currency: 'tBNB',
+    explorerUrl: 'https://testnet.bscscan.com',
+    rpcUrl: 'https://bsc-testnet-rpc.publicnode.com',
+  },
 ];
 
 const metadata = {
