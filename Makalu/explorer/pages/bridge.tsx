@@ -9,6 +9,7 @@ import {
   BRIDGE_TOKENS,
   approveIfNeeded,
   chainByKey,
+  describeBridgeError,
   fetchSignatures,
   fetchStatus,
   lockTokens,
@@ -187,7 +188,7 @@ function BridgeContent() {
         'success',
       );
     } catch (err: unknown) {
-      show((err as Error)?.message || 'Bridge lock failed.', 'error');
+      show(describeBridgeError(err, { symbol: token.symbol, chainName: source.name }), 'error');
     } finally {
       setBusy(false);
     }
@@ -204,7 +205,7 @@ function BridgeContent() {
       const txHash = await releaseTokens(walletProvider as Eip1193Provider, dest.bridge, transfer, sigs);
       show(`Release submitted: ${txHash}`, 'success');
     } catch (err: unknown) {
-      show((err as Error)?.message || 'Claim failed.', 'error');
+      show(describeBridgeError(err, { symbol: token.symbol, chainName: dest.name }), 'error');
     } finally {
       setBusy(false);
     }

@@ -6,7 +6,7 @@
  * proxy (which forwards to the shared bridge-api). The release/claim flow
  * mirrors the proven kamet-explorer + @litho/multx-sdk logic.
  */
-import { BrowserProvider, Contract, Interface, parseUnits } from 'ethers';
+import { AbiCoder, BrowserProvider, Contract, Interface, formatUnits, parseUnits } from 'ethers';
 import type { Eip1193Provider } from 'ethers';
 
 export const BRIDGE_CHAINS = {
@@ -251,4 +251,101 @@ export async function fetchHistory(address: string): Promise<BridgeHistoryItem[]
   } catch {
     return [];
   }
+}
+
+// ── Human-readable error decoding ────────────────────────────────────────────
+// Wallet/RPC failures surface as raw ethers dumps (CALL_EXCEPTION hex, -32603
+// wrappers, OZ custom-error selectors). Every case below was hit during the
+// first live bridge runs; keep the catalog small and actionable.
+
+const abi = AbiCoder.defaultAbiCoder();
+
+/** Dig the revert data / nested message out of an ethers v6 error object. */
+function revertDataOf(e: Record<string, unknown> | null | undefined): string | null {
+  const candidates = [
+    (e as { data?: unknown })?.data,
+    (e as { info?: { error?: { data?: unknown } } })?.info?.error?.data,
+    (e as { error?: { data?: unknown } })?.error?.data,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.startsWith('0x') && c.length >= 10) return c;
+  }
+  return null;
+}
+
+function nestedMessageOf(e: Record<string, unknown> | null | undefined): string {
+  const anyE = e as Record<string, any> | null | undefined;
+  return [
+    anyE?.shortMessage,
+    anyE?.reason,
+    anyE?.info?.error?.message,
+    anyE?.error?.message,
+    anyE?.message,
+  ]
+    .filter((v) => typeof v === 'string')
+    .join(' | ');
+}
+
+export interface BridgeErrorContext {
+  /** Token symbol involved, e.g. "wLITHO". */
+  symbol: string;
+  /** Human name of the chain the action runs on, e.g. "Lithosphere Kamet". */
+  chainName: string;
+}
+
+/**
+ * Turn a wallet/RPC/contract error into a message a user can act on.
+ * Falls back to the error's own (trimmed) message when unrecognized.
+ */
+export function describeBridgeError(err: unknown, ctx: BridgeErrorContext): string {
+  const e = err as Record<string, any> | null | undefined;
+  const msg = nestedMessageOf(e);
+
+  // User pressed Cancel in the wallet — not a failure, don't alarm.
+  if (e?.code === 'ACTION_REJECTED' || e?.info?.error?.code === 4001 || /user denied|user rejected/i.test(msg)) {
+    return 'Request cancelled in the wallet — nothing was sent.';
+  }
+
+  // Decoded on-chain reverts (custom errors + require strings).
+  const data = revertDataOf(e);
+  if (data) {
+    const selector = data.slice(0, 10).toLowerCase();
+    const tail = '0x' + data.slice(10);
+    try {
+      if (selector === '0xe450d38c') {
+        // ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)
+        const [, balance, needed] = abi.decode(['address', 'uint256', 'uint256'], tail);
+        return `Not enough ${ctx.symbol} on ${ctx.chainName}: you have ${formatUnits(balance, 18)}, tried to bridge ${formatUnits(needed, 18)}. Top up (faucet) or lower the amount.`;
+      }
+      if (selector === '0xfb8f41b2') {
+        // ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed)
+        const [, allowance, needed] = abi.decode(['address', 'uint256', 'uint256'], tail);
+        return `Bridge allowance too low (${formatUnits(allowance, 18)} approved, ${formatUnits(needed, 18)} needed) — retry and confirm the approval step.`;
+      }
+      if (selector === '0x08c379a0') {
+        // Error(string) — the bridge's require() messages ("Token not supported",
+        // "Daily cap exceeded", "Nonce already processed", …)
+        const [reason] = abi.decode(['string'], tail);
+        return `The bridge rejected this transaction: ${reason}.`;
+      }
+      if (selector === '0x4e487b71') {
+        return 'The contract hit an internal error (arithmetic/panic). Please report this — it should not happen.';
+      }
+    } catch {
+      /* fall through to the generic paths below */
+    }
+  }
+
+  if (/insufficient funds/i.test(msg)) {
+    return `Not enough native LITHO on ${ctx.chainName} to pay gas — top up from the faucet and retry.`;
+  }
+  if (/-32603|internal json-rpc/i.test(msg)) {
+    return `The wallet's node rejected the transaction. This is usually a stale wallet nonce — in MetaMask: Settings → Advanced → "Clear activity tab data", then retry.`;
+  }
+  if (/missing revert data|could not decode result data/i.test(msg)) {
+    return `Could not read the token contract — your wallet is probably not on ${ctx.chainName} (or its network entry has the wrong RPC). Check the network and retry.`;
+  }
+
+  const trimmed = msg.replace(/\s+/g, ' ').trim();
+  return trimmed ? trimmed.slice(0, 220) : 'Transaction failed.';
 }
