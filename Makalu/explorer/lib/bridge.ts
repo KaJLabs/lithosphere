@@ -46,6 +46,8 @@ export interface ChainInfo {
   bridge: string;
   /** Lithosphere chain (Makalu/Kamet) where the LEP-100 tokens natively live. */
   litho: boolean;
+  /** Listed but not yet routable — shown grayed out, cannot be selected. */
+  comingSoon?: boolean;
 }
 
 // All chains the MultX bridge is wired to (mirrors the live bridge-api /chains).
@@ -57,7 +59,9 @@ export const BRIDGE_CHAIN_LIST: ChainInfo[] = [
   { key: 'kamet', chainId: 900523, name: 'Lithosphere Kamet', short: 'Kamet', bridge: '0x3a896BDF3a1088287FA84aB5a43bB30e2535F263', litho: true },
   { key: 'sepolia', chainId: 11155111, name: 'Ethereum Sepolia', short: 'Sepolia', bridge: '0xfdA3b83FE8438123eAF5153945A46F8fcF6175f4', litho: false },
   { key: 'base', chainId: 84532, name: 'Base Sepolia', short: 'Base Sepolia', bridge: '0xfdA3b83FE8438123eAF5153945A46F8fcF6175f4', litho: false },
-  { key: 'bnb', chainId: 97, name: 'BNB Chain Testnet', short: 'BNB Testnet', bridge: '0x6714951EFC1ED9C703c946c48F7cD666948BBB06', litho: false },
+  // Deployed 2026-07-06 with wrapped tokens; Kamet→BNB proven end-to-end same
+  // day. (0x6714…BB06, seen in some older repo defaults, is a stale address.)
+  { key: 'bnb', chainId: 97, name: 'BNB Chain Testnet', short: 'BNB Testnet', bridge: '0x93d74580a7b63a5B1FE5Aae05b7470bf9317aF9A', litho: false },
 ];
 
 /** Chains a user can lock FROM — the Lithosphere chains where LEP-100s live. */

@@ -70,9 +70,13 @@ function BridgeContent() {
     [symbol],
   );
 
-  // Keep the destination valid when the source changes (can't equal source).
+  // Keep the destination valid when the source changes (can't equal source,
+  // can't be a coming-soon chain).
   useEffect(() => {
-    if (toKey === fromKey) setToKey(destOptions[0]?.key ?? 'kamet');
+    const current = destOptions.find((c) => c.key === toKey);
+    if (toKey === fromKey || !current || current.comingSoon) {
+      setToKey(destOptions.find((c) => !c.comingSoon)?.key ?? 'kamet');
+    }
   }, [fromKey, toKey, destOptions]);
 
   const sourceTokenAddr = tokenAddressFor(token, source.key);
@@ -128,6 +132,10 @@ function BridgeContent() {
     }
     if (!/^\d+(\.\d+)?$/.test(amount) || Number(amount) <= 0) {
       show('Enter a valid amount.', 'error');
+      return;
+    }
+    if (dest.comingSoon) {
+      show(`${dest.name} is not routable yet — locked funds would strand. Pick another destination.`, 'error');
       return;
     }
     setBusy(true);
@@ -241,7 +249,9 @@ function BridgeContent() {
                 <label className="mb-2 block text-sm text-white/70">To</label>
                 <select value={dest.key} onChange={(e) => setToKey(e.target.value)} className={selectCls}>
                   {destOptions.map((c) => (
-                    <option key={c.key} value={c.key}>{c.name}</option>
+                    <option key={c.key} value={c.key} disabled={c.comingSoon} className={c.comingSoon ? 'text-white/30' : undefined}>
+                      {c.name}{c.comingSoon ? ' — coming soon' : ''}
+                    </option>
                   ))}
                 </select>
               </div>
