@@ -1420,73 +1420,6 @@ function mapValidator(r: ValidatorRow) {
 export function explorerRouter(): Router {
   const r = Router();
 
-  // ── Thanos SIWE auth foundation ─────────────────────────────────────────────
-  // Helpers used by both the /auth/* routes and the faucet claim gate: a stable
-  // HMAC session secret, one-time nonce store, and mint/verify/bearer helpers.
-  // Defined up here (not next to the routes) so earlier routes — the faucet —
-  // can require a session without a use-before-declaration hazard.
-  const AUTH_SESSION_TTL_SEC = 24 * 60 * 60; // 24h session
-  const AUTH_NONCE_TTL_MS = 10 * 60 * 1000; // 10 min nonce
-  const AUTH_ALLOWED_CHAIN = 700777;
-
-  // A stable secret keeps sessions valid across restarts; without one we fall
-  // back to an ephemeral per-process secret (sessions reset on restart).
-  const sessionSecret = process.env.AUTH_SESSION_SECRET || randomBytes(32).toString('hex');
-  if (!process.env.AUTH_SESSION_SECRET) {
-    logger.warn('[api] AUTH_SESSION_SECRET not set — using an ephemeral secret; Thanos sessions reset on restart');
-  }
-
-  // One-time nonce store: nonce → { address(lowercased), expiresAt }.
-  const authNonces = new Map<string, { address: string; expiresAt: number }>();
-  const pruneNonces = () => {
-    const now = Date.now();
-    for (const [n, v] of authNonces) if (v.expiresAt <= now) authNonces.delete(n);
-  };
-
-  const b64url = (buf: Buffer): string =>
-    buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-  interface SessionClaims { sub: string; chainId: number; iat: number; exp: number }
-
-  const signSession = (address: string): { token: string; expiresAt: number } => {
-    const now = Math.floor(Date.now() / 1000);
-    const exp = now + AUTH_SESSION_TTL_SEC;
-    const payload = b64url(Buffer.from(JSON.stringify({ sub: address, chainId: AUTH_ALLOWED_CHAIN, iat: now, exp })));
-    const sig = b64url(createHmac('sha256', sessionSecret).update(payload).digest());
-    return { token: `${payload}.${sig}`, expiresAt: exp };
-  };
-
-  // Validate a `payload.sig` session token: constant-time HMAC check + expiry.
-  // Returns the decoded claims, or null if the token is forged/tampered/expired.
-  const verifySession = (token: string): SessionClaims | null => {
-    const dot = token.indexOf('.');
-    if (dot <= 0) return null;
-    const payload = token.slice(0, dot);
-    const sig = token.slice(dot + 1);
-    const expected = b64url(createHmac('sha256', sessionSecret).update(payload).digest());
-    const sigBuf = Buffer.from(sig);
-    const expBuf = Buffer.from(expected);
-    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) return null;
-    try {
-      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as SessionClaims;
-      if (typeof claims.exp !== 'number' || claims.exp * 1000 <= Date.now()) return null;
-      return claims;
-    } catch {
-      return null;
-    }
-  };
-
-  const bearerToken = (req: Request): string | null => {
-    const h = req.headers.authorization;
-    return typeof h === 'string' && /^Bearer\s+/i.test(h) ? h.replace(/^Bearer\s+/i, '').trim() : null;
-  };
-
-  // Verified session claims for a request, or null if unauthenticated/invalid.
-  const sessionFromRequest = (req: Request): SessionClaims | null => {
-    const token = bearerToken(req);
-    return token ? verifySession(token) : null;
-  };
-
   // ── Stats summary (homepage) ────────────────────────────────────────────
 
   r.get('/stats/summary', async (_req: Request, res: Response) => {
@@ -2968,14 +2901,6 @@ export function explorerRouter(): Router {
       const normalizedAddress = typeof address === 'string' ? address.trim() : '';
       const normalizedAmount = normalizeFaucetAmountInput(amount);
 
-      // Gate: the faucet claim requires a valid Thanos SIWE session (anti-abuse).
-      const session = sessionFromRequest(req);
-      if (!session) {
-        audit({ action: 'faucet_claim_rejected', reason: 'unauthenticated' }, 'no valid session');
-        res.status(401).json({ ok: false, message: 'Sign in with Thanos to claim from the faucet.' });
-        return;
-      }
-
       if (!normalizedAddress) {
         logger.warn('[api] Rejecting faucet claim: missing address');
         audit({ action: 'faucet_claim_rejected', reason: 'missing_address' }, 'missing address');
@@ -3005,20 +2930,6 @@ export function explorerRouter(): Router {
           'non-EVM address',
         );
         res.status(400).json({ ok: false, message: 'The faucet currently supports EVM (0x) addresses only. Please use your 0x address.' });
-        return;
-      }
-
-      // Bind the claim to the signed-in identity: you may only fund the address
-      // you proved you control via Thanos sign-in.
-      if (getAddress(normalizedAddress) !== getAddress(session.sub)) {
-        audit(
-          { action: 'faucet_claim_rejected', reason: 'address_mismatch', actor: getAddress(session.sub) },
-          'claim address does not match session',
-        );
-        res.status(403).json({
-          ok: false,
-          message: 'You can only claim to the address you signed in with.',
-        });
         return;
       }
 
@@ -3194,11 +3105,38 @@ export function explorerRouter(): Router {
     void proxyBridgeGet(`/bridge/transactions/${a}`, res);
   });
 
-  // ── Sign in with Thanos (SIWE auth) routes ──────────────────────────────────
-  // Backend half of the `thanos-connect` flow. Helpers (sessionSecret, nonce
-  // store, signSession, verifySession, bearerToken) live in the auth foundation
-  // block near the top of explorerRouter(). The SDK calls these exact default
-  // paths (GET /auth/nonce?address=…, POST /auth/verify).
+  // ── Sign in with Thanos (SIWE auth) ─────────────────────────────────────────
+  // Backend half of the `thanos-connect` flow: issue a one-time nonce, then
+  // verify the signed SIWE message and mint a session token. The SDK calls these
+  // exact default paths (GET /auth/nonce?address=…, POST /auth/verify).
+  const AUTH_SESSION_TTL_SEC = 24 * 60 * 60; // 24h session
+  const AUTH_NONCE_TTL_MS = 10 * 60 * 1000; // 10 min nonce
+  const AUTH_ALLOWED_CHAIN = 700777;
+
+  // A stable secret keeps sessions valid across restarts; without one we fall
+  // back to an ephemeral per-process secret (sessions reset on restart).
+  const sessionSecret = process.env.AUTH_SESSION_SECRET || randomBytes(32).toString('hex');
+  if (!process.env.AUTH_SESSION_SECRET) {
+    logger.warn('[api] AUTH_SESSION_SECRET not set — using an ephemeral secret; Thanos sessions reset on restart');
+  }
+
+  // One-time nonce store: nonce → { address(lowercased), expiresAt }.
+  const authNonces = new Map<string, { address: string; expiresAt: number }>();
+  const pruneNonces = () => {
+    const now = Date.now();
+    for (const [n, v] of authNonces) if (v.expiresAt <= now) authNonces.delete(n);
+  };
+
+  const b64url = (buf: Buffer): string =>
+    buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  const signSession = (address: string): { token: string; expiresAt: number } => {
+    const now = Math.floor(Date.now() / 1000);
+    const exp = now + AUTH_SESSION_TTL_SEC;
+    const payload = b64url(Buffer.from(JSON.stringify({ sub: address, chainId: AUTH_ALLOWED_CHAIN, iat: now, exp })));
+    const sig = b64url(createHmac('sha256', sessionSecret).update(payload).digest());
+    return { token: `${payload}.${sig}`, expiresAt: exp };
+  };
 
   // GET /auth/nonce?address=0x… → text/plain nonce (per the thanos-connect contract).
   r.get('/auth/nonce', (req: Request, res: Response) => {
@@ -3269,6 +3207,32 @@ export function explorerRouter(): Router {
       res.status(500).json({ ok: false, error: 'verification failed' });
     }
   });
+
+  // Validate a `payload.sig` session token: constant-time HMAC check + expiry.
+  // Returns the decoded claims, or null if the token is forged/tampered/expired.
+  interface SessionClaims { sub: string; chainId: number; iat: number; exp: number }
+  const verifySession = (token: string): SessionClaims | null => {
+    const dot = token.indexOf('.');
+    if (dot <= 0) return null;
+    const payload = token.slice(0, dot);
+    const sig = token.slice(dot + 1);
+    const expected = b64url(createHmac('sha256', sessionSecret).update(payload).digest());
+    const sigBuf = Buffer.from(sig);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) return null;
+    try {
+      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as SessionClaims;
+      if (typeof claims.exp !== 'number' || claims.exp * 1000 <= Date.now()) return null;
+      return claims;
+    } catch {
+      return null;
+    }
+  };
+
+  const bearerToken = (req: Request): string | null => {
+    const h = req.headers.authorization;
+    return typeof h === 'string' && /^Bearer\s+/i.test(h) ? h.replace(/^Bearer\s+/i, '').trim() : null;
+  };
 
   // GET /auth/me → validate the Authorization: Bearer session and return the
   // verified identity. This is the server-side half that makes the Thanos

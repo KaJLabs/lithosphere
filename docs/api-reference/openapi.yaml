@@ -378,9 +378,7 @@ paths:
   /faucet/claim:
     post:
       tags: [Faucet]
-      summary: Request a testnet LITHO drip for an address. Requires a Thanos SIWE session.
-      security:
-        - bearerAuth: []
+      summary: Request a testnet LITHO drip for an address.
       requestBody:
         required: true
         content:
@@ -389,13 +387,11 @@ paths:
               type: object
               required: [address]
               properties:
-                address: { type: string, description: Recipient (hex or bech32). Must equal the signed-in address. }
+                address: { type: string, description: Recipient (hex or bech32). }
                 captcha: { type: string, description: hCaptcha token if enabled. }
       responses:
         '200': { description: Drip submitted. Response includes tx hash. }
         '400': { description: Validation error (bad address, missing captcha). }
-        '401': { description: Missing or invalid Thanos session token. }
-        '403': { description: Claim address does not match the signed-in address. }
         '429': { description: Cooldown active for this address / IP. }
 
   # ───── MultX Bridge (same-origin proxy to bridge.litho.ai) ────

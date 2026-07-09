@@ -4,7 +4,6 @@ import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3mo
 import { EXPLORER_TITLE } from '@/lib/constants';
 import { isEvmAddress } from '@/lib/format';
 import { isEvmTxHash } from '@/lib/tx';
-import { authHeaders, validateSession, THANOS_SESSION_EVENT } from '@/lib/auth';
 
 type SelectOption = {
   value: string;
@@ -219,7 +218,6 @@ function FaucetContent() {
   const [cooldownHours, setCooldownHours] = useState(24);
   const [mounted, setMounted] = useState(false);
   const [isAddingNetwork, setIsAddingNetwork] = useState(false);
-  const [signedInAddress, setSignedInAddress] = useState<string | null>(null);
   const pendingNetworkAdd = useRef(false);
 
   const selectedAsset = useMemo(() => {
@@ -245,13 +243,7 @@ function FaucetContent() {
   const normalizedAddress = address.trim();
   const isValidRecipientAddress = isEvmAddress(normalizedAddress);
   const amountIsValid = selectedAsset.allowedAmounts.includes(amount);
-  const isSignedIn = Boolean(signedInAddress);
-  // The API binds a claim to the signed-in identity — you may only fund the
-  // address you proved you control via Thanos sign-in.
-  const addressMatchesSession =
-    !signedInAddress || normalizedAddress.toLowerCase() === signedInAddress.toLowerCase();
-  const canSubmitClaim =
-    isValidRecipientAddress && amountIsValid && isSignedIn && addressMatchesSession && !claiming;
+  const canSubmitClaim = isValidRecipientAddress && amountIsValid && !claiming;
   const addressHelpText = normalizedAddress
     ? (
       isValidRecipientAddress
@@ -270,25 +262,6 @@ function FaucetContent() {
     }
     setConnectedAddress(null);
   }, [isConnected, walletAddress]);
-
-  // Reflect the Thanos SIWE session — the faucet claim is gated behind sign-in,
-  // and the server validates the token, so confirm it against /api/auth/me.
-  useEffect(() => {
-    let cancelled = false;
-    const refresh = () => {
-      void validateSession().then((identity) => {
-        if (!cancelled) setSignedInAddress(identity?.address ?? null);
-      });
-    };
-    refresh();
-    window.addEventListener(THANOS_SESSION_EVENT, refresh);
-    window.addEventListener('storage', refresh);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(THANOS_SESSION_EVENT, refresh);
-      window.removeEventListener('storage', refresh);
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -405,22 +378,12 @@ function FaucetContent() {
       return;
     }
 
-    if (!signedInAddress) {
-      showStatus('Sign in with Thanos to claim from the faucet.', 'error');
-      return;
-    }
-
-    if (normalizedAddress.toLowerCase() !== signedInAddress.toLowerCase()) {
-      showStatus(`You can only claim to the address you signed in with (${signedInAddress}).`, 'error');
-      return;
-    }
-
     setClaiming(true);
 
     try {
       const res = await fetch('/api/faucet/claim', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           address: normalizedAddress,
           assetId: selectedAsset.id,
@@ -599,31 +562,6 @@ function FaucetContent() {
                     </p>
                   </div>
                 </div>
-
-                {!isSignedIn ? (
-                  <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-200/90">
-                    Faucet claims require sign-in.{' '}
-                    <a href="/signin" className="font-medium text-white underline underline-offset-4">
-                      Sign in with Thanos
-                    </a>{' '}
-                    to prove you control the address you&apos;re funding, then claim.
-                  </div>
-                ) : (
-                  !addressMatchesSession && (
-                    <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-200/90">
-                      You&apos;re signed in as{' '}
-                      <span className="break-all font-medium text-white">{signedInAddress}</span> — the faucet
-                      can only fund that address.{' '}
-                      <button
-                        type="button"
-                        onClick={() => signedInAddress && setAddress(signedInAddress)}
-                        className="font-medium text-white underline underline-offset-4"
-                      >
-                        Use it
-                      </button>
-                    </div>
-                  )
-                )}
 
                 <div className="flex flex-wrap gap-3 pt-2">
                   <button
