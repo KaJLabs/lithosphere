@@ -696,7 +696,7 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Request a testnet LITHO drip for an address. */
+        /** Request a testnet LITHO drip for an address. Requires a Thanos SIWE session. */
         post: {
             parameters: {
                 query?: never;
@@ -707,7 +707,7 @@ export type paths = {
             requestBody: {
                 content: {
                     "application/json": {
-                        /** @description Recipient (hex or bech32). */
+                        /** @description Recipient (hex or bech32). Must equal the signed-in address. */
                         address: string;
                         /** @description hCaptcha token if enabled. */
                         captcha?: string;
@@ -724,6 +724,20 @@ export type paths = {
                 };
                 /** @description Validation error (bad address */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Missing or invalid Thanos session token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Claim address does not match the signed-in address. */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
