@@ -6,7 +6,7 @@
  */
 import { Router, type Request, type Response } from 'express';
 import { bech32 } from 'bech32';
-import { randomBytes, createHmac } from 'node:crypto';
+import { randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
 import { verifyMessage, isAddress, getAddress } from 'ethers';
 import { query, slowQuery } from './db.js';
 import { logger } from './lib/logger.js';
@@ -3206,6 +3206,51 @@ export function explorerRouter(): Router {
       logger.error({ err: err instanceof Error ? err.message : String(err) }, '[api] /auth/verify error');
       res.status(500).json({ ok: false, error: 'verification failed' });
     }
+  });
+
+  // Validate a `payload.sig` session token: constant-time HMAC check + expiry.
+  // Returns the decoded claims, or null if the token is forged/tampered/expired.
+  interface SessionClaims { sub: string; chainId: number; iat: number; exp: number }
+  const verifySession = (token: string): SessionClaims | null => {
+    const dot = token.indexOf('.');
+    if (dot <= 0) return null;
+    const payload = token.slice(0, dot);
+    const sig = token.slice(dot + 1);
+    const expected = b64url(createHmac('sha256', sessionSecret).update(payload).digest());
+    const sigBuf = Buffer.from(sig);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) return null;
+    try {
+      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as SessionClaims;
+      if (typeof claims.exp !== 'number' || claims.exp * 1000 <= Date.now()) return null;
+      return claims;
+    } catch {
+      return null;
+    }
+  };
+
+  const bearerToken = (req: Request): string | null => {
+    const h = req.headers.authorization;
+    return typeof h === 'string' && /^Bearer\s+/i.test(h) ? h.replace(/^Bearer\s+/i, '').trim() : null;
+  };
+
+  // GET /auth/me → validate the Authorization: Bearer session and return the
+  // verified identity. This is the server-side half that makes the Thanos
+  // session real: the token is HMAC-checked here, not merely trusted from the
+  // client's localStorage. Front-ends call this on load to confirm a stored
+  // session is still valid (and to gate authenticated views).
+  r.get('/auth/me', (req: Request, res: Response) => {
+    const token = bearerToken(req);
+    if (!token) {
+      res.status(401).json({ ok: false, error: 'missing bearer token' });
+      return;
+    }
+    const claims = verifySession(token);
+    if (!claims) {
+      res.status(401).json({ ok: false, error: 'invalid or expired session' });
+      return;
+    }
+    res.json({ ok: true, address: claims.sub, chainId: claims.chainId, expiresAt: claims.exp });
   });
 
   return r;
