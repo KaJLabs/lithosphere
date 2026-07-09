@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ThanosConnectButton } from 'thanos-connect/react';
 import type { ThanosSession } from 'thanos-connect';
+import {
+  clearStoredSession,
+  getStoredSession,
+  saveStoredSession,
+  validateSession,
+  type StoredSession,
+} from '@/lib/auth';
 
 /**
  * "Sign in with Thanos" — SIWE authentication via the `thanos-connect` SDK.
@@ -8,46 +15,27 @@ import type { ThanosSession } from 'thanos-connect';
  * The SDK's default endpoints (GET /api/auth/nonce?address=…, POST
  * /api/auth/verify) are exactly what the Makalu API serves, so no endpoint
  * overrides are needed. On success the API returns a session token, which we
- * persist in localStorage so the signed-in state survives reloads.
+ * persist in localStorage — and re-validate against the server (`/api/auth/me`)
+ * on mount so a stale/tampered token never shows as signed in.
  */
-
-const STORAGE_KEY = 'thanos_session';
-
-interface StoredSession {
-  address: string;
-  sessionToken: string | null;
-  expiresAt: number | null;
-}
 
 function shorten(addr: string): string {
   return addr.length > 12 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
-}
-
-/** Notify the Header (same tab) that the sign-in state changed. */
-function notifySessionChanged() {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event('thanos-session-changed'));
-  }
 }
 
 export default function ThanosSignIn() {
   const [session, setSession] = useState<StoredSession | null>(null);
   const [error, setError] = useState('');
 
-  // Restore a non-expired session on mount.
+  // Restore a session on mount, then confirm it with the server. A token in
+  // localStorage is only a claim; /api/auth/me is the source of truth.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const s = JSON.parse(raw) as StoredSession;
-      if (!s.expiresAt || s.expiresAt * 1000 > Date.now()) {
-        setSession(s);
-      } else {
-        localStorage.removeItem(STORAGE_KEY);
-      }
-    } catch {
-      /* ignore malformed storage */
-    }
+    const stored = getStoredSession();
+    if (!stored) return;
+    setSession(stored); // optimistic — avoids a flash of the signed-out button
+    void validateSession().then((identity) => {
+      if (!identity) setSession(null); // validateSession already cleared storage
+    });
   }, []);
 
   function handleSignIn(s: ThanosSession) {
@@ -59,23 +47,13 @@ export default function ThanosSignIn() {
     };
     setSession(stored);
     setError('');
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-    } catch {
-      /* storage may be unavailable (private mode) — session stays in memory */
-    }
-    notifySessionChanged();
+    saveStoredSession(stored);
   }
 
   function signOut() {
     setSession(null);
     setError('');
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-    notifySessionChanged();
+    clearStoredSession();
   }
 
   if (session) {
