@@ -36,6 +36,41 @@ function shorten(addr: string): string {
   return addr.length > 12 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
 }
 
+/**
+ * Coerce whatever the wallet returns from personal_sign into a `0x` signature
+ * string. Most providers resolve a plain hex string, but some wrap it
+ * ({ signature }, { result }, …); if we POST a non-string the API rejects it
+ * with "message, signature, and address are required". Returns null if no
+ * usable signature is present.
+ */
+function normalizeSignature(raw: unknown): string | null {
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    if (!s) return null;
+    return s.startsWith('0x') ? s : `0x${s}`;
+  }
+  if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    for (const key of ['signature', 'result', 'sig', 'data', 'value']) {
+      if (o[key] != null) {
+        const nested = normalizeSignature(o[key]);
+        if (nested) return nested;
+      }
+    }
+  }
+  return null;
+}
+
+function describeShape(raw: unknown): string {
+  if (raw === undefined) return 'undefined';
+  if (raw === null) return 'null';
+  if (typeof raw === 'object') {
+    const keys = Object.keys(raw as object);
+    return keys.length ? `object{${keys.join(',')}}` : 'empty object';
+  }
+  return typeof raw;
+}
+
 function messageOf(err: unknown): string {
   if (typeof err === 'object' && err !== null) {
     const e = err as { code?: number | string; message?: string };
@@ -81,10 +116,17 @@ async function signInWithHexPayload(): Promise<StoredSession> {
   // the raw string. Same bytes signed → server verifyMessage() still recovers
   // the signer, but the extension no longer chokes on a serialised byte-array.
   const hexMessage = hexlify(toUtf8Bytes(message));
-  const signature = (await provider.request({
+  const raw = await provider.request({
     method: 'personal_sign',
     params: [hexMessage, address],
-  })) as string;
+  });
+  const signature = normalizeSignature(raw);
+  if (!signature) {
+    throw new Error(
+      `The wallet did not return a signature (${describeShape(raw)}). ` +
+        'Update the Thanos extension to the latest version and try again.',
+    );
+  }
 
   const res = await fetch('/api/auth/verify', {
     method: 'POST',
