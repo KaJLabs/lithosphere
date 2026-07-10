@@ -204,6 +204,42 @@ jobs:
             echo "http_code=$HTTP_CODE" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check Faucet Wallet Balance
+        id: faucet-balance
+        continue-on-error: true
+        env:
+          # Faucet hot wallet + low-balance threshold (LITHO). Override via repo
+          # Variables (Settings → Secrets and variables → Actions → Variables).
+          FAUCET_WALLET: ${{ vars.FAUCET_WALLET_ADDRESS || '0x43593dC799d432CB6382ae20186Ba5356AC7D271' }}
+          FAUCET_MIN_LITHO: ${{ vars.FAUCET_MIN_LITHO || '5000' }}
+          RPC_URL: ${{ vars.EVM_RPC_URL || 'https://rpc.litho.ai' }}
+        run: |
+          if [ "${{ env.ENVIRONMENT }}" != "testnet" ] && [ "${{ env.ENVIRONMENT }}" != "mainnet" ]; then
+            echo "Skipping faucet balance check for ${{ env.ENVIRONMENT }}"; exit 0
+          fi
+          echo "Checking faucet wallet $FAUCET_WALLET on $RPC_URL (threshold ${FAUCET_MIN_LITHO} LITHO)..."
+          HEX=$(curl -s --connect-timeout 10 --max-time 20 "$RPC_URL" \
+            -H 'content-type: application/json' \
+            -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getBalance\",\"params\":[\"$FAUCET_WALLET\",\"latest\"]}" \
+            | jq -r '.result // empty')
+          if [ -z "$HEX" ]; then
+            echo "::warning::Could not read faucet balance (RPC error / no result)"
+            echo "faucet_balance_status=unknown" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          LITHO=$(python3 -c "import sys; print(int(sys.argv[1], 16) // 10**18)" "$HEX")
+          echo "Faucet balance: ${LITHO} LITHO"
+          echo "faucet_balance_litho=$LITHO" >> $GITHUB_OUTPUT
+          echo "faucet_wallet=$FAUCET_WALLET" >> $GITHUB_OUTPUT
+          echo "faucet_min_litho=$FAUCET_MIN_LITHO" >> $GITHUB_OUTPUT
+          if [ "$LITHO" -lt "$FAUCET_MIN_LITHO" ]; then
+            echo "::error::Faucet balance LOW: ${LITHO} LITHO (< ${FAUCET_MIN_LITHO}). Refund $FAUCET_WALLET."
+            echo "faucet_balance_status=low" >> $GITHUB_OUTPUT
+          else
+            echo "Faucet balance OK."
+            echo "faucet_balance_status=healthy" >> $GITHUB_OUTPUT
+          fi
+
       - name: Check Grafana Dashboard (:3001)
         id: grafana-health
         continue-on-error: true
@@ -243,6 +279,7 @@ jobs:
           echo "| GraphQL | ${{ steps.graphql-health.outputs.graphql_status || '❌ failed' }} | N/A |" >> $GITHUB_STEP_SUMMARY
           echo "| Explorer (public) | ${{ steps.explorer-health.outputs.explorer_status || 'skipped' }} | ${{ steps.explorer-health.outputs.http_code || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Faucet Route (public) | ${{ steps.faucet-health.outputs.faucet_status || 'skipped' }} | ${{ steps.faucet-health.outputs.http_code || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Faucet Balance | ${{ steps.faucet-balance.outputs.faucet_balance_status || 'skipped' }} | ${{ steps.faucet-balance.outputs.faucet_balance_litho || 'N/A' }} LITHO |" >> $GITHUB_STEP_SUMMARY
           echo "| Prometheus | ${{ steps.prometheus-health.outputs.prometheus_status || 'skipped' }} | N/A |" >> $GITHUB_STEP_SUMMARY
           echo "| Grafana (:3001) | ${{ steps.grafana-health.outputs.grafana_status || 'skipped' }} | N/A |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -302,8 +339,57 @@ jobs:
               });
             }
 
+      - name: Alert on Low Faucet Balance (GitHub Issue)
+        if: steps.faucet-balance.outputs.faucet_balance_status == 'low'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const environment = '${{ env.ENVIRONMENT }}';
+            const balance = '${{ steps.faucet-balance.outputs.faucet_balance_litho }}';
+            const threshold = '${{ steps.faucet-balance.outputs.faucet_min_litho }}';
+            const wallet = '${{ steps.faucet-balance.outputs.faucet_wallet }}';
+            const timestamp = new Date().toISOString();
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = `⛽ [${environment.toUpperCase()}] Faucet Wallet Balance Low`;
+            const body = [
+              `## ⛽ Faucet wallet is running low`,
+              ``,
+              `- **Balance:** ${balance} LITHO (threshold: ${threshold} LITHO)`,
+              `- **Wallet:** \`${wallet}\``,
+              `- **Chain:** Lithosphere Makalu (EVM 700777, RPC https://rpc.litho.ai)`,
+              `- **Detected:** ${timestamp}`,
+              ``,
+              `### Action`,
+              `Refund the faucet hot wallet with native LITHO on Makalu, then the alert clears automatically.`,
+              ``,
+              `Verify: \`curl -s https://rpc.litho.ai -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"eth_getBalance","params":["${wallet}","latest"]}'\``,
+              ``,
+              `[Workflow run](${runUrl}) · _auto-generated by health-monitoring_`,
+            ].join('\n');
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'faucet-low-balance,automated',
+            });
+            const existing = issues.data.find(i =>
+              i.title.includes(`[${environment.toUpperCase()}]`) && i.title.includes('Faucet Wallet Balance Low'));
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `⚠️ Still low: **${balance} LITHO** (< ${threshold}) at ${timestamp}. [Run](${runUrl})`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body,
+                labels: ['faucet-low-balance', 'automated', 'critical', environment],
+              });
+            }
+
       - name: Send Slack Notification (Optional)
-        if: steps.api-health.outputs.health_status != 'healthy' || steps.explorer-health.outputs.explorer_status != 'healthy' || steps.faucet-health.outputs.faucet_status != 'healthy'
+        if: steps.api-health.outputs.health_status != 'healthy' || steps.explorer-health.outputs.explorer_status != 'healthy' || steps.faucet-health.outputs.faucet_status != 'healthy' || steps.faucet-balance.outputs.faucet_balance_status == 'low'
         continue-on-error: true
         run: |
           # Skip if SLACK_WEBHOOK_URL is not configured
@@ -315,13 +401,13 @@ jobs:
           curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
             -H 'Content-Type: application/json' \
             -d '{
-              "text": "🚨 Lithosphere API Health Check Failed",
+              "text": "🚨 Lithosphere health/faucet alert",
               "blocks": [
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Environment:* ${{ env.ENVIRONMENT }}\n*Status Code:* ${{ steps.api-health.outputs.http_code }}\n*Time:* '"$(date -u +"%Y-%m-%d %H:%M:%S UTC")"'"
+                    "text": "*Environment:* ${{ env.ENVIRONMENT }}\n*API:* ${{ steps.api-health.outputs.health_status || 'unknown' }}\n*Explorer:* ${{ steps.explorer-health.outputs.explorer_status || 'unknown' }}\n*Faucet route:* ${{ steps.faucet-health.outputs.faucet_status || 'unknown' }}\n*Faucet balance:* ${{ steps.faucet-balance.outputs.faucet_balance_status || 'unknown' }} (${{ steps.faucet-balance.outputs.faucet_balance_litho || 'N/A' }} LITHO)\n*Time:* '"$(date -u +"%Y-%m-%d %H:%M:%S UTC")"'"
                   }
                 },
                 {
