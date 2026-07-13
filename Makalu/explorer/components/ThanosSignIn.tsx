@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
+import { useEffect, useState } from 'react';
+import { useDisconnect } from '@web3modal/ethers/react';
+import { ConnectionController, ConnectorController, type Connector } from '@web3modal/core';
 import { buildSiweMessage } from 'thanos-connect';
 import { getAddress, hexlify, toUtf8Bytes, type Eip1193Provider } from 'ethers';
 import {
@@ -13,12 +14,16 @@ import {
 /**
  * "Sign in with Thanos" — SIWE authentication, unified with wallet connection.
  *
- * Sign-in runs through the SAME Web3Modal connection the rest of the app uses
- * (bridge, faucet). So signing in also *connects* the wallet: after a successful
- * sign-in the header shows the account pill instead of "Connect Wallet", and the
- * user can immediately transact. If no wallet is connected yet, clicking the
- * button opens the Web3Modal connect flow first, then signs automatically once a
- * wallet lands.
+ * The button connects the Thanos wallet DIRECTLY (EIP-6963, RDNS
+ * `fi.thanos.wallet`) — no multi-wallet picker. It drives Web3Modal's own
+ * connect path (ConnectionController.connectExternal, the same call the
+ * modal's wallet list makes), so the whole app sees the connection exactly as
+ * if Thanos had been picked in the modal: the header shows the account pill,
+ * and bridge/faucet can transact immediately. If Thanos isn't installed we
+ * show an install link instead of falling back to the wallet picker.
+ *
+ * Sign out clears the SIWE session AND disconnects the wallet in the same
+ * click, so the header flips back to "Connect Wallet" without a page refresh.
  *
  * We sign a `0x`-hex payload (hexlify(toUtf8Bytes(message))) rather than the raw
  * string — historically the Thanos extension mis-serialised a string message
@@ -29,9 +34,32 @@ import {
 
 const APP_NAME = 'Lithosphere Makalu Explorer';
 const CHAIN_ID = 700777;
+const THANOS_RDNS = 'fi.thanos.wallet';
+const THANOS_INSTALL_URL = 'https://thanos.fi';
 
 function shorten(addr: string): string {
   return addr.length > 12 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
+}
+
+function findThanosConnector(): Connector | undefined {
+  return ConnectorController.state.connectors.find(
+    (c) =>
+      c.id === 'eip6963' &&
+      (c.info?.rdns === THANOS_RDNS || c.name?.toLowerCase().includes('thanos')),
+  );
+}
+
+/**
+ * Thanos may announce after Web3Modal's init-time EIP-6963 discovery (the
+ * extension's service worker can wake late). Re-request announcements once
+ * before concluding it isn't installed.
+ */
+async function discoverThanosConnector(): Promise<Connector | undefined> {
+  const existing = findThanosConnector();
+  if (existing) return existing;
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  return findThanosConnector();
 }
 
 /**
@@ -123,16 +151,12 @@ async function signSession(provider: Eip1193Provider, rawAddress: string): Promi
 }
 
 export default function ThanosSignIn() {
-  const { open } = useWeb3Modal();
-  const { address, isConnected } = useWeb3ModalAccount();
-  const { walletProvider } = useWeb3ModalProvider();
+  const { disconnect } = useDisconnect();
 
   const [session, setSession] = useState<StoredSession | null>(null);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  // True while we've opened the connect modal and are waiting for a wallet to
-  // land so we can proceed to sign.
-  const [awaitingConnect, setAwaitingConnect] = useState(false);
+  const [thanosMissing, setThanosMissing] = useState(false);
+  const [phase, setPhase] = useState<'idle' | 'connecting' | 'signing'>('idle');
 
   // Restore a session on mount, then confirm it with the server. A token in
   // localStorage is only a claim; /api/auth/me is the source of truth.
@@ -145,43 +169,51 @@ export default function ThanosSignIn() {
     });
   }, []);
 
-  const runSignIn = useCallback(async (provider: Eip1193Provider, addr: string) => {
-    setBusy(true);
+  async function handleSignIn() {
     setError('');
+    setThanosMissing(false);
+    setPhase('connecting');
     try {
-      const stored = await signSession(provider, addr);
+      const connector = await discoverThanosConnector();
+      if (!connector) {
+        setThanosMissing(true);
+        return;
+      }
+      // Connects (or switches the active connection to) Thanos with no picker
+      // UI, updating all Web3Modal account state along the way.
+      await ConnectionController.connectExternal(connector, connector.chain);
+      const provider = connector.provider as Eip1193Provider | undefined;
+      const accounts = provider
+        ? ((await provider.request({ method: 'eth_accounts' })) as string[])
+        : [];
+      const address = accounts?.[0];
+      if (!provider || !address) {
+        // connectExternal swallows a user rejection (it stores the error and
+        // resolves) — an empty account list is how the rejection surfaces here.
+        throw new Error('Wallet connection was declined in Thanos.');
+      }
+      setPhase('signing');
+      const stored = await signSession(provider, address);
       setSession(stored);
       saveStoredSession(stored);
     } catch (err) {
       setError(messageOf(err));
     } finally {
-      setBusy(false);
-    }
-  }, []);
-
-  // A wallet connected while we were waiting → sign now.
-  useEffect(() => {
-    if (awaitingConnect && isConnected && walletProvider && address) {
-      setAwaitingConnect(false);
-      void runSignIn(walletProvider as Eip1193Provider, address);
-    }
-  }, [awaitingConnect, isConnected, walletProvider, address, runSignIn]);
-
-  async function handleSignIn() {
-    setError('');
-    if (isConnected && walletProvider && address) {
-      await runSignIn(walletProvider as Eip1193Provider, address);
-    } else {
-      // Connect first; the effect above resumes sign-in once connected.
-      setAwaitingConnect(true);
-      await open({ view: 'Connect' });
+      setPhase('idle');
     }
   }
 
-  function signOut() {
+  async function signOut() {
     setSession(null);
     setError('');
     clearStoredSession();
+    // Also disconnect the wallet so the header account pill clears immediately,
+    // with no page refresh.
+    try {
+      await disconnect();
+    } catch {
+      /* wallet may already be disconnected */
+    }
   }
 
   if (session) {
@@ -206,7 +238,9 @@ export default function ThanosSignIn() {
     );
   }
 
-  const label = busy ? 'Signing in…' : awaitingConnect ? 'Connect your wallet…' : 'Sign in with Thanos';
+  const busy = phase !== 'idle';
+  const label =
+    phase === 'connecting' ? 'Connecting Thanos…' : phase === 'signing' ? 'Signing in…' : 'Sign in with Thanos';
 
   return (
     <div>
@@ -217,6 +251,20 @@ export default function ThanosSignIn() {
       >
         {label}
       </button>
+      {thanosMissing && (
+        <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-sm text-amber-200">
+          Thanos Wallet was not detected in this browser.{' '}
+          <a
+            href={THANOS_INSTALL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium underline hover:text-amber-100"
+          >
+            Install the Thanos extension
+          </a>{' '}
+          and try again.
+        </p>
+      )}
       {error && (
         <p className="mt-3 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-2 text-sm text-red-200">
           {error}
