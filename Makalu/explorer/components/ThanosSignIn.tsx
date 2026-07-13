@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { buildSiweMessage, discoverThanos } from 'thanos-connect';
-import { getAddress, hexlify, toUtf8Bytes } from 'ethers';
+import { useCallback, useEffect, useState } from 'react';
+import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
+import { buildSiweMessage } from 'thanos-connect';
+import { getAddress, hexlify, toUtf8Bytes, type Eip1193Provider } from 'ethers';
 import {
   clearStoredSession,
   getStoredSession,
@@ -10,27 +11,24 @@ import {
 } from '@/lib/auth';
 
 /**
- * "Sign in with Thanos" — SIWE authentication.
+ * "Sign in with Thanos" — SIWE authentication, unified with wallet connection.
  *
- * We drive the flow directly (discover → nonce → build SIWE → personal_sign →
- * verify) instead of using the SDK's <ThanosConnectButton>, for ONE reason:
- * the button hands the raw SIWE *string* to `personal_sign`, and the current
- * Thanos extension mis-serialises that into a byte-map object, so its own
- * ethers call throws `invalid BytesLike value (value={"0":…})` and the signature
- * never completes. Passing a `0x`-hex payload instead signs the exact same bytes
- * (the UTF-8 encoding of the message) but sidesteps the extension's bug. The
- * server still verifies with `verifyMessage(message, signature)` because the
- * signed bytes are identical.
+ * Sign-in runs through the SAME Web3Modal connection the rest of the app uses
+ * (bridge, faucet). So signing in also *connects* the wallet: after a successful
+ * sign-in the header shows the account pill instead of "Connect Wallet", and the
+ * user can immediately transact. If no wallet is connected yet, clicking the
+ * button opens the Web3Modal connect flow first, then signs automatically once a
+ * wallet lands.
  *
- * Endpoints (GET /api/auth/nonce?address=…, POST /api/auth/verify) are the API's
- * defaults; on success we persist the session and re-validate it against
- * /api/auth/me on mount.
+ * We sign a `0x`-hex payload (hexlify(toUtf8Bytes(message))) rather than the raw
+ * string — historically the Thanos extension mis-serialised a string message
+ * (fixed in v0.9.19, but the hex path keeps older versions working) — and
+ * normalise whatever the wallet returns into a signature string. The API's
+ * verifyMessage(message, signature) recovers the signer regardless.
  */
 
 const APP_NAME = 'Lithosphere Makalu Explorer';
 const CHAIN_ID = 700777;
-const CHAIN_HEX = '0xab169';
-const THANOS_RDNS = 'fi.thanos.wallet';
 
 function shorten(addr: string): string {
   return addr.length > 12 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
@@ -39,9 +37,7 @@ function shorten(addr: string): string {
 /**
  * Coerce whatever the wallet returns from personal_sign into a `0x` signature
  * string. Most providers resolve a plain hex string, but some wrap it
- * ({ signature }, { result }, …); if we POST a non-string the API rejects it
- * with "message, signature, and address are required". Returns null if no
- * usable signature is present.
+ * ({ signature }, { result }, …). Returns null if no usable signature is present.
  */
 function normalizeSignature(raw: unknown): string | null {
   if (typeof raw === 'string') {
@@ -82,25 +78,9 @@ function messageOf(err: unknown): string {
   return 'Sign-in failed. Please try again.';
 }
 
-async function signInWithHexPayload(): Promise<StoredSession> {
-  const discovered = await discoverThanos({ walletRdns: THANOS_RDNS });
-  if (!discovered) {
-    throw new Error('Thanos wallet not found. Install the Thanos extension, then reload this page.');
-  }
-  const provider = discovered.provider;
-
-  const accounts = (await provider.request({ method: 'eth_requestAccounts' })) as string[];
-  if (!accounts?.length) throw new Error('No account was returned by the wallet.');
-  const address = getAddress(accounts[0]);
-
-  // Best-effort: make sure the wallet is on Makalu. Thanos has it built in and
-  // treats this as a no-op; failures are non-fatal.
-  try {
-    await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_HEX }] });
-  } catch {
-    /* ignore — user can still sign */
-  }
-
+/** SIWE round-trip against a connected EIP-1193 provider. */
+async function signSession(provider: Eip1193Provider, rawAddress: string): Promise<StoredSession> {
+  const address = getAddress(rawAddress);
   const nonce = (await (await fetch(`/api/auth/nonce?address=${address}`)).text()).trim();
 
   const message = buildSiweMessage({
@@ -112,14 +92,8 @@ async function signInWithHexPayload(): Promise<StoredSession> {
     nonce,
   });
 
-  // The fix: sign a 0x-hex payload (the UTF-8 bytes of the message) rather than
-  // the raw string. Same bytes signed → server verifyMessage() still recovers
-  // the signer, but the extension no longer chokes on a serialised byte-array.
   const hexMessage = hexlify(toUtf8Bytes(message));
-  const raw = await provider.request({
-    method: 'personal_sign',
-    params: [hexMessage, address],
-  });
+  const raw = await provider.request({ method: 'personal_sign', params: [hexMessage, address] });
   const signature = normalizeSignature(raw);
   if (!signature) {
     throw new Error(
@@ -140,9 +114,7 @@ async function signInWithHexPayload(): Promise<StoredSession> {
     sessionToken?: string | null;
     expiresAt?: number | null;
   };
-  if (!res.ok || !body.ok) {
-    throw new Error(body.error || 'Sign-in verification failed.');
-  }
+  if (!res.ok || !body.ok) throw new Error(body.error || 'Sign-in verification failed.');
   return {
     address: body.address ?? address,
     sessionToken: body.sessionToken ?? null,
@@ -151,9 +123,16 @@ async function signInWithHexPayload(): Promise<StoredSession> {
 }
 
 export default function ThanosSignIn() {
+  const { open } = useWeb3Modal();
+  const { address, isConnected } = useWeb3ModalAccount();
+  const { walletProvider } = useWeb3ModalProvider();
+
   const [session, setSession] = useState<StoredSession | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // True while we've opened the connect modal and are waiting for a wallet to
+  // land so we can proceed to sign.
+  const [awaitingConnect, setAwaitingConnect] = useState(false);
 
   // Restore a session on mount, then confirm it with the server. A token in
   // localStorage is only a claim; /api/auth/me is the source of truth.
@@ -166,17 +145,36 @@ export default function ThanosSignIn() {
     });
   }, []);
 
-  async function handleSignIn() {
-    setError('');
+  const runSignIn = useCallback(async (provider: Eip1193Provider, addr: string) => {
     setBusy(true);
+    setError('');
     try {
-      const stored = await signInWithHexPayload();
+      const stored = await signSession(provider, addr);
       setSession(stored);
       saveStoredSession(stored);
     } catch (err) {
       setError(messageOf(err));
     } finally {
       setBusy(false);
+    }
+  }, []);
+
+  // A wallet connected while we were waiting → sign now.
+  useEffect(() => {
+    if (awaitingConnect && isConnected && walletProvider && address) {
+      setAwaitingConnect(false);
+      void runSignIn(walletProvider as Eip1193Provider, address);
+    }
+  }, [awaitingConnect, isConnected, walletProvider, address, runSignIn]);
+
+  async function handleSignIn() {
+    setError('');
+    if (isConnected && walletProvider && address) {
+      await runSignIn(walletProvider as Eip1193Provider, address);
+    } else {
+      // Connect first; the effect above resumes sign-in once connected.
+      setAwaitingConnect(true);
+      await open({ view: 'Connect' });
     }
   }
 
@@ -208,6 +206,8 @@ export default function ThanosSignIn() {
     );
   }
 
+  const label = busy ? 'Signing in…' : awaitingConnect ? 'Connect your wallet…' : 'Sign in with Thanos';
+
   return (
     <div>
       <button
@@ -215,7 +215,7 @@ export default function ThanosSignIn() {
         disabled={busy}
         className="inline-flex items-center gap-2 rounded-2xl border border-sky-300/20 bg-gradient-to-r from-[#6d5cff] to-[#227dff] px-5 py-3 text-sm font-medium text-white shadow-[0_18px_40px_rgba(37,99,235,0.35)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
       >
-        {busy ? 'Signing in…' : 'Sign in with Thanos'}
+        {label}
       </button>
       {error && (
         <p className="mt-3 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-2 text-sm text-red-200">
