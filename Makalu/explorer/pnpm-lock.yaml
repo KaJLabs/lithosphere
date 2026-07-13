@@ -11,6 +11,9 @@ importers:
 
   .:
     dependencies:
+      '@web3modal/core':
+        specifier: 5.1.11
+        version: 5.1.11(@types/react@18.3.28)(react@18.3.1)
       '@web3modal/ethers':
         specifier: ^5.1.11
         version: 5.1.11(@types/react@18.3.28)(ethers@6.16.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(zod@3.22.4)
@@ -26,6 +29,9 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
+      thanos-connect:
+        specifier: ^0.1.0
+        version: 0.1.0(react@18.3.1)
     devDependencies:
       '@testing-library/dom':
         specifier: ^10.4.1
@@ -2073,6 +2079,14 @@ packages:
 
   text-encoding-utf-8@1.0.2:
     resolution: {integrity: sha512-8bw4MY9WjdsD2aMtO0OzOCY3pXGYNx2d2FfHRVUKkiCPDWjKuOlhLVASS+pD7VkLTVjW268LYJHwsnPFlBpbAg==}
+
+  thanos-connect@0.1.0:
+    resolution: {integrity: sha512-5u3t5RbqteXMnshOS0UpBetmuUPlBu0QPa69S7nfzwA+1cDeeOcBt29MYu06BosTfv+evm0xIy8NthalU7je5w==}
+    peerDependencies:
+      react: '>=18'
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   thenify-all@1.6.0:
     resolution: {integrity: sha512-RNxQH/qI8/t3thXJDwcstUO4zeqo64+Uy/+sNVRBx4Xn2OX+OZ9oP+iJnNFqplFra2ZUVeKCSa2oVWi3T4uVmA==}
@@ -4822,6 +4836,10 @@ snapshots:
 
   text-encoding-utf-8@1.0.2:
     optional: true
+
+  thanos-connect@0.1.0(react@18.3.1):
+    optionalDependencies:
+      react: 18.3.1
 
   thenify-all@1.6.0:
     dependencies:
