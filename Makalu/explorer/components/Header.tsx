@@ -41,7 +41,7 @@ const NAV_ITEMS: NavItem[] = [
 
 const MORE_ITEMS: NavItem[] = [
   { label: 'Docs', href: 'https://docs.litho.ai', external: true },
-  { label: 'LITHO TGE', href: 'https://deals.litho.ai', external: true },
+  { label: 'LITHO TGE', href: 'https://tge.ignite.trade', external: true },
   { label: 'LITHO.ai', href: 'https://litho.ai', external: true },
   { label: 'ACCESS', href: 'https://access.litho.ai', external: true },
   { label: 'Validators', href: 'https://validator.litho.ai', external: true },
@@ -478,7 +478,7 @@ function HeaderContent() {
             </div>
           </div>
 
-          <div className="mt-5 text-center text-4xl font-semibold text-white/90 tracking-tight">{balanceDisplay}</div>
+          <div className="mt-5 text-center text-4xl font-semibold text-white/90 tracking-tight">{`\u{1D543}${balanceDisplay}`}</div>
 
           <Link
             href={`/address/${address}`}
@@ -493,8 +493,11 @@ function HeaderContent() {
           </Link>
 
           <div className="mt-5 space-y-1.5">
-            <button
-              type="button"
+            <a
+              href="https://tge.ignite.trade"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setWalletMenuOpen(false)}
               className="flex w-full items-center justify-between rounded-2xl bg-white/[0.02] px-4 py-3 text-left text-[15px] font-medium text-white/90 transition hover:bg-white/[0.06]"
             >
               <span className="flex items-center gap-3">
@@ -507,10 +510,11 @@ function HeaderContent() {
                 Buy crypto
               </span>
               <span className="text-white/45 text-xl leading-none">›</span>
-            </button>
+            </a>
 
-            <button
-              type="button"
+            <Link
+              href="/bridge"
+              onClick={() => setWalletMenuOpen(false)}
               className="flex w-full items-center justify-between rounded-2xl bg-white/[0.02] px-4 py-3 text-left text-[15px] font-medium text-white/90 transition hover:bg-white/[0.06]"
             >
               <span className="flex items-center gap-3">
@@ -522,10 +526,11 @@ function HeaderContent() {
                 Swap
               </span>
               <span className="text-white/45 text-xl leading-none">›</span>
-            </button>
+            </Link>
 
-            <button
-              type="button"
+            <Link
+              href={`/address/${address}`}
+              onClick={() => setWalletMenuOpen(false)}
               className="flex w-full items-center justify-between rounded-2xl bg-white/[0.02] px-4 py-3 text-left text-[15px] font-medium text-white/90 transition hover:bg-white/[0.06]"
             >
               <span className="flex items-center gap-3">
@@ -538,7 +543,7 @@ function HeaderContent() {
                 Activity
               </span>
               <span className="text-white/45 text-xl leading-none">›</span>
-            </button>
+            </Link>
 
             <button
               type="button"

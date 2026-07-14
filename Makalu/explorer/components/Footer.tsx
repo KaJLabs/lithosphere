@@ -21,7 +21,7 @@ export default function Footer() {
             <a href="https://access.litho.ai/" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400 transition-colors p-1">
               ACCESS
             </a>
-            <a href="https://deals.litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400 transition-colors p-1">
+            <a href="https://tge.ignite.trade" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400 transition-colors p-1">
               LITHO TGE
             </a>
             <a href="https://validator.litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400 transition-colors p-1">
