@@ -533,8 +533,15 @@ function ContractTab({ token }: { token: ApiTokenDetail }) {
           <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 px-5 py-4">
             <div className="sm:w-44 shrink-0 text-sm text-white/45">Contract Address</div>
             <div className="flex-1 text-sm text-white font-mono break-all">
-              {token.contractAddress ?? token.address}
-              <CopyBtn text={token.contractAddress ?? token.address} />
+              {preferLitho(token.contractAddress ?? token.address)}
+              <CopyBtn text={preferLitho(token.contractAddress ?? token.address)} />
+              {evmToCosmos(token.contractAddress ?? token.address) && (
+                <div className="mt-1.5 text-xs text-white/40">
+                  <span className="text-white/30">EVM format: </span>
+                  {token.contractAddress ?? token.address}
+                  <CopyBtn text={token.contractAddress ?? token.address} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -934,10 +941,23 @@ export default function TokenDetailPage() {
             <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 py-4 border-b border-white/5">
               <div className="sm:w-44 shrink-0 text-sm text-white/45">Contract</div>
               <div className="flex-1 text-sm font-mono break-all">
-                <Link href={`/address/${token.contractAddress}`} className="text-emerald-300 hover:text-emerald-200 transition">
-                  {token.contractAddress}
+                {/* Litho-first, matching the Contract Address row in the Info tab. */}
+                <Link
+                  href={`/address/${preferLitho(token.contractAddress)}`}
+                  className="text-emerald-300 hover:text-emerald-200 transition"
+                >
+                  {preferLitho(token.contractAddress)}
                 </Link>
-                <CopyBtn text={token.contractAddress} />
+                <CopyBtn text={preferLitho(token.contractAddress)} />
+                {evmToCosmos(token.contractAddress) && (
+                  <div className="mt-1.5 text-xs text-white/40">
+                    <span className="text-white/30">EVM format: </span>
+                    <Link href={`/address/${token.contractAddress}`} className="text-white/55 hover:text-emerald-300 transition break-all">
+                      {token.contractAddress}
+                    </Link>
+                    <CopyBtn text={token.contractAddress} />
+                  </div>
+                )}
               </div>
             </div>
           )}
