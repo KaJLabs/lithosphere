@@ -553,53 +553,12 @@ jobs:
           retention-days: 90
 
   # ─────────────────────────────────────────────────────────────────────
-  # ABI Drift Gate — fail if the SDK's vendored ABIs don't match the
-  # freshly compiled contract artifacts. Prevents shipping an
-  # @lithosphere/blockchain-core release that's out of sync with the
-  # Solidity source. Fix-it instructions are in the failure log.
+  # ABI Drift Gate — moved to .github/workflows/ci-abi-gate.yaml
+  #
+  # "ABI Sync Check" is a required status check on main. Hosting it here made
+  # it unreportable on PRs that don't touch Makalu/contracts/**, because this
+  # workflow is path-filtered — which left every non-contract PR permanently
+  # blocked. It now lives in an always-running workflow that decides internally
+  # whether the check applies. Do not re-add it here: two workflows emitting
+  # the same check name can mask a real failure.
   # ─────────────────────────────────────────────────────────────────────
-  abi-sync-check:
-    name: ABI Sync Check
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: compile
-    defaults:
-      run:
-        working-directory: ./Makalu/contracts
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 9
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: Makalu/pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile || pnpm install
-
-      - name: Compile
-        run: pnpm compile
-
-      - name: Sync ABIs from artifacts to SDK
-        run: pnpm run sync-abis
-
-      - name: Verify no drift
-        run: |
-          # Print any drift before failing so the log shows what changed.
-          if ! git diff --exit-code -- ../packages/blockchain-core/src/abis/; then
-            echo ""
-            echo "::error::ABI drift detected: @lithosphere/blockchain-core ships ABIs that don't match the compiled Solidity sources."
-            echo ""
-            echo "To fix:"
-            echo "  cd Makalu/contracts"
-            echo "  pnpm run sync-abis"
-            echo "  git add ../packages/blockchain-core/src/abis/"
-            echo "  git commit -m 'chore(sdk): re-sync ABIs from contracts'"
-            exit 1
-          fi
-          echo "ABIs in sync."

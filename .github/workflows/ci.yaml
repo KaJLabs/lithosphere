@@ -4,18 +4,30 @@
 name: CI
 
 on:
+  # Pushes to main stay path-filtered: it's a pure optimization and does not
+  # affect merge gating.
   push:
     branches:
       - main
     paths:
       - 'Makalu/**'
       - '.github/workflows/ci.yaml'
+
+  # Pull requests are deliberately NOT path-filtered. Six of this workflow's
+  # jobs — Test, Typecheck, License Check, Schema Sync Check, OpenAPI Sync
+  # Check and OpenAPI SDK Codegen Check — are required status checks on main.
+  # A filtered trigger meant a docs-only or .github-only PR never ran them, so
+  # those contexts were never reported and branch protection blocked the PR
+  # permanently, with an admin override as the only way through.
+  #
+  # The cost is that a docs-only PR now runs the full Makalu quality gate.
+  # That's deliberate: correctness of the merge gate over a few CI minutes.
+  # If this becomes a bottleneck, the fix is change detection with jobs that
+  # still always report their check name (see ci-abi-gate.yaml) — NOT
+  # re-adding a paths filter here.
   pull_request:
     branches:
       - main
-    paths:
-      - 'Makalu/**'
-      - '.github/workflows/ci.yaml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
