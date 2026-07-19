@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useWeb3ModalProvider } from '@web3modal/ethers/react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -111,11 +112,19 @@ function AddToWalletBtn({
   image?: string;
 }) {
   const [status, setStatus] = useState<'idle' | 'adding' | 'added' | 'unavailable' | 'rejected'>('idle');
+  const { walletProvider } = useWeb3ModalProvider();
 
   const handleAdd = useCallback(async () => {
-    const eth = (typeof window !== 'undefined'
+    // Prefer the wallet the user actually connected. `window.ethereum` is the
+    // legacy single-injection slot, which MetaMask claims when installed — so
+    // reading it directly sent every request to MetaMask and made EIP-6963
+    // wallets like Thanos (rdns fi.thanos.wallet) look undetected even while
+    // connected. Fall back to window.ethereum only when nothing is connected.
+    const connected = walletProvider as unknown as WatchAssetProvider | undefined;
+    const injected = (typeof window !== 'undefined'
       ? (window as unknown as { ethereum?: WatchAssetProvider }).ethereum
       : undefined);
+    const eth = connected?.request ? connected : injected;
     if (!eth?.request) {
       setStatus('unavailable');
       setTimeout(() => setStatus('idle'), 2500);
@@ -142,7 +151,7 @@ function AddToWalletBtn({
     } finally {
       setTimeout(() => setStatus('idle'), 2500);
     }
-  }, [address, symbol, decimals, image]);
+  }, [address, symbol, decimals, image, walletProvider]);
 
   const label =
     status === 'adding' ? 'Adding…' :
