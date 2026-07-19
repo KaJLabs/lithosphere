@@ -394,6 +394,22 @@ export function cosmosToEvm(cosmosAddr: string | null | undefined): string | und
   }
 }
 
+/**
+ * Normalize a contract-address route param to the form stored in the DB.
+ *
+ * `contracts.address` holds EVM 0x values, but the explorer links to contracts
+ * by their Lithosphere bech32 identity, so /tokens/litho1… must resolve to the
+ * same record as /tokens/0x…. Without this, those routes returned "Token
+ * contract not found" and empty transfers/holders for a perfectly valid token.
+ *
+ * Anything that isn't a decodable litho1 address is passed through untouched,
+ * which keeps the `native` sentinel and existing 0x callers working.
+ */
+export function normalizeContractAddress(address: string): string {
+  if (!address || !address.toLowerCase().startsWith('litho1')) return address;
+  return cosmosToEvm(address) ?? address;
+}
+
 interface AddressForms {
   query: string;
   queryLower: string;
@@ -2344,7 +2360,9 @@ export function explorerRouter(): Router {
 
   r.get('/tokens/:address', async (req: Request, res: Response) => {
     try {
-      const { address } = req.params;
+      // Accept the Lithosphere bech32 form as well as 0x — the explorer links
+      // contracts by their litho1 identity.
+      const address = normalizeContractAddress(req.params.address);
 
       // Native LITHO token
       if (address === 'native') {
@@ -2453,7 +2471,7 @@ export function explorerRouter(): Router {
 
   r.get('/tokens/:address/roles', async (req: Request, res: Response) => {
     try {
-      const { address } = req.params;
+      const address = normalizeContractAddress(req.params.address);
       if (isHiddenToken({ address })) {
         res.status(404).json({ message: 'Token contract not found' });
         return;
@@ -2513,7 +2531,7 @@ export function explorerRouter(): Router {
 
   r.get('/tokens/:address/transfers', async (req: Request, res: Response) => {
     try {
-      const { address } = req.params;
+      const address = normalizeContractAddress(req.params.address);
       const limit = clamp(req.query.limit, 25);
       const offset = resolveOffset(req.query, limit);
       if (isHiddenToken({ address })) {
@@ -2612,7 +2630,7 @@ export function explorerRouter(): Router {
 
   r.get('/tokens/:address/holders', async (req: Request, res: Response) => {
     try {
-      const { address } = req.params;
+      const address = normalizeContractAddress(req.params.address);
       const limit = clamp(req.query.limit, 25);
       const offset = resolveOffset(req.query, limit);
       if (isHiddenToken({ address })) {
