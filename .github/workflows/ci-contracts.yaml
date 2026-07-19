@@ -68,9 +68,15 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────
   # Run contract tests (Makalu/contracts + contracts-template)
+  #
+  # Named "Contract Tests", not "Test": ci.yaml also has a job named "Test",
+  # which is a REQUIRED status check on main. Two workflows emitting the same
+  # check name makes it ambiguous which run branch protection honours, so a
+  # failure in one could be masked by a pass in the other. Keep this name
+  # distinct from every job name in ci.yaml.
   # ─────────────────────────────────────────────────────────────────────
   test:
-    name: Test
+    name: Contract Tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: compile
