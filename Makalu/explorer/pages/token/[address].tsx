@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatValue, evmToCosmos } from '@/lib/format';
+import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatValue, evmToCosmos, preferLitho, truncateAddressSmart } from '@/lib/format';
 import { isValidTransactionHash } from '@/lib/tx';
 import type {
   ApiTokenDetail,
@@ -277,22 +277,22 @@ function TransfersTab({ address, decimals, symbol, isNft }: { address: string; d
                 <div className="flex min-w-0 items-center">
                   <span className="mr-2 w-12 shrink-0 text-xs text-white/40 lg:hidden">From</span>
                   <Link
-                    href={`/address/${tx.fromAddress}`}
+                    href={`/address/${preferLitho(tx.fromAddress)}`}
                     className="block truncate font-mono text-sm text-emerald-300 transition hover:text-emerald-200"
-                    title={tx.fromAddress}
+                    title={`${preferLitho(tx.fromAddress)}\n${tx.fromAddress}`}
                   >
-                    {truncateHash(tx.fromAddress, 10, 6)}
+                    {truncateAddressSmart(preferLitho(tx.fromAddress))}
                   </Link>
                 </div>
 
                 <div className="flex min-w-0 items-center">
                   <span className="mr-2 w-12 shrink-0 text-xs text-white/40 lg:hidden">To</span>
                   <Link
-                    href={`/address/${tx.toAddress}`}
+                    href={`/address/${preferLitho(tx.toAddress)}`}
                     className="block truncate font-mono text-sm text-emerald-300 transition hover:text-emerald-200"
-                    title={tx.toAddress}
+                    title={`${preferLitho(tx.toAddress)}\n${tx.toAddress}`}
                   >
-                    {truncateHash(tx.toAddress, 10, 6)}
+                    {truncateAddressSmart(preferLitho(tx.toAddress))}
                   </Link>
                 </div>
 
@@ -703,17 +703,21 @@ function InfoTab({ token }: { token: ApiTokenDetail }) {
             <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 px-5 py-4">
               <div className="sm:w-44 shrink-0 text-sm text-white/45">Contract Address</div>
               <div className="flex-1 text-sm font-mono break-all">
-                <Link href={`/address/${token.contractAddress}`} className="text-emerald-300 hover:text-emerald-200 transition">
-                  {token.contractAddress}
+                {/* Litho-first: the native bech32 identity leads, EVM is the alias below. */}
+                <Link
+                  href={`/address/${preferLitho(token.contractAddress)}`}
+                  className="text-emerald-300 hover:text-emerald-200 transition"
+                >
+                  {preferLitho(token.contractAddress)}
                 </Link>
-                <CopyBtn text={token.contractAddress} />
+                <CopyBtn text={preferLitho(token.contractAddress)} />
                 {evmToCosmos(token.contractAddress) && (
                   <div className="mt-1.5 text-xs text-white/40">
-                    <span className="text-white/30">Lithosphere format: </span>
+                    <span className="text-white/30">EVM format: </span>
                     <Link href={`/address/${token.contractAddress}`} className="text-white/55 hover:text-emerald-300 transition break-all">
-                      {evmToCosmos(token.contractAddress)}
+                      {token.contractAddress}
                     </Link>
-                    <CopyBtn text={evmToCosmos(token.contractAddress)!} />
+                    <CopyBtn text={token.contractAddress} />
                   </div>
                 )}
               </div>
@@ -858,15 +862,30 @@ export default function TokenDetailPage() {
           {/* Contract address + add-to-wallet on header */}
           {token.contractAddress && (
             <div className="sm:ml-auto flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 bg-white/5 rounded-2xl border border-white/10 px-4 py-2">
-                <span className="text-xs text-white/40">Contract:</span>
-                <Link
-                  href={`/address/${token.contractAddress}`}
-                  className="font-mono text-sm text-emerald-300 hover:text-emerald-200 transition"
-                >
-                  {truncateHash(token.contractAddress, 10, 8)}
-                </Link>
-                <CopyBtn text={token.contractAddress} />
+              <div className="bg-white/5 rounded-2xl border border-white/10 px-4 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-white/40">Contract:</span>
+                  <Link
+                    href={`/address/${preferLitho(token.contractAddress)}`}
+                    className="font-mono text-sm text-emerald-300 hover:text-emerald-200 transition"
+                    title={preferLitho(token.contractAddress)}
+                  >
+                    {truncateAddressSmart(preferLitho(token.contractAddress), 8)}
+                  </Link>
+                  <CopyBtn text={preferLitho(token.contractAddress)} />
+                </div>
+                {evmToCosmos(token.contractAddress) && (
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-white/35">
+                    <span className="shrink-0">EVM:</span>
+                    <Link
+                      href={`/address/${token.contractAddress}`}
+                      className="font-mono hover:text-emerald-300 transition"
+                      title={token.contractAddress}
+                    >
+                      {truncateHash(token.contractAddress, 8, 6)}
+                    </Link>
+                  </div>
+                )}
               </div>
               {!isNative && !isNft && (
                 <AddToWalletBtn

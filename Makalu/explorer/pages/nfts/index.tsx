@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
-import { formatNumber, truncateHash, timeAgo } from '@/lib/format';
+import { formatNumber, truncateHash, timeAgo, preferLitho, truncateAddressSmart } from '@/lib/format';
 import type { ApiNftCollection, ApiNftTransferList } from '@/lib/types';
 
 const AVATAR_COLORS = [
@@ -184,11 +184,12 @@ export default function NftsPage() {
                           <td className="px-4 py-4 text-sm text-white/70 text-right tabular-nums">{formatNumber(c.transfers)}</td>
                           <td className="px-4 py-4 text-sm">
                             <Link
-                              href={`/address/${c.contractAddress}`}
+                              href={`/address/${preferLitho(c.contractAddress)}`}
                               className="text-emerald-300 hover:text-emerald-200 font-mono transition"
+                              title={`${preferLitho(c.contractAddress)}\n${c.contractAddress}`}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {truncateHash(c.contractAddress)}
+                              {truncateAddressSmart(preferLitho(c.contractAddress))}
                             </Link>
                           </td>
                         </tr>
@@ -238,7 +239,7 @@ export default function NftsPage() {
                     <div className="mt-3 pt-3 border-t border-white/5">
                       <div className="text-xs text-white/30 mb-0.5">Contract</div>
                       <span className="block max-w-full truncate text-sm font-mono text-emerald-300">
-                        {truncateHash(c.contractAddress, 10, 6)}
+                        {truncateAddressSmart(preferLitho(c.contractAddress))}
                       </span>
                     </div>
                   </Link>
@@ -294,7 +295,7 @@ export default function NftsPage() {
                             href={`/token/${t.contractAddress}`}
                             className="truncate text-sm font-semibold text-white hover:text-emerald-300 transition"
                           >
-                            {t.collectionName ?? t.collectionSymbol ?? truncateHash(t.contractAddress)}
+                            {t.collectionName ?? t.collectionSymbol ?? truncateAddressSmart(preferLitho(t.contractAddress))}
                           </Link>
                           {t.tokenId != null && (
                             <span className="shrink-0 rounded-md border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-xs font-medium text-violet-300">
@@ -312,12 +313,12 @@ export default function NftsPage() {
                         )}
                       </div>
                       <div className="flex min-w-0 items-center gap-2 text-xs text-white/60">
-                        <Link href={`/address/${t.fromAddress}`} className="truncate font-mono hover:text-white transition" title={t.fromAddress}>
-                          {truncateHash(t.fromAddress, 8, 5)}
+                        <Link href={`/address/${preferLitho(t.fromAddress)}`} className="truncate font-mono hover:text-white transition" title={`${preferLitho(t.fromAddress)}\n${t.fromAddress}`}>
+                          {truncateAddressSmart(preferLitho(t.fromAddress), 5)}
                         </Link>
                         <span className="shrink-0 text-white/30">→</span>
-                        <Link href={`/address/${t.toAddress}`} className="truncate font-mono hover:text-white transition" title={t.toAddress}>
-                          {truncateHash(t.toAddress, 8, 5)}
+                        <Link href={`/address/${preferLitho(t.toAddress)}`} className="truncate font-mono hover:text-white transition" title={`${preferLitho(t.toAddress)}\n${t.toAddress}`}>
+                          {truncateAddressSmart(preferLitho(t.toAddress), 5)}
                         </Link>
                       </div>
                       <div className="shrink-0 text-xs tabular-nums text-white/40">
