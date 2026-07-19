@@ -122,9 +122,16 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────
   # Solidity linting with solhint
+  #
+  # Named "Contract Lint", not "Lint": ci.yaml also has a job named "Lint".
+  # Unlike "Test" this one is not a required status check, so the collision was
+  # cosmetic rather than a merge-gating hazard — but same-name checks across
+  # workflows are confusing in the PR checks list and become dangerous the
+  # moment the name is added to branch protection. Keep this name distinct
+  # from every job name in ci.yaml.
   # ─────────────────────────────────────────────────────────────────────
   lint:
-    name: Lint
+    name: Contract Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
