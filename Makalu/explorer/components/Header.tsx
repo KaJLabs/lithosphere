@@ -783,12 +783,12 @@ function HeaderContent() {
 
           {/* Search + Wallet + Mobile menu */}
           <div className="flex min-w-0 items-center gap-2">
-            <div className="hidden md:block">
+            <div className="hidden min-w-0 shrink md:block">
               <SearchBar />
             </div>
 
             {/* Wallet button + menu */}
-            <div className="hidden sm:block">
+            <div className="hidden min-w-0 sm:block">
               <button
                 type="button"
                 onClick={() => {
@@ -798,20 +798,23 @@ function HeaderContent() {
                   }
                   setWalletMenuOpen((prev) => !prev);
                 }}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-2 text-sm text-white transition hover:border-white/20 hover:bg-black/40"
+                className="inline-flex min-w-0 max-w-[15rem] items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-2 text-sm text-white transition hover:border-white/20 hover:bg-black/40"
               >
                 {isConnected && (
                   <span
-                    className={`h-2 w-2 rounded-full ${
+                    className={`h-2 w-2 shrink-0 rounded-full ${
                       isOnMakalu ? 'bg-emerald-300' : 'bg-amber-300'
                     }`}
                   />
                 )}
-                <span className="font-medium" title={isConnected ? lithoAddress : undefined}>
+                <span className="min-w-0 truncate font-medium" title={isConnected ? lithoAddress : undefined}>
                   {isConnected ? shortenAddress(lithoAddress) : 'Connect Wallet'}
                 </span>
+                {/* bech32 labels are wider than 0x ones, so the balance only
+                    rides along once there is room for it. It is always visible
+                    in the wallet menu. */}
                 {isConnected && (
-                  <span className="max-w-[96px] truncate text-xs text-white/60">
+                  <span className="hidden max-w-[96px] shrink-0 truncate text-xs text-white/60 xl:inline">
                     {balanceText}
                   </span>
                 )}
