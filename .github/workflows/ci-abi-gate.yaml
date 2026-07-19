@@ -1,0 +1,135 @@
+# Lithosphere CI — ABI Drift Gate
+#
+# This workflow exists to host a single job: "ABI Sync Check", which is a
+# REQUIRED status check on main.
+#
+# Why it lives here instead of ci-contracts.yaml:
+#   ci-contracts.yaml is path-filtered to Makalu/contracts/**, so on a PR that
+#   touches nothing under contracts the workflow never runs and the required
+#   "ABI Sync Check" context is never reported. Branch protection then blocks
+#   the PR forever, no matter how many approvals it has — the only way through
+#   is an admin override. That affected every non-contract PR in the repo.
+#
+# Why not a complementary paths-ignore "skip" workflow:
+#   GitHub runs a paths-ignore workflow when ANY changed file falls outside the
+#   ignore list, so a PR touching both contracts/ and explorer/ would trigger
+#   the real check AND the no-op, producing two check runs with the same name.
+#   A trivial success could then mask genuine ABI drift.
+#
+# The approach here: this workflow always runs, and decides internally whether
+# the drift check is applicable. Exactly one "ABI Sync Check" run is reported
+# per commit — a real one when contracts changed, a trivial pass otherwise.
+#
+# Keep the job name in sync with the required status check configured in
+# branch protection for main.
+
+name: CI ABI Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Opt every JavaScript-based action into Node.js 24 ahead of the
+  # runner-wide default flip.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  abi-sync-check:
+    name: ABI Sync Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ./Makalu/contracts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the PR base commit is available to diff against.
+          fetch-depth: 0
+
+      # On a PR, the drift check only means something if contract sources (or
+      # this gate) changed. On a push to main we always run it — the protected
+      # branch is worth the extra few minutes.
+      - name: Detect contract changes
+        id: changes
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Push to main — running the drift check unconditionally."
+            echo "applicable=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # base.sha comes straight from the event payload; checkout above used
+          # fetch-depth: 0, so it is present locally. Fall back to the remote
+          # branch ref if it somehow isn't.
+          base="${{ github.event.pull_request.base.sha }}"
+          if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "${{ github.base_ref }}" >/dev/null 2>&1 || true
+            base="origin/${{ github.base_ref }}"
+          fi
+
+          changed=$(git diff --name-only "$base...HEAD")
+          echo "Changed files:"
+          echo "$changed" | sed 's/^/  /'
+
+          if echo "$changed" | grep -qE '^(Makalu/contracts/|Makalu/templates/contracts-template/|\.github/workflows/ci-abi-gate\.yaml$)'; then
+            echo "applicable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "applicable=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Not applicable
+        if: steps.changes.outputs.applicable != 'true'
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "No contract sources changed in this ${{ github.event_name }}."
+          echo "ABI drift cannot occur, so this gate passes without compiling."
+
+      - uses: pnpm/action-setup@v2
+        if: steps.changes.outputs.applicable == 'true'
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.applicable == 'true'
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: Makalu/pnpm-lock.yaml
+
+      - name: Install dependencies
+        if: steps.changes.outputs.applicable == 'true'
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Compile
+        if: steps.changes.outputs.applicable == 'true'
+        run: pnpm compile
+
+      - name: Sync ABIs from artifacts to SDK
+        if: steps.changes.outputs.applicable == 'true'
+        run: pnpm run sync-abis
+
+      - name: Verify no drift
+        if: steps.changes.outputs.applicable == 'true'
+        run: |
+          # Print any drift before failing so the log shows what changed.
+          if ! git diff --exit-code -- ../packages/blockchain-core/src/abis/; then
+            echo ""
+            echo "::error::ABI drift detected: @lithosphere/blockchain-core ships ABIs that don't match the compiled Solidity sources."
+            echo ""
+            echo "To fix:"
+            echo "  cd Makalu/contracts"
+            echo "  pnpm run sync-abis"
+            echo "  git add ../packages/blockchain-core/src/abis/"
+            echo "  git commit -m 'chore(sdk): re-sync ABIs from contracts'"
+            exit 1
+          fi
+          echo "ABIs in sync."
