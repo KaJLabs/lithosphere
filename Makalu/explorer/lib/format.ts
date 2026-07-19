@@ -252,6 +252,29 @@ export function isValidatorAddress(addr: string): boolean {
   return addr.startsWith('lithovaloper1');
 }
 
+/**
+ * Preferred *display* form for an address: the Lithosphere bech32 form whenever
+ * the value can be expressed that way, otherwise the input untouched.
+ *
+ * Both formats resolve on /address/… and the API, so this is safe to use for
+ * href targets as well as label text.
+ */
+export function preferLitho(addr: string | null | undefined): string {
+  if (!addr) return '';
+  if (isBech32Address(addr)) return addr;
+  return evmToCosmos(addr) ?? addr;
+}
+
+/**
+ * Truncate an address for table/pill display. Bech32 addresses get a longer
+ * head than 0x ones because the shared `litho1` prefix carries no information —
+ * without it every litho address would render as an identical `litho1...`.
+ */
+export function truncateAddressSmart(addr: string | null | undefined, end = 6): string {
+  if (!addr) return '';
+  return truncateHash(addr, isBech32Address(addr) ? 11 : 8, end);
+}
+
 export function formatBlockTime(seconds: number | null | undefined): string {
   if (seconds == null) return '-';
   return `${seconds.toFixed(2)}s`;

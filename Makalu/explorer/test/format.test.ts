@@ -15,6 +15,8 @@ import {
   evmToCosmos,
   cosmosToEvm,
   altAddressFormat,
+  preferLitho,
+  truncateAddressSmart,
   proposalStatusColor,
   timeAgo,
   truncateAddress,
@@ -43,6 +45,45 @@ describe('address format conversion (litho1 ⇄ 0x)', () => {
 
   it('is case-insensitive on the bech32 input', () => {
     expect(cosmosToEvm(LITHO.toUpperCase().replace('LITHO1', 'litho1'))).toBe(EVM);
+  });
+
+  it('preferLitho converts EVM input to bech32', () => {
+    expect(preferLitho(EVM)).toBe(LITHO);
+  });
+
+  it('preferLitho leaves an already-bech32 address untouched', () => {
+    expect(preferLitho(LITHO)).toBe(LITHO);
+  });
+
+  it('preferLitho falls back to the input when it is not convertible', () => {
+    expect(preferLitho('not-an-address')).toBe('not-an-address');
+    expect(preferLitho(null)).toBe('');
+    expect(preferLitho(undefined)).toBe('');
+  });
+
+  it('truncateAddressSmart keeps a longer head for bech32 so addresses stay distinguishable', () => {
+    const a = truncateAddressSmart(LITHO);
+    // Must retain characters beyond the shared `litho1` prefix.
+    expect(a.startsWith('litho1')).toBe(true);
+    expect(a.slice(0, 11)).toBe(LITHO.slice(0, 11));
+    expect(a.endsWith(LITHO.slice(-6))).toBe(true);
+  });
+
+  // Anchors the codec against a pair confirmed live by GET /api/address/… on
+  // Makalu (the FGPT LEP-100 contract), not just internal round-tripping.
+  it('matches the bech32 form the Makalu API returns for a known contract', () => {
+    expect(preferLitho('0x151ef362ea96853702cc5e7728107e3961fbd22e'))
+      .toBe('litho1z500xch2j6znwqkvtemjsyr789slh53wstcpq4');
+  });
+
+  it('truncateAddressSmart distinguishes two addresses sharing the litho1 prefix', () => {
+    const other = evmToCosmos('0x151ef362ea96853702cc5e7728107e3961fbd22e')!;
+    expect(truncateAddressSmart(other)).not.toBe(truncateAddressSmart(LITHO));
+  });
+
+  it('truncateAddressSmart handles empty input', () => {
+    expect(truncateAddressSmart('')).toBe('');
+    expect(truncateAddressSmart(null)).toBe('');
   });
 
   it('altAddressFormat returns the opposite encoding', () => {

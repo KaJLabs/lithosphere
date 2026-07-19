@@ -10,7 +10,7 @@ import {
 } from '@web3modal/ethers/react';
 import SearchBar from './SearchBar';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatValue } from '@/lib/format';
+import { formatValue, preferLitho } from '@/lib/format';
 import { apiFetch } from '@/lib/api';
 
 const THANOS_SESSION_KEY = 'thanos_session';
@@ -53,7 +53,10 @@ const MORE_ITEMS: NavItem[] = [
 function shortenAddress(value: string | null | undefined): string {
   if (!value) return '';
   if (value.length < 12) return value;
-  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+  // `litho1` is shared by every bech32 address, so keep a longer head or they
+  // all collapse to the same `litho1...` label.
+  const head = value.startsWith('litho1') ? 10 : 6;
+  return `${value.slice(0, head)}...${value.slice(-4)}`;
 }
 
 function HeaderContent() {
@@ -75,6 +78,9 @@ function HeaderContent() {
   const { address, isConnected, chainId } = useWeb3ModalAccount();
   const { walletProvider } = useWeb3ModalProvider();
   const isOnMakalu = chainId === MAKALU_CHAIN_ID;
+  // Litho-first: surface the native bech32 identity everywhere the wallet is
+  // shown. Falls back to the raw 0x value if conversion ever fails.
+  const lithoAddress = preferLitho(address);
   const balanceText = balanceLoading ? 'Refreshing...' : (lithoBalance ?? 'Unavailable');
 
   const isActive = (href: string) => {
@@ -455,14 +461,14 @@ function HeaderContent() {
           <div className="mx-auto mt-2 w-fit max-w-full rounded-[100px] border border-white/5 bg-white/[0.03] px-3 py-1.5 transition hover:bg-white/[0.05]">
             <div className="flex items-center gap-3">
               <span className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-200 to-violet-500 shadow-[0_0_24px_rgba(168,85,247,0.35)]" />
-              <span className="font-semibold text-lg tracking-tight text-white/90">
-                {shortenAddress(address)}
+              <span className="font-semibold text-lg tracking-tight text-white/90" title={lithoAddress}>
+                {shortenAddress(lithoAddress)}
               </span>
               <button
                 type="button"
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(address);
+                    await navigator.clipboard.writeText(lithoAddress);
                   } catch {
                     // no-op
                   }
@@ -481,7 +487,7 @@ function HeaderContent() {
           <div className="mt-5 text-center text-4xl font-semibold text-white/90 tracking-tight">{`\u{1D543}${balanceDisplay}`}</div>
 
           <Link
-            href={`/address/${address}`}
+            href={`/address/${lithoAddress}`}
             onClick={() => setWalletMenuOpen(false)}
             className="mx-auto mt-4 flex w-fit items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1 text-xs font-medium text-white/60 transition hover:bg-white/[0.06] hover:text-white"
           >
@@ -529,7 +535,7 @@ function HeaderContent() {
             </Link>
 
             <Link
-              href={`/address/${address}`}
+              href={`/address/${lithoAddress}`}
               onClick={() => setWalletMenuOpen(false)}
               className="flex w-full items-center justify-between rounded-2xl bg-white/[0.02] px-4 py-3 text-left text-[15px] font-medium text-white/90 transition hover:bg-white/[0.06]"
             >
@@ -682,14 +688,14 @@ function HeaderContent() {
             <div className="space-y-3">
               <div className="rounded-2xl border border-white/10 bg-[#141927] px-4 py-3">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono text-white/75">{shortenAddress(address)}</span>
+                  <span className="font-mono text-white/75" title={lithoAddress}>{shortenAddress(lithoAddress)}</span>
                   <span className="text-white/45">LITHO</span>
                 </div>
                 <div className="mt-1 text-sm font-semibold text-white">{balanceText}</div>
               </div>
               {address && (
                 <Link
-                  href={`/address/${address}`}
+                  href={`/address/${lithoAddress}`}
                   onClick={() => setMenuOpen(false)}
                   className="block w-full rounded-2xl border border-white/10 bg-[#141927] px-4 py-3 text-center text-sm text-white/85 transition hover:border-white/20 hover:bg-[#1b2132]"
                 >
@@ -801,8 +807,8 @@ function HeaderContent() {
                     }`}
                   />
                 )}
-                <span className="font-medium">
-                  {isConnected ? shortenAddress(address) : 'Connect Wallet'}
+                <span className="font-medium" title={isConnected ? lithoAddress : undefined}>
+                  {isConnected ? shortenAddress(lithoAddress) : 'Connect Wallet'}
                 </span>
                 {isConnected && (
                   <span className="max-w-[96px] truncate text-xs text-white/60">

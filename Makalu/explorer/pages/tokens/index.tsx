@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatSupply, truncateHash } from '@/lib/format';
+import { formatNumber, formatSupply, preferLitho, truncateAddressSmart } from '@/lib/format';
 import type { ApiToken } from '@/lib/types';
 
 const AVATAR_COLORS = [
@@ -245,10 +245,11 @@ export default function TokensPage() {
                           <td className="px-4 py-4 text-sm">
                             {token.contractAddress ? (
                               <Link
-                                href={`/address/${token.contractAddress}`}
+                                href={`/address/${preferLitho(token.contractAddress)}`}
                                 className="text-emerald-300 hover:text-emerald-200 font-mono transition"
+                                title={`${preferLitho(token.contractAddress)}\n${token.contractAddress}`}
                               >
-                                {truncateHash(token.contractAddress)}
+                                {truncateAddressSmart(preferLitho(token.contractAddress))}
                               </Link>
                             ) : (
                               <span className="text-white/30">Native</span>
@@ -315,7 +316,7 @@ export default function TokensPage() {
                         <div className="mt-3 pt-3 border-t border-white/5">
                           <div className="text-xs text-white/30 mb-0.5">Contract</div>
                           <span className="block max-w-full truncate text-sm font-mono text-emerald-300">
-                            {truncateHash(token.contractAddress, 10, 6)}
+                            {truncateAddressSmart(preferLitho(token.contractAddress))}
                           </span>
                         </div>
                       )}

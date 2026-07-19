@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatLitho, formatValue, evmToCosmos } from '@/lib/format';
+import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatLitho, formatValue, preferLitho, truncateAddressSmart, altAddressFormat } from '@/lib/format';
 import { getPreferredTxHash, isValidTransactionHash } from '@/lib/tx';
 import type { ApiAddress, ApiTx, ApiTokenDetail, ApiTokenHolderList, ApiPrice, ApiAddressTxList, PageInfo, ApiAddressToken, ApiAddressTokenTransferList, ApiTokenTransferList } from '@/lib/types';
 import { FormattedValueElement } from '@/components/FormattedValueElement';
@@ -533,21 +533,22 @@ function TokenTransfersTab({ addr, currentAddrs }: { addr: string; currentAddrs:
               </div>
               <div className="flex items-center min-w-0">
                 <span className="mr-2 w-16 shrink-0 text-xs text-white/40 lg:hidden">From</span>
+                {/* Membership check stays on the raw value — currentAddrSet holds both formats. */}
                 {currentAddrSet.has(t.fromAddress?.toLowerCase()) ? (
-                  <span className="block truncate font-mono text-sm text-white/40" title={t.fromAddress}>{truncateHash(t.fromAddress, 8, 6)}</span>
+                  <span className="block truncate font-mono text-sm text-white/40" title={`${preferLitho(t.fromAddress)}\n${t.fromAddress}`}>{truncateAddressSmart(preferLitho(t.fromAddress))}</span>
                 ) : (
-                  <Link href={`/address/${t.fromAddress}`} className="block truncate font-mono text-sm text-emerald-300 hover:text-emerald-200 transition" title={t.fromAddress}>
-                    {truncateHash(t.fromAddress, 8, 6)}
+                  <Link href={`/address/${preferLitho(t.fromAddress)}`} className="block truncate font-mono text-sm text-emerald-300 hover:text-emerald-200 transition" title={`${preferLitho(t.fromAddress)}\n${t.fromAddress}`}>
+                    {truncateAddressSmart(preferLitho(t.fromAddress))}
                   </Link>
                 )}
               </div>
               <div className="flex items-center min-w-0">
                 <span className="mr-2 w-16 shrink-0 text-xs text-white/40 lg:hidden">To</span>
                 {currentAddrSet.has(t.toAddress?.toLowerCase()) ? (
-                  <span className="block truncate font-mono text-sm text-white/40" title={t.toAddress}>{truncateHash(t.toAddress, 8, 6)}</span>
+                  <span className="block truncate font-mono text-sm text-white/40" title={`${preferLitho(t.toAddress)}\n${t.toAddress}`}>{truncateAddressSmart(preferLitho(t.toAddress))}</span>
                 ) : (
-                  <Link href={`/address/${t.toAddress}`} className="block truncate font-mono text-sm text-emerald-300 hover:text-emerald-200 transition" title={t.toAddress}>
-                    {truncateHash(t.toAddress, 8, 6)}
+                  <Link href={`/address/${preferLitho(t.toAddress)}`} className="block truncate font-mono text-sm text-emerald-300 hover:text-emerald-200 transition" title={`${preferLitho(t.toAddress)}\n${t.toAddress}`}>
+                    {truncateAddressSmart(preferLitho(t.toAddress))}
                   </Link>
                 )}
               </div>
@@ -1006,14 +1007,14 @@ function TokenContractTransfersTab({ addr, tokenDetail }: { addr: string; tokenD
             </div>
             <div className="flex items-center min-w-0">
               <span className="mr-2 w-16 shrink-0 text-xs text-white/40 lg:hidden">From</span>
-              <Link href={`/address/${t.fromAddress}`} className="block truncate font-mono text-sm text-emerald-300 hover:text-emerald-200 transition" title={t.fromAddress}>
-                {truncateHash(t.fromAddress, 8, 6)}
+              <Link href={`/address/${preferLitho(t.fromAddress)}`} className="block truncate font-mono text-sm text-emerald-300 hover:text-emerald-200 transition" title={`${preferLitho(t.fromAddress)}\n${t.fromAddress}`}>
+                {truncateAddressSmart(preferLitho(t.fromAddress))}
               </Link>
             </div>
             <div className="flex items-center min-w-0">
               <span className="mr-2 w-16 shrink-0 text-xs text-white/40 lg:hidden">To</span>
-              <Link href={`/address/${t.toAddress}`} className="block truncate font-mono text-sm text-emerald-300 hover:text-emerald-200 transition" title={t.toAddress}>
-                {truncateHash(t.toAddress, 8, 6)}
+              <Link href={`/address/${preferLitho(t.toAddress)}`} className="block truncate font-mono text-sm text-emerald-300 hover:text-emerald-200 transition" title={`${preferLitho(t.toAddress)}\n${t.toAddress}`}>
+                {truncateAddressSmart(preferLitho(t.toAddress))}
               </Link>
             </div>
             <div className="flex items-center justify-end gap-1.5 min-w-0">
@@ -1103,11 +1104,11 @@ function TokenContractLayout({
           )}
           {!isToken && (
             <h1 className="text-2xl font-semibold break-all">
-              <span className="font-mono">{account.address}</span>
+              <span className="font-mono">{preferLitho(account.address)}</span>
             </h1>
           )}
           <div className="flex items-center gap-2 shrink-0">
-            <CopyBtn text={account.address} />
+            <CopyBtn text={preferLitho(account.address)} />
             <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${
               isToken
                 ? (isNft
@@ -1121,7 +1122,7 @@ function TokenContractLayout({
         </div>
 
         {isToken && (
-          <div className="font-mono text-sm text-white/40 break-all">{account.address}</div>
+          <div className="font-mono text-sm text-white/40 break-all">{preferLitho(account.address)}</div>
         )}
       </div>
 
@@ -1156,16 +1157,17 @@ function TokenContractLayout({
         <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 py-4 border-b border-white/5 min-w-0">
           <div className="sm:w-40 shrink-0 text-sm text-white/45">Contract Address</div>
           <div className="flex-1 min-w-0 text-sm text-white font-mono break-all break-words">
-            {account.address}
+            {/* Litho-first: bech32 leads regardless of which format the URL used. */}
+            {preferLitho(account.address)}
             <span className="inline-block ml-2 align-middle">
-              <CopyBtn text={account.address} />
+              <CopyBtn text={preferLitho(account.address)} />
             </span>
-            {evmToCosmos(account.address) && (
+            {altAddressFormat(preferLitho(account.address)) && (
               <div className="mt-1.5 text-xs text-white/40">
-                <span className="text-white/30">Lithosphere format: </span>
-                {evmToCosmos(account.address)}
+                <span className="text-white/30">EVM format: </span>
+                {altAddressFormat(preferLitho(account.address))}
                 <span className="inline-block ml-2 align-middle">
-                  <CopyBtn text={evmToCosmos(account.address)!} />
+                  <CopyBtn text={altAddressFormat(preferLitho(account.address))!} />
                 </span>
               </div>
             )}
@@ -1262,11 +1264,10 @@ function WalletLayout({
   const resolvedTab = WALLET_TABS.some((t) => t.key === activeTab) ? activeTab : 'transactions';
   const currentAddrs = [account.address, account.evmAddress, account.cosmosAddress].filter((value): value is string => Boolean(value));
 
-  const altAddress = account.evmAddress && account.evmAddress !== account.address
-    ? account.evmAddress
-    : account.cosmosAddress && account.cosmosAddress !== account.address
-      ? account.cosmosAddress
-      : null;
+  // Litho-first: the bech32 form is always primary, so the page reads the same
+  // whether it was reached via /address/litho1… or /address/0x….
+  const primaryAddress = preferLitho(account.address);
+  const altAddress = altAddressFormat(primaryAddress) ?? null;
   const altAddressLabel = altAddress?.startsWith('0x') ? 'EVM' : 'Lithosphere';
   const balanceSource = account.balanceSource;
   const hasBalance = hasDisplayBalance(account.balance, balanceSource);
@@ -1284,10 +1285,10 @@ function WalletLayout({
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
           <h1 className="flex-1 min-w-0 text-2xl font-semibold break-all break-words">
-            <span className="font-mono">{account.address}</span>
+            <span className="font-mono">{primaryAddress}</span>
           </h1>
           <div className="flex items-center gap-2 shrink-0">
-            <CopyBtn text={account.address} />
+            <CopyBtn text={primaryAddress} />
             {account.isValidator ? (
               <span className="inline-flex items-center rounded-full border border-violet-400/30 bg-violet-400/10 px-2.5 py-0.5 text-xs font-medium text-violet-300">Validator</span>
             ) : (
