@@ -12,6 +12,7 @@ import {
   hasPositiveNumericString,
   hexTimestampToIso,
   hexToDec,
+  normalizeContractAddress,
   normalizeFaucetAmountInput,
   parseHexInteger,
   parseIntSafe,
@@ -354,5 +355,41 @@ describe('preferString', () => {
   it('returns the fallback unchanged when both are nullish', () => {
     expect(preferString(null, null)).toBeNull();
     expect(preferString(undefined, undefined)).toBeUndefined();
+  });
+});
+
+describe('normalizeContractAddress', () => {
+  // The FGPT LEP-100 contract on Makalu — the pair that exposed the bug:
+  // /tokens/litho1… returned "Token contract not found" while /tokens/0x…
+  // returned 230 holders and 304 transfers for the same contract.
+  const EVM = '0x151ef362ea96853702cc5e7728107e3961fbd22e';
+  const LITHO = 'litho1z500xch2j6znwqkvtemjsyr789slh53wstcpq4';
+
+  it('converts a bech32 contract address to the stored EVM form', () => {
+    expect(normalizeContractAddress(LITHO)).toBe(EVM);
+  });
+
+  it('is case-insensitive on the bech32 input', () => {
+    expect(normalizeContractAddress(LITHO.toUpperCase().replace('LITHO1', 'litho1'))).toBe(EVM);
+  });
+
+  it('passes an EVM address through untouched', () => {
+    expect(normalizeContractAddress(EVM)).toBe(EVM);
+  });
+
+  it('preserves the `native` sentinel', () => {
+    expect(normalizeContractAddress('native')).toBe('native');
+  });
+
+  it('passes through undecodable input rather than throwing', () => {
+    expect(normalizeContractAddress('litho1notavalidbech32')).toBe('litho1notavalidbech32');
+    expect(normalizeContractAddress('')).toBe('');
+    expect(normalizeContractAddress('not-an-address')).toBe('not-an-address');
+  });
+
+  it('does not touch a validator address that merely starts with litho', () => {
+    // lithovaloper1… does not begin with the litho1 prefix, so it passes through.
+    const val = 'lithovaloper1abcdef';
+    expect(normalizeContractAddress(val)).toBe(val);
   });
 });
