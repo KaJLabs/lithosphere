@@ -1,0 +1,19 @@
+[
+  {
+    "_comment": "Copy to deployments/dex-pairs.700777.json and set real amounts the deployer holds. WLITHO is the routing base; pair every listed token against it so multi-hop swaps route through WLITHO.",
+    "tokenA": "0x599a7E135f1790ae117b4EdDc0422D24Bc766161",
+    "tokenB": "0x1Cde2Ca6c2ab8622003ebe06e382bC07850d4B8d",
+    "amountA": "10000",
+    "amountB": "10000",
+    "decimalsA": 18,
+    "decimalsB": 18
+  },
+  {
+    "tokenA": "0x599a7E135f1790ae117b4EdDc0422D24Bc766161",
+    "tokenB": "0xC4645CA5411D6E27556780AB4cdd0DF7e609df74",
+    "amountA": "10000",
+    "amountB": "500",
+    "decimalsA": 18,
+    "decimalsB": 18
+  }
+]
