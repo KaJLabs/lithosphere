@@ -35,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Tokens', href: '/tokens' },
   { label: 'NFTs', href: '/nfts' },
   { label: 'Bridge', href: '/bridge' },
+  { label: 'Swap', href: '/swap' },
   { label: 'Faucet', href: '/faucet' },
   { label: 'Sign In', href: '/signin' },
 ];
@@ -519,7 +520,7 @@ function HeaderContent() {
             </a>
 
             <Link
-              href="/bridge"
+              href="/swap"
               onClick={() => setWalletMenuOpen(false)}
               className="flex w-full items-center justify-between rounded-2xl bg-white/[0.02] px-4 py-3 text-left text-[15px] font-medium text-white/90 transition hover:bg-white/[0.06]"
             >
