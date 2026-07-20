@@ -425,10 +425,11 @@ function HoldersTab({ address, decimals, symbol, totalSupply }: { address: strin
             {/* Address */}
             <div className="flex items-center">
               <Link
-                href={`/address/${h.address}`}
+                href={`/address/${preferLitho(h.address)}`}
                 className="font-mono text-sm text-emerald-300 hover:text-emerald-200 transition truncate"
+                title={`${preferLitho(h.address)}\n${h.address}`}
               >
-                {h.address}
+                {preferLitho(h.address)}
               </Link>
             </div>
 

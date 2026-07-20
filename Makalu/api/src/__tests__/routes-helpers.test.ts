@@ -12,6 +12,7 @@ import {
   hasPositiveNumericString,
   hexTimestampToIso,
   hexToDec,
+  decodeAbiString,
   normalizeContractAddress,
   normalizeFaucetAmountInput,
   parseHexInteger,
@@ -391,5 +392,48 @@ describe('normalizeContractAddress', () => {
     // lithovaloper1… does not begin with the litho1 prefix, so it passes through.
     const val = 'lithovaloper1abcdef';
     expect(normalizeContractAddress(val)).toBe(val);
+  });
+});
+
+describe('decodeAbiString', () => {
+  // ABI dynamic string: 0x + [offset 32B][length 32B][utf8 bytes padded to 32B].
+  // "FGPT" = 4 bytes -> length 0x04, then 46475054 padded.
+  const FGPT = '0x' +
+    '0000000000000000000000000000000000000000000000000000000000000020' +
+    '0000000000000000000000000000000000000000000000000000000000000004' +
+    '4647505400000000000000000000000000000000000000000000000000000000';
+
+  it('decodes a standard ABI-encoded token symbol', () => {
+    expect(decodeAbiString(FGPT)).toBe('FGPT');
+  });
+
+  it('trims trailing NUL padding and whitespace', () => {
+    const padded = '0x' +
+      '0000000000000000000000000000000000000000000000000000000000000020' +
+      '0000000000000000000000000000000000000000000000000000000000000006' +
+      '467572475054000000000000000000000000000000000000000000000000000000'.slice(0, 64);
+    expect(decodeAbiString(padded)).toBe('FurGPT');
+  });
+
+  it('returns null for empty / 0x / non-string input', () => {
+    expect(decodeAbiString('0x')).toBeNull();
+    expect(decodeAbiString('')).toBeNull();
+    expect(decodeAbiString(null)).toBeNull();
+    expect(decodeAbiString(undefined)).toBeNull();
+    expect(decodeAbiString(42)).toBeNull();
+  });
+
+  it('returns null for an all-zero (empty string) result', () => {
+    const empty = '0x' +
+      '0000000000000000000000000000000000000000000000000000000000000020' +
+      '0000000000000000000000000000000000000000000000000000000000000000';
+    expect(decodeAbiString(empty)).toBeNull();
+  });
+
+  it('rejects an implausibly long length claim', () => {
+    const huge = '0x' +
+      '0000000000000000000000000000000000000000000000000000000000000020' +
+      '0000000000000000000000000000000000000000000000000000000000000fff';
+    expect(decodeAbiString(huge)).toBeNull();
   });
 });
