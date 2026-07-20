@@ -1,4 +1,5 @@
 import Head from 'next/head';
+import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
 import { parseUnits, type Eip1193Provider } from 'ethers';
@@ -305,6 +306,13 @@ function SwapContent() {
                       : `Swap ${tokenIn.symbol} for ${tokenOut.symbol}`}
               </button>
             </div>
+
+            <p className="mt-4 text-center text-sm text-white/50">
+              Need a different chain?{' '}
+              <Link href="/cross-swap" className="text-sky-300 underline-offset-2 hover:underline">
+                Cross-chain swap →
+              </Link>
+            </p>
           </section>
         </div>
       </div>
