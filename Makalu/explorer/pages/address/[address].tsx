@@ -695,8 +695,8 @@ function HoldersTab({ addr, tokenDetail }: { addr: string; tokenDetail?: ApiToke
           <div key={h.address} className="grid grid-cols-1 md:grid-cols-[0.4fr_2fr_1.2fr_0.8fr] gap-3 md:gap-4 px-5 py-4 border-b border-white/5 hover:bg-white/[0.03] transition">
             <div className="text-sm text-white/40">{offset + i + 1}</div>
             <div>
-              <Link href={`/address/${h.address}`} className="font-mono text-sm text-emerald-300 hover:text-emerald-200 transition truncate">
-                {h.address}
+              <Link href={`/address/${preferLitho(h.address)}`} className="font-mono text-sm text-emerald-300 hover:text-emerald-200 transition truncate" title={`${preferLitho(h.address)}\n${h.address}`}>
+                {preferLitho(h.address)}
               </Link>
             </div>
             <div className="text-sm font-mono text-white/80 md:text-right">

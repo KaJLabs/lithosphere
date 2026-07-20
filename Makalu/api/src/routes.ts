@@ -855,6 +855,46 @@ async function fetchLiveBalance(addr: string): Promise<string | null> {
   return null;
 }
 
+/** Decode the ABI-encoded string returned by an ERC-20 symbol()/name() eth_call. */
+export function decodeAbiString(hexResult: unknown): string | null {
+  if (typeof hexResult !== 'string' || hexResult.length <= 2) return null;
+  const h = hexResult.slice(2);
+  try {
+    // Standard ABI dynamic string: [offset][length][bytes...]. Offset is 0x20.
+    const len = parseInt(h.slice(64, 128), 16);
+    if (!Number.isFinite(len) || len <= 0 || len > 256) return null;
+    const s = Buffer.from(h.slice(128, 128 + len * 2), 'hex').toString('utf8').replace(/\0+$/, '').trim();
+    return s.length > 0 && s.length <= 64 ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read an ERC-20/LEP-100 token's symbol and name directly from the chain.
+ *
+ * Used as a last-resort enrichment when a token contract isn't in the indexer's
+ * `contracts` table yet — otherwise a transfer of a valid-but-unindexed token
+ * renders as a bare hex pill with no name. Cached because many tx views can hit
+ * the same contract. Selectors: symbol() 0x95d89b41, name() 0x06fdde03.
+ */
+async function fetchTokenMetaOnchain(addr: string): Promise<{ symbol?: string; name?: string } | null> {
+  if (!/^0x[0-9a-fA-F]{40}$/.test(addr) || EVM_RPC_ENDPOINTS.length === 0) return null;
+  return loadCached(`token-meta:${addr.toLowerCase()}`, EVM_ENRICH_TTL_MS, async () => {
+    try {
+      const [symRes, nameRes] = await Promise.all([
+        evmRpcCall('eth_call', [{ to: addr, data: '0x95d89b41' }, 'latest']),
+        evmRpcCall('eth_call', [{ to: addr, data: '0x06fdde03' }, 'latest']),
+      ]);
+      const symbol = decodeAbiString(symRes) ?? undefined;
+      const name = decodeAbiString(nameRes) ?? undefined;
+      return symbol || name ? { symbol, name } : null;
+    } catch {
+      return null;
+    }
+  });
+}
+
 // Live gas-price cache: eth_gasPrice every poll would needlessly hammer the RPC
 // when the homepage is open in many tabs. Cache the most recent value for a
 // short window — the homepage poll is faster than the cache TTL, so users
@@ -1247,6 +1287,13 @@ async function enrichTokenInfo<T extends { tokenTransferAmount?: string | null; 
     );
     if (rows[0]?.symbol) {
       return { ...mapped, tokenSymbol: rows[0].symbol, contractAddress: mapped.evmToAddr };
+    }
+    // Not in the contracts table — the token is real on-chain but unindexed.
+    // Read symbol()/name() live so the transfer shows a token name instead of a
+    // bare hex pill. Falls through to contractAddress-only if the read fails.
+    const meta = await fetchTokenMetaOnchain(mapped.evmToAddr);
+    if (meta?.symbol) {
+      return { ...mapped, tokenSymbol: meta.symbol, tokenName: meta.name, contractAddress: mapped.evmToAddr } as T;
     }
     // No symbol found but we know the contract — set contractAddress so the frontend
     // renders a contract link instead of falling back to the misleading "X LITHO" label.
