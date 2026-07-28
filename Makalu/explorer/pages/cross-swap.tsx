@@ -460,12 +460,16 @@ function CrossSwapContent() {
   );
 }
 
-export default function CrossSwapPage() {
+function EnabledCrossSwapPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
   if (!mounted) return null;
-  if (!NETWORK.bridgeEnabled || !NETWORK.swapEnabled) return <FeatureUnavailable feature="Cross-chain swap" />;
   return <CrossSwapContent />;
+}
+
+export default function CrossSwapPage() {
+  if (!NETWORK.bridgeEnabled || !NETWORK.swapEnabled) return <FeatureUnavailable feature="Cross-chain swap" />;
+  return <EnabledCrossSwapPage />;
 }

@@ -323,12 +323,16 @@ function SwapContent() {
   );
 }
 
-export default function SwapPage() {
+function EnabledSwapPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
   if (!mounted) return null;
-  if (!NETWORK.swapEnabled) return <FeatureUnavailable feature="Swap" />;
   return <SwapContent />;
+}
+
+export default function SwapPage() {
+  if (!NETWORK.swapEnabled) return <FeatureUnavailable feature="Swap" />;
+  return <EnabledSwapPage />;
 }

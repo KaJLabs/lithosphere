@@ -344,12 +344,16 @@ function BridgeContent() {
   );
 }
 
-export default function BridgePage() {
+function EnabledBridgePage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
   if (!mounted) return null;
-  if (!NETWORK.bridgeEnabled) return <FeatureUnavailable feature="Bridge" />;
   return <BridgeContent />;
+}
+
+export default function BridgePage() {
+  if (!NETWORK.bridgeEnabled) return <FeatureUnavailable feature="Bridge" />;
+  return <EnabledBridgePage />;
 }
