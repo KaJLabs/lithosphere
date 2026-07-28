@@ -58,6 +58,8 @@ jobs:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      GHCR_USER: ${{ github.actor }}
+      GHCR_TOKEN: ${{ github.token }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
     steps:
@@ -69,7 +71,7 @@ jobs:
           [[ "$DEPLOY_COMMIT_SHA" =~ ^[0-9a-f]{40}$ && "$DEPLOY_COMMIT_SHA" == "$GITHUB_SHA" ]] || {
             echo "Dispatch from the exact full commit being synchronized"; exit 1;
           }
-          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY POSTGRES_PASSWORD REDIS_PASSWORD RPC_URL EVM_RPC_URL EVM_WS_URL LITHO_LCD_URL GRPC_URL; do
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY GHCR_USER GHCR_TOKEN POSTGRES_PASSWORD REDIS_PASSWORD RPC_URL EVM_RPC_URL EVM_WS_URL LITHO_LCD_URL GRPC_URL; do
             [[ -n "${!name:-}" ]] || { echo "Missing protected value: $name"; exit 1; }
           done
           [[ "$POSTGRES_PASSWORD" =~ ^[A-Za-z0-9._~-]{32,}$ ]] || { echo "POSTGRES_PASSWORD must be URL-safe and at least 32 characters"; exit 1; }
@@ -165,9 +167,16 @@ jobs:
         run: |
           deploy_path=/opt/lithoscan-mainnet-staging
           target="$DEPLOY_USER@$DEPLOY_HOST"
+          remote_docker_config="/tmp/lithoscan-ghcr-$GITHUB_RUN_ID"
+          cleanup_remote() {
+            ssh "$target" "rm -rf '$remote_docker_config'" || true
+          }
+          trap cleanup_remote EXIT
           ssh "$target" "test -d '$deploy_path' && test -w '$deploy_path' && docker compose version"
+          ssh "$target" "umask 077; mkdir -p '$remote_docker_config'"
+          printf '%s' "$GHCR_TOKEN" | ssh "$target" "docker --config '$remote_docker_config' login ghcr.io --username '$GHCR_USER' --password-stdin"
           scp -r deploy-package/. "$target:$deploy_path/"
-          ssh "$target" "chmod 700 '$deploy_path/scripts/mainnet-start-indexer.sh' '$deploy_path/infra/mainnet/postgres/init-mainnet.sh' && DEPLOY_DIR='$deploy_path' bash '$deploy_path/scripts/mainnet-start-indexer.sh'"
+          ssh "$target" "chmod 700 '$deploy_path/scripts/mainnet-start-indexer.sh' '$deploy_path/infra/mainnet/postgres/init-mainnet.sh' && DOCKER_CONFIG='$remote_docker_config' DEPLOY_DIR='$deploy_path' bash '$deploy_path/scripts/mainnet-start-indexer.sh'"
 
       - name: Summary
         run: |
