@@ -48,6 +48,7 @@ jobs:
   hosts:
     name: Ensure deployment hosts
     runs-on: ubuntu-latest
+    environment: mainnet
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || secrets.INDEXER_IP }}
       BASTION_HOST: ${{ secrets.BASTION_HOST }}
@@ -64,6 +65,7 @@ jobs:
         with:
           role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN }}
           aws-region: us-east-1
+          retry-max-attempts: 3
       - name: Ensure bastion and indexer hosts are healthy
         timeout-minutes: 10
         shell: bash
