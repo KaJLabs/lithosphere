@@ -55,9 +55,11 @@ jobs:
       EVM_WS_URL: ${{ inputs.websocket }}
       LITHO_LCD_URL: ${{ inputs.rest_lcd }}
       GRPC_URL: ${{ inputs.grpc_endpoint }}
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || secrets.INDEXER_IP }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER || secrets.SERVER_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY || secrets.INDEXER_SSH_KEY }}
+      BASTION_HOST: ${{ secrets.BASTION_HOST }}
+      BASTION_SSH_KEY: ${{ secrets.BASTION_SSH_KEY }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
     steps:
@@ -155,17 +157,39 @@ jobs:
         shell: bash
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_indexer
+          chmod 600 ~/.ssh/id_indexer
+          {
+            echo 'Host lithoscan-indexer'
+            echo "  HostName $DEPLOY_HOST"
+            echo "  User $DEPLOY_USER"
+            echo '  IdentityFile ~/.ssh/id_indexer'
+            echo '  IdentitiesOnly yes'
+            echo '  StrictHostKeyChecking accept-new'
+          } > ~/.ssh/config
+          if [[ -n "$BASTION_HOST" && -n "$BASTION_SSH_KEY" ]]; then
+            printf '%s\n' "$BASTION_SSH_KEY" > ~/.ssh/id_bastion
+            chmod 600 ~/.ssh/id_bastion
+            {
+              echo 'Host lithoscan-bastion'
+              echo "  HostName $BASTION_HOST"
+              echo "  User $DEPLOY_USER"
+              echo '  IdentityFile ~/.ssh/id_bastion'
+              echo '  IdentitiesOnly yes'
+              echo '  StrictHostKeyChecking accept-new'
+              echo 'Host lithoscan-indexer'
+              echo '  ProxyJump lithoscan-bastion'
+            } >> ~/.ssh/config
+          fi
+          chmod 600 ~/.ssh/config
 
       - name: Start isolated mainnet synchronization
         shell: bash
         run: |
           deploy_path=/opt/lithoscan-mainnet-staging
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$deploy_path'"
-          scp -r deploy-package/. "$DEPLOY_USER@$DEPLOY_HOST:$deploy_path/"
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" "chmod 700 '$deploy_path/scripts/mainnet-start-indexer.sh' '$deploy_path/infra/mainnet/postgres/init-mainnet.sh' && DEPLOY_DIR='$deploy_path' bash '$deploy_path/scripts/mainnet-start-indexer.sh'"
+          ssh lithoscan-indexer "sudo mkdir -p '$deploy_path' && sudo chown -R '$DEPLOY_USER:$DEPLOY_USER' '$deploy_path'"
+          scp -r deploy-package/. "lithoscan-indexer:$deploy_path/"
+          ssh lithoscan-indexer "chmod 700 '$deploy_path/scripts/mainnet-start-indexer.sh' '$deploy_path/infra/mainnet/postgres/init-mainnet.sh' && sudo env DEPLOY_DIR='$deploy_path' bash '$deploy_path/scripts/mainnet-start-indexer.sh'"
 
       - name: Summary
         run: |
