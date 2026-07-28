@@ -24,6 +24,7 @@ describe('explorer network configuration', () => {
       faucetEnabled: false,
       bridgeEnabled: false,
       walletReady: true,
+      logoPath: '/litho-coin-logo.svg',
     });
   });
 
@@ -35,5 +36,15 @@ describe('explorer network configuration', () => {
 
     expect(config.walletReady).toBe(false);
     expect(config.rpcUrl).toBe('');
+  });
+
+  it('uses the monochrome LITHO coin mark on Makalu testnet', () => {
+    const config = buildNetworkConfig({
+      NEXT_PUBLIC_NETWORK: 'testnet',
+      NEXT_PUBLIC_CHAIN_ID: '700777',
+    });
+
+    expect(config.logoPath).toBe('/litho-coin-logo.svg');
+    expect(config.isMainnet).toBe(false);
   });
 });

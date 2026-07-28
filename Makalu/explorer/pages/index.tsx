@@ -169,13 +169,13 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
           {/* Hero */}
           <section className="grid w-full min-w-0 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)] lg:items-center">
             <div className="min-w-0">
-              <div className="mb-3 inline-flex rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">
+              <div className="mb-3 inline-flex rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200">
                 {NETWORK.label}
               </div>
               <h1 className="max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl md:text-5xl">
                 Explore blocks, contracts, AI activity, and LEP100 assets on {NETWORK.shortName}.
               </h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-white/65 md:text-lg">
+              <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--color-text-secondary)] md:text-lg">
                 A unified explorer for Lithosphere&apos;s dual-layer blockchain with validator
                 intelligence, AI execution receipts, bridge activity, and real-time network
                 analytics.
@@ -184,20 +184,20 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href="/blocks"
-                  className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-black dark:hover:bg-white/90 transition"
+                  className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-medium text-[#f8fafc] hover:bg-slate-800 dark:bg-white dark:text-black dark:hover:bg-white/90 transition"
                 >
                   View Latest Blocks
                 </Link>
                 <Link
                   href="/txs"
-                  className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium text-white hover:bg-white/10 transition"
+                  className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-5 py-3 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10 transition"
                 >
                   View Latest Transactions
                 </Link>
                 <button
                   onClick={addOrSwitchNetwork}
                   disabled={!NETWORK.walletReady || isAddingNetwork || Number(chainId) === NETWORK.evmChainId}
-                  className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-3 text-sm font-medium text-emerald-300 hover:bg-emerald-400/20 transition disabled:opacity-60"
+                  className="rounded-2xl border border-emerald-300 bg-emerald-50 px-5 py-3 text-sm font-medium text-emerald-800 hover:bg-emerald-100 transition disabled:opacity-100 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300 dark:hover:bg-emerald-400/20"
                 >
                   {isAddingNetwork
                     ? 'Adding Network...'
@@ -212,7 +212,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
               </div>
 
               <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl shadow-black/30">
-                <div className="mb-3 text-sm text-white/55">Global Search</div>
+                <div className="mb-3 text-sm font-medium text-[var(--color-text-secondary)]">Global Search</div>
                 <SearchBar />
               </div>
             </div>
@@ -239,12 +239,12 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
             {networkMetrics.map((item) => (
               <div
                 key={item.label}
-                className="rounded-3xl border border-violet-400/15 bg-violet-400/5 p-5"
+                className="rounded-3xl border border-violet-200 bg-violet-50 p-5 dark:border-violet-400/15 dark:bg-violet-400/5"
               >
-                <div className="text-sm text-violet-200/65">{item.label}</div>
-                <div className="mt-2 text-2xl font-semibold text-violet-100">{item.value}</div>
+                <div className="text-sm font-medium text-violet-800 dark:text-violet-200/65">{item.label}</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950 dark:text-violet-100">{item.value}</div>
                 {item.subtitle && (
-                  <div className="mt-1 text-xs text-violet-200/45">{item.subtitle}</div>
+                  <div className="mt-1 text-xs text-violet-700 dark:text-violet-200/45">{item.subtitle}</div>
                 )}
               </div>
             ))}

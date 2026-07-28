@@ -53,7 +53,7 @@ export function buildNetworkConfig(env: PublicEnvironment) {
     rpcUrl,
     siteUrl,
     explorerTitle: env.NEXT_PUBLIC_EXPLORER_TITLE?.trim() || 'Lithoscan',
-    logoPath: isMainnet ? '/litho-coin-logo.svg' : '/litho-logo.png',
+    logoPath: '/litho-coin-logo.svg',
     faviconPath: isMainnet ? '/litho-coin-logo.svg' : '/makalu-testnet-favicon.png',
     defaultTheme,
     walletReady: validHttpUrl(rpcUrl),

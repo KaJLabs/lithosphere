@@ -80,6 +80,13 @@
 :root:not(.dark) .border-white\/15,
 :root:not(.dark) .border-white\/20 { border-color: var(--color-border); }
 
+/* Preserve readable foregrounds on deliberately dark controls. The legacy
+   light-theme remapping above changes text-white to the primary ink color,
+   which otherwise produces black text on black CTA buttons. */
+:root:not(.dark) .bg-slate-950.text-white {
+  color: #f8fafc;
+}
+
 @layer components {
   .card {
     @apply bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg;
