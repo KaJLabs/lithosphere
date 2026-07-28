@@ -1,0 +1,177 @@
+name: Lithoscan Mainnet Indexer Sync
+run-name: Mainnet indexer sync ${{ inputs.commit_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Full commit SHA to build and synchronize
+        required: true
+        type: string
+      cosmos_rpc:
+        description: Verified temporary Cosmos RPC
+        required: true
+        default: http://31.97.39.146:27057
+        type: string
+      evm_rpc:
+        description: Verified temporary EVM RPC
+        required: true
+        default: http://31.97.39.146:8945
+        type: string
+      websocket:
+        description: Verified temporary EVM WebSocket
+        required: true
+        default: ws://31.97.39.146:8946
+        type: string
+      rest_lcd:
+        description: Verified temporary REST/LCD endpoint
+        required: true
+        default: http://31.97.39.146:1717
+        type: string
+      grpc_endpoint:
+        description: Verified temporary gRPC host and port
+        required: true
+        default: 31.97.39.146:9490
+        type: string
+
+concurrency:
+  group: lithoscan-mainnet-indexer-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    environment: lithoscan-staging
+    env:
+      DEPLOY_COMMIT_SHA: ${{ inputs.commit_sha }}
+      RPC_URL: ${{ inputs.cosmos_rpc }}
+      EVM_RPC_URL: ${{ inputs.evm_rpc }}
+      EVM_WS_URL: ${{ inputs.websocket }}
+      LITHO_LCD_URL: ${{ inputs.rest_lcd }}
+      GRPC_URL: ${{ inputs.grpc_endpoint }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate request, isolation secrets and endpoints
+        shell: bash
+        run: |
+          [[ "$DEPLOY_COMMIT_SHA" =~ ^[0-9a-f]{40}$ && "$DEPLOY_COMMIT_SHA" == "$GITHUB_SHA" ]] || {
+            echo "Dispatch from the exact full commit being synchronized"; exit 1;
+          }
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY POSTGRES_PASSWORD REDIS_PASSWORD RPC_URL EVM_RPC_URL EVM_WS_URL LITHO_LCD_URL GRPC_URL; do
+            [[ -n "${!name:-}" ]] || { echo "Missing protected value: $name"; exit 1; }
+          done
+          [[ "$POSTGRES_PASSWORD" =~ ^[A-Za-z0-9._~-]{32,}$ ]] || { echo "POSTGRES_PASSWORD must be URL-safe and at least 32 characters"; exit 1; }
+          [[ "$REDIS_PASSWORD" =~ ^[A-Za-z0-9._~-]{32,}$ ]] || { echo "REDIS_PASSWORD must be URL-safe and at least 32 characters"; exit 1; }
+          python - <<'PY'
+          import os, re
+          from urllib.parse import urlparse
+          specs = {
+              'RPC_URL': {'http', 'https'},
+              'EVM_RPC_URL': {'http', 'https'},
+              'EVM_WS_URL': {'ws', 'wss'},
+              'LITHO_LCD_URL': {'http', 'https'},
+          }
+          for name, schemes in specs.items():
+              value = os.environ[name]
+              parsed = urlparse(value)
+              if parsed.scheme not in schemes or not parsed.netloc or any(c in value for c in '\r\n\"\''):
+                  raise SystemExit(f'{name} is not a safe endpoint URL')
+          if not re.fullmatch(r'[A-Za-z0-9.-]+:[0-9]{1,5}', os.environ['GRPC_URL']):
+              raise SystemExit('GRPC_URL must be host:port')
+          PY
+          REQUIRE_GENESIS=false bash Makalu/scripts/mainnet-validate.sh
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./Makalu/indexer
+          file: ./Makalu/indexer/Dockerfile
+          push: true
+          tags: ghcr.io/kajlabs/lithoscan-indexer:sha-${{ github.sha }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            VERSION=sha-${{ github.sha }}
+          cache-from: type=gha,scope=lithoscan-mainnet-indexer
+          cache-to: type=gha,mode=max,scope=lithoscan-mainnet-indexer
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/kajlabs/lithoscan-indexer
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Prepare isolated indexer package
+        shell: bash
+        run: |
+          mkdir -p deploy-package/scripts deploy-package/infra/mainnet/postgres deploy-package/infra/postgres
+          cp Makalu/docker-compose.mainnet-indexer.yaml deploy-package/
+          cp Makalu/scripts/mainnet-start-indexer.sh deploy-package/scripts/
+          cp Makalu/infra/mainnet/postgres/init-mainnet.sh deploy-package/infra/mainnet/postgres/
+          cp Makalu/infra/postgres/init.sql deploy-package/infra/postgres/
+          umask 077
+          cat > deploy-package/.env.indexer <<EOF
+          COMPOSE_PROJECT_NAME=lithoscan-mainnet-staging
+          INDEXER_IMAGE=ghcr.io/kajlabs/lithoscan-indexer
+          IMAGE_TAG=sha-$GITHUB_SHA
+          CHAIN_ID=lithosphere_9005-1
+          LITHO_CHAIN_ID=9005
+          RPC_URL=$RPC_URL
+          EVM_RPC_URL=$EVM_RPC_URL
+          EVM_WS_URL=$EVM_WS_URL
+          LITHO_LCD_URL=$LITHO_LCD_URL
+          GRPC_URL=$GRPC_URL
+          POSTGRES_DB=lithoscan_mainnet_staging
+          POSTGRES_USER=lithoscan_mainnet_staging
+          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+          DATABASE_URL=postgresql://lithoscan_mainnet_staging:$POSTGRES_PASSWORD@postgres:5432/lithoscan_mainnet_staging?sslmode=disable
+          REDIS_PASSWORD=$REDIS_PASSWORD
+          REDIS_URL=redis://:$REDIS_PASSWORD@redis:6379
+          FAUCET_ENABLED=false
+          BRIDGE_ENABLED=false
+          MULTX_ENABLED=false
+          SWAP_ENABLED=false
+          GIT_SHA=$GITHUB_SHA
+          VERSION=sha-$GITHUB_SHA
+          EOF
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Start isolated mainnet synchronization
+        shell: bash
+        run: |
+          deploy_path=/opt/lithoscan-mainnet-staging
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$deploy_path'"
+          scp -r deploy-package/. "$DEPLOY_USER@$DEPLOY_HOST:$deploy_path/"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "chmod 700 '$deploy_path/scripts/mainnet-start-indexer.sh' '$deploy_path/infra/mainnet/postgres/init-mainnet.sh' && DEPLOY_DIR='$deploy_path' bash '$deploy_path/scripts/mainnet-start-indexer.sh'"
+
+      - name: Summary
+        run: |
+          echo "## Lithoscan mainnet indexer synchronization started" >> "$GITHUB_STEP_SUMMARY"
+          echo "- EVM chain: 9005" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cosmos chain: lithosphere_9005-1" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Start block: 1" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Database: isolated lithoscan-mainnet-staging volume" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Bridge, Swap, Faucet and MultX: disabled/absent" >> "$GITHUB_STEP_SUMMARY"

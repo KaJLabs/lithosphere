@@ -1,0 +1,84 @@
+name: ${COMPOSE_PROJECT_NAME:-lithoscan-mainnet-staging}
+
+# Indexer-only bootstrap stack. It shares no container, volume, database or
+# cache with Makalu and exposes no Bridge, Swap or Faucet service.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set the isolated mainnet database name}
+      POSTGRES_USER: ${POSTGRES_USER:?Set the isolated mainnet database user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Inject POSTGRES_PASSWORD}
+    volumes:
+      - mainnet-postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/schema/init.sql:ro
+      - ./infra/mainnet/postgres/init-mainnet.sh:/docker-entrypoint-initdb.d/001-init-mainnet.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [mainnet-internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Inject REDIS_PASSWORD}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Inject REDIS_PASSWORD}
+    volumes:
+      - mainnet-redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [mainnet-internal]
+
+  indexer:
+    image: ${INDEXER_IMAGE:-ghcr.io/kajlabs/lithoscan-indexer}:${IMAGE_TAG:?Set an immutable sha- IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Inject the isolated mainnet DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:?Inject the isolated mainnet Redis URL}
+      RPC_URL: ${RPC_URL:?Set the verified Cosmos RPC}
+      LITHO_RPC_URL: ${RPC_URL:?Set the verified Cosmos RPC}
+      LCD_URL: ${LITHO_LCD_URL:?Set the verified REST/LCD endpoint}
+      EVM_RPC_URL: ${EVM_RPC_URL:?Set the verified EVM RPC}
+      EVM_WS_URL: ${EVM_WS_URL:?Set the verified EVM WebSocket}
+      GRPC_URL: ${GRPC_URL:?Set the verified gRPC endpoint}
+      CHAIN_ID: lithosphere_9005-1
+      LITHO_CHAIN_ID: "9005"
+      START_BLOCK: "1"
+      INDEXER_START_BLOCK: "1"
+      BATCH_SIZE: ${BATCH_SIZE:-100}
+      INDEXER_BATCH_SIZE: ${INDEXER_BATCH_SIZE:-100}
+      FORCE_REINDEX: "0"
+      METRICS_PORT: "9090"
+      INDEXER_PORT: "3001"
+      GIT_SHA: ${GIT_SHA:-}
+      VERSION: ${VERSION:-}
+      FAUCET_ENABLED: "false"
+      BRIDGE_ENABLED: "false"
+      MULTX_ENABLED: "false"
+      SWAP_ENABLED: "false"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    networks: [mainnet-internal]
+
+networks:
+  mainnet-internal:
+    driver: bridge
+
+volumes:
+  mainnet-postgres-data:
+  mainnet-redis-data:
