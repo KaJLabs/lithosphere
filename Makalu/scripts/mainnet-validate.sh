@@ -41,7 +41,9 @@ if [[ "${REQUIRE_GENESIS:-true}" == "true" ]]; then
   }
 fi
 
-status_json="$(curl --fail --silent --show-error --max-time 15 "$RPC_URL/status")"
+curl_retry=(curl --fail --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 20)
+
+status_json="$("${curl_retry[@]}" "$RPC_URL/status")"
 rpc_network="$(jq -r '.result.node_info.network // empty' <<<"$status_json")"
 [[ "$rpc_network" == "$EXPECTED_COSMOS_CHAIN_ID" ]] || {
   echo "RPC reports Cosmos chain '$rpc_network', expected '$EXPECTED_COSMOS_CHAIN_ID'" >&2; exit 1;
@@ -53,7 +55,7 @@ rpc_network="$(jq -r '.result.node_info.network // empty' <<<"$status_json")"
   echo "RPC earliest block time does not match $EXPECTED_GENESIS_TIME" >&2; exit 1;
 }
 
-evm_json="$(curl --fail --silent --show-error --max-time 15 \
+evm_json="$("${curl_retry[@]}" \
   -H 'content-type: application/json' \
   --data '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' "$EVM_RPC_URL")"
 evm_hex="$(jq -r '.result // empty' <<<"$evm_json")"
@@ -63,7 +65,7 @@ actual_evm_chain_id="$((16#${evm_hex#0x}))"
   echo "RPC reports EVM chain $actual_evm_chain_id, expected $EXPECTED_EVM_CHAIN_ID" >&2; exit 1;
 }
 
-lcd_json="$(curl --fail --silent --show-error --max-time 15 "$LCD_URL/cosmos/base/tendermint/v1beta1/node_info")"
+lcd_json="$("${curl_retry[@]}" "$LCD_URL/cosmos/base/tendermint/v1beta1/node_info")"
 lcd_network="$(jq -r '.default_node_info.network // empty' <<<"$lcd_json")"
 [[ "$lcd_network" == "$EXPECTED_COSMOS_CHAIN_ID" ]] || {
   echo "LCD reports Cosmos chain '$lcd_network', expected '$EXPECTED_COSMOS_CHAIN_ID'" >&2; exit 1;
