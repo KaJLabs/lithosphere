@@ -48,6 +48,12 @@ done
 [[ "$postgres_health" == "healthy" ]] || { echo "isolated PostgreSQL did not become healthy" >&2; exit 1; }
 
 db_exec=(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T postgres psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --tuples-only --no-align)
+schema_ready="$("${db_exec[@]}" --command "SELECT to_regclass('public.indexer_state') IS NOT NULL;" | tr -d '[:space:]')"
+if [[ "$schema_ready" != "t" ]]; then
+  echo "Initializing the empty isolated mainnet schema"
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T postgres \
+    sh /docker-entrypoint-initdb.d/001-init-mainnet.sh
+fi
 stored_chain="$("${db_exec[@]}" --command "SELECT value FROM indexer_state WHERE key = 'network_chain_id';" | tr -d '[:space:]')"
 [[ -z "$stored_chain" || "$stored_chain" == "lithosphere_9005-1" ]] || {
   echo "refusing indexer start: database belongs to $stored_chain" >&2; exit 1;
