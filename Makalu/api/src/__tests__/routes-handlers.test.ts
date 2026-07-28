@@ -30,6 +30,8 @@ describe('GET /api/config', () => {
     expect(res.body).toEqual({
       token: { symbol: 'LITHO', decimals: 18 },
       fiat: { symbol: 'USD', price: null, fetchedAt: null },
+      network: { evmChainId: 700777, cosmosChainId: 'lithosphere_700777-2' },
+      features: { faucet: true, bridge: true, swap: false },
     });
     expect(mockQuery).not.toHaveBeenCalled();
   });

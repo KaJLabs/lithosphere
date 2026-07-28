@@ -1,7 +1,8 @@
-import { useState } from 'react';
 import { useRouter } from 'next/router';
-import { isEvmAddress, isBech32Address, isValidatorAddress } from '@/lib/format';
+import { useState } from 'react';
+
 import { isDnnsName, resolveName } from '@/lib/dnns';
+import { isEvmAddress, isBech32Address, isValidatorAddress } from '@/lib/format';
 
 export default function SearchBar() {
   const [query, setQuery] = useState('');

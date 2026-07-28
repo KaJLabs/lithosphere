@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 
+import { NETWORK } from '@/lib/network';
+
 export default function ThemeToggle() {
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(NETWORK.defaultTheme === 'dark');
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains('dark'));
@@ -19,6 +21,8 @@ export default function ThemeToggle() {
       onClick={toggle}
       className="p-2 rounded-lg hover:bg-[var(--color-bg-tertiary)] transition-colors"
       aria-label="Toggle theme"
+      aria-pressed={dark}
+      title={dark ? 'Use light theme' : 'Use dark theme'}
     >
       {dark ? (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

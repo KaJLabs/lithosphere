@@ -11,8 +11,9 @@
  * `pages/api/*` files take precedence over rewrites. This handler is
  * served by the explorer process itself, not proxied.
  */
-import type { NextApiRequest, NextApiResponse } from 'next';
 import { buildVersionResponse, type VersionResponse } from '../../lib/build-info';
+
+import type { NextApiRequest, NextApiResponse } from 'next';
 
 export default function handler(_req: NextApiRequest, res: NextApiResponse<VersionResponse>) {
   res.setHeader('Cache-Control', 'no-store');

@@ -1,13 +1,16 @@
-import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useState } from 'react';
+
+import { FormattedValueElement } from '@/components/FormattedValueElement';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
 import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod, txTypeInfo, formatValue, formatSupply, formatStrat, formatGasPrice } from '@/lib/format';
+import { NETWORK } from '@/lib/network';
 import { getPreferredTxHash, normalizeEvmTxHash } from '@/lib/tx';
+
 import type { ApiTx, StatsSummary, EvmLogsResponse } from '@/lib/types';
-import { FormattedValueElement } from '@/components/FormattedValueElement';
 
 /* ------------------------------------------------------------------ */
 /*  Utility components                                                 */
@@ -217,7 +220,7 @@ export default function TransactionDetailPage() {
     <>
       <Head>
         <title>Tx {truncateHash(displayTxHash)} | {EXPLORER_TITLE}</title>
-        <meta name="description" content={`View Lithosphere Makalu transaction details for ${displayTxHash}`} />
+        <meta name="description" content={`View ${NETWORK.label} transaction details for ${displayTxHash}`} />
       </Head>
 
       <div className="text-white">

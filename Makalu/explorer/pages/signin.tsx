@@ -1,7 +1,9 @@
-import Head from 'next/head';
 import dynamic from 'next/dynamic';
+import Head from 'next/head';
 import { useEffect, useState } from 'react';
+
 import { EXPLORER_TITLE } from '@/lib/constants';
+import { NETWORK } from '@/lib/network';
 
 // Client-only: the SDK probes window/EIP-6963 on mount.
 const ThanosSignIn = dynamic(() => import('@/components/ThanosSignIn'), { ssr: false });
@@ -28,7 +30,7 @@ export default function SignInPage() {
             <p className="mt-3 max-w-xl text-base leading-7 text-white/70">
               Authenticate with your Thanos wallet using a single signature (Sign-In With
               Ethereum). No transaction, no gas — just a signed message that proves you control
-              your address on Lithosphere Makalu.
+              your address on {NETWORK.label}.
             </p>
           </div>
 

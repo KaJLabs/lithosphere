@@ -1,17 +1,20 @@
-import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useEffect, useState } from 'react';
+
+import { TxStatusBadge } from '@/components/Badges';
+import DataTable, { type Column } from '@/components/DataTable';
+import ErrorState from '@/components/ErrorState';
+import { FormattedValueElement } from '@/components/FormattedValueElement';
+import Loading from '@/components/Loading';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
 import { formatNumber, formatTimestamp, timeAgo, truncateHash, formatValue, formatStrat } from '@/lib/format';
+import { NETWORK } from '@/lib/network';
 import { getPreferredTxHash } from '@/lib/tx';
+
 import type { ApiBlock, ApiTx, StatsSummary } from '@/lib/types';
-import { FormattedValueElement } from '@/components/FormattedValueElement';
-import DataTable, { type Column } from '@/components/DataTable';
-import { TxStatusBadge } from '@/components/Badges';
-import ErrorState from '@/components/ErrorState';
-import Loading from '@/components/Loading';
 
 function CopyBtn({ text }: { text: string }) {
   const copy = () => navigator.clipboard?.writeText(text).catch(() => {});
@@ -246,7 +249,7 @@ export default function BlockDetailPage() {
     <>
       <Head>
         <title>Block #{height} | {EXPLORER_TITLE}</title>
-        <meta name="description" content={`View Lithosphere Makalu testnet details and transactions for block ${height}.`} />
+        <meta name="description" content={`View ${NETWORK.label} details and transactions for block ${height}.`} />
       </Head>
 
       <div className="text-white">

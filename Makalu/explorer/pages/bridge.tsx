@@ -1,8 +1,9 @@
-import Head from 'next/head';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
 import { parseUnits, type Eip1193Provider } from 'ethers';
-import { EXPLORER_TITLE } from '@/lib/constants';
+import Head from 'next/head';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+
+import FeatureUnavailable from '@/components/FeatureUnavailable';
 import {
   BRIDGE_CHAIN_LIST,
   BRIDGE_SOURCE_CHAINS,
@@ -17,6 +18,8 @@ import {
   tokenAddressFor,
   type BridgeStatus,
 } from '@/lib/bridge';
+import { EXPLORER_TITLE } from '@/lib/constants';
+import { NETWORK } from '@/lib/network';
 
 const PRIMARY_CTA_CLASSES =
   'rounded-2xl border border-sky-300/20 bg-gradient-to-r from-[#1cc7ff] via-[#227dff] to-[#3157ff] px-5 py-3 text-sm font-medium text-white shadow-[0_18px_40px_rgba(37,99,235,0.35)] transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0';
@@ -49,7 +52,7 @@ const CHAIN_PARAMS: Record<number, {
 
 function BridgeContent() {
   const { open } = useWeb3Modal();
-  const { isConnected, chainId } = useWeb3ModalAccount();
+  const { isConnected } = useWeb3ModalAccount();
   const { walletProvider } = useWeb3ModalProvider();
 
   const [fromKey, setFromKey] = useState('makalu');
@@ -347,5 +350,6 @@ export default function BridgePage() {
     setMounted(true);
   }, []);
   if (!mounted) return null;
+  if (!NETWORK.bridgeEnabled) return <FeatureUnavailable feature="Bridge" />;
   return <BridgeContent />;
 }

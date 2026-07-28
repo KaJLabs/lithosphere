@@ -1,17 +1,21 @@
-import Link from 'next/link';
-import { useRouter } from 'next/router';
-import { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import {
   useWeb3Modal,
   useWeb3ModalAccount,
   useWeb3ModalProvider,
   useDisconnect,
 } from '@web3modal/ethers/react';
-import SearchBar from './SearchBar';
-import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatValue, preferLitho } from '@/lib/format';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+
 import { apiFetch } from '@/lib/api';
+import { formatValue, preferLitho } from '@/lib/format';
+import { NETWORK } from '@/lib/network';
+
+import BrandLogo from './BrandLogo';
+import SearchBar from './SearchBar';
+import ThemeToggle from './ThemeToggle';
 
 const THANOS_SESSION_KEY = 'thanos_session';
 
@@ -19,7 +23,6 @@ type EthereumRequestProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
 };
 
-const MAKALU_CHAIN_ID = 700777;
 const BALANCE_POLL_INTERVAL_MS = 15000;
 
 interface NavItem {
@@ -35,11 +38,13 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Tokens', href: '/tokens' },
   { label: 'NFTs', href: '/nfts' },
   { label: 'Bridge', href: '/bridge' },
+  { label: 'Swap', href: '/swap' },
   { label: 'Faucet', href: '/faucet' },
   { label: 'Sign In', href: '/signin' },
 ];
 
 const MORE_ITEMS: NavItem[] = [
+  { label: 'Quantt Research', href: '/quantt' },
   { label: 'Docs', href: 'https://docs.litho.ai', external: true },
   { label: 'LITHO TGE', href: 'https://tge.ignite.trade', external: true },
   { label: 'LITHO.ai', href: 'https://litho.ai', external: true },
@@ -77,7 +82,7 @@ function HeaderContent() {
   const { disconnect } = useDisconnect();
   const { address, isConnected, chainId } = useWeb3ModalAccount();
   const { walletProvider } = useWeb3ModalProvider();
-  const isOnMakalu = chainId === MAKALU_CHAIN_ID;
+  const isOnNetwork = chainId === NETWORK.evmChainId;
   // Litho-first: surface the native bech32 identity everywhere the wallet is
   // shown. Falls back to the raw 0x value if conversion ever fails.
   const lithoAddress = preferLitho(address);
@@ -125,9 +130,13 @@ function HeaderContent() {
   // Once signed in, hide the "Sign In" nav link entirely (the wallet pill already
   // shows the account) rather than leaving a redundant button in the nav.
   const isSignedIn = thanosSignedIn || isConnected;
-  const navItems = isSignedIn
-    ? NAV_ITEMS.filter((item) => item.href !== '/signin')
-    : NAV_ITEMS;
+  const navItems = NAV_ITEMS.filter((item) => {
+    if (isSignedIn && item.href === '/signin') return false;
+    if (!NETWORK.faucetEnabled && item.href === '/faucet') return false;
+    if (!NETWORK.bridgeEnabled && item.href === '/bridge') return false;
+    if (!NETWORK.swapEnabled && item.href === '/swap') return false;
+    return true;
+  });
 
   // Close "More" dropdown when clicking outside
   useEffect(() => {
@@ -358,7 +367,7 @@ function HeaderContent() {
         }
 
         // 2) Cross-check via the connected wallet only if the API gave nothing.
-        if (wei === null && provider?.request && chainId === MAKALU_CHAIN_ID) {
+        if (wei === null && provider?.request && chainId === NETWORK.evmChainId) {
           try {
             const result = await provider.request({
               method: 'eth_getBalance',
@@ -432,7 +441,7 @@ function HeaderContent() {
       <div
         ref={walletMenuRef}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[360px] overflow-hidden rounded-[24px] border border-white/10 bg-[#0b0f16] shadow-2xl shadow-black/70"
+        className="w-full max-w-[360px] overflow-hidden rounded-[24px] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-2xl shadow-black/20"
       >
         <div className="p-5">
           <div className="mb-4 flex items-center justify-between">
@@ -518,8 +527,8 @@ function HeaderContent() {
               <span className="text-white/45 text-xl leading-none">›</span>
             </a>
 
-            <Link
-              href="/bridge"
+            {NETWORK.swapEnabled && <Link
+              href="/swap"
               onClick={() => setWalletMenuOpen(false)}
               className="flex w-full items-center justify-between rounded-2xl bg-white/[0.02] px-4 py-3 text-left text-[15px] font-medium text-white/90 transition hover:bg-white/[0.06]"
             >
@@ -532,7 +541,7 @@ function HeaderContent() {
                 Swap
               </span>
               <span className="text-white/45 text-xl leading-none">›</span>
-            </Link>
+            </Link>}
 
             <Link
               href={`/address/${lithoAddress}`}
@@ -604,7 +613,7 @@ function HeaderContent() {
   const mobileMenu = menuOpen ? (
     <div
       ref={mobileMenuScrollRef}
-      className="fixed inset-0 z-[150] overflow-y-auto overscroll-contain bg-[#070a10] px-4 pb-8 pt-5 touch-pan-y lg:hidden"
+      className="fixed inset-0 z-[150] overflow-y-auto overscroll-contain bg-[var(--color-bg-primary)] px-4 pb-8 pt-5 touch-pan-y lg:hidden"
       style={{ height: '100dvh', WebkitOverflowScrolling: 'touch' }}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between">
@@ -613,17 +622,12 @@ function HeaderContent() {
           onClick={() => setMenuOpen(false)}
           className="flex items-center gap-3"
         >
-          <img
-            src="/litho-logo.png"
-            alt="Lithosphere"
-            className="h-9 w-auto"
-          />
-          <span className="sr-only">{EXPLORER_TITLE}</span>
+          <BrandLogo />
         </Link>
         <button
           type="button"
           onClick={() => setMenuOpen(false)}
-          className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-[#141927] text-white/80 transition hover:bg-[#1b2132] hover:text-white"
+          className="grid h-12 w-12 place-items-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]"
           aria-label="Close menu"
         >
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
@@ -646,7 +650,7 @@ function HeaderContent() {
               className={`block rounded-xl px-4 py-3 text-base font-semibold ${
                 isActive(item.href)
                   ? 'bg-litho-400/12 text-litho-300'
-                  : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)]'
               }`}
             >
               {item.label}
@@ -664,7 +668,7 @@ function HeaderContent() {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setMenuOpen(false)}
-                className="block rounded-xl px-4 py-3 text-base font-semibold text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+                className="block rounded-xl px-4 py-3 text-base font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)]"
               >
                 {item.label}
               </a>
@@ -680,13 +684,13 @@ function HeaderContent() {
                 setMenuOpen(false);
                 void open({ view: 'Connect' });
               }}
-              className="w-full rounded-2xl border border-white/10 bg-[#141927] px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-[#1b2132]"
+              className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-4 py-3 text-sm font-medium text-[var(--color-text-primary)] transition hover:border-litho-400"
             >
               Connect Wallet
             </button>
           ) : (
             <div className="space-y-3">
-              <div className="rounded-2xl border border-white/10 bg-[#141927] px-4 py-3">
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-mono text-white/75" title={lithoAddress}>{shortenAddress(lithoAddress)}</span>
                   <span className="text-white/45">LITHO</span>
@@ -736,16 +740,7 @@ function HeaderContent() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 shrink-0">
-            <img
-              src="/litho-logo.png"
-              alt="Lithosphere"
-              className="h-8 w-auto"
-            />
-            <span className="font-bold text-lg text-[var(--color-text-primary)] hidden sm:block">
-              {EXPLORER_TITLE}
-            </span>
-          </Link>
+          <Link href="/" aria-label={`${NETWORK.explorerTitle} home`}><BrandLogo /></Link>
 
           {/* Desktop nav */}
           <nav className="hidden lg:flex items-center gap-1">
@@ -783,6 +778,7 @@ function HeaderContent() {
 
           {/* Search + Wallet + Mobile menu */}
           <div className="flex min-w-0 items-center gap-2">
+            <ThemeToggle />
             <div className="hidden min-w-0 shrink md:block">
               <SearchBar />
             </div>
@@ -803,7 +799,7 @@ function HeaderContent() {
                 {isConnected && (
                   <span
                     className={`h-2 w-2 shrink-0 rounded-full ${
-                      isOnMakalu ? 'bg-emerald-300' : 'bg-amber-300'
+                      isOnNetwork ? 'bg-emerald-300' : 'bg-amber-300'
                     }`}
                   />
                 )}

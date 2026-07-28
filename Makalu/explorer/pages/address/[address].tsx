@@ -1,13 +1,16 @@
-import { useState, useCallback, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useState, useCallback, useEffect } from 'react';
+
+import DnnsName from '@/components/DnnsName';
+import { FormattedValueElement } from '@/components/FormattedValueElement';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
 import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatLitho, formatValue, preferLitho, truncateAddressSmart, altAddressFormat } from '@/lib/format';
 import { getPreferredTxHash, isValidTransactionHash } from '@/lib/tx';
+
 import type { ApiAddress, ApiTx, ApiTokenDetail, ApiTokenHolderList, ApiPrice, ApiAddressTxList, PageInfo, ApiAddressToken, ApiAddressTokenTransferList, ApiTokenTransferList } from '@/lib/types';
-import { FormattedValueElement } from '@/components/FormattedValueElement';
 
 /* ── Tabs ─────────────────────────────────────────────────────────────── */
 
@@ -828,7 +831,7 @@ function ContractTab({ addr, tokenDetail }: { addr: string; tokenDetail: ApiToke
 
 /* ── Interact tab (token contract) ─────────────────────────────────── */
 
-function InteractTab({ addr, tokenDetail }: { addr: string; tokenDetail: ApiTokenDetail | null }) {
+function InteractTab({ addr: _addr, tokenDetail }: { addr: string; tokenDetail: ApiTokenDetail | null }) {
   if (isNftTokenDetail(tokenDetail)) {
     return (
       <div className="p-6">
@@ -1124,6 +1127,7 @@ function TokenContractLayout({
         {isToken && (
           <div className="font-mono text-sm text-white/40 break-all">{preferLitho(account.address)}</div>
         )}
+        <DnnsName address={account.evmAddress ?? (account.address.startsWith('0x') ? account.address : null)} />
       </div>
 
       {/* ── Token overview cards ─────────────────────────────────────── */}
@@ -1308,6 +1312,7 @@ function WalletLayout({
             <CopyBtn text={altAddress} />
           </div>
         )}
+        <DnnsName address={account.evmAddress ?? (altAddress?.startsWith('0x') ? altAddress : null)} />
       </div>
 
       {/* ── Overview cards ──────────────────────────────────────────── */}

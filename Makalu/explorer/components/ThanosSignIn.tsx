@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { useDisconnect } from '@web3modal/ethers/react';
 import { ConnectionController, ConnectorController, type Connector } from '@web3modal/core';
-import { buildSiweMessage } from 'thanos-connect';
+import { useDisconnect } from '@web3modal/ethers/react';
 import { getAddress, hexlify, toUtf8Bytes, type Eip1193Provider } from 'ethers';
+import { useEffect, useState } from 'react';
+import { buildSiweMessage } from 'thanos-connect';
+
 import {
   clearStoredSession,
   getStoredSession,
@@ -10,6 +11,7 @@ import {
   validateSession,
   type StoredSession,
 } from '@/lib/auth';
+import { NETWORK } from '@/lib/network';
 
 /**
  * "Sign in with Thanos" — SIWE authentication, unified with wallet connection.
@@ -32,8 +34,8 @@ import {
  * verifyMessage(message, signature) recovers the signer regardless.
  */
 
-const APP_NAME = 'Lithosphere Makalu Explorer';
-const CHAIN_ID = 700777;
+const APP_NAME = `${NETWORK.label} Explorer`;
+const CHAIN_ID = NETWORK.evmChainId;
 const THANOS_RDNS = 'fi.thanos.wallet';
 const THANOS_INSTALL_URL = 'https://thanos.fi';
 
@@ -67,7 +69,7 @@ async function discoverThanosConnector(): Promise<Connector | undefined> {
  * string. Most providers resolve a plain hex string, but some wrap it
  * ({ signature }, { result }, …). Returns null if no usable signature is present.
  */
-function normalizeSignature(raw: unknown): string | null {
+export function normalizeSignature(raw: unknown): string | null {
   if (typeof raw === 'string') {
     const s = raw.trim();
     if (!s) return null;
@@ -95,7 +97,7 @@ function describeShape(raw: unknown): string {
   return typeof raw;
 }
 
-function messageOf(err: unknown): string {
+export function messageOf(err: unknown): string {
   if (typeof err === 'object' && err !== null) {
     const e = err as { code?: number | string; message?: string };
     if (e.code === 4001 || e.code === 'ACTION_REJECTED') {

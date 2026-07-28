@@ -2,10 +2,12 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState } from 'react';
+
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
 import { formatNumber, formatTimestamp, truncateHash, timeAgo, cleanMethod, txTypeInfo, formatValue, formatSupply, formatStrat, formatGasPrice } from '@/lib/format';
 import { getPreferredTxHash } from '@/lib/tx';
+
 import type { ApiTx } from '@/lib/types';
 
 /* ---------- tiny helpers ---------- */

@@ -1,14 +1,17 @@
-import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useState } from 'react';
+
+import { FormattedValueElement } from '@/components/FormattedValueElement';
+import SyncStatusBanner from '@/components/SyncStatusBanner';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
 import { truncateHash, formatNumber, timeAgo, formatTimestamp, formatValue, formatSupply } from '@/lib/format';
+import { NETWORK } from '@/lib/network';
 import { getPreferredTxHash, normalizeEvmTxHash } from '@/lib/tx';
+
 import type { ApiTxList, StatsSummary } from '@/lib/types';
-import { FormattedValueElement } from '@/components/FormattedValueElement';
-import SyncStatusBanner from '@/components/SyncStatusBanner';
 
 const PAGE_SIZE = 25;
 const TX_TABLE_GRID_CLASS = 'lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.8fr)]';
@@ -54,7 +57,7 @@ export default function TransactionsPage() {
     <>
       <Head>
         <title>Transactions | {EXPLORER_TITLE}</title>
-        <meta name="description" content="Browse all transactions on the Makalu testnet." />
+        <meta name="description" content={`Browse all transactions on ${NETWORK.label}.`} />
       </Head>
 
       <div className="text-white">

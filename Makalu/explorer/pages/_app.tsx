@@ -1,7 +1,8 @@
-import type { AppProps } from 'next/app';
 import Layout from '@/components/Layout';
-import { WalletProvider } from '@/context/WalletContext';
 import NetworkSwitchModal from '@/components/NetworkSwitchModal';
+import { WalletProvider } from '@/context/WalletContext';
+
+import type { AppProps } from 'next/app';
 import '@/styles/globals.css';
 
 export default function ExplorerApp({ Component, pageProps }: AppProps) {

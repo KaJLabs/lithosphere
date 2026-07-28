@@ -1,8 +1,10 @@
+import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
 import Head from 'next/head';
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
+
 import { EXPLORER_TITLE } from '@/lib/constants';
 import { isEvmAddress } from '@/lib/format';
+import { NETWORK as EXPLORER_NETWORK } from '@/lib/network';
 import { isEvmTxHash } from '@/lib/tx';
 
 type SelectOption = {
@@ -27,6 +29,11 @@ type FaucetAssetConfig = {
   allowedAmounts: string[];
   defaultAmount: string;
   contractAddress?: string | null;
+  balance?: string;
+  available?: boolean;
+  claimableAmounts?: string[];
+  minimumClaimAmount?: string;
+  shortfall?: string;
 };
 
 type FaucetInfoResponse = {
@@ -106,6 +113,15 @@ function normalizeFaucetAssets(assets?: FaucetAssetConfig[] | null): FaucetAsset
         allowedAmounts,
         defaultAmount,
         contractAddress: asset.contractAddress ?? null,
+        balance: typeof asset.balance === 'string' ? asset.balance : undefined,
+        available: asset.available !== false,
+        claimableAmounts: Array.isArray(asset.claimableAmounts)
+          ? asset.claimableAmounts.map((value) => String(value))
+          : allowedAmounts,
+        minimumClaimAmount: typeof asset.minimumClaimAmount === 'string'
+          ? asset.minimumClaimAmount
+          : allowedAmounts[0],
+        shortfall: typeof asset.shortfall === 'string' ? asset.shortfall : '0',
       } as FaucetAssetConfig;
     })
     .filter((asset) => Boolean(asset.id && asset.symbol));
@@ -229,12 +245,15 @@ function FaucetContent() {
       value: asset.id,
       label: asset.kind === 'native'
         ? `${asset.symbol} (Native)`
-        : `${asset.symbol} (${asset.standard ?? 'LEP-100'})`,
+        : `${asset.symbol} (${asset.standard ?? 'LEP-100'})${asset.available === false ? ' — unavailable' : ''}`,
     }));
   }, [assets]);
 
   const amountOptions = useMemo<SelectOption[]>(() => {
-    return selectedAsset.allowedAmounts.map((value) => ({
+    const values = selectedAsset.claimableAmounts?.length
+      ? selectedAsset.claimableAmounts
+      : selectedAsset.allowedAmounts;
+    return values.map((value) => ({
       value,
       label: `${value} ${selectedAsset.symbol}`,
     }));
@@ -243,7 +262,8 @@ function FaucetContent() {
   const normalizedAddress = address.trim();
   const isValidRecipientAddress = isEvmAddress(normalizedAddress);
   const amountIsValid = selectedAsset.allowedAmounts.includes(amount);
-  const canSubmitClaim = isValidRecipientAddress && amountIsValid && !claiming;
+  const assetIsAvailable = selectedAsset.available !== false;
+  const canSubmitClaim = isValidRecipientAddress && amountIsValid && assetIsAvailable && !claiming;
   const addressHelpText = normalizedAddress
     ? (
       isValidRecipientAddress
@@ -560,6 +580,12 @@ function FaucetContent() {
                     <p className={`mt-2 text-xs ${amountIsValid ? 'text-white/45' : 'text-red-300'}`}>
                       Allowed: {selectedAsset.allowedAmounts.join(', ')} {selectedAsset.symbol}
                     </p>
+                    {selectedAsset.balance !== undefined && (
+                      <p className={`mt-1 text-xs ${assetIsAvailable ? 'text-emerald-300/80' : 'text-amber-300'}`}>
+                        Faucet balance: {selectedAsset.balance} {selectedAsset.symbol}
+                        {!assetIsAvailable && ` — needs at least ${selectedAsset.shortfall ?? selectedAsset.minimumClaimAmount ?? 'one claim'} more`}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -739,5 +765,20 @@ export default function FaucetPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   if (!mounted) return null;
+  if (!EXPLORER_NETWORK.faucetEnabled) {
+    return (
+      <>
+        <Head>
+          <title>Faucet unavailable | {EXPLORER_TITLE}</title>
+          <meta name="robots" content="noindex" />
+        </Head>
+        <section className="mx-auto max-w-2xl rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-8 text-center shadow-sm">
+          <img src={EXPLORER_NETWORK.logoPath} alt="LITHO" className="mx-auto h-16 w-16 rounded-full" />
+          <h1 className="mt-5 text-3xl font-semibold">No faucet on mainnet</h1>
+          <p className="mt-3 text-[var(--color-text-secondary)]">The faucet only distributes testnet assets. It is disabled on Lithosphere Mainnet.</p>
+        </section>
+      </>
+    );
+  }
   return <FaucetContent />;
 }

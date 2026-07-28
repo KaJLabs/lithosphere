@@ -4,14 +4,14 @@
 
 @layer base {
   :root {
-    --color-bg-primary: #06080d;
-    --color-bg-secondary: #0d1018;
-    --color-bg-tertiary: #1a1e2a;
-    --color-text-primary: #f1f5f9;
-    --color-text-secondary: #94a3b8;
+    --color-bg-primary: #f4f7fb;
+    --color-bg-secondary: #ffffff;
+    --color-bg-tertiary: #edf2f7;
+    --color-text-primary: #101827;
+    --color-text-secondary: #475569;
     --color-text-muted: #64748b;
-    --color-border: #1e2533;
-    --color-border-light: #0e1118;
+    --color-border: #dce4ee;
+    --color-border-light: #e8eef5;
     --explorer-ui-scale: 1.17;
   }
 
@@ -33,12 +33,52 @@
   body {
     @apply bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] transition-colors duration-200;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    background-image:
+      radial-gradient(circle at 8% -10%, rgb(52 211 153 / 0.09), transparent 26rem),
+      radial-gradient(circle at 95% 2%, rgb(59 130 246 / 0.08), transparent 30rem);
+    background-attachment: fixed;
+  }
+
+  .dark body {
+    background-image: none;
   }
 
   a {
     @apply text-litho-400 hover:text-litho-300 transition-colors;
   }
 }
+
+/* Legacy pages used dark-only utility colors. These mappings keep every route
+   readable in the mainnet light theme while the shared design tokens remain
+   the source of truth for newly touched UI. */
+:root:not(.dark) .text-white,
+:root:not(.dark) .text-white\/90,
+:root:not(.dark) .text-white\/85,
+:root:not(.dark) .text-white\/80,
+:root:not(.dark) .text-white\/75 { color: var(--color-text-primary); }
+:root:not(.dark) .text-white\/70,
+:root:not(.dark) .text-white\/65,
+:root:not(.dark) .text-white\/60,
+:root:not(.dark) .text-slate-300 { color: var(--color-text-secondary); }
+:root:not(.dark) .text-white\/55,
+:root:not(.dark) .text-white\/50,
+:root:not(.dark) .text-white\/45,
+:root:not(.dark) .text-white\/40,
+:root:not(.dark) .text-white\/35,
+:root:not(.dark) .text-white\/30 { color: var(--color-text-muted); }
+:root:not(.dark) .bg-white\/5,
+:root:not(.dark) .bg-white\/\[0\.02\],
+:root:not(.dark) .bg-white\/\[0\.03\],
+:root:not(.dark) .bg-white\/\[0\.05\],
+:root:not(.dark) .bg-black\/20,
+:root:not(.dark) .bg-black\/25,
+:root:not(.dark) .bg-black\/30,
+:root:not(.dark) .bg-black\/40,
+:root:not(.dark) .bg-black\/50 { background-color: rgb(255 255 255 / 0.82); }
+:root:not(.dark) .border-white\/5,
+:root:not(.dark) .border-white\/10,
+:root:not(.dark) .border-white\/15,
+:root:not(.dark) .border-white\/20 { border-color: var(--color-border); }
 
 @layer components {
   .card {
