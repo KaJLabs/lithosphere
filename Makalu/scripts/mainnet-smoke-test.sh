@@ -18,7 +18,7 @@ grep -q 'data-network="mainnet"' <<<"$home" || { echo "explorer HTML is not bran
 grep -qi 'Lithoscan' <<<"$home" || { echo "explorer HTML is missing Lithoscan branding" >&2; exit 1; }
 [[ "$(request_code "$BASE_URL/litho-coin-logo.svg")" == "200" ]] || { echo "LITHO coin logo is unavailable" >&2; exit 1; }
 
-for spec in 'faucet:Faucet is not enabled' 'bridge:Bridge is not enabled' 'swap:Swap is not enabled'; do
+for spec in 'faucet:No faucet on mainnet' 'bridge:Bridge is not enabled' 'swap:Swap is not enabled'; do
   path="${spec%%:*}"
   expected="${spec#*:}"
   body="$(curl --fail --silent --show-error --max-time 20 "$BASE_URL/$path")"
