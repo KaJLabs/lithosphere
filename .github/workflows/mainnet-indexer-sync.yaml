@@ -165,9 +165,9 @@ jobs:
         run: |
           deploy_path=/opt/lithoscan-mainnet-staging
           target="$DEPLOY_USER@$DEPLOY_HOST"
-          ssh "$target" "sudo mkdir -p '$deploy_path' && sudo chown -R '$DEPLOY_USER:$DEPLOY_USER' '$deploy_path'"
+          ssh "$target" "test -d '$deploy_path' && test -w '$deploy_path' && docker compose version"
           scp -r deploy-package/. "$target:$deploy_path/"
-          ssh "$target" "chmod 700 '$deploy_path/scripts/mainnet-start-indexer.sh' '$deploy_path/infra/mainnet/postgres/init-mainnet.sh' && sudo env DEPLOY_DIR='$deploy_path' bash '$deploy_path/scripts/mainnet-start-indexer.sh'"
+          ssh "$target" "chmod 700 '$deploy_path/scripts/mainnet-start-indexer.sh' '$deploy_path/infra/mainnet/postgres/init-mainnet.sh' && DEPLOY_DIR='$deploy_path' bash '$deploy_path/scripts/mainnet-start-indexer.sh'"
 
       - name: Summary
         run: |
