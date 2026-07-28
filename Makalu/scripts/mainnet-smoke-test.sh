@@ -22,6 +22,7 @@ for spec in 'faucet:No faucet on mainnet' 'bridge:Bridge is not enabled' 'swap:S
   path="${spec%%:*}"
   expected="${spec#*:}"
   body="$(curl --fail --silent --show-error --max-time 20 "$BASE_URL/$path")"
+  body="${body//<!-- -->/}"
   grep -q "$expected" <<<"$body" || { echo "/$path does not fail closed in the UI" >&2; exit 1; }
 done
 
