@@ -761,10 +761,14 @@ function FaucetContent() {
   );
 }
 
-export default function FaucetPage() {
+function EnabledFaucetPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   if (!mounted) return null;
+  return <FaucetContent />;
+}
+
+export default function FaucetPage() {
   if (!EXPLORER_NETWORK.faucetEnabled) {
     return (
       <>
@@ -780,5 +784,5 @@ export default function FaucetPage() {
       </>
     );
   }
-  return <FaucetContent />;
+  return <EnabledFaucetPage />;
 }
