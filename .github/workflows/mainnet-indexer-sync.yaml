@@ -60,6 +60,7 @@ jobs:
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY || secrets.INDEXER_SSH_KEY }}
       BASTION_HOST: ${{ secrets.BASTION_HOST }}
       BASTION_SSH_KEY: ${{ secrets.BASTION_SSH_KEY }}
+      AWS_OIDC_ROLE_ARN: ${{ secrets.AWS_OIDC_ROLE_ARN }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
     steps:
@@ -71,7 +72,7 @@ jobs:
           [[ "$DEPLOY_COMMIT_SHA" =~ ^[0-9a-f]{40}$ && "$DEPLOY_COMMIT_SHA" == "$GITHUB_SHA" ]] || {
             echo "Dispatch from the exact full commit being synchronized"; exit 1;
           }
-          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY POSTGRES_PASSWORD REDIS_PASSWORD RPC_URL EVM_RPC_URL EVM_WS_URL LITHO_LCD_URL GRPC_URL; do
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY POSTGRES_PASSWORD REDIS_PASSWORD RPC_URL EVM_RPC_URL EVM_WS_URL LITHO_LCD_URL GRPC_URL AWS_OIDC_ROLE_ARN; do
             [[ -n "${!name:-}" ]] || { echo "Missing protected value: $name"; exit 1; }
           done
           [[ "$POSTGRES_PASSWORD" =~ ^[A-Za-z0-9._~-]{32,}$ ]] || { echo "POSTGRES_PASSWORD must be URL-safe and at least 32 characters"; exit 1; }
@@ -94,6 +95,50 @@ jobs:
               raise SystemExit('GRPC_URL must be host:port')
           PY
           REQUIRE_GENESIS=false bash Makalu/scripts/mainnet-validate.sh
+
+      - name: Configure AWS management access
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Ensure bastion and indexer hosts are healthy
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          find_instance() {
+            local address="$1"
+            local id
+            id="$(aws ec2 describe-instances --filters "Name=private-ip-address,Values=$address" "Name=instance-state-name,Values=pending,running,stopping,stopped" --query 'Reservations[0].Instances[0].InstanceId' --output text)"
+            if [[ -z "$id" || "$id" == "None" ]]; then
+              id="$(aws ec2 describe-instances --filters "Name=ip-address,Values=$address" "Name=instance-state-name,Values=pending,running,stopping,stopped" --query 'Reservations[0].Instances[0].InstanceId' --output text)"
+            fi
+            [[ -n "$id" && "$id" != "None" ]] || { echo "No EC2 instance found for protected address" >&2; return 1; }
+            printf '%s' "$id"
+          }
+          ensure_running() {
+            local label="$1" id="$2" state
+            state="$(aws ec2 describe-instances --instance-ids "$id" --query 'Reservations[0].Instances[0].State.Name' --output text)"
+            if [[ "$state" == "stopping" ]]; then
+              aws ec2 wait instance-stopped --instance-ids "$id"
+              state=stopped
+            fi
+            if [[ "$state" == "stopped" ]]; then
+              echo "Starting stopped $label instance $id"
+              aws ec2 start-instances --instance-ids "$id" >/dev/null
+            elif [[ "$state" != "running" && "$state" != "pending" ]]; then
+              echo "$label instance $id is in unsupported state $state" >&2; return 1
+            fi
+            aws ec2 wait instance-running --instance-ids "$id"
+            aws ec2 wait instance-status-ok --instance-ids "$id"
+            echo "$label instance $id is running and healthy"
+          }
+          indexer_id="$(find_instance "$DEPLOY_HOST")"
+          ensure_running indexer "$indexer_id"
+          if [[ -n "$BASTION_HOST" ]]; then
+            bastion_id="$(find_instance "$BASTION_HOST")"
+            ensure_running bastion "$bastion_id"
+          fi
 
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
