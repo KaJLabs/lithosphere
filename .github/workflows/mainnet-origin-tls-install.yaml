@@ -100,6 +100,7 @@ jobs:
           active=/etc/nginx/sites-enabled/lithoscan.ai.conf
           upload_dir="$deploy_dir/tls-staging"
           current_user="$(id -un)"
+          current_uid="$(id -u)"
 
           actual_helper_sha="$(sha256sum "$helper" | cut -d' ' -f1)"
           echo "helper_sha256=$actual_helper_sha"
@@ -123,7 +124,7 @@ jobs:
             stat --format='tls_staging=%F owner=%U:%G mode=%a path=%n' "$upload_dir"
             test -d "$upload_dir" && test ! -L "$upload_dir" || { echo "TLS staging path is not a real directory" >&2; exit 1; }
             test "$(readlink -f "$upload_dir")" = "$upload_dir" || { echo "TLS staging path contains a symlink" >&2; exit 1; }
-            test "$(stat -c %U "$upload_dir")" = "$current_user" || { echo "TLS staging directory owner differs from deploy user" >&2; exit 1; }
+            test "$(stat -c %u "$upload_dir")" = "$current_uid" || { echo "TLS staging directory owner differs from deploy user" >&2; exit 1; }
             test "$(stat -c %a "$upload_dir")" = 700 || { echo "TLS staging directory must use mode 0700" >&2; exit 1; }
           else
             install -d -m 0700 "$upload_dir"
