@@ -1,0 +1,208 @@
+name: Lithoscan Mainnet Origin TLS Install
+run-name: Origin TLS install ${{ inputs.release_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Approved immutable Lithoscan release SHA
+        required: true
+        type: string
+      canary_run_id:
+        description: Successful production canary run ID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: lithoscan-mainnet-edge
+  cancel-in-progress: false
+
+jobs:
+  install-origin-tls:
+    runs-on: ubuntu-latest
+    environment: lithoscan-mainnet
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      LITHOSCAN_TLS_CERT: ${{ secrets.LITHOSCAN_TLS_CERT }}
+      LITHOSCAN_TLS_KEY: ${{ secrets.LITHOSCAN_TLS_KEY }}
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      CANARY_RUN_ID: ${{ inputs.canary_run_id }}
+      EXPECTED_HELPER_SHA256: 47db22ceb513755d133d27e59996b3bedb90af6800f80fc7fe4efa8767ffb475
+      EXPECTED_SUDOERS_SHA256: 1ac6da497faa5295a12987b9f3db6e1e83c39dd648b01f97b2c20e037f8c90c4
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate approved release, canary, and protected values
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "A full release SHA is required" >&2; exit 1; }
+          [[ "$CANARY_RUN_ID" =~ ^[0-9]+$ ]] || { echo "A canary run ID is required" >&2; exit 1; }
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY LITHOSCAN_TLS_CERT LITHOSCAN_TLS_KEY; do
+            [[ -n "${!name:-}" ]] || { echo "Missing protected environment value: $name" >&2; exit 1; }
+          done
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANARY_RUN_ID")"
+          [[ "$(jq -r '.path' <<<"$run_json")" == ".github/workflows/mainnet-deploy.yaml" ]] || { echo "Evidence is not the production canary workflow" >&2; exit 1; }
+          [[ "$(jq -r '.event' <<<"$run_json")" == "workflow_dispatch" ]] || { echo "Canary was not explicitly dispatched" >&2; exit 1; }
+          [[ "$(jq -r '.conclusion' <<<"$run_json")" == "success" ]] || { echo "Canary did not succeed" >&2; exit 1; }
+          [[ "$(jq -r '.head_sha' <<<"$run_json")" == "$RELEASE_SHA" ]] || { echo "Canary used another release" >&2; exit 1; }
+
+      - name: Validate certificate and private key before transfer
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p .origin-tls
+          printf '%s\n' "$LITHOSCAN_TLS_CERT" > .origin-tls/fullchain.pem
+          printf '%s\n' "$LITHOSCAN_TLS_KEY" > .origin-tls/privkey.pem
+          chmod 0600 .origin-tls/fullchain.pem .origin-tls/privkey.pem
+
+          openssl x509 -in .origin-tls/fullchain.pem -noout >/dev/null
+          openssl x509 -in .origin-tls/fullchain.pem -noout -checkhost lithoscan.ai \
+            | grep -q 'does match certificate'
+          openssl x509 -in .origin-tls/fullchain.pem -noout -checkend 300 >/dev/null
+          openssl pkey -in .origin-tls/privkey.pem -noout -passin pass: >/dev/null
+
+          cert_key_hash="$(openssl x509 -in .origin-tls/fullchain.pem -pubkey -noout \
+            | openssl pkey -pubin -outform DER | sha256sum | cut -d' ' -f1)"
+          private_key_hash="$(openssl pkey -in .origin-tls/privkey.pem -passin pass: -pubout -outform DER \
+            | sha256sum | cut -d' ' -f1)"
+          [[ "$cert_key_hash" == "$private_key_hash" ]] || { echo "Certificate and private key do not match" >&2; exit 1; }
+
+          openssl x509 -in .origin-tls/fullchain.pem -noout -subject -issuer -dates -fingerprint -sha256
+
+      - name: Configure protected SSH access
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Verify helper identity and inactive origin
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "EXPECTED_HELPER_SHA256='$EXPECTED_HELPER_SHA256' RELEASE_SHA='$RELEASE_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          helper=/usr/local/sbin/lithoscan-nginx-cutover
+          deploy_dir=/opt/lithoscan-mainnet
+          active=/etc/nginx/sites-enabled/lithoscan.ai.conf
+          upload_dir="$deploy_dir/tls-staging"
+
+          [[ "$(sha256sum "$helper" | cut -d' ' -f1)" == "$EXPECTED_HELPER_SHA256" ]] || {
+            echo "Installed helper SHA-256 does not match the approved value" >&2; exit 1;
+          }
+          grep -q 'install-certificate)' "$helper" || { echo "Helper lacks install-certificate" >&2; exit 1; }
+          grep -qx "GIT_SHA=$RELEASE_SHA" "$deploy_dir/.env"
+          test ! -e "$active" || { echo "Production vhost must remain inactive before certificate installation" >&2; exit 1; }
+          curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3500/ >/dev/null
+          curl --fail --silent --show-error --max-time 10 http://127.0.0.1:4400/health >/dev/null
+          if sudo -n /usr/bin/install --version >/dev/null 2>&1; then
+            echo "Generic root install unexpectedly allowed" >&2; exit 1
+          fi
+
+          if test -e "$upload_dir"; then
+            test -d "$upload_dir" && test ! -L "$upload_dir"
+            test "$(readlink -f "$upload_dir")" = "$upload_dir"
+            test "$(stat -c %U "$upload_dir")" = "$USER"
+            test "$(stat -c %a "$upload_dir")" = 700
+          else
+            install -d -m 0700 "$upload_dir"
+          fi
+          rm -f -- "$upload_dir/fullchain.pem" "$upload_dir/privkey.pem"
+          REMOTE
+
+      - name: Stage certificate through protected SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          upload_dir=/opt/lithoscan-mainnet/tls-staging
+          scp .origin-tls/fullchain.pem "$target:$upload_dir/fullchain.pem"
+          scp .origin-tls/privkey.pem "$target:$upload_dir/privkey.pem"
+          ssh "$target" "chmod 0600 '$upload_dir/fullchain.pem' '$upload_dir/privkey.pem' && \
+            test ! -L '$upload_dir/fullchain.pem' && test ! -L '$upload_dir/privkey.pem' && \
+            test \"\$(stat -c %U '$upload_dir/fullchain.pem')\" = '$DEPLOY_USER' && \
+            test \"\$(stat -c %U '$upload_dir/privkey.pem')\" = '$DEPLOY_USER'"
+
+      - name: Install certificate using the restricted helper
+        id: install
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "started=true" >> "$GITHUB_OUTPUT"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "sudo -n /usr/local/sbin/lithoscan-nginx-cutover install-certificate"
+
+      - name: Verify installed certificate and inactive vhost
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<'REMOTE'
+          set -euo pipefail
+          cert=/etc/letsencrypt/live/lithoscan.ai/fullchain.pem
+          key=/etc/letsencrypt/live/lithoscan.ai/privkey.pem
+          active=/etc/nginx/sites-enabled/lithoscan.ai.conf
+          bootstrap=/etc/nginx/sites-enabled/lithoscan-acme-bootstrap.conf
+
+          test -f "$cert" && test -f "$key"
+          test "$(stat -c '%U:%G:%a' "$cert")" = root:root:644
+          test "$(stat -c '%U:%G:%a' "$key")" = root:root:600
+          test ! -e "$active" || { echo "Certificate workflow must not activate the production vhost" >&2; exit 1; }
+          test -L "$bootstrap" || { echo "ACME bootstrap route was unexpectedly removed" >&2; exit 1; }
+          openssl x509 -in "$cert" -noout -checkhost lithoscan.ai | grep -q 'does match certificate'
+          openssl x509 -in "$cert" -noout -checkend 300 >/dev/null
+          sudo -n /usr/local/sbin/lithoscan-nginx-cutover status
+          REMOTE
+
+      - name: Confirm public redirect and direct origin are unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          public_headers="$(curl --silent --show-error --dump-header - --output /dev/null --max-time 20 https://lithoscan.ai/)"
+          public_code="$(awk 'toupper($1) ~ /^HTTP\// {code=$2} END {print code}' <<<"$public_headers")"
+          public_location="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {gsub("\r", ""); print $2}' <<<"$public_headers" | tail -n1)"
+          [[ "$public_code" == 301 && "$public_location" == https://makalu.litho.ai ]] || {
+            echo "Public Makalu redirect changed unexpectedly" >&2; exit 1;
+          }
+
+          origin_code="$(curl --insecure --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --max-time 20 --resolve "lithoscan.ai:443:$DEPLOY_HOST" https://lithoscan.ai/)"
+          [[ "$origin_code" == 501 ]] || { echo "Inactive origin route changed unexpectedly: HTTP $origin_code" >&2; exit 1; }
+          echo "Certificate installed; production vhost inactive; Makalu redirect preserved."
+
+      - name: Remove certificate staging remnants
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          upload_dir=/opt/lithoscan-mainnet/tls-staging
+          ssh "$target" "test -d '$upload_dir' && test ! -L '$upload_dir' && \
+            test \"\$(readlink -f '$upload_dir')\" = '$upload_dir' && \
+            rm -f -- '$upload_dir/fullchain.pem' '$upload_dir/privkey.pem'" || true
+          rm -rf -- .origin-tls
+
+      - name: Publish certificate evidence
+        if: success()
+        shell: bash
+        run: |
+          echo "## Lithoscan origin TLS installed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release: \`$RELEASE_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Helper SHA-256: \`$EXPECTED_HELPER_SHA256\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Sudoers SHA-256 supplied by infrastructure: \`$EXPECTED_SUDOERS_SHA256\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Certificate hostname, validity and private-key match: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Installed ownership/modes: root:root 0644/0600" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production vhost activation: **not performed**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cloudflare Makalu redirect: preserved" >> "$GITHUB_STEP_SUMMARY"
