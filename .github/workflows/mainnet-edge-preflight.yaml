@@ -114,6 +114,15 @@ jobs:
           find /usr/local/sbin /usr/local/bin /opt/lithoscan-mainnet -maxdepth 3 -type f -executable \
             \( -iname '*lithoscan*' -o -iname '*nginx*' -o -iname '*edge*' \) \
             -printf '%M %u:%g %p\n' 2>/dev/null | sort || true
+          echo "Staged edge control files:"
+          while IFS= read -r staged_file; do
+            stat --format='%A %U:%G %s %n' "$staged_file"
+            sha256sum "$staged_file"
+          done < <(
+            find "$HOME" /opt/lithoscan-mainnet -maxdepth 5 -type f \
+              \( -iname '*lithoscan*nginx*' -o -iname '*sudoers*' -o -iname '*cutover*' -o -iname '*install*certificate*' \) \
+              ! -path '/opt/lithoscan-mainnet/infra/mainnet/nginx/*' -print 2>/dev/null | sort -u
+          )
           find /etc/sudoers.d -maxdepth 1 -type f -iname '*lithoscan*' \
             -printf '%M %u:%g %p\n' 2>/dev/null | sort || true
           echo "Certificate installation permissions:"
