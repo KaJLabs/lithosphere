@@ -39,6 +39,8 @@ jobs:
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
       AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
+      GHCR_USER: ${{ github.actor }}
+      GHCR_TOKEN: ${{ github.token }}
       DEPLOY_COMMIT_SHA: ${{ inputs.commit_sha }}
       STAGING_SMOKE_RUN_ID: ${{ inputs.staging_smoke_run_id }}
       MAX_INDEXER_LAG: ${{ inputs.max_indexer_lag }}
@@ -51,7 +53,7 @@ jobs:
           [[ "$DEPLOY_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "A full release commit SHA is required"; exit 1; }
           [[ "$STAGING_SMOKE_RUN_ID" =~ ^[0-9]+$ ]] || { echo "A staging smoke run ID is required"; exit 1; }
           [[ "$MAX_INDEXER_LAG" =~ ^[0-9]+$ ]] || { echo "max_indexer_lag must be a non-negative integer"; exit 1; }
-          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY GENESIS_URL POSTGRES_PASSWORD REDIS_PASSWORD AUTH_SESSION_SECRET; do
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY GENESIS_URL POSTGRES_PASSWORD REDIS_PASSWORD AUTH_SESSION_SECRET GHCR_USER GHCR_TOKEN; do
             [[ -n "${!name:-}" ]] || { echo "Missing protected environment value: $name"; exit 1; }
           done
           [[ "$POSTGRES_PASSWORD" =~ ^[A-Za-z0-9._~-]{32,}$ ]] || { echo "POSTGRES_PASSWORD must be URL-safe and at least 32 characters"; exit 1; }
@@ -160,9 +162,16 @@ jobs:
         run: |
           echo "started=true" >> "$GITHUB_OUTPUT"
           deploy_path=/opt/lithoscan-mainnet
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" "test -d '$deploy_path' && test -w '$deploy_path' && docker compose version"
-          scp -r deploy-package/. "$DEPLOY_USER@$DEPLOY_HOST:$deploy_path/"
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" "chmod 700 '$deploy_path/scripts/'*.sh && DEPLOY_DIR='$deploy_path' bash '$deploy_path/scripts/mainnet-deploy.sh'"
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          remote_docker_config="/tmp/lithoscan-mainnet-ghcr-$GITHUB_RUN_ID"
+          cleanup_remote() {
+            ssh "$target" "rm -rf '$remote_docker_config'" || true
+          }
+          trap cleanup_remote EXIT
+          ssh "$target" "test -d '$deploy_path' && test -w '$deploy_path' && docker compose version && umask 077 && mkdir -p '$remote_docker_config'"
+          printf '%s' "$GHCR_TOKEN" | ssh "$target" "docker --config '$remote_docker_config' login ghcr.io --username '$GHCR_USER' --password-stdin"
+          scp -r deploy-package/. "$target:$deploy_path/"
+          ssh "$target" "chmod 700 '$deploy_path/scripts/'*.sh && DOCKER_CONFIG='$remote_docker_config' DEPLOY_DIR='$deploy_path' bash '$deploy_path/scripts/mainnet-deploy.sh'"
 
       - name: Wait for synchronization and smoke through a private SSH tunnel
         shell: bash
@@ -198,7 +207,16 @@ jobs:
       - name: Roll back failed canary
         if: failure() && steps.deploy.outputs.started == 'true'
         shell: bash
-        run: ssh "$DEPLOY_USER@$DEPLOY_HOST" "DEPLOY_DIR=/opt/lithoscan-mainnet bash /opt/lithoscan-mainnet/scripts/mainnet-rollback.sh"
+        run: |
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          remote_docker_config="/tmp/lithoscan-mainnet-rollback-ghcr-$GITHUB_RUN_ID"
+          cleanup_remote() {
+            ssh "$target" "rm -rf '$remote_docker_config'" || true
+          }
+          trap cleanup_remote EXIT
+          ssh "$target" "umask 077 && mkdir -p '$remote_docker_config'"
+          printf '%s' "$GHCR_TOKEN" | ssh "$target" "docker --config '$remote_docker_config' login ghcr.io --username '$GHCR_USER' --password-stdin"
+          ssh "$target" "DOCKER_CONFIG='$remote_docker_config' DEPLOY_DIR=/opt/lithoscan-mainnet bash /opt/lithoscan-mainnet/scripts/mainnet-rollback.sh"
 
       - name: Canary approval evidence
         if: success()
