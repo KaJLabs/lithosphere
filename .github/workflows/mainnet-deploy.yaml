@@ -48,9 +48,7 @@ jobs:
       - name: Validate protected canary request
         shell: bash
         run: |
-          [[ "$DEPLOY_COMMIT_SHA" =~ ^[0-9a-f]{40}$ && "$DEPLOY_COMMIT_SHA" == "$GITHUB_SHA" ]] || {
-            echo "Dispatch this workflow from the exact commit being deployed"; exit 1;
-          }
+          [[ "$DEPLOY_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "A full release commit SHA is required"; exit 1; }
           [[ "$STAGING_SMOKE_RUN_ID" =~ ^[0-9]+$ ]] || { echo "A staging smoke run ID is required"; exit 1; }
           [[ "$MAX_INDEXER_LAG" =~ ^[0-9]+$ ]] || { echo "max_indexer_lag must be a non-negative integer"; exit 1; }
           for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY GENESIS_URL POSTGRES_PASSWORD REDIS_PASSWORD AUTH_SESSION_SECRET; do
@@ -83,7 +81,8 @@ jobs:
         shell: bash
         run: |
           run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_SMOKE_RUN_ID")"
-          [[ "$(jq -r '.name' <<<"$run_json")" == "Lithoscan Mainnet Staging Smoke" ]] || { echo "Evidence is not the mainnet staging workflow"; exit 1; }
+          [[ "$(jq -r '.path' <<<"$run_json")" == ".github/workflows/mainnet-staging-smoke.yaml" ]] || { echo "Evidence is not the mainnet staging workflow"; exit 1; }
+          [[ "$(jq -r '.event' <<<"$run_json")" == "workflow_dispatch" ]] || { echo "Staging evidence was not explicitly dispatched"; exit 1; }
           [[ "$(jq -r '.conclusion' <<<"$run_json")" == "success" ]] || { echo "Staging evidence did not succeed"; exit 1; }
           [[ "$(jq -r '.head_sha' <<<"$run_json")" == "$DEPLOY_COMMIT_SHA" ]] || { echo "Staging evidence used another commit"; exit 1; }
           echo "Validated staging smoke run $STAGING_SMOKE_RUN_ID"
@@ -99,7 +98,7 @@ jobs:
         shell: bash
         run: |
           echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          release_tag="sha-$GITHUB_SHA"
+          release_tag="sha-$DEPLOY_COMMIT_SHA"
           docker manifest inspect "ghcr.io/kajlabs/lithoscan-api:$release_tag" >/dev/null
           docker manifest inspect "ghcr.io/kajlabs/lithoscan-indexer:$release_tag" >/dev/null
           docker manifest inspect "ghcr.io/kajlabs/lithoscan-explorer:mainnet-$release_tag" >/dev/null
@@ -107,7 +106,7 @@ jobs:
       - name: Prepare isolated production canary package
         shell: bash
         run: |
-          release_tag="sha-$GITHUB_SHA"
+          release_tag="sha-$DEPLOY_COMMIT_SHA"
           mkdir -p deploy-package/scripts deploy-package/infra/mainnet deploy-package/infra/grafana deploy-package/infra/postgres
           cp Makalu/docker-compose.mainnet.yaml deploy-package/
           cp Makalu/scripts/mainnet-{deploy,rollback,backup}.sh deploy-package/scripts/
@@ -151,7 +150,7 @@ jobs:
           DNS_CUTOVER_ENABLED=false
           MONITORING_ENABLED=false
           GRAFANA_PASSWORD=MONITORING_DISABLED_FOR_CANARY
-          GIT_SHA=$GITHUB_SHA
+          GIT_SHA=$DEPLOY_COMMIT_SHA
           VERSION=$release_tag
           EOF
 
