@@ -292,13 +292,44 @@ export function attrTuples(events: TxEvent[], eventType: string, keys: string[])
   return out;
 }
 
-/** Fetch from CometBFT JSON-RPC. */
+const RPC_RETRY_ATTEMPTS = Math.max(1, Number(process.env.RPC_RETRY_ATTEMPTS || 6));
+const RPC_RETRY_BASE_MS = Math.max(0, Number(process.env.RPC_RETRY_BASE_MS || 250));
+const RPC_RETRY_MAX_MS = Math.max(RPC_RETRY_BASE_MS, Number(process.env.RPC_RETRY_MAX_MS || 5_000));
+const RETRYABLE_RPC_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+function rpcRetryDelay(resp: Response | null, attempt: number): number {
+  const retryAfter = resp?.headers.get('retry-after');
+  if (retryAfter != null && /^\d+(?:\.\d+)?$/.test(retryAfter.trim())) {
+    return Math.min(RPC_RETRY_MAX_MS, Math.max(0, Math.ceil(Number(retryAfter) * 1_000)));
+  }
+  return Math.min(RPC_RETRY_MAX_MS, RPC_RETRY_BASE_MS * (2 ** Math.max(0, attempt - 1)));
+}
+
+/** Fetch from CometBFT JSON-RPC, retrying transient gateway/rate-limit failures. */
 async function rpcGet<T>(path: string): Promise<T> {
-  const resp = await fetch(`${RPC_URL}${path}`, { signal: AbortSignal.timeout(30_000) });
-  if (!resp.ok) throw new Error(`RPC ${path} → HTTP ${resp.status}`);
-  const json = await resp.json() as { result?: T; error?: { message: string } };
-  if (json.error) throw new Error(`RPC error on ${path}: ${json.error.message}`);
-  return json.result as T;
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= RPC_RETRY_ATTEMPTS; attempt++) {
+    let resp: Response | null = null;
+    try {
+      resp = await fetch(`${RPC_URL}${path}`, { signal: AbortSignal.timeout(30_000) });
+      if (resp.ok) {
+        const json = await resp.json() as { result?: T; error?: { message: string } };
+        if (json.error) throw new Error(`RPC error on ${path}: ${json.error.message}`);
+        return json.result as T;
+      }
+      lastError = new Error(`RPC ${path} -> HTTP ${resp.status}`);
+      if (!RETRYABLE_RPC_STATUS.has(resp.status)) throw lastError;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (resp && !RETRYABLE_RPC_STATUS.has(resp.status)) throw lastError;
+    }
+
+    if (attempt >= RPC_RETRY_ATTEMPTS) break;
+    const delay = rpcRetryDelay(resp, attempt);
+    logger.warn({ path, attempt, status: resp?.status, delay }, 'rpc_request_retry');
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+  throw lastError ?? new Error(`RPC ${path} failed`);
 }
 
 async function getLastIndexedBlock(): Promise<number> {

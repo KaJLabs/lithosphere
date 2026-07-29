@@ -107,7 +107,7 @@ describe('indexBlock', () => {
 
   it('rolls back and releases the client on RPC failure', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce(
-      new Response('boom', { status: 502 }),
+      new Response('boom', { status: 400 }),
     ) as typeof fetch;
 
     await expect(indexBlock(102)).rejects.toThrow();
@@ -115,6 +115,43 @@ describe('indexBlock', () => {
     // RPC failed before any DB write, so we never reach BEGIN.
     expect(captured.find((c) => c.sql.trim() === 'ROLLBACK')).toBeUndefined();
     expect(releaseSpy).not.toHaveBeenCalled();
+  });
+
+  it('retries transient RPC 503 responses without aborting the block cycle', async () => {
+    let blockAttempts = 0;
+    globalThis.fetch = vi.fn(async (url: unknown) => {
+      const u = String(url);
+      if (u.includes('/block?height=104')) {
+        blockAttempts++;
+        if (blockAttempts < 3) {
+          return new Response('rate limited', {
+            status: 503,
+            headers: { 'Retry-After': '0' },
+          });
+        }
+        return new Response(JSON.stringify({
+          result: {
+            block_id: { hash: '0xretry' },
+            block: {
+              header: { proposer_address: '0xprop', time: '2026-07-29T00:00:00Z' },
+              data: { txs: [] },
+            },
+          },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (u.includes('/block_results?height=104')) {
+        return new Response(JSON.stringify({ result: { txs_results: [] } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response('unexpected path', { status: 404 });
+    }) as typeof fetch;
+
+    await indexBlock(104);
+
+    expect(blockAttempts).toBe(3);
+    expect(captured.some((c) => c.sql.trim().startsWith('INSERT INTO blocks'))).toBe(true);
   });
 
   it('deletes existing block rows first when replaceExisting=true', async () => {
