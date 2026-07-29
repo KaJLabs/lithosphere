@@ -75,6 +75,14 @@ jobs:
               raise SystemExit('SMOKE_BASE_URL must be the private canary origin, not lithoscan.ai')
           PY
 
+      - name: Configure SSH
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
       - name: Verify successful staging evidence
         env:
           GH_TOKEN: ${{ github.token }}
@@ -86,9 +94,12 @@ jobs:
           [[ "$(jq -r '.head_sha' <<<"$run_json")" == "$DEPLOY_COMMIT_SHA" ]] || { echo "Staging evidence used another commit"; exit 1; }
           echo "Validated staging smoke run $STAGING_SMOKE_RUN_ID"
 
-      - name: Validate mainnet identity and final genesis
+      - name: Validate mainnet identity and final genesis from the deployment VPS
         shell: bash
-        run: bash Makalu/scripts/mainnet-validate.sh
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "GENESIS_URL='$GENESIS_URL' RPC_URL='https://rpc-mainnet.litho.ai' EVM_RPC_URL='https://rpc-mainnet.litho.ai' EVM_WS_URL='wss://rpc-mainnet.litho.ai/websocket' LITHO_LCD_URL='https://api-mainnet.litho.ai' GRPC_URL='grpc-mainnet.litho.ai:9090' bash -s" \
+            < Makalu/scripts/mainnet-validate.sh
 
       - name: Verify immutable images exist
         shell: bash
@@ -149,14 +160,6 @@ jobs:
           GIT_SHA=$GITHUB_SHA
           VERSION=$release_tag
           EOF
-
-      - name: Configure SSH
-        shell: bash
-        run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: Upload and deploy isolated production canary
         id: deploy

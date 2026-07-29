@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate exact release and live mainnet identity
+      - name: Validate exact release and protected values
         shell: bash
         run: |
           [[ "$DEPLOY_COMMIT_SHA" =~ ^[0-9a-f]{40}$ && "$DEPLOY_COMMIT_SHA" == "$GITHUB_SHA" ]] || {
@@ -58,7 +58,22 @@ jobs:
           done
           [[ "$POSTGRES_PASSWORD" =~ ^[A-Za-z0-9._~-]{32,}$ ]] || { echo "POSTGRES_PASSWORD is invalid"; exit 1; }
           [[ "$REDIS_PASSWORD" =~ ^[A-Za-z0-9._~-]{32,}$ ]] || { echo "REDIS_PASSWORD is invalid"; exit 1; }
-          REQUIRE_GENESIS=false bash Makalu/scripts/mainnet-validate.sh
+
+      - name: Configure direct staging SSH
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Validate live mainnet identity from the deployment VPS
+        shell: bash
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "REQUIRE_GENESIS=false RPC_URL='$RPC_URL' EVM_RPC_URL='$EVM_RPC_URL' EVM_WS_URL='$EVM_WS_URL' LITHO_LCD_URL='$LITHO_LCD_URL' GRPC_URL='$GRPC_URL' bash -s" \
+            < Makalu/scripts/mainnet-validate.sh
 
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -151,15 +166,6 @@ jobs:
           GIT_SHA=$GITHUB_SHA
           VERSION=staging-sha-$GITHUB_SHA
           EOF
-
-      - name: Configure direct staging SSH
-        shell: bash
-        run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy loopback-only staging API and explorer
         shell: bash
