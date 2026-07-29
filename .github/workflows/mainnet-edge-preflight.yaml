@@ -116,6 +116,20 @@ jobs:
             -printf '%M %u:%g %p\n' 2>/dev/null | sort || true
           find /etc/sudoers.d -maxdepth 1 -type f -iname '*lithoscan*' \
             -printf '%M %u:%g %p\n' 2>/dev/null | sort || true
+          echo "Certificate installation permissions:"
+          for path in /etc/letsencrypt /etc/letsencrypt/live; do
+            if [[ -e "$path" ]]; then
+              stat --format='%A %U:%G %n' "$path"
+              [[ -w "$path" ]] && echo "writable=yes path=$path" || echo "writable=no path=$path"
+            else
+              echo "MISSING $path"
+            fi
+          done
+          if sudo -n /usr/bin/install --version >/dev/null 2>&1; then
+            echo "ROOT_INSTALL_COMMAND_ALLOWED=true"
+          else
+            echo "ROOT_INSTALL_COMMAND_ALLOWED=false"
+          fi
           if [[ -r /usr/local/sbin/lithoscan-nginx-cutover ]]; then
             echo "Prepared wrapper interface:"
             sed -n '1,260p' /usr/local/sbin/lithoscan-nginx-cutover
