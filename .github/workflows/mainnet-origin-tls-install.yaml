@@ -100,25 +100,33 @@ jobs:
           active=/etc/nginx/sites-enabled/lithoscan.ai.conf
           upload_dir="$deploy_dir/tls-staging"
 
-          [[ "$(sha256sum "$helper" | cut -d' ' -f1)" == "$EXPECTED_HELPER_SHA256" ]] || {
+          actual_helper_sha="$(sha256sum "$helper" | cut -d' ' -f1)"
+          echo "helper_sha256=$actual_helper_sha"
+          [[ "$actual_helper_sha" == "$EXPECTED_HELPER_SHA256" ]] || {
             echo "Installed helper SHA-256 does not match the approved value" >&2; exit 1;
           }
           grep -q 'install-certificate)' "$helper" || { echo "Helper lacks install-certificate" >&2; exit 1; }
-          grep -qx "GIT_SHA=$RELEASE_SHA" "$deploy_dir/.env"
+          grep -qx "GIT_SHA=$RELEASE_SHA" "$deploy_dir/.env" || { echo "Production release marker differs" >&2; exit 1; }
+          echo "release_marker=matched"
           test ! -e "$active" || { echo "Production vhost must remain inactive before certificate installation" >&2; exit 1; }
+          echo "production_vhost=inactive"
           curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3500/ >/dev/null
           curl --fail --silent --show-error --max-time 10 http://127.0.0.1:4400/health >/dev/null
+          echo "backends=healthy"
           if sudo -n /usr/bin/install --version >/dev/null 2>&1; then
             echo "Generic root install unexpectedly allowed" >&2; exit 1
           fi
+          echo "generic_root_install=denied"
 
           if test -e "$upload_dir"; then
-            test -d "$upload_dir" && test ! -L "$upload_dir"
-            test "$(readlink -f "$upload_dir")" = "$upload_dir"
-            test "$(stat -c %U "$upload_dir")" = "$USER"
-            test "$(stat -c %a "$upload_dir")" = 700
+            stat --format='tls_staging=%F owner=%U:%G mode=%a path=%n' "$upload_dir"
+            test -d "$upload_dir" && test ! -L "$upload_dir" || { echo "TLS staging path is not a real directory" >&2; exit 1; }
+            test "$(readlink -f "$upload_dir")" = "$upload_dir" || { echo "TLS staging path contains a symlink" >&2; exit 1; }
+            test "$(stat -c %U "$upload_dir")" = "$USER" || { echo "TLS staging directory owner differs from deploy user" >&2; exit 1; }
+            test "$(stat -c %a "$upload_dir")" = 700 || { echo "TLS staging directory must use mode 0700" >&2; exit 1; }
           else
             install -d -m 0700 "$upload_dir"
+            echo "tls_staging=created owner=$USER mode=700 path=$upload_dir"
           fi
           rm -f -- "$upload_dir/fullchain.pem" "$upload_dir/privkey.pem"
           REMOTE
