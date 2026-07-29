@@ -110,6 +110,12 @@ jobs:
 
           echo "Restricted sudo capabilities:"
           sudo -n -l || true
+          echo "Prepared edge wrapper candidates:"
+          find /usr/local/sbin /usr/local/bin /opt/lithoscan-mainnet -maxdepth 3 -type f -executable \
+            \( -iname '*lithoscan*' -o -iname '*nginx*' -o -iname '*edge*' \) \
+            -printf '%M %u:%g %p\n' 2>/dev/null | sort || true
+          find /etc/sudoers.d -maxdepth 1 -type f -iname '*lithoscan*' \
+            -printf '%M %u:%g %p\n' 2>/dev/null | sort || true
           if sudo -n nginx -t; then echo "NGINX_TEST_ALLOWED=true"; else echo "NGINX_TEST_ALLOWED=false"; fi
           if sudo -n systemctl reload nginx --dry-run 2>/dev/null; then echo "NGINX_RELOAD_ALLOWED=true"; else echo "NGINX_RELOAD_ALLOWED=false"; fi
           REMOTE
