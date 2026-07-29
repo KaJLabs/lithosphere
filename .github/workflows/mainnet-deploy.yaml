@@ -39,7 +39,6 @@ jobs:
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
       AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
-      SMOKE_BASE_URL: ${{ secrets.SMOKE_BASE_URL }}
       DEPLOY_COMMIT_SHA: ${{ inputs.commit_sha }}
       STAGING_SMOKE_RUN_ID: ${{ inputs.staging_smoke_run_id }}
       MAX_INDEXER_LAG: ${{ inputs.max_indexer_lag }}
@@ -54,7 +53,7 @@ jobs:
           }
           [[ "$STAGING_SMOKE_RUN_ID" =~ ^[0-9]+$ ]] || { echo "A staging smoke run ID is required"; exit 1; }
           [[ "$MAX_INDEXER_LAG" =~ ^[0-9]+$ ]] || { echo "max_indexer_lag must be a non-negative integer"; exit 1; }
-          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY GENESIS_URL POSTGRES_PASSWORD REDIS_PASSWORD AUTH_SESSION_SECRET SMOKE_BASE_URL; do
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY GENESIS_URL POSTGRES_PASSWORD REDIS_PASSWORD AUTH_SESSION_SECRET; do
             [[ -n "${!name:-}" ]] || { echo "Missing protected environment value: $name"; exit 1; }
           done
           [[ "$POSTGRES_PASSWORD" =~ ^[A-Za-z0-9._~-]{32,}$ ]] || { echo "POSTGRES_PASSWORD must be URL-safe and at least 32 characters"; exit 1; }
@@ -63,16 +62,11 @@ jobs:
           python - <<'PY'
           import os
           from urllib.parse import urlparse
-          for name in ('GENESIS_URL', 'SMOKE_BASE_URL'):
+          for name in ('GENESIS_URL',):
               value = os.environ[name]
               parsed = urlparse(value)
               if parsed.scheme != 'https' or not parsed.netloc or any(c in value for c in '\r\n"\''):
                   raise SystemExit(f'{name} must be a safe HTTPS URL')
-          smoke = urlparse(os.environ['SMOKE_BASE_URL'])
-          if smoke.path not in ('', '/') or smoke.params or smoke.query or smoke.fragment:
-              raise SystemExit('SMOKE_BASE_URL must be an HTTPS origin without a path, query or fragment')
-          if smoke.hostname == 'lithoscan.ai':
-              raise SystemExit('SMOKE_BASE_URL must be the private canary origin, not lithoscan.ai')
           PY
 
       - name: Configure SSH
@@ -139,7 +133,7 @@ jobs:
           GRPC_URL=grpc-mainnet.litho.ai:9090
           NEXT_PUBLIC_RPC_URL=https://rpc-mainnet.litho.ai
           NEXT_PUBLIC_SITE_URL=https://lithoscan.ai
-          CORS_ORIGINS=https://lithoscan.ai,$SMOKE_BASE_URL
+          CORS_ORIGINS=https://lithoscan.ai,http://127.0.0.1:13500
           POSTGRES_DB=lithoscan_mainnet
           POSTGRES_USER=lithoscan_mainnet
           POSTGRES_PASSWORD=$POSTGRES_PASSWORD
@@ -171,29 +165,36 @@ jobs:
           scp -r deploy-package/. "$DEPLOY_USER@$DEPLOY_HOST:$deploy_path/"
           ssh "$DEPLOY_USER@$DEPLOY_HOST" "chmod 700 '$deploy_path/scripts/'*.sh && DEPLOY_DIR='$deploy_path' bash '$deploy_path/scripts/mainnet-deploy.sh'"
 
-      - name: Wait for isolated indexer synchronization
+      - name: Wait for synchronization and smoke through a private SSH tunnel
         shell: bash
         run: |
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          ssh -N -o ExitOnForwardFailure=yes -L 13500:127.0.0.1:3500 "$target" &
+          tunnel_pid=$!
+          trap 'kill "$tunnel_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..20}; do
+            curl --fail --silent --max-time 5 http://127.0.0.1:13500/ >/dev/null && break
+            [[ "$attempt" == "20" ]] && { echo "Private production canary tunnel did not become ready"; exit 1; }
+            sleep 3
+          done
+          base_url=http://127.0.0.1:13500
           for attempt in {1..240}; do
-            stats="$(curl --fail --silent --show-error --max-time 20 "$SMOKE_BASE_URL/api/stats/summary" || true)"
+            stats="$(curl --fail --silent --show-error --max-time 20 "$base_url/api/stats/summary" || true)"
             chain_tip="$(jq -r '.chainTipHeight // 0' <<<"$stats" 2>/dev/null || echo 0)"
             indexed_tip="$(jq -r '.tipHeight // 0' <<<"$stats" 2>/dev/null || echo 0)"
             lag="$(jq -r '.syncLagBlocks // 999999999' <<<"$stats" 2>/dev/null || echo 999999999)"
             syncing="$(jq -r 'if .isSyncing == null then true else .isSyncing end' <<<"$stats" 2>/dev/null || echo true)"
             echo "[$attempt/240] chain=$chain_tip indexed=$indexed_tip lag=$lag syncing=$syncing"
             if (( chain_tip > 0 && indexed_tip > 0 && lag <= MAX_INDEXER_LAG )) && [[ "$syncing" == "false" ]]; then
-              exit 0
+              break
             fi
             sleep 30
           done
-          echo "Indexer did not synchronize within the two-hour canary window" >&2
-          exit 1
-
-      - name: Run canary smoke and feature-lock gates
-        shell: bash
-        env:
-          BASE_URL: ${{ env.SMOKE_BASE_URL }}
-        run: bash Makalu/scripts/mainnet-smoke-test.sh
+          if (( chain_tip == 0 || indexed_tip == 0 || lag > MAX_INDEXER_LAG )) || [[ "$syncing" != "false" ]]; then
+            echo "Indexer did not synchronize within the two-hour canary window" >&2
+            exit 1
+          fi
+          BASE_URL="$base_url" bash Makalu/scripts/mainnet-smoke-test.sh
 
       - name: Roll back failed canary
         if: failure() && steps.deploy.outputs.started == 'true'
