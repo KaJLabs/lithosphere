@@ -111,7 +111,7 @@ jobs:
           release_tag="sha-$DEPLOY_COMMIT_SHA"
           mkdir -p deploy-package/scripts deploy-package/infra/mainnet deploy-package/infra/grafana deploy-package/infra/postgres
           cp Makalu/docker-compose.mainnet.yaml deploy-package/
-          cp Makalu/scripts/mainnet-{deploy,rollback,backup}.sh deploy-package/scripts/
+          cp Makalu/scripts/mainnet-{deploy,rollback,backup,seed-from-staging}.sh deploy-package/scripts/
           cp -R Makalu/infra/mainnet/. deploy-package/infra/mainnet/
           cp -R Makalu/infra/grafana/provisioning deploy-package/infra/grafana/
           cp -R Makalu/infra/grafana/dashboards deploy-package/infra/grafana/
@@ -172,6 +172,12 @@ jobs:
           printf '%s' "$GHCR_TOKEN" | ssh "$target" "docker --config '$remote_docker_config' login ghcr.io --username '$GHCR_USER' --password-stdin"
           scp -r deploy-package/. "$target:$deploy_path/"
           ssh "$target" "chmod 700 '$deploy_path/scripts/'*.sh && DOCKER_CONFIG='$remote_docker_config' DEPLOY_DIR='$deploy_path' bash '$deploy_path/scripts/mainnet-deploy.sh'"
+
+      - name: Seed the separate production database from verified mainnet staging data
+        shell: bash
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_DIR=/opt/lithoscan-mainnet bash /opt/lithoscan-mainnet/scripts/mainnet-seed-from-staging.sh"
 
       - name: Wait for synchronization and smoke through a private SSH tunnel
         shell: bash
