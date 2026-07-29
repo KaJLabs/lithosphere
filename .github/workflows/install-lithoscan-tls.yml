@@ -1,0 +1,138 @@
+name: Install Lithoscan TLS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  install-and-validate:
+    runs-on: ubuntu-latest
+    environment: lithoscan-mainnet
+
+    steps:
+      - name: Install certificate and validate Nginx
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          TLS_CERT: ${{ secrets.LITHOSCAN_TLS_CERT }}
+          TLS_KEY: ${{ secrets.LITHOSCAN_TLS_KEY }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          envs: TLS_CERT,TLS_KEY
+          script_stop: true
+          script: |
+            set -e
+
+            DOMAIN="lithoscan.io"
+            SSL_DIR="/etc/nginx/ssl/lithoscan"
+            AVAILABLE_CONFIG="/etc/nginx/sites-available/lithoscan-mainnet"
+            ENABLED_CONFIG="/etc/nginx/sites-enabled/lithoscan-mainnet"
+
+            echo "Creating TLS directory..."
+            sudo mkdir -p "$SSL_DIR"
+
+            echo "Installing Cloudflare Origin Certificate..."
+            printf '%s\n' "$TLS_CERT" | sudo tee "$SSL_DIR/origin.crt" >/dev/null
+            printf '%s\n' "$TLS_KEY" | sudo tee "$SSL_DIR/origin.key" >/dev/null
+
+            echo "Setting certificate permissions..."
+            sudo chown root:root "$SSL_DIR/origin.crt" "$SSL_DIR/origin.key"
+            sudo chmod 644 "$SSL_DIR/origin.crt"
+            sudo chmod 600 "$SSL_DIR/origin.key"
+
+            echo "Validating certificate and private key..."
+            sudo openssl x509 \
+              -in "$SSL_DIR/origin.crt" \
+              -noout \
+              -subject \
+              -issuer \
+              -dates
+
+            CERT_PUBLIC_KEY="$(
+              sudo openssl x509 \
+                -in "$SSL_DIR/origin.crt" \
+                -pubkey \
+                -noout |
+              openssl pkey -pubin -outform pem 2>/dev/null |
+              sha256sum |
+              awk '{print $1}'
+            )"
+
+            KEY_PUBLIC_KEY="$(
+              sudo openssl pkey \
+                -in "$SSL_DIR/origin.key" \
+                -pubout \
+                -outform pem 2>/dev/null |
+              sha256sum |
+              awk '{print $1}'
+            )"
+
+            if [ "$CERT_PUBLIC_KEY" != "$KEY_PUBLIC_KEY" ]; then
+              echo "ERROR: Certificate and private key do not match."
+              exit 1
+            fi
+
+            echo "Certificate and private key match."
+
+            echo "Checking prepared Nginx configuration..."
+            if [ ! -f "$AVAILABLE_CONFIG" ]; then
+              echo "ERROR: Prepared Nginx configuration does not exist:"
+              echo "$AVAILABLE_CONFIG"
+              exit 1
+            fi
+
+            echo "Running Nginx test before activation..."
+            sudo nginx -t
+
+            echo "Activating prepared Lithoscan configuration..."
+            sudo ln -sfn "$AVAILABLE_CONFIG" "$ENABLED_CONFIG"
+
+            echo "Running Nginx test after activation..."
+            sudo nginx -t
+
+            echo "Reloading Nginx..."
+            sudo systemctl reload nginx
+
+            echo "Checking Nginx service..."
+            sudo systemctl is-active --quiet nginx
+
+            echo "Validating certificate served by the origin..."
+            ORIGIN_CERT="$(
+              echo |
+              openssl s_client \
+                -connect 127.0.0.1:443 \
+                -servername "$DOMAIN" \
+                2>/dev/null |
+              openssl x509 -noout -fingerprint -sha256
+            )"
+
+            INSTALLED_CERT="$(
+              sudo openssl x509 \
+                -in "$SSL_DIR/origin.crt" \
+                -noout \
+                -fingerprint \
+                -sha256
+            )"
+
+            echo "Installed: $INSTALLED_CERT"
+            echo "Served:    $ORIGIN_CERT"
+
+            if [ "$ORIGIN_CERT" != "$INSTALLED_CERT" ]; then
+              echo "ERROR: Nginx is not serving the newly installed certificate."
+              exit 1
+            fi
+
+            echo "Testing HTTPS response directly from origin..."
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --location \
+              --resolve "$DOMAIN:443:127.0.0.1" \
+              --output /dev/null \
+              --write-out "Origin HTTP status: %{http_code}\n" \
+              "https://$DOMAIN/"
+
+            echo "Origin TLS validation passed."
+            echo "Makalu redirect has not been removed."
