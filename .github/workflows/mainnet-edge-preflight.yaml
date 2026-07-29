@@ -116,6 +116,15 @@ jobs:
             -printf '%M %u:%g %p\n' 2>/dev/null | sort || true
           find /etc/sudoers.d -maxdepth 1 -type f -iname '*lithoscan*' \
             -printf '%M %u:%g %p\n' 2>/dev/null | sort || true
+          if [[ -r /usr/local/sbin/lithoscan-nginx-cutover ]]; then
+            echo "Prepared wrapper interface:"
+            sed -n '1,260p' /usr/local/sbin/lithoscan-nginx-cutover
+            if sudo -n /usr/local/sbin/lithoscan-nginx-cutover status; then
+              echo "LITHOSCAN_WRAPPER_STATUS_ALLOWED=true"
+            else
+              echo "LITHOSCAN_WRAPPER_STATUS_ALLOWED=false"
+            fi
+          fi
           if sudo -n nginx -t; then echo "NGINX_TEST_ALLOWED=true"; else echo "NGINX_TEST_ALLOWED=false"; fi
           if sudo -n systemctl reload nginx --dry-run 2>/dev/null; then echo "NGINX_RELOAD_ALLOWED=true"; else echo "NGINX_RELOAD_ALLOWED=false"; fi
           REMOTE
