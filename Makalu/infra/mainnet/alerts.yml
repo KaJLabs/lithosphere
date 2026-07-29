@@ -1,0 +1,34 @@
+groups:
+  - name: lithoscan-mainnet-critical
+    rules:
+      - alert: LithoscanMainnetProbeDown
+        expr: probe_success{job="internal-http-probes"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Lithoscan mainnet dependency is unavailable"
+          description: "{{ $labels.instance }} has failed blackbox probes for two minutes."
+
+      - alert: LithoscanMainnetIndexerLag
+        expr: (litho_indexer_chain_height - litho_indexer_last_indexed_block) > 5
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Lithoscan mainnet indexer is behind"
+          description: "Indexer lag has exceeded five blocks for five minutes."
+
+      - alert: LithoscanMainnetIndexerStopped
+        expr: increase(litho_indexer_last_indexed_block[10m]) == 0 and litho_indexer_chain_height > litho_indexer_last_indexed_block
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Lithoscan mainnet indexer has stopped advancing"
+          description: "The chain is ahead but the indexed height has not changed."
+
+      - alert: LithoscanMainnetMetricsMissing
+        expr: up{job=~"lithoscan-api|lithoscan-indexer"} == 0
+        for: 3m
+        labels: { severity: warning }
+        annotations:
+          summary: "Lithoscan mainnet metrics target is down"
+          description: "Prometheus cannot scrape {{ $labels.job }}."

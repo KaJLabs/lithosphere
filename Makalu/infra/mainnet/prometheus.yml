@@ -1,0 +1,45 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    network: lithosphere-mainnet
+    chain_id: lithosphere_9005-1
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: [alertmanager:9093]
+
+scrape_configs:
+  - job_name: lithoscan-api
+    static_configs:
+      - targets: [api:9090]
+
+  - job_name: lithoscan-indexer
+    static_configs:
+      - targets: [indexer:9090]
+
+  - job_name: internal-http-probes
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://api:4000/health
+          - http://explorer:3000/
+          - https://rpc-mainnet.litho.ai/status
+          - https://api-mainnet.litho.ai/cosmos/base/tendermint/v1beta1/node_info
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]

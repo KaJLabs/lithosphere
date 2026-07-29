@@ -9,29 +9,29 @@ on:
         required: true
         type: string
       cosmos_rpc:
-        description: Verified temporary Cosmos RPC
+        description: Verified production Cosmos RPC
         required: true
-        default: http://31.97.39.146:27057
+        default: https://rpc-mainnet.litho.ai
         type: string
       evm_rpc:
-        description: Verified temporary EVM RPC
+        description: Verified production EVM RPC
         required: true
-        default: http://31.97.39.146:8945
+        default: https://rpc-mainnet.litho.ai
         type: string
       websocket:
-        description: Verified temporary EVM WebSocket
+        description: Verified production EVM WebSocket
         required: true
-        default: ws://31.97.39.146:8946
+        default: wss://rpc-mainnet.litho.ai/websocket
         type: string
       rest_lcd:
-        description: Verified temporary REST/LCD endpoint
+        description: Verified production REST/LCD endpoint
         required: true
-        default: http://31.97.39.146:1717
+        default: https://api-mainnet.litho.ai
         type: string
       grpc_endpoint:
-        description: Verified temporary gRPC host and port
+        description: Verified production gRPC host and port
         required: true
-        default: 31.97.39.146:9490
+        default: grpc-mainnet.litho.ai:9090
         type: string
 
 concurrency:

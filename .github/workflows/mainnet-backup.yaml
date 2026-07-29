@@ -1,0 +1,49 @@
+name: Lithoscan Mainnet Local Backup
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: lithoscan-mainnet
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate protected backup configuration
+        shell: bash
+        run: |
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY; do
+            [[ -n "${!name:-}" ]] || { echo "Missing protected environment value: $name"; exit 1; }
+          done
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Create and verify VPS-local database backup
+        shell: bash
+        run: |
+          remote=/opt/lithoscan-mainnet
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          ssh "$target" "cd '$remote' && docker compose --env-file .env -f docker-compose.mainnet.yaml --profile backup run --rm backup"
+          ssh "$target" "docker run --rm -v lithoscan-mainnet_mainnet-backups:/backups:ro alpine sh -eu -c 'cd /backups; latest=\$(ls -t lithoscan-mainnet-*.sql.gz | head -1); test -n \"\$latest\"; sha256sum -c \"\$latest.sha256\"; gzip -t \"\$latest\"; echo verified=\$latest'"
+
+      - name: Summary
+        run: |
+          echo "## Lithoscan mainnet local backup verified" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Storage: isolated VPS Docker volume" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Integrity: SHA-256 and gzip verification passed" >> "$GITHUB_STEP_SUMMARY"

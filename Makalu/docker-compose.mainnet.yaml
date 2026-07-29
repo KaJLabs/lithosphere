@@ -1,0 +1,224 @@
+name: ${COMPOSE_PROJECT_NAME:-lithoscan-mainnet}
+
+# Standalone Lithoscan stack. It deliberately does not extend docker-compose.yaml:
+# project-scoped networks/volumes and distinct image names prevent any Makalu
+# container, database, cache or build-time chain configuration from being reused.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-lithoscan_mainnet}
+      POSTGRES_USER: ${POSTGRES_USER:-lithoscan_mainnet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Inject POSTGRES_PASSWORD}
+    volumes:
+      - mainnet-postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/schema/init.sql:ro
+      - ./infra/mainnet/postgres/init-mainnet.sh:/docker-entrypoint-initdb.d/001-init-mainnet.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [mainnet-internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Inject REDIS_PASSWORD}"]
+    volumes:
+      - mainnet-redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Inject REDIS_PASSWORD}
+    networks: [mainnet-internal]
+
+  api:
+    image: ${API_IMAGE:-ghcr.io/kajlabs/lithoscan-api}:${IMAGE_TAG:?Set an immutable IMAGE_TAG}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${API_PORT:-4400}:4000"
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      API_HOST: 0.0.0.0
+      DATABASE_URL: ${DATABASE_URL:?Inject the isolated mainnet DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:?Inject the mainnet Redis URL}
+      LITHO_RPC_URL: ${LITHO_RPC_URL:?Set the validated mainnet RPC}
+      LITHO_CHAIN_ID: "9005"
+      COSMOS_CHAIN_ID: lithosphere_9005-1
+      AUTH_ALLOWED_CHAIN_ID: "9005"
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:?Inject AUTH_SESSION_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set the staging or production explorer origin}
+      GRAPHQL_PLAYGROUND: "false"
+      PROMETHEUS_ENABLED: "true"
+      METRICS_PORT: "9090"
+      FAUCET_ENABLED: "false"
+      BRIDGE_ENABLED: "false"
+      MULTX_ENABLED: "false"
+      SWAP_ENABLED: "false"
+      SWAP_ROUTER_ADDRESS: ""
+      QUANTT_API_BASE_URL: ""
+      QUANTT_API_KEY: ""
+      GIT_SHA: ${GIT_SHA:-}
+      VERSION: ${VERSION:-}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    networks: [mainnet-internal]
+
+  indexer:
+    image: ${INDEXER_IMAGE:-ghcr.io/kajlabs/lithoscan-indexer}:${IMAGE_TAG:?Set an immutable IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Inject the isolated mainnet DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:?Inject the mainnet Redis URL}
+      RPC_URL: ${RPC_URL:?Set the validated mainnet RPC}
+      LITHO_RPC_URL: ${LITHO_RPC_URL:?Set the validated mainnet RPC}
+      LCD_URL: ${LITHO_LCD_URL:?Set the validated mainnet LCD}
+      EVM_RPC_URL: ${EVM_RPC_URL:?Set the validated mainnet EVM RPC}
+      EVM_WS_URL: ${EVM_WS_URL:?Set the validated mainnet WebSocket}
+      GRPC_URL: ${GRPC_URL:?Set the validated mainnet gRPC endpoint}
+      CHAIN_ID: lithosphere_9005-1
+      LITHO_CHAIN_ID: "9005"
+      START_BLOCK: ${START_BLOCK:-1}
+      INDEXER_START_BLOCK: ${INDEXER_START_BLOCK:-1}
+      BATCH_SIZE: ${BATCH_SIZE:-100}
+      INDEXER_BATCH_SIZE: ${INDEXER_BATCH_SIZE:-100}
+      INDEXER_CONFIRMATIONS: ${INDEXER_CONFIRMATIONS:-12}
+      FORCE_REINDEX: "0"
+      METRICS_PORT: "9090"
+      INDEXER_PORT: "3001"
+      GIT_SHA: ${GIT_SHA:-}
+      VERSION: ${VERSION:-}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    networks: [mainnet-internal]
+
+  explorer:
+    image: ${EXPLORER_IMAGE:-ghcr.io/kajlabs/lithoscan-explorer}:${EXPLORER_IMAGE_TAG:?Set an immutable EXPLORER_IMAGE_TAG}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${EXPLORER_PORT:-3500}:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_NETWORK: mainnet
+      NEXT_PUBLIC_CHAIN_ID: "9005"
+      NEXT_PUBLIC_COSMOS_CHAIN_ID: lithosphere_9005-1
+      NEXT_PUBLIC_CHAIN_NAME: Lithosphere Mainnet
+      NEXT_PUBLIC_RPC_URL: ${NEXT_PUBLIC_RPC_URL:?Set the validated mainnet RPC}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set the staging or production URL}
+      NEXT_PUBLIC_DEFAULT_THEME: light
+      NEXT_PUBLIC_BRIDGE_ENABLED: "false"
+      NEXT_PUBLIC_SWAP_ROUTER: ""
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    networks: [mainnet-internal]
+
+  backup:
+    image: postgres:16-alpine
+    profiles: [backup]
+    restart: "no"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Inject the isolated mainnet DATABASE_URL}
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    entrypoint: ["/bin/sh", "/scripts/mainnet-backup.sh"]
+    volumes:
+      - ./scripts:/scripts:ro
+      - mainnet-backups:/backups
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [mainnet-internal]
+
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ./infra/mainnet/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/mainnet/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - mainnet-prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9390}:9090"
+    depends_on: [blackbox]
+    networks: [mainnet-internal]
+
+  blackbox:
+    image: prom/blackbox-exporter:v0.25.0
+    profiles: [monitoring]
+    restart: unless-stopped
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    volumes:
+      - ./infra/mainnet/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    networks: [mainnet-internal]
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    profiles: [monitoring]
+    restart: unless-stopped
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes:
+      - ./infra/mainnet/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - mainnet-alertmanager-data:/alertmanager
+    ports:
+      - "127.0.0.1:${ALERTMANAGER_PORT:-9393}:9093"
+    networks: [mainnet-internal]
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    profiles: [monitoring]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?Inject GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - mainnet-grafana-data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3501}:3000"
+    depends_on: [prometheus]
+    networks: [mainnet-internal]
+
+networks:
+  mainnet-internal:
+    driver: bridge
+    internal: false
+
+volumes:
+  mainnet-postgres-data:
+  mainnet-redis-data:
+  mainnet-backups:
+  mainnet-prometheus-data:
+  mainnet-alertmanager-data:
+  mainnet-grafana-data:
