@@ -12,6 +12,8 @@ import {
   type StoredSession,
 } from '@/lib/auth';
 import { NETWORK } from '@/lib/network';
+import { isThanosConnector, isThanosIdentity, THANOS_INSTALL_URL } from '@/lib/thanos';
+import { ensureExplorerNetwork, type WalletRequestProvider } from '@/lib/walletNetwork';
 
 /**
  * "Sign in with Thanos" — SIWE authentication, unified with wallet connection.
@@ -36,19 +38,12 @@ import { NETWORK } from '@/lib/network';
 
 const APP_NAME = `${NETWORK.label} Explorer`;
 const CHAIN_ID = NETWORK.evmChainId;
-const THANOS_RDNS = 'fi.thanos.wallet';
-const THANOS_INSTALL_URL = 'https://thanos.fi';
-
 function shorten(addr: string): string {
   return addr.length > 12 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
 }
 
 function findThanosConnector(): Connector | undefined {
-  return ConnectorController.state.connectors.find(
-    (c) =>
-      c.id === 'eip6963' &&
-      (c.info?.rdns === THANOS_RDNS || c.name?.toLowerCase().includes('thanos')),
-  );
+  return ConnectorController.state.connectors.find(isThanosConnector);
 }
 
 /**
@@ -56,12 +51,44 @@ function findThanosConnector(): Connector | undefined {
  * extension's service worker can wake late). Re-request announcements once
  * before concluding it isn't installed.
  */
-async function discoverThanosConnector(): Promise<Connector | undefined> {
+type ThanosWallet = { connector?: Connector; provider: Eip1193Provider };
+
+async function discoverThanosWallet(): Promise<ThanosWallet | undefined> {
   const existing = findThanosConnector();
-  if (existing) return existing;
+  if (existing?.provider) {
+    return { connector: existing, provider: existing.provider as Eip1193Provider };
+  }
+
+  let announcedProvider: Eip1193Provider | undefined;
+  const onAnnouncement = (event: Event) => {
+    const detail = (event as CustomEvent<{
+      info?: { rdns?: string; name?: string };
+      provider?: Eip1193Provider;
+    }>).detail;
+    if (detail?.provider && isThanosIdentity(detail.info?.rdns, detail.info?.name)) {
+      announcedProvider = detail.provider;
+    }
+  };
+
+  window.addEventListener('eip6963:announceProvider', onAnnouncement);
   window.dispatchEvent(new Event('eip6963:requestProvider'));
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  return findThanosConnector();
+
+  try {
+    // Extension service workers can wake after Web3Modal's initial discovery.
+    // Allow late announcements and prefer Web3Modal's connector when it appears.
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      const connector = findThanosConnector();
+      if (connector?.provider) {
+        return { connector, provider: connector.provider as Eip1193Provider };
+      }
+      if (announcedProvider) return { provider: announcedProvider };
+    }
+  } finally {
+    window.removeEventListener('eip6963:announceProvider', onAnnouncement);
+  }
+
+  return announcedProvider ? { provider: announcedProvider } : undefined;
 }
 
 /**
@@ -176,24 +203,27 @@ export default function ThanosSignIn() {
     setThanosMissing(false);
     setPhase('connecting');
     try {
-      const connector = await discoverThanosConnector();
-      if (!connector) {
+      const wallet = await discoverThanosWallet();
+      if (!wallet) {
         setThanosMissing(true);
         return;
       }
-      // Connects (or switches the active connection to) Thanos with no picker
-      // UI, updating all Web3Modal account state along the way.
-      await ConnectionController.connectExternal(connector, connector.chain);
-      const provider = connector.provider as Eip1193Provider | undefined;
-      const accounts = provider
-        ? ((await provider.request({ method: 'eth_accounts' })) as string[])
-        : [];
+      const { connector, provider } = wallet;
+      if (connector) {
+        // Keep Web3Modal's shared account state in sync when its connector is available.
+        await ConnectionController.connectExternal(connector, connector.chain);
+      }
+      let accounts = (await provider.request({ method: 'eth_accounts' })) as string[];
+      if (!accounts?.length && !connector) {
+        accounts = (await provider.request({ method: 'eth_requestAccounts' })) as string[];
+      }
       const address = accounts?.[0];
-      if (!provider || !address) {
+      if (!address) {
         // connectExternal swallows a user rejection (it stores the error and
         // resolves) — an empty account list is how the rejection surfaces here.
         throw new Error('Wallet connection was declined in Thanos.');
       }
+      await ensureExplorerNetwork(provider as WalletRequestProvider);
       setPhase('signing');
       const stored = await signSession(provider, address);
       setSession(stored);

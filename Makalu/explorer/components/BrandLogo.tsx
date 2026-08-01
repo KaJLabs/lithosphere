@@ -3,7 +3,11 @@ import { NETWORK } from '@/lib/network';
 export default function BrandLogo({ compact = false }: { compact?: boolean }) {
   return (
     <span className="flex shrink-0 items-center gap-3">
-      <img src={NETWORK.logoPath} alt="LITHO" className="h-9 w-9 rounded-full object-contain" />
+      <img
+        src={NETWORK.logoPath}
+        alt="Lithosphere"
+        className="h-9 w-10 object-contain drop-shadow-[0_6px_14px_rgba(74,144,217,0.22)]"
+      />
       {!compact && (
         <span className="hidden sm:flex sm:flex-col sm:leading-none">
           <span className="text-base font-bold text-[var(--color-text-primary)]">{NETWORK.explorerTitle}</span>

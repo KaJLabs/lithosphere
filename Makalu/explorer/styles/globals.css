@@ -157,6 +157,26 @@
   }
 }
 
+/* Mainnet shares the explorer's layout and interaction language with the
+   testnets, but uses a restrained Lithosphere-blue identity and brighter
+   production surface instead of the testnets' emerald/dark emphasis. */
+.network-mainnet {
+  background-image:
+    radial-gradient(circle at 8% 0%, rgb(74 144 217 / 0.14), transparent 28rem),
+    radial-gradient(circle at 94% 8%, rgb(169 201 243 / 0.2), transparent 32rem);
+  background-attachment: fixed;
+}
+
+.network-mainnet > header {
+  border-bottom-color: rgb(74 144 217 / 0.2);
+  box-shadow: 0 10px 35px rgb(44 111 186 / 0.06);
+}
+
+.network-mainnet .network-setup-card {
+  border-color: rgb(74 144 217 / 0.25);
+  box-shadow: 0 24px 70px rgb(44 111 186 / 0.1);
+}
+
 /* NetworkSwitchModal entrance animation */
 @keyframes networkModalIn {
   from {

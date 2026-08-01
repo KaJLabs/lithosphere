@@ -46,6 +46,8 @@ const NAV_ITEMS: NavItem[] = [
 const MORE_ITEMS: NavItem[] = [
   { label: 'Quantt Research', href: '/quantt' },
   { label: 'Docs', href: 'https://docs.litho.ai', external: true },
+  { label: 'Makalu Testnet', href: 'https://makalu.litho.ai', external: true },
+  { label: 'Kamet Testnet', href: 'https://kamet.litho.ai', external: true },
   { label: 'LITHO TGE', href: 'https://tge.ignite.trade', external: true },
   { label: 'LITHO.ai', href: 'https://litho.ai', external: true },
   { label: 'ACCESS', href: 'https://access.litho.ai', external: true },
