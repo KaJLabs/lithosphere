@@ -1,0 +1,183 @@
+import { ethers } from 'ethers';
+import { config } from '../config.js';
+import { pool } from '../db/pool.js';
+
+/**
+ * Release executor — the automated counterpart to the validator (signing)
+ * service. The signing loop advances a transfer locked → signing → signed and
+ * then stops; nothing else submits the release. This service picks up rows that
+ * are `signed` but not yet released and calls `releaseTokens` on the DESTINATION
+ * bridge with the collected validator signatures, then records the release tx.
+ *
+ * MultXBridge.releaseTokens is permissionless — anyone holding >= the on-chain
+ * `signaturesRequired` valid validator signatures (in strictly ascending signer
+ * order) may submit it — so a single funded relayer EOA can drive releases for
+ * every user. `processedNonces` on the contract makes this idempotent: a transfer
+ * the user already claimed themselves (via the explorer) can't be double-paid.
+ *
+ * Enabled only when RELAYER_PRIVATE_KEY is set; otherwise releases fall back to
+ * the manual/claim path and this loop stays dormant. The relayer EOA needs gas
+ * on every destination chain it serves.
+ */
+
+const BRIDGE_ABI = [
+  'function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] signatures) external',
+  'function getValidators() view returns (address[])',
+  'function signaturesRequired() view returns (uint256)',
+  'function paused() view returns (bool)',
+  'function processedNonces(uint256, uint256) view returns (bool)',
+];
+
+let releaseIntervalId = null;
+let running = false;                 // serialize ticks (one relayer EOA → no nonce races)
+const inFlight = new Set();          // tx_hashes being processed in the current tick
+const chainCtx = new Map();          // chainId → { bridge, required, validators, name }
+
+const short = (h) => (h ? `${h.substring(0, 10)}…` : h);
+
+function destChainConfig(chainId) {
+  return config.chainsToWatch.find((c) => Number(c.chainId) === Number(chainId)) || null;
+}
+
+// Lazily build (and cache) the signer-bound bridge contract + on-chain params
+// for a destination chain. Returns null if the chain has no bridge configured.
+async function getChainCtx(chainId) {
+  const key = Number(chainId);
+  if (chainCtx.has(key)) return chainCtx.get(key);
+
+  const cc = destChainConfig(key);
+  if (!cc || !cc.bridge) return null;
+
+  const provider = new ethers.providers.JsonRpcProvider(cc.rpc);
+  const wallet = new ethers.Wallet(config.relayerPrivateKey, provider);
+  const bridge = new ethers.Contract(cc.bridge, BRIDGE_ABI, wallet);
+  const [required, validatorList] = await Promise.all([bridge.signaturesRequired(), bridge.getValidators()]);
+  const ctx = {
+    bridge,
+    name: cc.name,
+    required: required.toNumber(),
+    validators: new Set(validatorList.map((a) => a.toLowerCase())),
+  };
+  chainCtx.set(key, ctx);
+  console.log(`[ReleaseService] dest ${cc.name} (${key}) bridge ${cc.bridge} — requires ${ctx.required} of ${ctx.validators.size} validators`);
+  return ctx;
+}
+
+// Recover the signer of every stored signature, drop any that aren't current
+// validators, dedupe by signer, and return the signatures sorted by signer
+// ascending (the order releaseTokens requires).
+async function orderedSignatures(tx, token, ctx) {
+  const { rows } = await pool.query(
+    'SELECT signature FROM bridge_signatures WHERE tx_hash = $1',
+    [tx.tx_hash]
+  );
+  const msgHash = ethers.utils.solidityKeccak256(
+    ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
+    [tx.tx_hash, token, tx.from_address, tx.amount, tx.source_chain, tx.source_nonce]
+  );
+  const ethHash = ethers.utils.hashMessage(ethers.utils.arrayify(msgHash));
+
+  const bySigner = new Map();
+  for (const r of rows) {
+    let signer;
+    try { signer = ethers.utils.recoverAddress(ethHash, r.signature); } catch { continue; }
+    if (!ctx.validators.has(signer.toLowerCase())) continue;
+    bySigner.set(signer.toLowerCase(), r.signature);
+  }
+  // lowercase hex of equal-length addresses sorts identically to numeric order
+  return [...bySigner.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([, sig]) => sig);
+}
+
+async function markCompleted(txHash, releaseTxHash) {
+  await pool.query(
+    `UPDATE bridge_transactions SET status = 'completed', release_tx_hash = $2, updated_at = NOW() WHERE tx_hash = $1`,
+    [txHash, releaseTxHash]
+  );
+}
+
+async function releaseOne(tx) {
+  const ctx = await getChainCtx(tx.target_chain);
+  if (!ctx) {
+    console.warn(`[ReleaseService] no dest bridge for chain ${tx.target_chain} — skipping ${short(tx.tx_hash)}`);
+    return;
+  }
+  const token = tx.release_token || tx.token_address;
+  const amount = ethers.BigNumber.from(tx.amount);
+
+  // Idempotency: already released on-chain (e.g. the user claimed via the
+  // explorer). Reconcile the DB and move on — never resubmit.
+  if (await ctx.bridge.processedNonces(tx.source_chain, tx.source_nonce)) {
+    await markCompleted(tx.tx_hash, null);
+    console.log(`[ReleaseService] ${short(tx.tx_hash)} already processed on-chain — reconciled to completed`);
+    return;
+  }
+  if (await ctx.bridge.paused()) {
+    console.warn(`[ReleaseService] ${ctx.name} bridge paused — deferring ${short(tx.tx_hash)}`);
+    return;
+  }
+
+  const sigs = await orderedSignatures(tx, token, ctx);
+  if (sigs.length < ctx.required) {
+    console.log(`[ReleaseService] ${short(tx.tx_hash)}: ${sigs.length}/${ctx.required} valid sigs — waiting`);
+    return;
+  }
+
+  try {
+    const resp = await ctx.bridge.releaseTokens(
+      token, tx.from_address, amount, tx.source_chain, tx.source_nonce, tx.tx_hash,
+      sigs.slice(0, ctx.required), { gasLimit: 400_000 }
+    );
+    console.log(`[ReleaseService] releaseTokens sent for ${short(tx.tx_hash)} → ${resp.hash}`);
+    const rcpt = await resp.wait();
+    if (rcpt.status === 1) {
+      await markCompleted(tx.tx_hash, resp.hash);
+      console.log(`[ReleaseService] ✅ released ${short(tx.tx_hash)} on ${ctx.name} (block ${rcpt.blockNumber})`);
+    } else {
+      console.error(`[ReleaseService] release tx reverted for ${short(tx.tx_hash)} — leaving 'signed' to retry`);
+    }
+  } catch (err) {
+    // Transient (gas, RPC, reorg): leave the row 'signed' so the next tick retries.
+    console.error(`[ReleaseService] release failed for ${short(tx.tx_hash)}: ${String(err.reason || err.message).slice(0, 140)}`);
+  }
+}
+
+async function processReleases() {
+  if (running) return;               // a previous tick is still working
+  running = true;
+  try {
+    const { rows } = await pool.query(
+      `SELECT tx_hash, from_address, token_address, release_token, amount,
+              target_chain, source_chain, source_nonce
+       FROM bridge_transactions
+       WHERE status = 'signed' AND release_tx_hash IS NULL
+       ORDER BY timestamp ASC`
+    );
+    for (const tx of rows) {
+      if (inFlight.has(tx.tx_hash)) continue;
+      inFlight.add(tx.tx_hash);
+      try { await releaseOne(tx); } finally { inFlight.delete(tx.tx_hash); }
+    }
+  } catch (err) {
+    console.error('[ReleaseService] processReleases error:', err.message);
+  } finally {
+    running = false;
+  }
+}
+
+export async function startReleaseService() {
+  if (!config.relayerPrivateKey) {
+    console.warn('[ReleaseService] RELAYER_PRIVATE_KEY not set — release executor DISABLED (releases require manual/claim submission).');
+    return;
+  }
+  const relayer = new ethers.Wallet(config.relayerPrivateKey);
+  console.log(`[ReleaseService] Release executor enabled. Relayer EOA: ${relayer.address}`);
+  releaseIntervalId = setInterval(processReleases, config.releaseIntervalMs);
+  console.log(`[ReleaseService] Release loop started (interval: ${config.releaseIntervalMs}ms)`);
+}
+
+export function stopReleaseService() {
+  if (releaseIntervalId) {
+    clearInterval(releaseIntervalId);
+    console.log('[ReleaseService] Release loop stopped');
+  }
+}

@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  kamet:
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
+      args:
+        VITE_RPC_URL: ${KAMET_RPC_URL:-https://rpc-3.litho.ai}
+        VITE_REST_URL: ${KAMET_REST_URL:-https://api-3.litho.ai}
+        VITE_GRPC_URL: ${KAMET_GRPC_URL:-31.97.39.146:9090}
+        VITE_EVM_RPC_URL: ${KAMET_EVM_RPC_URL:-https://rpc-3.litho.ai}
+        # dRPC/Nodehaus fallback — leave blank until endpoint is assigned
+        # Register at: https://drpc.org/nodehaus-rpc-infrastructure-for-chains
+        # Example: KAMET_EVM_RPC_DRPC_URL=https://lb.drpc.org/ogrpc?network=lithosphere-kamet&dkey=XXX
+        VITE_EVM_RPC_DRPC_URL: ${KAMET_EVM_RPC_DRPC_URL:-}
+        VITE_EXPLORER_DATA_API_URL: ${KAMET_EXPLORER_DATA_API_URL:-https://kamet.litho.ai/api}
+        VITE_CHAIN_ID: ${KAMET_CHAIN_ID:-lithosphere_900523-2}
+        VITE_CHAIN_NAME: ${KAMET_CHAIN_NAME:-Lithosphere Kamet}
+        VITE_NETWORK_LABEL: ${KAMET_NETWORK_LABEL:-Kamet}
+        VITE_DENOM: LITHO
+        VITE_DECIMALS: "18"
+        VITE_APP_NAME: Lithosphere Kamet
+        VITE_APP_DESCRIPTION: "Explore blocks, transactions, validators, and accounts on Lithosphere Kamet"
+        VITE_FAUCET_URL: ${KAMET_FAUCET_URL:-https://kamet.litho.ai/#/faucet}
+        VITE_FAUCET_ASSETS_URL: ${KAMET_FAUCET_ASSETS_URL:-https://api-3.litho.ai/faucet/assets}
+        VITE_FAUCET_CLAIM_URL: ${KAMET_FAUCET_CLAIM_URL:-https://api-3.litho.ai/faucet/claim}
+        VITE_MULTX_BRIDGE_ADDRESS: ${VITE_MULTX_BRIDGE_ADDRESS:-${MULTX_BRIDGE_ADDRESS:-}}
+        VITE_MULTX_API_URL: ${VITE_MULTX_API_URL:-${MULTX_API_URL:-https://bridge.litho.ai}}
+        VITE_LITHO_TOKEN_ADDRESS: ${VITE_LITHO_TOKEN_ADDRESS:-${LITHO_TOKEN_ADDRESS:-}}
+        VITE_LITHO_COINGECKO_ID: ${LITHO_COINGECKO_ID:-lithosphere}
+        VITE_LITHO_PRICE_OVERRIDE: ${LITHO_PRICE_OVERRIDE:-}
+        VITE_SENTRY_DSN: ${SENTRY_DSN:-}
+        VITE_SENTRY_ALLOWED_HOSTS: ${SENTRY_ALLOWED_HOSTS:-kamet.litho.ai}
+        VITE_SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+        VITE_SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
+        VITE_SENTRY_DEBUG: ${SENTRY_DEBUG:-false}
+        VITE_APP_VERSION: ${APP_VERSION:-}
+        VITE_PRIVY_APP_ID: ${VITE_PRIVY_APP_ID:-}
+        VITE_ENABLE_WEB3MODAL: ${VITE_ENABLE_WEB3MODAL:-true}
+        VITE_WC_PROJECT_ID: ${VITE_WC_PROJECT_ID:-84842078b09946638c03157f83405213}
+    container_name: kamet-dashboard
+    ports:
+      - "0.0.0.0:3002:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "app=kamet-explorer"
+      - "environment=production"
+      - "version=1.0.0"

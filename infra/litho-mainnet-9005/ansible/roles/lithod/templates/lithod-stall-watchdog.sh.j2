@@ -1,0 +1,84 @@
+#!/bin/bash
+# lithod stall watchdog.
+#
+# Catches the wedge mode the leak watchdog cannot see: lithod stays
+# "active (running)" — systemd is happy, map/fd counts are under their
+# thresholds — but the process sits at its cgroup memory ceiling, stops
+# committing blocks, and stops serving RPC. Observed on the AWS kamet
+# sentry 2026-07-08: wedged at 08:36 UTC, undetected for ~2.5h (the
+# leak watchdog saw nothing and the 4h restart timer had just fired).
+#
+# Trigger: the local RPC block height has not advanced (or RPC is
+# unreachable) for STALL_SEC while the service is active and past its
+# startup grace period. Progress is tracked in a state file of
+# "<height> <epoch-of-last-progress>". A restart cooldown prevents
+# loops during a genuine chain-wide halt (restarts are harmless there,
+# just noisy).
+#
+# Exit codes: 0 = no action needed or restart succeeded; non-zero = error.
+
+set -u
+
+SERVICE="{{ litho_service_name }}"
+RPC_URL="{{ lithod_stall_watchdog_rpc }}"
+STALL_SEC={{ lithod_stall_watchdog_stall_sec }}
+GRACE_SEC={{ lithod_stall_watchdog_grace_sec }}
+COOLDOWN_SEC={{ lithod_stall_watchdog_cooldown_sec }}
+LOG_TAG="lithod-stall-watchdog"
+STATE_FILE="{{ litho_home }}/{{ litho_service_name }}-stall-watchdog.state"
+RESTART_FILE="{{ litho_home }}/{{ litho_service_name }}-stall-watchdog.last-restart"
+
+log() { logger -t "$LOG_TAG" -- "$*"; }
+
+systemctl is-active --quiet "$SERVICE" || exit 0
+
+# Grace period: right after a (re)start lithod replays WAL/blocks with RPC
+# down — that is normal, not a stall.
+START_RAW="$(systemctl show -p ActiveEnterTimestamp --value "$SERVICE" 2>/dev/null)"
+START_TS="$(date -d "$START_RAW" +%s 2>/dev/null || echo 0)"
+NOW="$(date +%s)"
+if [ "$START_TS" -gt 0 ] && [ "$((NOW - START_TS))" -lt "$GRACE_SEC" ]; then
+    exit 0
+fi
+
+HEIGHT="$(curl -s -m 5 "$RPC_URL/status" 2>/dev/null \
+    | sed -n 's/.*"latest_block_height":"\([0-9]*\)".*/\1/p' | head -1)"
+
+LAST_H=0; LAST_TS=0
+if [ -f "$STATE_FILE" ]; then
+    read -r LAST_H LAST_TS < "$STATE_FILE" 2>/dev/null || true
+    LAST_H="${LAST_H:-0}"; LAST_TS="${LAST_TS:-0}"
+fi
+
+if [ -n "$HEIGHT" ] && [ "$HEIGHT" -gt "$LAST_H" ] 2>/dev/null; then
+    echo "$HEIGHT $NOW" > "$STATE_FILE"
+    exit 0
+fi
+
+# First run (or unreadable state): seed and wait for the next sample.
+if [ "$LAST_TS" -eq 0 ] 2>/dev/null; then
+    echo "${HEIGHT:-0} $NOW" > "$STATE_FILE"
+    exit 0
+fi
+
+STALLED="$((NOW - LAST_TS))"
+if [ "$STALLED" -lt "$STALL_SEC" ]; then
+    exit 0
+fi
+
+if [ -f "$RESTART_FILE" ]; then
+    LAST_RESTART="$(cat "$RESTART_FILE" 2>/dev/null || echo 0)"
+    SINCE="$((NOW - LAST_RESTART))"
+    if [ "$SINCE" -lt "$COOLDOWN_SEC" ]; then
+        log "stalled ${STALLED}s at height ${LAST_H} (rpc='${HEIGHT:-unreachable}') but last restart was ${SINCE}s ago; skipping"
+        exit 0
+    fi
+fi
+
+log "RESTARTING $SERVICE: height stalled at ${LAST_H} for ${STALLED}s (rpc height='${HEIGHT:-unreachable}')"
+echo "$NOW" > "$RESTART_FILE"
+echo "${HEIGHT:-$LAST_H} $NOW" > "$STATE_FILE"
+systemctl restart "$SERVICE"
+RC=$?
+log "restart exit=$RC"
+exit "$RC"

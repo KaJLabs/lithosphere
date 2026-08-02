@@ -1,0 +1,229 @@
+---
+# Deploy MultX Bridge stack to Indexer EC2 (10.0.10.16)
+# Services: bridge-postgres (5433), bridge-api (4001)
+#
+# Usage:
+#   cd ansible
+#   ANSIBLE_ROLES_PATH=./roles ANSIBLE_HOST_KEY_CHECKING=False \
+#   ansible-playbook -i inventory/hosts.ini playbooks/deploy-bridge.yml \
+#     -e "bridge_db_password=STRONG_PW"
+#
+# After deploy: run deploy-sentry-nginx.yml to reload Nginx with bridge.litho.ai
+# Then: certbot certonly --nginx -d bridge.litho.ai (on Sentry-1)
+
+- name: Deploy MultX Bridge on Indexer EC2
+  hosts: monitoring
+  become: yes
+  vars:
+    bridge_dir: /opt/bridge
+    bridge_port: 4001
+    bridge_db_port: 5433
+    bridge_contract_sepolia: "0xfdA3b83FE8438123eAF5153945A46F8fcF6175f4"
+    bridge_contract_bnb: "0x93d74580a7b63a5B1FE5Aae05b7470bf9317aF9A"
+
+  tasks:
+    - name: Ensure Docker is running
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Check if Docker Compose plugin exists
+      ansible.builtin.stat:
+        path: /usr/local/lib/docker/cli-plugins/docker-compose
+      register: compose_binary
+
+    - name: Install Docker Compose plugin
+      ansible.builtin.get_url:
+        url: "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64"
+        dest: /usr/local/lib/docker/cli-plugins/docker-compose
+        mode: "0755"
+      when: not compose_binary.stat.exists
+
+    - name: Create bridge directory
+      ansible.builtin.file:
+        path: "{{ bridge_dir }}"
+        state: directory
+        owner: ec2-user
+        group: ec2-user
+        mode: "0755"
+
+    - name: Archive bridge-api source (on controller)
+      ansible.builtin.shell:
+        cmd: |
+          tar --exclude='node_modules' --exclude='.git' \
+              -czf /tmp/bridge-api.tar.gz \
+              -C "{{ playbook_dir }}/../.." \
+              api
+      delegate_to: localhost
+      become: no
+
+    - name: Copy bridge-api archive to Indexer
+      ansible.builtin.copy:
+        src: /tmp/bridge-api.tar.gz
+        dest: /tmp/bridge-api.tar.gz
+        mode: "0644"
+
+    - name: Extract bridge-api on Indexer
+      ansible.builtin.unarchive:
+        src: /tmp/bridge-api.tar.gz
+        dest: "{{ bridge_dir }}"
+        remote_src: yes
+        owner: ec2-user
+        group: ec2-user
+
+    - name: Deploy docker-compose.yml for bridge
+      ansible.builtin.copy:
+        content: |
+          version: '3.8'
+
+          services:
+            bridge-postgres:
+              image: postgres:16-alpine
+              container_name: bridge-postgres
+              environment:
+                POSTGRES_USER: bridge_user
+                POSTGRES_PASSWORD: "{{ bridge_db_password }}"
+                POSTGRES_DB: bridge
+              ports:
+                - "127.0.0.1:{{ bridge_db_port }}:5432"
+              volumes:
+                - bridge-postgres-data:/var/lib/postgresql/data
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U bridge_user -d bridge"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+                start_period: 10s
+              networks:
+                - bridge-network
+              restart: unless-stopped
+
+            bridge-api:
+              build:
+                context: ./api
+                dockerfile: Dockerfile
+              container_name: bridge-api
+              depends_on:
+                bridge-postgres:
+                  condition: service_healthy
+              environment:
+                PORT: "4000"
+                DB_HOST: bridge-postgres
+                DB_PORT: "5432"
+                DB_USER: bridge_user
+                DB_PASSWORD: "{{ bridge_db_password }}"
+                DB_NAME: bridge
+                CORS_ORIGINS: "https://kamet.litho.ai,https://bridge.litho.ai,https://makalu.litho.ai"
+                LITHO_RPC_WS: "wss://evm.litho.ai:8546"
+                LITHO_RPC_HTTP: "https://evm.litho.ai:8545"
+                BRIDGE_CONTRACT_ADDRESS: ""
+                BRIDGE_CONTRACT_SEPOLIA: "{{ bridge_contract_sepolia }}"
+                BRIDGE_CONTRACT_BNB: "{{ bridge_contract_bnb }}"
+                MOCK_VALIDATOR_COUNT: "3"
+                MOCK_SIGNATURES_REQUIRED: "2"
+                MOCK_SIGN_DELAY_MS: "5000"
+              ports:
+                - "0.0.0.0:{{ bridge_port }}:4000"
+              healthcheck:
+                test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+                start_period: 10s
+              networks:
+                - bridge-network
+              restart: unless-stopped
+
+          networks:
+            bridge-network:
+              driver: bridge
+
+          volumes:
+            bridge-postgres-data:
+              driver: local
+        dest: "{{ bridge_dir }}/docker-compose.yml"
+        owner: ec2-user
+        group: ec2-user
+        mode: "0644"
+
+    - name: Build and start bridge stack
+      ansible.builtin.command:
+        cmd: docker compose -f docker-compose.yml up -d --build --remove-orphans
+      args:
+        chdir: "{{ bridge_dir }}"
+
+    - name: Wait for bridge API health check
+      ansible.builtin.uri:
+        url: "http://localhost:{{ bridge_port }}/health"
+        method: GET
+      register: bridge_health
+      retries: 12
+      delay: 10
+      until: bridge_health.status == 200
+      failed_when: false
+
+    - name: Show running containers
+      ansible.builtin.command:
+        cmd: docker compose -f docker-compose.yml ps
+      args:
+        chdir: "{{ bridge_dir }}"
+      register: ps_output
+      changed_when: false
+
+    - name: Display bridge stack status
+      ansible.builtin.debug:
+        msg: |
+          ==========================================
+          MultX Bridge Deployed
+          ==========================================
+          API:      http://10.0.10.16:{{ bridge_port }}  (→ https://bridge.litho.ai)
+          Postgres: 127.0.0.1:{{ bridge_db_port }}
+          Contracts:
+            Sepolia:      {{ bridge_contract_sepolia }}
+            BNB Testnet:  {{ bridge_contract_bnb }}
+          ==========================================
+          {{ ps_output.stdout }}
+
+- name: Configure Sentry-1 Nginx for bridge.litho.ai
+  hosts: sentry-01
+  become: yes
+
+  tasks:
+    - name: Copy updated Nginx config
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../monitoring/sentry-nginx/litho-rpc-proxy.conf"
+        dest: /etc/nginx/conf.d/litho-rpc-proxy.conf
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Test Nginx config
+      ansible.builtin.command: nginx -t
+      changed_when: false
+      register: nginx_test
+      failed_when: false
+
+    - name: Issue TLS cert for bridge.litho.ai (if not exists)
+      ansible.builtin.command:
+        cmd: certbot certonly --nginx -d bridge.litho.ai --non-interactive --agree-tos --email admin@litho.ai
+      register: certbot_result
+      failed_when: false
+      changed_when: "'Successfully received certificate' in certbot_result.stdout"
+
+    - name: Reload Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+      when: nginx_test.rc == 0
+
+    - name: Display result
+      ansible.builtin.debug:
+        msg: |
+          ==========================================
+          Sentry-1 Nginx Updated
+          ==========================================
+          bridge.litho.ai → 10.0.10.16:4001
+          TLS: {{ certbot_result.stdout_lines | default(['check certbot output']) | last }}
+          Nginx: {{ 'reloaded' if nginx_test.rc == 0 else 'config test FAILED - check manually' }}
+          ==========================================

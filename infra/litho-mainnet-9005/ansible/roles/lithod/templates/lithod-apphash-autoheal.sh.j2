@@ -1,0 +1,122 @@
+#!/bin/bash
+# {{ litho_service_name }} memiavl AppHash auto-heal.  SENTRY ONLY — never a validator.
+#
+# Managed by Ansible (roles/lithod). Detects BOTH memiavl-corruption failure modes:
+#   (A) crash-loop  : service in auto-restart/failed + "is higher than core"
+#                     handshake error (app block height > core).
+#   (B) frozen/stuck: service *running* but rejecting blocks on an AppHash
+#                     mismatch ("wrong Block.Header.AppHash" / reactor validation
+#                     error) — stays catching_up, height not advancing, far behind
+#                     tip. The 2026-07-06 incident was (B); the earlier crash-loop
+#                     only version missed it because SubState was "running".
+#
+# Heals via state-sync wipe from >={{ lithod_apphash_autoheal_min_healthy }} healthy
+# at-tip RPCs (candidates below, incl. the local validator). Aborts WITHOUT wiping
+# if too few healthy RPCs (chain halt / no peers) so it never strands the node.
+#
+# Test without wiping: AUTOHEAL_DRYRUN=1 {{ lithod_apphash_autoheal_script_path }}
+set -u
+TAG="{{ litho_service_name }}-apphash-autoheal"
+SERVICE="{{ litho_service_name }}"
+HOME_DIR="{{ litho_home }}"
+CFG="$HOME_DIR/config/config.toml"
+FLAG="$HOME_DIR/.apphash-autoheal.last"
+LOCAL_RPC="{{ lithod_apphash_autoheal_local_rpc }}"
+COOLDOWN={{ lithod_apphash_autoheal_cooldown_sec }}
+BEHIND_MIN={{ lithod_apphash_autoheal_behind_min }}
+MIN_HEALTHY={{ lithod_apphash_autoheal_min_healthy }}
+TRUST_OFFSET={{ lithod_apphash_autoheal_trust_offset }}
+TRUST_PERIOD="{{ lithod_apphash_autoheal_trust_period }}"
+CANDIDATES="{{ lithod_apphash_autoheal_rpc_candidates | join(' ') }}"
+log(){ logger -t "$TAG" -- "$*"; }
+
+# ---- cooldown (cheap early-out; a heal takes ~90s, well under cooldown) ----
+NOW="$(date +%s)"
+if [ -f "$FLAG" ]; then
+  LAST="$(cat "$FLAG" 2>/dev/null || echo 0)"
+  [ $((NOW-LAST)) -lt $COOLDOWN ] && exit 0
+fi
+
+# ---- signals ----
+SUB="$(systemctl show -p SubState --value "$SERVICE" 2>/dev/null)"
+CRASHING=0; case "$SUB" in auto-restart|failed|start-pre) CRASHING=1 ;; esac
+
+LOGSIG=0
+journalctl -u "$SERVICE" --since "5 min ago" --no-pager 2>/dev/null \
+  | grep -qE "is higher than core|wrong Block\.Header\.AppHash|reactor validation error: wrong Block" \
+  && LOGSIG=1
+
+# local committed height (0 if RPC down or mid-state-sync — guards the height heuristic)
+LH1="$(curl -s --max-time 6 "$LOCAL_RPC/status" 2>/dev/null | jq -r '.result.sync_info.latest_block_height // 0' 2>/dev/null)"
+[ -z "$LH1" ] && LH1=0
+
+# ---- discover healthy at-tip RPCs (also yields the tip height) ----
+# NHEALTHY tracks the count explicitly rather than via bash array-length
+# expansion, which Ansible's Jinja would misparse as a comment opener.
+HEALTHY=(); NHEALTHY=0; TIPH=0
+for r in $CANDIDATES; do
+  J="$(curl -s --max-time 6 "$r/status" 2>/dev/null)"
+  H="$(echo "$J" | jq -r '.result.sync_info.latest_block_height // 0' 2>/dev/null)"
+  CU="$(echo "$J" | jq -r '.result.sync_info.catching_up' 2>/dev/null)"
+  if [ "${H:-0}" -gt 0 ] && [ "$CU" = "false" ]; then
+    HEALTHY+=("$r"); NHEALTHY=$((NHEALTHY+1)); [ "$H" -gt "$TIPH" ] && TIPH="$H"
+  fi
+done
+
+# ---- decide whether the sentry needs healing ----
+STUCK=0
+[ "$CRASHING" -eq 1 ] && STUCK=1
+[ "$LOGSIG" -eq 1 ] && STUCK=1
+# Independent frozen-height trigger: far behind tip AND not advancing. Skipped
+# when LH1==0 (RPC down / mid-state-sync) so we never interrupt an active sync.
+if [ "$STUCK" -eq 0 ] && [ "$LH1" -gt 0 ] && [ "$TIPH" -gt 0 ]; then
+  BEHIND=$((TIPH - LH1))
+  if [ "$BEHIND" -gt "$BEHIND_MIN" ]; then
+    sleep 10
+    LH2="$(curl -s --max-time 6 "$LOCAL_RPC/status" 2>/dev/null | jq -r '.result.sync_info.latest_block_height // 0' 2>/dev/null)"
+    [ -z "$LH2" ] && LH2=0
+    if [ "$LH2" -le "$LH1" ]; then
+      STUCK=1; log "frozen: local height $LH1->$LH2 not advancing, tip $TIPH (behind $BEHIND)"
+    fi
+  fi
+fi
+[ "$STUCK" -eq 0 ] && exit 0
+
+# ---- safety: only wipe if we have enough healthy at-tip sources to sync from ----
+if [ "$NHEALTHY" -lt "$MIN_HEALTHY" ]; then
+  log "heal needed (crash=$CRASHING logsig=$LOGSIG local=$LH1 tip=$TIPH) but only $NHEALTHY healthy at-tip RPC(s) < $MIN_HEALTHY — ABORT (no wipe)"
+  exit 1
+fi
+
+# state-sync needs >=2 rpc_servers; duplicate the single source if only one candidate is configured
+if [ "$NHEALTHY" -ge 2 ]; then RPC="${HEALTHY[0]},${HEALTHY[1]}"; else RPC="${HEALTHY[0]},${HEALTHY[0]}"; fi
+TRUST_H=$((TIPH-TRUST_OFFSET))
+TRUST_HASH="$(curl -s --max-time 6 "${HEALTHY[0]}/block?height=$TRUST_H" | jq -r '.result.block_id.hash // empty')"
+[ -z "$TRUST_HASH" ] && { log "no trust hash from ${HEALTHY[0]}, ABORT"; exit 1; }
+
+if [ -n "${AUTOHEAL_DRYRUN:-}" ]; then
+  log "DRYRUN: would heal $SERVICE (crash=$CRASHING logsig=$LOGSIG local=$LH1 tip=$TIPH) via state-sync rpc=$RPC trust=$TRUST_H/$TRUST_HASH"
+  exit 0
+fi
+
+log "heal $SERVICE (crash=$CRASHING logsig=$LOGSIG local=$LH1 tip=$TIPH) -> state-sync rpc=$RPC trust=$TRUST_H/$TRUST_HASH"
+echo "$NOW" > "$FLAG"
+systemctl stop "$SERVICE"
+cp -a "$CFG" "$CFG.bak.autoheal.$NOW" 2>/dev/null
+CFG="$CFG" TH="$TRUST_H" HH="$TRUST_HASH" RPC="$RPC" TP="$TRUST_PERIOD" python3 - <<'PY'
+import re,os
+cfg=os.environ['CFG'];th=os.environ['TH'];hh=os.environ['HH'];rpc=os.environ['RPC'];tp=os.environ['TP']
+s=open(cfg).read()
+m=re.search(r'(\[statesync\].*?)(\n\[)', s, re.S);sec=m.group(1)
+def setk(sec,k,v): return re.sub(r'(?m)^'+k+r'\s*=.*$', f'{k} = {v}', sec, count=1)
+sec=setk(sec,'enable','true');sec=setk(sec,'rpc_servers',f'"{rpc}"')
+sec=setk(sec,'trust_height',th);sec=setk(sec,'trust_hash',f'"{hh}"')
+sec=setk(sec,'trust_period',f'"{tp}"')
+open(cfg,'w').write(s[:m.start(1)]+sec+s[m.start(2):])
+PY
+cd "$HOME_DIR/data" || exit 1
+rm -rf blockstore.db state.db evidence.db cs.wal tx_index.db application.db memiavl.db snapshots
+printf '{"height":"0","round":0,"step":0}\n' > priv_validator_state.json
+chown -R {{ litho_user }}:{{ litho_group }} "$HOME_DIR/data"
+systemctl start "$SERVICE"
+log "$SERVICE state-sync rebootstrap started (rpc=$RPC)"

@@ -1,0 +1,136 @@
+#!/bin/bash
+#
+# LITHO Node Preflight Check
+# Validates all critical files are in place before lithod starts.
+#
+# Runs as systemd ExecStartPre - exits non-zero to BLOCK service start
+# if any required file is missing or invalid.
+#
+
+set -euo pipefail
+
+NODE_ROLE="{{ node_role }}"
+LITHO_HOME="{{ litho_home }}"
+CONFIG_DIR="${LITHO_HOME}/config"
+DATA_DIR="${LITHO_HOME}/data"
+
+ERRORS=0
+
+err() { echo "PREFLIGHT FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
+ok()  { echo "PREFLIGHT OK:   $1" >&2; }
+
+echo "============================================" >&2
+echo "  LITHO Preflight Check (${NODE_ROLE})" >&2
+echo "============================================" >&2
+
+# ---------------------------------------------------------------
+# 1. Genesis file
+# ---------------------------------------------------------------
+if [[ -f "${CONFIG_DIR}/genesis.json" ]]; then
+    if jq empty "${CONFIG_DIR}/genesis.json" 2>/dev/null; then
+        CHAIN=$(jq -r '.chain_id // empty' "${CONFIG_DIR}/genesis.json" 2>/dev/null)
+        ok "genesis.json present (chain_id=${CHAIN:-unknown})"
+    else
+        err "genesis.json exists but is not valid JSON"
+    fi
+else
+    err "genesis.json MISSING at ${CONFIG_DIR}/genesis.json"
+fi
+
+# ---------------------------------------------------------------
+# 2. Node key (all nodes)
+# ---------------------------------------------------------------
+if [[ -f "${CONFIG_DIR}/node_key.json" ]]; then
+    if jq empty "${CONFIG_DIR}/node_key.json" 2>/dev/null; then
+        ok "node_key.json present"
+    else
+        err "node_key.json exists but is not valid JSON"
+    fi
+else
+    err "node_key.json MISSING at ${CONFIG_DIR}/node_key.json"
+fi
+
+# ---------------------------------------------------------------
+# 3. Validator signing key (validators only)
+# ---------------------------------------------------------------
+if [[ "${NODE_ROLE}" == "validator" ]]; then
+
+    # Either the plaintext key must exist (already decrypted)
+    # or the encrypted key + KMS data key must exist (decrypt will run)
+    if [[ -f "${CONFIG_DIR}/priv_validator_key.json" ]]; then
+        if jq empty "${CONFIG_DIR}/priv_validator_key.json" 2>/dev/null; then
+            ok "priv_validator_key.json present (plaintext - will be used directly)"
+        else
+            err "priv_validator_key.json exists but is not valid JSON"
+        fi
+    elif [[ -f "${CONFIG_DIR}/priv_validator_key.json.enc" && -f "${CONFIG_DIR}/priv_validator_key.kms" ]]; then
+        ok "priv_validator_key.json.enc + .kms present (will be decrypted at startup)"
+    else
+        err "Validator signing key MISSING: need either priv_validator_key.json or .enc+.kms pair"
+    fi
+
+    # Validator state file
+    if [[ -f "${DATA_DIR}/priv_validator_state.json" ]]; then
+        if jq empty "${DATA_DIR}/priv_validator_state.json" 2>/dev/null; then
+            ok "priv_validator_state.json present"
+        else
+            err "priv_validator_state.json exists but is not valid JSON"
+        fi
+    else
+        err "priv_validator_state.json MISSING at ${DATA_DIR}/priv_validator_state.json"
+    fi
+fi
+
+# ---------------------------------------------------------------
+# 4. CometBFT configuration
+# ---------------------------------------------------------------
+if [[ -f "${CONFIG_DIR}/config.toml" ]]; then
+    ok "config.toml present"
+else
+    err "config.toml MISSING at ${CONFIG_DIR}/config.toml"
+fi
+
+if [[ -f "${CONFIG_DIR}/app.toml" ]]; then
+    ok "app.toml present"
+else
+    err "app.toml MISSING at ${CONFIG_DIR}/app.toml"
+fi
+
+# ---------------------------------------------------------------
+# 5. Binary
+# ---------------------------------------------------------------
+if command -v {{ litho_binary_path }} &>/dev/null; then
+    ok "lithod binary available at {{ litho_binary_path }}"
+else
+    err "lithod binary NOT FOUND at {{ litho_binary_path }}"
+fi
+
+# ---------------------------------------------------------------
+# 6. Directory permissions
+# ---------------------------------------------------------------
+if [[ -d "${CONFIG_DIR}" && -r "${CONFIG_DIR}" ]]; then
+    ok "config directory readable"
+else
+    err "config directory missing or not readable"
+fi
+
+if [[ -d "${DATA_DIR}" && -w "${DATA_DIR}" ]]; then
+    ok "data directory writable"
+else
+    err "data directory missing or not writable"
+fi
+
+# ---------------------------------------------------------------
+# RESULT
+# ---------------------------------------------------------------
+echo "============================================" >&2
+if [[ $ERRORS -gt 0 ]]; then
+    echo "PREFLIGHT FAILED: ${ERRORS} error(s) detected" >&2
+    echo "lithod will NOT start until all issues are resolved." >&2
+    echo "============================================" >&2
+    exit 1
+else
+    echo "PREFLIGHT PASSED: All checks OK" >&2
+    echo "============================================" >&2
+    exit 0
+fi

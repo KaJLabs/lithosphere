@@ -1,0 +1,86 @@
+#!/bin/bash
+#
+# LITHO Validator Key Decryption Script
+# Decrypts priv_validator_key.json using KMS envelope encryption
+#
+# SECURITY NOTICE:
+# - This script runs at service startup to decrypt the validator signing key
+# - The plaintext key only exists in memory during validator operation
+# - Key is securely wiped when the service stops
+# - Encryption uses AWS KMS + AES-256-CBC (envelope encryption pattern)
+#
+
+set -euo pipefail
+
+ENCRYPTED_KEY="{{ litho_home }}/config/priv_validator_key.json.enc"
+ENCRYPTED_DATA_KEY_FILE="{{ litho_home }}/config/priv_validator_key.kms"
+OUTPUT_KEY="{{ litho_home }}/config/priv_validator_key.json"
+TEMP_DATA_KEY="/tmp/validator_data_key_$$.bin"
+
+# Check if plaintext key already exists (e.g. placed directly without KMS encryption)
+if [[ -f "$OUTPUT_KEY" ]]; then
+    if jq empty "$OUTPUT_KEY" 2>/dev/null; then
+        echo "Plaintext validator key already exists and is valid JSON. Skipping decryption." >&2
+        exit 0
+    else
+        echo "WARNING: Invalid key file at $OUTPUT_KEY, removing..." >&2
+        shred -vfz -n 3 "$OUTPUT_KEY" 2>/dev/null || rm -f "$OUTPUT_KEY"
+    fi
+fi
+
+# Verify encrypted key exists
+if [[ ! -f "$ENCRYPTED_KEY" ]]; then
+    echo "ERROR: Encrypted validator key not found at $ENCRYPTED_KEY" >&2
+    echo "This validator cannot start without the encrypted signing key." >&2
+    exit 1
+fi
+
+# Verify encrypted data key exists
+if [[ ! -f "$ENCRYPTED_DATA_KEY_FILE" ]]; then
+    echo "ERROR: Encrypted data key not found at $ENCRYPTED_DATA_KEY_FILE" >&2
+    exit 1
+fi
+
+# Read encrypted data key
+ENCRYPTED_DATA_KEY_B64=$(cat "$ENCRYPTED_DATA_KEY_FILE")
+
+# Decrypt data key using AWS KMS
+echo "Decrypting validator signing key with KMS envelope encryption..." >&2
+
+aws kms decrypt \
+    --ciphertext-blob "fileb://<(echo "$ENCRYPTED_DATA_KEY_B64" | base64 -d)" \
+    --region {{ aws_region }} \
+    --query 'Plaintext' \
+    --output text | base64 -d > "$TEMP_DATA_KEY"
+
+if [[ ! -s "$TEMP_DATA_KEY" ]]; then
+    echo "ERROR: Failed to decrypt data key from KMS" >&2
+    rm -f "$TEMP_DATA_KEY"
+    exit 1
+fi
+
+# Decrypt the validator key using the decrypted data key
+openssl enc -d -aes-256-cbc -salt -pbkdf2 \
+    -in "$ENCRYPTED_KEY" \
+    -out "$OUTPUT_KEY" \
+    -pass file:"$TEMP_DATA_KEY"
+
+# Verify the decrypted key is valid JSON
+if ! jq empty "$OUTPUT_KEY" 2>/dev/null; then
+    echo "ERROR: Decrypted key is not valid JSON. Decryption failed!" >&2
+    shred -vfz -n 3 "$OUTPUT_KEY" "$TEMP_DATA_KEY" 2>/dev/null || rm -f "$OUTPUT_KEY" "$TEMP_DATA_KEY"
+    exit 1
+fi
+
+# Securely delete the temporary data key
+shred -vfz -n 10 "$TEMP_DATA_KEY" 2>/dev/null || rm -f "$TEMP_DATA_KEY"
+
+# Set strict permissions
+chmod 600 "$OUTPUT_KEY"
+chown {{ litho_user }}:{{ litho_group }} "$OUTPUT_KEY"
+
+echo "✓ Validator signing key decrypted successfully" >&2
+echo "✓ Key permissions: 600 (owner: {{ litho_user }})" >&2
+echo "✓ Validator ready to start" >&2
+
+exit 0

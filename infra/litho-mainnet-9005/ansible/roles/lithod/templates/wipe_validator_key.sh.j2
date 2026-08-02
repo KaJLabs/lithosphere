@@ -1,0 +1,41 @@
+#!/bin/bash
+#
+# LITHO Validator Key Wipe Script
+# Securely wipes the decrypted priv_validator_key.json after service stops
+#
+# SECURITY NOTICE:
+# - Runs automatically when lithod service stops
+# - Uses DoD 5220.22-M standard (10-pass overwrite)
+# - Prevents validator key from remaining in plaintext on disk
+#
+
+set -euo pipefail
+
+PLAINTEXT_KEY="{{ litho_home }}/config/priv_validator_key.json"
+ENCRYPTED_KEY="{{ litho_home }}/config/priv_validator_key.json.enc"
+
+# Only wipe the plaintext key if an encrypted backup exists (KMS envelope encryption mode).
+# If there is no .enc file, the plaintext key is the only copy and must NOT be destroyed.
+if [[ ! -f "$ENCRYPTED_KEY" ]]; then
+    echo "No encrypted key backup found — plaintext key is the primary copy. Skipping wipe." >&2
+    exit 0
+fi
+
+if [[ -f "$PLAINTEXT_KEY" ]]; then
+    echo "Securely wiping validator signing key from disk..." >&2
+
+    # DoD 5220.22-M compliant wipe (10 passes)
+    shred -vfz -n 10 "$PLAINTEXT_KEY" 2>/dev/null || {
+        echo "WARNING: shred command failed, using fallback rm" >&2
+        rm -f "$PLAINTEXT_KEY"
+    }
+
+    echo "✓ Validator signing key securely wiped" >&2
+else
+    echo "No plaintext validator key found (already wiped or never decrypted)" >&2
+fi
+
+# Also clean up any stray temporary files
+rm -f /tmp/validator_data_key_*.bin 2>/dev/null || true
+
+exit 0

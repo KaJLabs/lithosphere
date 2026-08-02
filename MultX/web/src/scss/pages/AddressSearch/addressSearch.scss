@@ -1,0 +1,182 @@
+@use '../../common/mixins' as *;
+
+.address-search {
+  padding: 24px 0 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+
+  .address-search-header {
+    margin-bottom: 24px;
+
+    h1 {
+      color: var(--text-secondary);
+      font-size: 32px;
+      margin: 0 0 8px 0;
+    }
+
+    p {
+      color: var(--text-primary);
+      margin: 0;
+      line-height: 1.6;
+    }
+  }
+
+  .address-search-form {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+
+    @include onPhone {
+      flex-direction: column;
+    }
+  }
+
+  .address-search-input {
+    flex: 1;
+    min-height: 48px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    padding: 0 16px;
+    font-size: 15px;
+
+    &:focus {
+      outline: none;
+      border-color: var(--text-active);
+      box-shadow: 0 0 0 3px rgba(11, 133, 255, 0.12);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  .address-search-btn {
+    min-width: 130px;
+    border: none;
+    border-radius: 10px;
+    background: var(--text-active);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  .address-search-note {
+    margin-bottom: 18px;
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.7;
+
+    code {
+      color: var(--text-secondary);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 2px 6px;
+    }
+  }
+
+  .error-message {
+    background: rgba(239, 78, 78, 0.12);
+    color: #ffb4b4;
+    padding: 14px 16px;
+    border-radius: 10px;
+    margin-bottom: 18px;
+    border: 1px solid rgba(239, 78, 78, 0.24);
+  }
+
+  .address-details-card,
+  .balance-card,
+  .delegations-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 18px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+
+    h2 {
+      color: var(--text-secondary);
+      font-size: 20px;
+      margin: 0 0 18px 0;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border-color);
+
+      &:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      .label {
+        color: var(--text-primary);
+        font-weight: 500;
+      }
+
+      code {
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        padding: 4px 8px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        font-size: 12px;
+        word-break: break-all;
+      }
+    }
+  }
+
+  .balance-table,
+  .delegations-table {
+    width: 100%;
+    border-collapse: collapse;
+
+    thead {
+      th {
+        color: var(--text-primary);
+        padding: 12px;
+        text-align: left;
+        font-weight: 700;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        border-bottom: 1px solid var(--border-color);
+      }
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border-color);
+
+      &:hover {
+        background: rgba(11, 133, 255, 0.06);
+      }
+    }
+
+    td {
+      color: var(--text-secondary);
+      padding: 14px 12px;
+
+      code {
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        padding: 4px 8px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        font-size: 12px;
+        word-break: break-all;
+      }
+    }
+  }
+}

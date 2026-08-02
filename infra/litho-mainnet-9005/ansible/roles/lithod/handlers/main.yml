@@ -1,0 +1,26 @@
+# Lithod Role - Handlers
+---
+- name: reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: check lithod binary before restart
+  stat:
+    path: "{{ litho_binary_path }}"
+  register: handler_lithod_binary
+  listen: "restart lithod"
+
+- name: check node_key.json before restart
+  stat:
+    path: "{{ litho_home }}/config/node_key.json"
+  register: handler_node_key
+  listen: "restart lithod"
+
+- name: conditionally restart lithod service
+  service:
+    name: "{{ litho_service_name | default('lithod') }}"
+    state: restarted
+  when:
+    - handler_lithod_binary.stat.exists | default(false)
+    - handler_node_key.stat.exists | default(false)
+  listen: "restart lithod"

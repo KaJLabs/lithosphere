@@ -1,0 +1,30 @@
+---
+node_role: "validator"
+litho_p2p_external: false
+litho_p2p_pex: false
+
+# Validator communicates only with the two sentries over the private mesh.
+p2p_persistent_peers: >-
+  {{ mainnet_sentry1_node_id }}@{{ mainnet_sentry1_wg_ip }}:27056,{{ mainnet_sentry2_node_id }}@{{ mainnet_sentry2_wg_ip }}:27056
+p2p_seeds: ""
+p2p_private_peer_ids: ""
+
+litho_pruning: "custom"
+litho_pruning_keep_recent: "100"
+litho_pruning_interval: "10"
+litho_state_sync_enabled: false
+# An active validator's own recent signatures are expected after a clean
+# restart. A positive lookback makes CometBFT reject every restart with
+# "found signature from the same key". Double-sign protection is provided by
+# the preserved priv_validator_state.json and single-writer key custody.
+litho_double_sign_check_height: 0
+
+# Local signer for the initial ceremony; key files must be encrypted at rest
+# before launch. A remote signer can be introduced once its VPS/HSM is agreed.
+tmkms_enabled: false
+lithod_memory_limit: "16G"
+lithod_cpu_quota: "600%"
+lithod_restart_timer_enabled: false
+lithod_leak_watchdog_enabled: false
+lithod_stall_watchdog_enabled: false
+lithod_apphash_autoheal_enabled: false

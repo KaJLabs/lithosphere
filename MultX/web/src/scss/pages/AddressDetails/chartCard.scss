@@ -1,0 +1,143 @@
+@use '../../common/mixins' as *;
+
+.chartCard {
+  @include card;
+
+  min-width: 365px;
+  flex: 1 1 0px;
+  display: flex;
+  flex-direction: column;
+
+  padding: 21px;
+  color: var(--text-secondary);
+
+  &-title {
+    font-weight: 700;
+    font-size: 17px;
+  }
+
+  &-date {
+    margin-top: 12px;
+
+    font-size: 12px;
+    color: var(--text-primary);
+  }
+
+  &-chart {
+    display: flex;
+    justify-content: center;
+
+    margin-top: 30px;
+
+    &-wrapper {
+      position: relative;
+
+      padding: 10px;
+
+      border: 1px solid var(--border-color);
+      border-radius: 50%;
+
+      &-label {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+
+        margin: 42px;
+
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        justify-content: center;
+        align-items: center;
+
+        border-radius: 50%;
+        border: 1px solid var(--border-color);
+
+        &-title {
+          font-size: 25px;
+          color: #25a50e;
+        }
+
+        &-name {
+          font-size: 17px;
+          color: var(--text-primary);
+        }
+      }
+    }
+  }
+
+  &-content {
+    margin-top: 20px;
+    padding: 20px 17px;
+
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    @include primaryCard;
+
+    &-item {
+      display: flex;
+      justify-content: space-between;
+
+      &-value {
+        color: var(--text-primary);
+      }
+
+      &-name {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      &-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+      }
+    }
+  }
+
+  &-pagination {
+    display: flex;
+    justify-content: end;
+
+    margin-top: auto;
+
+    &-items {
+      display: flex;
+      gap: 10px;
+    }
+
+    &-item {
+      height: 32px;
+      width: 32px;
+
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--text-primary);
+
+      cursor: pointer;
+
+      border-radius: 5px;
+      border: 1px solid var(--border-color);
+    }
+  }
+}
+
+.pagination-arrow {
+  path {
+    stroke: none;
+    fill: var(--text-primary);
+  }
+}
+
+.right {
+  transform: rotate(-90deg);
+}
+.left {
+  transform: rotate(90deg);
+}

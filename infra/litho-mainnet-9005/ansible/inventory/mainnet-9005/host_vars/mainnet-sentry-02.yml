@@ -1,0 +1,26 @@
+---
+node_role: "sentry"
+litho_service_name: "lithod-mainnet-9005-sentry"
+litho_home: "/var/lib/litho-mainnet-9005-sentry"
+
+# Same isolated service/port slot as sentry-01 on a different VPS.
+litho_p2p_port: 27056
+litho_rpc_port: 27057
+litho_grpc_port: 9490
+litho_evm_rpc_port: 8945
+litho_ws_port: 8946
+litho_metrics_port: 27060
+rpc_laddr: "tcp://0.0.0.0:27057"
+api_address: "tcp://0.0.0.0:1717"
+grpc_address: "0.0.0.0:9490"
+evm_rpc_address: "0.0.0.0:8945"
+evm_ws_address: "0.0.0.0:8946"
+prometheus_listen_addr: ":27060"
+
+wireguard_address: "10.200.5.3"
+wireguard_peers:
+  - name: mainnet-validator-01
+    public_key: "{{ mainnet_validator_wg_public_key }}"
+    endpoint: "194.5.157.233:51825"
+    allowed_ips: ["10.200.5.1/32"]
+    persistent_keepalive: 25

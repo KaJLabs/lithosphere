@@ -1,0 +1,222 @@
+@use "../../common/checkbox";
+
+.getStarted {
+  margin-top: 21px;
+  display: flex;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  padding: 30px;
+  gap: 30px;
+
+  &-image {}
+
+  .content-wrap,
+  .buttons-wrap {
+    display: flex;
+  }
+
+  .content-wrap {
+    flex: 1;
+  }
+
+  &-content {
+    width: 100%;
+    height: 71px;
+    display: flex;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+    padding: 13px 30px;
+
+    &-text {
+      h3 {
+        color: var(--text-secondary);
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 7px;
+      }
+
+      p {
+        color: var(--text-primary);
+        font-size: 16px;
+        font-weight: 400;
+      }
+    }
+
+    &-checkbox {
+      display: flex;
+      align-items: center;
+      margin-left: auto;
+      margin-right: 50px;
+      padding-left: 20px;
+      border-left: 1px solid var(--border-color);
+
+      p {
+        width: 221px;
+        font-size: 12px;
+        font-weight: 400;
+        font-style: normal;
+        letter-spacing: normal;
+        line-height: 20px;
+
+        a {
+          color: var(--link-color);
+        }
+      }
+    }
+
+    &-btn {
+      display: flex;
+      align-items: center;
+      width: 200px;
+      gap: 8px;
+      max-height: 100%;
+      box-shadow: 0 3px 4px rgba(0, 0, 0, 0.15);
+      border-radius: 4px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      font-style: normal;
+      letter-spacing: normal;
+      line-height: 25px;
+      transition: 0.2s ease;
+      cursor: pointer;
+
+      .icon-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 31px;
+        margin-left: 10px;
+        height: 31px;
+        border-radius: 4px;
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+    }
+
+    &-btn.metamask {
+      background-color: #f6851b;
+
+      &:hover {
+        background-color: lighten(#f6851b, 5%);
+      }
+    }
+
+    &-btn.wallet {
+      margin-left: 30px;
+      background-color: var(--text-active);
+
+      .icon-wrap {
+        margin-right: 15px;
+      }
+
+      &:hover {
+        background-color: darken(#dea101, 5%);
+      }
+    }
+
+    @media screen and (max-width: 1760px) {
+      height: fit-content;
+      gap: 20px;
+
+      .content-wrap {
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+
+      .buttons-wrap {
+        height: 41px;
+        align-self: flex-end;
+      }
+
+      &-checkbox {
+        align-items: start;
+        margin: 0;
+        padding: 0;
+        border: 0;
+
+        p {
+          width: auto;
+          margin-top: -1px;
+        }
+      }
+    }
+    @media screen and (max-width: 1500px) {
+      flex-direction: column;
+      .content-wrap {
+        margin-bottom: 0;
+      }
+      .buttons-wrap {
+        align-self: auto;
+      }
+    }
+
+    @media screen and (max-width: 1410px) {
+      gap: 14px;
+
+      .content-wrap {
+        flex-direction: column;
+        gap: 8px;
+      }
+    }
+
+    @media screen and (max-width: 787px) {
+      .buttons-wrap {
+        flex-direction: column;
+        gap: 12px;
+        height: fit-content;
+      }
+
+      &-checkbox {
+        align-items: center;
+        p {
+          width: 221px;
+        }
+      }
+
+      &-btn {
+        height: 41px;
+      }
+
+      &-btn.wallet {
+        margin: 0;
+      }
+    }
+
+    @media screen and (max-width: 590px) {
+      align-items: center;
+
+      &-text {
+        h3 {
+          text-align: center;
+        }
+
+        p {
+          text-align: center;
+          width: fit-content;
+          margin: 0 auto;
+        }
+      }
+
+      p {
+        text-align: center;
+        width: fit-content;
+        margin: 0 auto;
+      }
+    }
+  }
+
+  @media screen and (max-width: 590px) {
+    padding: 14px;
+    gap: 12px;
+    flex-direction: column;
+
+    &-image {
+      display: block;
+      margin: 0 auto;
+    }
+  }
+}

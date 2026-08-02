@@ -1,0 +1,101 @@
+---
+# Read-only launch gate for the VPS-only LITHO mainnet. It makes no remote
+# changes and intentionally fails while ceremony/genesis placeholders remain.
+
+- name: Validate mainnet 9005 controller inputs
+  hosts: mainnet_nodes
+  gather_facts: false
+  any_errors_fatal: true
+  tasks:
+    - name: Verify immutable network identity and VPS-only policy
+      ansible.builtin.assert:
+        that:
+          - litho_chain_id | int == 9005
+          - litho_chain_id_cosmos == 'lithosphere_9005-1'
+          - not (mainnet_uses_aws | bool)
+          - validator_key_backend == 'manual'
+        fail_msg: "Mainnet identity or VPS-only policy does not match the client-approved values."
+      run_once: true
+
+    - name: Verify node and WireGuard ceremonies are complete
+      ansible.builtin.assert:
+        that:
+          - not mainnet_validator_node_id.startswith('PENDING_')
+          - not mainnet_sentry1_node_id.startswith('PENDING_')
+          - not mainnet_sentry2_node_id.startswith('PENDING_')
+          - not mainnet_validator_wg_public_key.startswith('PENDING_')
+          - not mainnet_sentry1_wg_public_key.startswith('PENDING_')
+          - not mainnet_sentry2_wg_public_key.startswith('PENDING_')
+        fail_msg: "Run the mainnet node/WireGuard key ceremony and replace all PENDING_* values."
+      run_once: true
+
+    - name: Check final genesis exists on the controller
+      ansible.builtin.stat:
+        path: "{{ genesis_file_local }}"
+        checksum_algorithm: sha256
+      delegate_to: localhost
+      become: false
+      register: mainnet_genesis
+      run_once: true
+
+    - name: Verify final genesis checksum and chain ID gate
+      ansible.builtin.assert:
+        that:
+          - mainnet_genesis.stat.exists
+          - genesis_checksum_expected != 'PENDING_FINAL_GENESIS'
+          - mainnet_genesis.stat.checksum == genesis_checksum_expected
+        fail_msg: "Final signed-off genesis or its pinned SHA-256 checksum is missing."
+      run_once: true
+
+- name: Validate mainnet 9005 VPS capacity and isolation
+  hosts: mainnet_nodes
+  gather_facts: true
+  any_errors_fatal: true
+  tasks:
+    - name: Require production-sized validator capacity
+      ansible.builtin.assert:
+        that:
+          - ansible_processor_vcpus | int >= 8
+          - ansible_memtotal_mb | int >= 24000
+        fail_msg: "Validator requires at least 8 vCPU and 24 GB RAM."
+      when: node_role == 'validator'
+
+    - name: Require sentry capacity
+      ansible.builtin.assert:
+        that:
+          - ansible_processor_vcpus | int >= 4
+          - ansible_memtotal_mb | int >= 16000
+        fail_msg: "Sentry requires at least 4 vCPU and 16 GB RAM."
+      when: node_role == 'sentry'
+
+    - name: Read root filesystem capacity
+      ansible.builtin.set_fact:
+        root_available_bytes: >-
+          {{ (ansible_mounts | selectattr('mount', 'equalto', '/') | map(attribute='size_available') | first) | int }}
+
+    - name: Require free disk capacity
+      ansible.builtin.assert:
+        that:
+          - root_available_bytes | int >= (250 * 1024 * 1024 * 1024 if node_role == 'validator' else 150 * 1024 * 1024 * 1024)
+        fail_msg: "Insufficient free disk for the assigned mainnet role."
+
+    - name: Confirm no AWS metadata dependency is configured
+      ansible.builtin.assert:
+        that:
+          - not (fetch_keys_from_secrets | bool)
+          - validator_key_backend != 'aws_kms'
+        fail_msg: "The VPS-only mainnet inventory must not depend on AWS metadata or KMS."
+
+    - name: Check pinned lithod binary
+      ansible.builtin.stat:
+        path: "{{ litho_binary_path }}"
+        checksum_algorithm: sha256
+      register: mainnet_lithod_binary
+
+    - name: Require the reviewed lithod binary on every node
+      ansible.builtin.assert:
+        that:
+          - mainnet_lithod_binary.stat.exists
+          - mainnet_lithod_binary.stat.executable
+          - mainnet_lithod_binary.stat.checksum == litho_binary_sha256_expected
+        fail_msg: "The approved lithod binary is absent or its SHA-256 does not match."

@@ -1,0 +1,151 @@
+================================================================================
+MultX Bridge — Slither pre-audit static analysis
+================================================================================
+Tool      : Slither 0.11.5 (crytic)
+Compiler  : solc 0.8.24 (optimizer runs=200)
+Generated : 2026-05-21 (refreshed after pauseGuardian addition)
+Scope     : contracts/MultXBridge.sol      (241 LOC)
+            contracts/MultXBridgeDest.sol  (238 LOC)
+            contracts/WrappedLEP100.sol     (54 LOC)
+Commit    : 9f939ab8501bd351024ffc7ca5e884a3090c3ecc
+Filter    : node_modules excluded (OpenZeppelin libs out of scope per threat
+            model T6)
+
+--------------------------------------------------------------------------------
+Triage summary (infra team) — all findings reviewed, none are exploitable as-is.
+Provided so the audit firm can confirm our reasoning rather than re-derive it.
+--------------------------------------------------------------------------------
+  reentrancy-benign / reentrancy-events
+      lockTokens does the external token call (safeTransferFrom on source,
+      burnFrom on dest) before `nonce++` and the TokensLocked event. The
+      function carries OZ `nonReentrant`; the only state written after the call
+      is the monotonic nonce and an event. No funds-affecting state is mutated
+      post-call. Flagged for audit confirmation, not believed exploitable.
+
+  timestamp
+      `block.timestamp >= lastCapReset[token] + 86400` drives the 24h daily-cap
+      window. A +/-15s validator drift cannot meaningfully move a 24h boundary.
+      See threat model L5.
+
+  assembly
+      Inline asm is the standard ECDSA `recover()` signature-split (r/s/v). See
+      threat model open-question #1 (EIP-712 migration consideration).
+
+  naming-convention
+      `_validators` / `_signaturesRequired` leading-underscore params. Cosmetic.
+
+  missing-zero-check (setPauseGuardian)
+      INTENTIONAL: passing address(0) is the supported way to CLEAR the pause
+      guardian. A zero-check would remove that capability. Owner-only setter;
+      worst case of a wrong value is an inability to fast-pause until corrected
+      (the owner can always pause directly). Not a defect.
+
+  WrappedLEP100.sol — 0 results.
+================================================================================
+
+
+########## MultXBridge.sol — analyzed (9 contracts, 101 detectors), 8 results ##########
+
+INFO:Detectors:
+Detector: missing-zero-check
+MultXBridge.setPauseGuardian(address).guardian lacks a zero-check on:
+	- pauseGuardian = guardian
+  (INTENTIONAL — address(0) clears the guardian; see triage above.)
+
+INFO:Detectors:
+Detector: reentrancy-benign
+Reentrancy in MultXBridge.lockTokens(address,uint256,uint256) (contracts/MultXBridge.sol#115-151):
+	External calls:
+	- IERC20(token).safeTransferFrom(msg.sender,address(this),amount) (contracts/MultXBridge.sol#134)
+	State variables written after the call(s):
+	- nonce ++ (contracts/MultXBridge.sol#136)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#reentrancy-vulnerabilities-3
+
+INFO:Detectors:
+Detector: reentrancy-events
+Reentrancy in MultXBridge.lockTokens(address,uint256,uint256) (contracts/MultXBridge.sol#115-151):
+	External calls:
+	- IERC20(token).safeTransferFrom(msg.sender,address(this),amount) (contracts/MultXBridge.sol#134)
+	Event emitted after the call(s):
+	- TokensLocked(txHash,token,msg.sender,amount,targetChain,nonce) (contracts/MultXBridge.sol#149)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#reentrancy-vulnerabilities-4
+
+INFO:Detectors:
+Detector: timestamp
+MultXBridge.lockTokens(address,uint256,uint256) (contracts/MultXBridge.sol#115-151) uses timestamp for comparisons
+	Dangerous comparisons:
+	- block.timestamp >= lastCapReset[token] + 86400 (contracts/MultXBridge.sol#126)
+MultXBridge.getDailyRemaining(address) (contracts/MultXBridge.sol#236-240) uses timestamp for comparisons
+	Dangerous comparisons:
+	- (block.timestamp >= lastCapReset[token] + 86400) (contracts/MultXBridge.sol#238)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#block-timestamp
+
+INFO:Detectors:
+Detector: assembly
+MultXBridge.recover(bytes32,bytes) (contracts/MultXBridge.sol#204-224) uses assembly
+	- INLINE ASM (contracts/MultXBridge.sol#211-215)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#assembly-usage
+
+INFO:Detectors:
+Detector: naming-convention
+Parameter MultXBridge.setValidatorSet(address[],uint256)._validators (contracts/MultXBridge.sol#83) is not in mixedCase
+Parameter MultXBridge.setValidatorSet(address[],uint256)._signaturesRequired (contracts/MultXBridge.sol#83) is not in mixedCase
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#conformance-to-solidity-naming-conventions
+
+
+########## MultXBridgeDest.sol — analyzed (10 contracts, 101 detectors), 8 results ##########
+
+INFO:Detectors:
+Detector: missing-zero-check
+MultXBridgeDest.setPauseGuardian(address).guardian lacks a zero-check on:
+	- pauseGuardian = guardian
+  (INTENTIONAL — address(0) clears the guardian; see triage above.)
+
+INFO:Detectors:
+Detector: reentrancy-benign
+Reentrancy in MultXBridgeDest.lockTokens(address,uint256,uint256) (contracts/MultXBridgeDest.sol#124-154):
+	External calls:
+	- IWrappedLEP100(token).burnFrom(msg.sender,amount) (contracts/MultXBridgeDest.sol#144)
+	State variables written after the call(s):
+	- nonce ++ (contracts/MultXBridgeDest.sol#146)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#reentrancy-vulnerabilities-3
+
+INFO:Detectors:
+Detector: reentrancy-events
+Reentrancy in MultXBridgeDest.lockTokens(address,uint256,uint256) (contracts/MultXBridgeDest.sol#124-154):
+	External calls:
+	- IWrappedLEP100(token).burnFrom(msg.sender,amount) (contracts/MultXBridgeDest.sol#144)
+	Event emitted after the call(s):
+	- TokensLocked(txHash,token,msg.sender,amount,targetChain,nonce) (contracts/MultXBridgeDest.sol#152)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#reentrancy-vulnerabilities-4
+
+INFO:Detectors:
+Detector: timestamp
+MultXBridgeDest.lockTokens(address,uint256,uint256) (contracts/MultXBridgeDest.sol#124-154) uses timestamp for comparisons
+	Dangerous comparisons:
+	- block.timestamp >= lastCapReset[token] + 86400 (contracts/MultXBridgeDest.sol#134)
+MultXBridgeDest.getDailyRemaining(address) (contracts/MultXBridgeDest.sol#233-237) uses timestamp for comparisons
+	Dangerous comparisons:
+	- (block.timestamp >= lastCapReset[token] + 86400) (contracts/MultXBridgeDest.sol#235)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#block-timestamp
+
+INFO:Detectors:
+Detector: assembly
+MultXBridgeDest.recover(bytes32,bytes) (contracts/MultXBridgeDest.sol#210-227) uses assembly
+	- INLINE ASM (contracts/MultXBridgeDest.sol#217-221)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#assembly-usage
+
+INFO:Detectors:
+Detector: naming-convention
+Parameter MultXBridgeDest.setValidatorSet(address[],uint256)._validators (contracts/MultXBridgeDest.sol#94) is not in mixedCase
+Parameter MultXBridgeDest.setValidatorSet(address[],uint256)._signaturesRequired (contracts/MultXBridgeDest.sol#94) is not in mixedCase
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#conformance-to-solidity-naming-conventions
+
+
+########## WrappedLEP100.sol — analyzed (13 contracts, 101 detectors), 0 results ##########
+
+(No findings.)
+
+================================================================================
+End of report.
+================================================================================

@@ -1,0 +1,15 @@
+{
+  "network": "kamet-900523",
+  "chainId": 900523,
+  "deployer": "0x10ed4F004Fe708014ae27Bcc20c9Ed9df3f4eadF",
+  "timestamp": "2026-05-06T21:58:26.256Z",
+  "tokens": [
+    {
+      "name": "Quantts",
+      "symbol": "QTT",
+      "decimals": 18,
+      "supply": 1000000000,
+      "address": "0x16EE7127C9E03e29ca5727e23dd7CB03D283cDBe"
+    }
+  ]
+}

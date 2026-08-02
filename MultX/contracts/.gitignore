@@ -1,0 +1,12 @@
+# Foundry build output
+out/
+cache_forge/
+broadcast/
+
+# solidity-coverage generated report (regenerate with `npm run coverage`)
+coverage/
+coverage.json
+
+# Vendored Foundry deps — restore with:
+#   git clone --depth 1 https://github.com/foundry-rs/forge-std lib/forge-std
+lib/

@@ -1,0 +1,98 @@
+---
+# LITHO mainnet 9005 — confirmed network identity.
+litho_chain_id: 9005
+litho_chain_id_cosmos: "lithosphere_9005-1"
+litho_chain_name: "lithosphere"
+litho_moniker: "litho-mainnet"
+
+# Mainnet is VPS-only. This inventory must never inherit AWS endpoints, KMS
+# identifiers, Secrets Manager paths, or the stale 700777-1 genesis.
+mainnet_uses_aws: false
+fetch_keys_from_secrets: false
+validator_key_backend: "manual"
+litho_build_method: "none"
+litho_binary_path: "/usr/local/bin/lithod-mainnet-9005"
+litho_binary_sha256_expected: "0546677a9cf3a7f458797b65181a46f21c89185933e832d89ce728a144fd258c"
+
+litho_user: "litho"
+litho_group: "litho"
+
+# The final genesis was sealed for 2026-07-27T17:00:00Z. The launch gate pins
+# its checksum so a node cannot accidentally start on another chain's genesis.
+genesis_source: "local"
+genesis_file_local: "{{ playbook_dir }}/../../docs/workstreams/litho-mainnet-9005/genesis.json"
+genesis_checksum_expected: "13e4875b4a9dddc63bdfbd4968c7265f9bbc49218b59c5b49231a56fa313046f"
+genesis_verify_checksum: true
+genesis_force_update: false
+
+# Consensus baseline inherited from the tested VPS fleet.
+consensus_timeout_commit: "500ms"
+# The client approved normal block production without a custom height-1
+# message. The first block may therefore be empty.
+consensus_create_empty_blocks: true
+consensus_create_empty_blocks_interval: "0s"
+litho_consensus_timeout_propose: "3s"
+litho_consensus_timeout_propose_delta: "500ms"
+litho_consensus_timeout_prevote: "1s"
+litho_consensus_timeout_prevote_delta: "500ms"
+litho_consensus_timeout_precommit: "1s"
+litho_consensus_timeout_precommit_delta: "500ms"
+litho_consensus_peer_gossip_sleep: "100ms"
+consensus_max_bytes: 21000000
+consensus_max_gas: 100000000
+evidence_max_age_duration: "48h"
+evidence_max_bytes: 1000000
+unbonding_time: "504h"
+
+litho_mempool_size: 5000
+litho_mempool_max_txs_bytes: 1073741824
+litho_mempool_cache_size: 10000
+litho_iavl_cache_size: 500000
+litho_api_max_connections: 500
+litho_evm_gas_cap: 25000000
+litho_evm_timeout: "5s"
+
+# Dedicated mainnet WireGuard mesh; does not overlap Makalu/Kamet meshes.
+wireguard_interface: "wg-mainnet"
+wireguard_port: 51825
+wireguard_network: "10.200.5.0/24"
+wireguard_persistent_keepalive: 25
+wireguard_private_key_path: "/etc/wireguard/wg-mainnet.private.key"
+wireguard_public_key_path: "/etc/wireguard/wg-mainnet.public.key"
+mainnet_validator_wg_ip: "10.200.5.1"
+mainnet_sentry1_wg_ip: "10.200.5.2"
+mainnet_sentry2_wg_ip: "10.200.5.3"
+
+# Populated only by the mainnet node/WireGuard key ceremony.
+mainnet_validator_node_id: "cdb42540c4be4728a1e435fd2af89c8c7920eeb8"
+mainnet_sentry1_node_id: "76cadd27f507c401f58c1335c3f5ece39412f179"
+mainnet_sentry2_node_id: "94aa07934bc0614134056bcfe90feb0d214a6e66"
+mainnet_validator_wg_public_key: "P1I7H3GvIuyQ86Jqd4AzuLq/oj7lAbv2h8eQYWww10g="
+mainnet_sentry1_wg_public_key: "BaaxfaZonJdGVIRG4efGnAXTTKxpkUWRYypAsjGGk2A="
+mainnet_sentry2_wg_public_key: "JPQtd/4vkJpL7sqlenBqax32JaFkNiEo8cCk2I3gGmU="
+
+# Approved public endpoint names. DNS/proxy cutover occurs only after the
+# endpoint and chain-identity smoke tests pass.
+litho_rpc_endpoint: "rpc-mainnet.litho.ai"
+litho_api_endpoint: "api-mainnet.litho.ai"
+litho_grpc_endpoint: "grpc-mainnet.litho.ai"
+litho_explorer_endpoint: "lithoscan.ai"
+
+ntp_servers:
+  - 0.pool.ntp.org
+  - 1.pool.ntp.org
+  - time.google.com
+
+system_limits:
+  nofile: 1048576
+  nproc: 65536
+  memlock: unlimited
+
+cis_ssh_password_authentication: "no"
+cis_ssh_permit_root_login: "prohibit-password"
+cis_ssh_mfa_enabled: false
+cis_ssh_allow_groups:
+  - root
+
+backup_enabled: false
+security_scan_enabled: false

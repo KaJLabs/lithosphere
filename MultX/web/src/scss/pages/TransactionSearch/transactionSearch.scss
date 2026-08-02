@@ -1,0 +1,251 @@
+.transaction-search {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+
+  .transaction-search-header {
+    margin-bottom: 2rem;
+
+    h1 {
+      color: #fafafa;
+      font-size: 2rem;
+      margin: 0 0 0.5rem 0;
+    }
+
+    p {
+      color: #a1a1aa;
+      margin: 0;
+    }
+  }
+
+  .transaction-search-form {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+
+    .transaction-search-input {
+      flex: 1;
+      background: #18181b;
+      border: 1px solid #27272a;
+      color: #fafafa;
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+      font-family: monospace;
+
+      &:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    .transaction-search-btn {
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+
+      &:hover:not(:disabled) {
+        background: #60a5fa;
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  .error-message {
+    background: #7f1d1d;
+    color: #fca5a5;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #991b1b;
+  }
+
+  .tx-detail-card {
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+
+    h2 {
+      color: #fafafa;
+      font-size: 1.25rem;
+      margin: 0 0 1rem 0;
+    }
+
+    .detail-section {
+      margin-bottom: 2rem;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid #27272a;
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      .label {
+        color: #a1a1aa;
+        font-weight: 500;
+        min-width: 150px;
+      }
+
+      code {
+        background: #09090b;
+        color: #60a5fa;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-family: monospace;
+        font-size: 0.875rem;
+        word-break: break-all;
+      }
+
+      .status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.25rem;
+        font-weight: 500;
+        font-size: 0.875rem;
+
+        &.success {
+          background: #10b98130;
+          color: #10b981;
+        }
+
+        &.failed {
+          background: #dc262630;
+          color: #dc2626;
+        }
+      }
+    }
+
+    .messages-section {
+      h3 {
+        color: #fafafa;
+        margin: 1.5rem 0 1rem 0;
+      }
+
+      .message-card {
+        background: #09090b;
+        border: 1px solid #27272a;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+
+        .message-type {
+          color: #60a5fa;
+          font-weight: 600;
+          margin-bottom: 0.75rem;
+          font-size: 0.875rem;
+        }
+
+        pre {
+          background: #09090b;
+          color: #a1a1aa;
+          padding: 0;
+          margin: 0;
+          font-size: 0.75rem;
+          max-height: 300px;
+          overflow-y: auto;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+      }
+    }
+  }
+
+  .no-data {
+    text-align: center;
+    color: #a1a1aa;
+    padding: 2rem;
+  }
+
+  .transactions-table-wrapper {
+    margin-top: 2rem;
+
+    h2 {
+      color: #fafafa;
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+    }
+  }
+
+  .transactions-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 0.5rem;
+    overflow: hidden;
+
+    thead {
+      background: #09090b;
+
+      th {
+        color: #a1a1aa;
+        padding: 1rem;
+        text-align: left;
+        font-weight: 500;
+        border-bottom: 2px solid #27272a;
+      }
+    }
+
+    tbody tr {
+      border-bottom: 1px solid #27272a;
+      cursor: pointer;
+
+      &:hover {
+        background: #09090b;
+      }
+    }
+
+    td {
+      color: #fafafa;
+      padding: 1rem;
+
+      &.hash code {
+        background: #09090b;
+        color: #60a5fa;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-family: monospace;
+        font-size: 0.75rem;
+      }
+
+      &.status {
+        text-align: center;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+
+        &.success {
+          background: #10b98130;
+          color: #10b981;
+        }
+
+        &.failed {
+          background: #dc262630;
+          color: #dc2626;
+        }
+      }
+    }
+  }
+}

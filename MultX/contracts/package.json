@@ -1,0 +1,32 @@
+{
+  "name": "multx-bridge-contracts",
+  "version": "1.0.0",
+  "description": "MultX Bridge Smart Contracts",
+  "main": "hardhat.config.js",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "coverage": "hardhat coverage",
+    "deploy": "hardhat run scripts/deploy.js",
+    "deploy:litho": "hardhat run scripts/deploy.js --network litho_kamet",
+    "load:makalu": "node scripts/makalu-load-test.js",
+    "fund:makalu-load-wallets": "node scripts/makalu-fund-load-wallets.js",
+    "correlate:makalu-profiled-run": "node scripts/makalu-correlate-profiled-run.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
+    "@nomiclabs/hardhat-waffle": "^2.0.6",
+    "chai": "^4.3.7",
+    "ethereum-waffle": "^4.0.10",
+    "hardhat": "^2.22.0",
+    "solidity-coverage": "^0.8.17"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "dotenv": "^16.3.1",
+    "ethers": "^5.8.0"
+  }
+}

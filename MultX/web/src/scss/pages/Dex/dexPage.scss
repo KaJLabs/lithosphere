@@ -1,0 +1,875 @@
+@use '../../common/mixins' as *;
+
+// ── Page wrapper ─────────────────────────────────────────────────────────────
+
+.dex-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 32px 16px 64px;
+  color: var(--text-secondary);
+
+  &__header {
+    text-align: center;
+    max-width: 480px;
+  }
+
+  &__eyebrow {
+    display: inline-block;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #0b85ff;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 32px;
+    line-height: 1.1;
+    color: var(--text-secondary);
+  }
+
+  &__subtitle {
+    margin: 8px 0 0;
+    font-size: 14px;
+    color: var(--text-primary);
+  }
+}
+
+// ── Swap card ────────────────────────────────────────────────────────────────
+
+.dex-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  // ─── Inner row (From / To) ─────────────────────────────────────────────────
+  &__row {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid transparent;
+    border-radius: 16px;
+    padding: 14px 16px;
+    transition: border-color 0.15s, background 0.15s;
+
+    &:focus-within {
+      border-color: rgba(11, 133, 255, 0.45);
+      background: rgba(11, 133, 255, 0.04);
+    }
+  }
+
+  &__row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    min-height: 18px;
+  }
+
+  &__label {
+    font-size: 12px;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+  }
+
+  &__balance {
+    font-size: 12px;
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__hint {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-style: italic;
+  }
+
+  &__max {
+    background: rgba(11, 133, 255, 0.15);
+    border: 1px solid rgba(11, 133, 255, 0.4);
+    color: #0b85ff;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: background 0.15s;
+
+    &:hover { background: rgba(11, 133, 255, 0.25); }
+  }
+
+  &__field {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__amount {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 28px;
+    font-weight: 500;
+    outline: none;
+    min-width: 0;
+    width: 100%;
+    padding: 0;
+
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    &::placeholder { color: rgba(255, 255, 255, 0.2); }
+
+    &--readonly { color: var(--text-primary); cursor: default; }
+  }
+
+  &__select {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    min-width: 96px;
+    appearance: none;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--text-primary) 50%),
+      linear-gradient(135deg, var(--text-primary) 50%, transparent 50%);
+    background-position:
+      calc(100% - 14px) 50%,
+      calc(100% - 9px) 50%;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 28px;
+    transition: border-color 0.15s, background-color 0.15s;
+
+    &:hover { background-color: rgba(255, 255, 255, 0.1); }
+    &:focus { outline: none; border-color: rgba(11, 133, 255, 0.5); }
+
+    option {
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      font-weight: 500;
+      padding: 8px;
+    }
+  }
+
+  // ─── Flip button (overlaps the gap between rows) ───────────────────────────
+  &__flip {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: var(--bg-secondary);
+    border: 4px solid var(--bg-primary, #05080f);
+    color: var(--text-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+    transition: transform 0.2s, color 0.15s;
+
+    &:hover {
+      color: #0b85ff;
+      transform: translate(-50%, -50%) rotate(180deg);
+    }
+  }
+
+  // Keep flip absolutely positioned at the seam; nudge it via row layout.
+  // The card uses gap:4px between rows, and the flip is anchored to the card
+  // center which lands roughly at the seam between From and To.
+  &__row--out { margin-top: 4px; }
+
+  // ─── Details (rate, min received, fee/slippage) ────────────────────────────
+  &__details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+    margin-top: 8px;
+    background: rgba(255, 255, 255, 0.025);
+    border-radius: 12px;
+    font-size: 13px;
+  }
+
+  &__meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-secondary);
+
+    span:first-child { color: var(--text-primary); }
+    &--muted { color: var(--text-primary); font-size: 12px; }
+  }
+
+  // ─── CTA ───────────────────────────────────────────────────────────────────
+  &__cta {
+    margin-top: 12px;
+    padding: 16px;
+    background: var(--button-color);
+    color: #fff;
+    border: none;
+    border-radius: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.05s;
+    width: 100%;
+
+    &:hover:not(:disabled) { opacity: 0.92; }
+    &:active:not(:disabled) { transform: scale(0.99); }
+    &:disabled {
+      opacity: 1;
+      cursor: not-allowed;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-primary);
+    }
+  }
+
+  // ─── Status messages ───────────────────────────────────────────────────────
+  &__success {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    margin-top: 12px;
+    background: rgba(37, 165, 14, 0.12);
+    border: 1px solid rgba(37, 165, 14, 0.4);
+    border-radius: 12px;
+    font-size: 14px;
+
+    a { color: #25a50e; text-decoration: none; font-weight: 600; }
+    a:hover { text-decoration: underline; }
+  }
+
+  &__error {
+    color: #ef4e4e;
+    font-size: 13px;
+    padding: 4px 0;
+    margin: 0;
+  }
+
+  &--wide {
+    max-width: 560px;
+  }
+
+  &__select--compact {
+    min-width: 112px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    font-size: 13px;
+  }
+}
+
+// ── Subnav (Swap / Pools / My Positions) ──────────────────────────────────
+
+.dex-subnav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  margin: 0 auto;
+
+  &__link {
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    text-decoration: none;
+    border-radius: 999px;
+    transition: background 0.15s, color 0.15s;
+
+    &:hover { color: var(--text-secondary); }
+    &--active {
+      background: rgba(11, 133, 255, 0.15);
+      color: #0b85ff;
+    }
+  }
+}
+
+// ── Pool list grid + cards ─────────────────────────────────────────────────
+
+.dex-pool-list {
+  width: 100%;
+  max-width: 880px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.dex-pool-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 18px;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.15s, transform 0.05s, box-shadow 0.15s;
+
+  &:hover {
+    border-color: rgba(11, 133, 255, 0.45);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  &__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  &__pair {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  &__fee {
+    font-size: 11px;
+    padding: 3px 10px;
+    background: rgba(11, 133, 255, 0.12);
+    color: #0b85ff;
+    border-radius: 999px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  &__volume {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid rgba(11, 133, 255, 0.22);
+    border-radius: 10px;
+    background: rgba(11, 133, 255, 0.08);
+    color: var(--text-secondary);
+
+    span {
+      font-weight: 700;
+      color: #9fd0ff;
+    }
+
+    small {
+      color: var(--text-primary);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+  }
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+
+    span:first-child {
+      color: var(--text-primary);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+  }
+
+  &__skeleton {
+    height: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    animation: dex-pulse 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes dex-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+// ── Pool detail (single column) ─────────────────────────────────────────────
+
+.dex-pool-detail {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dex-stat-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 20px;
+
+  &__title {
+    font-size: 12px;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 12px;
+    font-weight: 500;
+  }
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+
+    &:last-child { border-bottom: none; }
+
+    span:first-child {
+      color: var(--text-primary);
+      font-size: 12px;
+    }
+  }
+
+  &__mono {
+    font-family: monospace;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  a {
+    color: #0b85ff;
+    text-decoration: none;
+    font-family: monospace;
+    font-size: 12px;
+
+    &:hover { text-decoration: underline; }
+  }
+}
+
+.dex-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+
+  a {
+    padding: 14px;
+    border-radius: 12px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: none;
+    transition: opacity 0.15s, transform 0.05s;
+
+    &:hover { opacity: 0.92; }
+    &:active { transform: scale(0.99); }
+  }
+
+  &__primary {
+    background: var(--button-color);
+    color: #fff;
+  }
+
+  &__secondary {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+  }
+}
+
+// ── Position card (LP NFT in /dex/positions) ──────────────────────────────
+
+.dex-position-list {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dex-position-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  &__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  &__pair {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__id {
+    font-family: monospace;
+    color: var(--text-primary);
+    font-size: 12px;
+  }
+
+  &__fee {
+    font-size: 11px;
+    padding: 3px 10px;
+    background: rgba(11, 133, 255, 0.12);
+    color: #0b85ff;
+    border-radius: 999px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px 16px;
+    font-size: 13px;
+  }
+
+  &__cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    span:first-child {
+      color: var(--text-primary);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    span:last-child {
+      color: var(--text-secondary);
+      font-family: monospace;
+    }
+  }
+
+  &__zero {
+    text-align: center;
+    color: var(--text-primary);
+    font-size: 14px;
+    padding: 32px;
+  }
+}
+
+// Range controls and position management
+
+.dex-range-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+
+  &__button {
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+
+    &:hover { color: var(--text-secondary); }
+
+    &--active {
+      background: rgba(11, 133, 255, 0.18);
+      color: #9fd0ff;
+    }
+  }
+}
+
+.dex-range-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 4px 4px;
+
+  &__head,
+  &__ticks {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+
+  &__head {
+    font-weight: 700;
+  }
+
+  &__ticks {
+    color: var(--text-primary);
+    font-family: monospace;
+  }
+
+  &__preset {
+    border: 1px solid rgba(11, 133, 255, 0.35);
+    border-radius: 8px;
+    background: rgba(11, 133, 255, 0.12);
+    color: #9fd0ff;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  &__bar {
+    position: relative;
+    height: 8px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(239, 78, 78, 0.45), rgba(37, 165, 14, 0.55), rgba(239, 78, 78, 0.45));
+  }
+
+  &__marker {
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    border: 2px solid #fff;
+    background: #0b85ff;
+    box-shadow: 0 0 0 3px rgba(11, 133, 255, 0.22);
+  }
+}
+
+.dex-action-card {
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__title {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--text-primary);
+    font-size: 12px;
+
+    span {
+      color: var(--text-secondary);
+      font-weight: 700;
+    }
+
+    small {
+      color: var(--text-primary);
+      font-size: 11px;
+    }
+
+    input {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-secondary);
+      padding: 11px 12px;
+      font-size: 14px;
+      outline: none;
+
+      &:focus { border-color: rgba(11, 133, 255, 0.5); }
+    }
+  }
+
+  &__hint {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  &__danger {
+    width: 100%;
+    border: 1px solid rgba(239, 78, 78, 0.45);
+    border-radius: 14px;
+    background: rgba(239, 78, 78, 0.12);
+    color: #ffb4b4;
+    padding: 14px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+  }
+}
+
+.dex-range-presets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+
+  &__button {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-primary);
+    padding: 9px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+
+    &--active {
+      border-color: rgba(11, 133, 255, 0.45);
+      background: rgba(11, 133, 255, 0.15);
+      color: #9fd0ff;
+    }
+  }
+}
+
+.dex-position-detail {
+  width: 100%;
+  max-width: 760px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+
+  .dex-stat-card,
+  .dex-action-card,
+  .dex-empty,
+  &__status,
+  .dex-back-link {
+    min-width: 0;
+  }
+
+  &__status,
+  .dex-empty,
+  .dex-back-link {
+    grid-column: 1 / -1;
+  }
+}
+
+.dex-back-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 13px;
+  justify-self: start;
+
+  &:hover {
+    color: #0b85ff;
+    text-decoration: underline;
+  }
+}
+
+.dex-inline-button {
+  margin-top: 16px;
+  padding: 10px 20px;
+  background: var(--button-color);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dex-pool-note {
+  width: 100%;
+  max-width: 640px;
+  padding: 12px 14px;
+  border: 1px solid rgba(11, 133, 255, 0.22);
+  border-radius: 10px;
+  background: rgba(11, 133, 255, 0.08);
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: center;
+}
+
+// ── Empty state ─────────────────────────────────────────────────────────────
+
+.dex-empty {
+  width: 100%;
+  max-width: 480px;
+  text-align: center;
+  padding: 48px 24px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  color: var(--text-primary);
+  font-size: 14px;
+
+  a {
+    display: inline-block;
+    margin-top: 12px;
+    color: #0b85ff;
+    text-decoration: none;
+    font-weight: 600;
+
+    &:hover { text-decoration: underline; }
+  }
+}
+
+@media (max-width: 720px) {
+  .dex-action-card__grid,
+  .dex-position-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .dex-range-card__head,
+  .dex-range-card__ticks {
+    flex-direction: column;
+    gap: 6px;
+  }
+}

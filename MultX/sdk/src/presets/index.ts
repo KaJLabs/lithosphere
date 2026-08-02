@@ -1,0 +1,22 @@
+/**
+ * Network presets for {@link MultXClient}. Import from
+ * `@litho/multx-sdk/presets`.
+ */
+export {
+  KAMET_CHAIN_ID,
+  KAMET_BRIDGE_ADDRESS,
+  KAMET_BRIDGE_API_URL,
+  KAMET_SUPPORTED_TOKENS,
+  KAMET_DESTINATION_CHAINS,
+  KAMET_CHAINS,
+  KAMET_MAINNET,
+} from './kamet.js';
+export {
+  MAKALU_CHAIN_ID,
+  MAKALU_BRIDGE_ADDRESS,
+  MAKALU_BRIDGE_API_URL,
+  MAKALU_SUPPORTED_TOKENS,
+  MAKALU_DESTINATION_CHAINS,
+  MAKALU_CHAINS,
+  MAKALU_TESTNET,
+} from './makalu.js';
