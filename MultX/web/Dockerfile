@@ -88,8 +88,8 @@ LABEL version="1.0.0"
 RUN apk add --no-cache curl
 
 COPY --from=builder /app/web/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY nginx-snippets/ /etc/nginx/snippets/
+COPY web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY web/nginx-snippets/ /etc/nginx/snippets/
 
 RUN mkdir -p /var/log/nginx
 
