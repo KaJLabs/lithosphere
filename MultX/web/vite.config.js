@@ -6,6 +6,8 @@ import svgr from 'vite-plugin-svgr';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const consolidatedSdkRoot = path.resolve(here, '../sdk');
+const consolidatedSdkRootPrefix = `${consolidatedSdkRoot.replaceAll('\\', '/')}/`;
 
 // kamet-explorer carries two ethers copies: `ethers` (v6, used by
 // @web3modal/ethers) and `ethers5` (npm alias to ethers v5, used by the
@@ -30,7 +32,9 @@ const sdkEthersDedupe = {
     // that path, so Rollup resolves SDK imports to `.../vendor/multx-sdk/...`.
     // Without the vendor/ arm the SDK's `import 'ethers'` fell through to ethers
     // v6 (no BigNumber/utils) and threw at runtime.
-    const fromSdk = /[/\\](MultX[/\\]sdk|packages[/\\]multx-sdk|@litho[/\\]multx-sdk|vendor[/\\]multx-sdk)[/\\]/.test(importer);
+    const fromConsolidatedSdk = importer.replaceAll('\\', '/').startsWith(consolidatedSdkRootPrefix);
+    const fromHistoricalSdk = /[/\\](packages[/\\]multx-sdk|@litho[/\\]multx-sdk|vendor[/\\]multx-sdk)[/\\]/.test(importer);
+    const fromSdk = fromConsolidatedSdk || fromHistoricalSdk;
     if (!fromSdk) return null;
     return ethers5EntryFromKametExplorer;
   },
