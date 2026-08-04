@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Lithosphere mainnet favicon</title>
+  <defs>
+    <linearGradient id="leftFill" x1="6" y1="8" x2="30" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#74BEFF"/>
+      <stop offset="1" stop-color="#3E88DB"/>
+    </linearGradient>
+    <linearGradient id="rightFill" x1="58" y1="8" x2="34" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#74BEFF"/>
+      <stop offset="1" stop-color="#3E88DB"/>
+    </linearGradient>
+  </defs>
+  <path d="M6 8L30 58V19L6 8Z" fill="url(#leftFill)"/>
+  <path d="M58 8L34 19V58L58 8Z" fill="url(#rightFill)"/>
+  <path d="M6 8L30 39V19L6 8Z" fill="#8DCCFF" opacity="0.22"/>
+  <path d="M58 8L34 27V19L58 8Z" fill="#8DCCFF" opacity="0.2"/>
+  <path d="M12 14L30 58V39L12 14Z" fill="#2F77D0" opacity="0.18"/>
+  <path d="M52 14L34 58V27L52 14Z" fill="#2F77D0" opacity="0.14"/>
+</svg>
