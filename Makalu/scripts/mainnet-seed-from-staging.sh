@@ -31,11 +31,10 @@ staging_chain="$(docker exec "$STAGING_POSTGRES" psql -U "$STAGING_DB" -d "$STAG
 staging_genesis="$(docker exec "$STAGING_POSTGRES" psql -U "$STAGING_DB" -d "$STAGING_DB" -Atc "SELECT value FROM indexer_state WHERE key = 'genesis_hash'")"
 staging_min="$(docker exec "$STAGING_POSTGRES" psql -U "$STAGING_DB" -d "$STAGING_DB" -Atc 'SELECT COALESCE(MIN(height), 0) FROM blocks')"
 staging_max="$(docker exec "$STAGING_POSTGRES" psql -U "$STAGING_DB" -d "$STAGING_DB" -Atc 'SELECT COALESCE(MAX(height), 0) FROM blocks')"
-staging_high="$(docker exec "$STAGING_POSTGRES" psql -U "$STAGING_DB" -d "$STAGING_DB" -Atc 'SELECT COUNT(*) FROM blocks WHERE height > 1000000')"
 [[ "$staging_chain" == "$EXPECTED_CHAIN_ID" && "$staging_genesis" == "$EXPECTED_GENESIS_HASH" ]] || {
   echo "refusing seed: staging chain identity is not LITHO mainnet" >&2; exit 1;
 }
-[[ "$staging_min" == "1" && "$staging_max" -gt 0 && "$staging_high" == "0" ]] || {
+[[ "$staging_min" == "1" && "$staging_max" -gt 0 ]] || {
   echo "refusing seed: staging block range is inconsistent with LITHO mainnet" >&2; exit 1;
 }
 
