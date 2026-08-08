@@ -22,4 +22,8 @@ lithod_cpu_quota: "300%"
 lithod_restart_timer_enabled: true
 lithod_leak_watchdog_enabled: true
 lithod_stall_watchdog_enabled: true
+# Mainnet shares these VPSs with other networks. Its CometBFT RPC is shifted
+# away from the legacy 26657 listener, so the watchdog must sample 27057 or it
+# would monitor the wrong chain and miss a mainnet-only stall.
+lithod_stall_watchdog_rpc: "http://127.0.0.1:27057"
 lithod_apphash_autoheal_enabled: false

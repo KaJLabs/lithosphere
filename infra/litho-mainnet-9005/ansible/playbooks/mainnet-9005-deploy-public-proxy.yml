@@ -9,6 +9,14 @@
     mainnet_proxy_confirm: false
     mainnet_proxy_enable_rpc_api: true
     mainnet_proxy_enable_grpc: false
+    # Defaults to the node running Nginx. During a sentry catch-up or
+    # maintenance window this may be set to the other validated mainnet
+    # sentry without moving DNS or TLS termination.
+    mainnet_proxy_upstream_host: "127.0.0.1"
+    # Production Lithoscan/indexer origin. Its replay traffic is trusted and
+    # bypasses only Nginx request/connection accounting; all RPC route and
+    # method restrictions remain enforced.
+    mainnet_proxy_trusted_indexer_ip: "93.115.16.13"
     mainnet_proxy_tls_certificate: ""
     mainnet_proxy_tls_certificate_key: ""
     mainnet_proxy_config_path: /etc/nginx/conf.d/litho-mainnet-9005.conf
@@ -33,14 +41,14 @@
 
     - name: Verify the local mainnet Cosmos identity before proxy deployment
       ansible.builtin.uri:
-        url: http://127.0.0.1:27057/status
+        url: "http://{{ mainnet_proxy_upstream_host }}:27057/status"
         return_content: true
       register: mainnet_cosmos_status
       changed_when: false
 
     - name: Verify the local mainnet EVM identity before proxy deployment
       ansible.builtin.uri:
-        url: http://127.0.0.1:8945
+        url: "http://{{ mainnet_proxy_upstream_host }}:8945"
         method: POST
         body_format: json
         body:

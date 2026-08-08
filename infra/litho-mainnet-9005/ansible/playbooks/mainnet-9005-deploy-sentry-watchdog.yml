@@ -1,0 +1,77 @@
+---
+- name: Deploy the LITHO mainnet sentry stall watchdog
+  hosts: sentries
+  become: true
+  gather_facts: false
+  serial: 1
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Verify the target is a non-signing mainnet sentry
+      ansible.builtin.assert:
+        that:
+          - node_role == 'sentry'
+          - litho_service_name == 'lithod-mainnet-9005-sentry'
+          - lithod_stall_watchdog_enabled | bool
+          - lithod_stall_watchdog_rpc == 'http://127.0.0.1:27057'
+
+    - name: Verify the watchdog RPC belongs to LITHO mainnet
+      ansible.builtin.uri:
+        url: "{{ lithod_stall_watchdog_rpc }}/status"
+        return_content: true
+      register: watchdog_rpc_status
+      changed_when: false
+
+    - name: Require the approved Cosmos chain identity
+      ansible.builtin.assert:
+        that:
+          - watchdog_rpc_status.json.result.node_info.network == 'lithosphere_9005-1'
+
+  tasks:
+    - name: Install the sentry stall watchdog script
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/lithod/templates/lithod-stall-watchdog.sh.j2"
+        dest: "{{ lithod_stall_watchdog_script_path }}"
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the sentry stall watchdog service
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/lithod/templates/lithod-stall-watchdog.service.j2"
+        dest: "/etc/systemd/system/{{ litho_service_name }}-stall-watchdog.service"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Install the sentry stall watchdog timer
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/lithod/templates/lithod-stall-watchdog.timer.j2"
+        dest: "/etc/systemd/system/{{ litho_service_name }}-stall-watchdog.timer"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Enable and start the sentry stall watchdog timer
+      ansible.builtin.systemd:
+        name: "{{ litho_service_name }}-stall-watchdog.timer"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Seed the watchdog state from the advancing mainnet height
+      ansible.builtin.command:
+        argv:
+          - "{{ lithod_stall_watchdog_script_path }}"
+      changed_when: false
+
+    - name: Verify the watchdog timer is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - "{{ litho_service_name }}-stall-watchdog.timer"
+      register: watchdog_timer_state
+      changed_when: false
+      failed_when: watchdog_timer_state.stdout | trim != 'active'
+

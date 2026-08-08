@@ -1,35 +1,45 @@
 # LITHO mainnet public endpoint proxy.
 # Managed by ansible/playbooks/mainnet-9005-deploy-public-proxy.yml.
 
-limit_req_zone $binary_remote_addr zone=litho_mainnet_rpc:10m rate=25r/s;
-limit_req_zone $binary_remote_addr zone=litho_mainnet_api:10m rate=30r/s;
-limit_conn_zone $binary_remote_addr zone=litho_mainnet_conn:10m;
+# The isolated explorer/indexer origin must be able to replay historical
+# blocks faster than the public anonymous rate limit. An empty key bypasses
+# limit accounting only for that explicitly configured production origin.
+map $remote_addr $litho_mainnet_limit_key {
+    default $binary_remote_addr;
+{% if mainnet_proxy_trusted_indexer_ip | default('') | length > 0 %}
+    {{ mainnet_proxy_trusted_indexer_ip }} "";
+{% endif %}
+}
+
+limit_req_zone $litho_mainnet_limit_key zone=litho_mainnet_rpc:10m rate=25r/s;
+limit_req_zone $litho_mainnet_limit_key zone=litho_mainnet_api:10m rate=30r/s;
+limit_conn_zone $litho_mainnet_limit_key zone=litho_mainnet_conn:10m;
 
 {% if mainnet_proxy_enable_rpc_api | bool %}
 upstream litho_mainnet_evm_rpc {
-    server 127.0.0.1:8945;
+    server {{ mainnet_proxy_upstream_host | default('127.0.0.1') }}:8945;
     keepalive 32;
 }
 
 upstream litho_mainnet_evm_ws {
-    server 127.0.0.1:8946;
+    server {{ mainnet_proxy_upstream_host | default('127.0.0.1') }}:8946;
     keepalive 16;
 }
 
 upstream litho_mainnet_comet_rpc {
-    server 127.0.0.1:27057;
+    server {{ mainnet_proxy_upstream_host | default('127.0.0.1') }}:27057;
     keepalive 16;
 }
 
 upstream litho_mainnet_rest {
-    server 127.0.0.1:1717;
+    server {{ mainnet_proxy_upstream_host | default('127.0.0.1') }}:1717;
     keepalive 16;
 }
 {% endif %}
 
 {% if mainnet_proxy_enable_grpc | bool %}
 upstream litho_mainnet_grpc {
-    server 127.0.0.1:9490;
+    server {{ mainnet_proxy_upstream_host | default('127.0.0.1') }}:9490;
     keepalive 16;
 }
 {% endif %}
