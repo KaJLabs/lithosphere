@@ -1,0 +1,18 @@
+{
+  "signerAddress": "0x0000000000000000000000000000000000000001",
+  "sources": [
+    {
+      "chainId": 9005,
+      "rpcUrl": "https://rpc-mainnet.litho.ai",
+      "bridgeAddress": "0x0000000000000000000000000000000000000002",
+      "confirmations": 12,
+      "routes": [
+        {
+          "sourceToken": "0x0000000000000000000000000000000000000003",
+          "targetChain": 1,
+          "releaseToken": "0x0000000000000000000000000000000000000004"
+        }
+      ]
+    }
+  ]
+}

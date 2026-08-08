@@ -1,7 +1,7 @@
 # Request for Quote — MultX Bridge Smart-Contract Audit
 
 **Project:** Lithosphere — MultX cross-chain bridge
-**Date:** 2026-05-21
+**Updated:** 2026-08-08
 **Requested by:** Lithosphere infrastructure team (technical point of contact)
 **Engagement type:** Fixed-scope, fixed-fee smart-contract security audit
 **Sent to:** Trail of Bits · Spearbit (Cantina) · Halborn
@@ -12,10 +12,11 @@
 
 We are seeking a fixed-fee security audit of the MultX bridge contracts ahead of
 its mainnet launch — enabling real-asset transfers on Ethereum, BNB Chain, and
-Base mainnet. The source chain (Lithosphere Kamet, EVM chainId `900523`) runs the
-bridge today as a **testnet**; the dest-chain contracts are deployed and tested on
-Sepolia and Base Sepolia. **This audit is the gate for the mainnet launch** — no
-real user funds are at risk until it passes and the mainnet contracts deploy.
+Base mainnet. The production source chain is LITHO mainnet (Cosmos
+`lithosphere_9005-1`, EVM chain ID `9005`). MultX is disabled there. The
+historical Kamet testnet deployment is retained only as test evidence. The
+contract audit, remediation review, signer-protocol review and final deployment
+approval are mandatory gates before mainnet contracts or real assets are enabled.
 
 The scope is small and self-contained: **three Solidity files, 533 LOC total**,
 no external protocol composability, no upgradeable proxies. We have prepared a
@@ -46,7 +47,7 @@ manual review.
 - `contracts/dex/` (Uniswap v3 fork) and `contracts/dnns/` (ENS fork) — separate scope
 - `bridge-api/` off-chain validator service — assess via separate ops review if desired
 - Faucet contracts/scripts; `kamet-explorer` frontend
-- AWS KMS / networking / monitoring infrastructure (separate ops review)
+- VPS hardening, PKI, networking and monitoring infrastructure (separate ops review)
 
 ---
 
@@ -55,8 +56,10 @@ manual review.
 MultX is an N-of-M validator-multisig lock/mint bridge. On the source chain a
 user calls `lockTokens`, which escrows (Kamet) or burns (dest) the asset and
 emits `TokensLocked` with a monotonic nonce. A set of **7 validators
-(5-of-7 threshold)**, each signing via **AWS KMS** (`ECC_SECG_P256K1`), observe
-the event and produce ECDSA signatures over the transfer hash. Anyone can submit
+(5-of-7 threshold)** runs on independently operated VPSs. Each rootless signer
+authenticates the coordinator with TLS 1.3 mTLS, independently verifies the
+source event and route policy, journals its decision to prevent equivocation,
+and produces an ECDSA signature. Anyone can submit
 the 5+ ordered signatures to `releaseTokens` on the destination chain, which
 verifies the validator set, checks `processedNonces` for replay, enforces a
 per-token daily cap, and releases (mints/transfers) to the recipient. Admin
@@ -78,8 +81,13 @@ owner-gated. Full detail in the threat model (attached).
    nonce-monotonicity, threshold well-formedness — each mutation-validated and run
    in CI). Directly addresses several §5 questions with executable properties.
 4. Deployment scripts and the current Kamet (testnet) deployment record.
-5. Operator runbooks: `docs/operations/{BRIDGE_RUNBOOK,VALIDATOR_KEY_ROTATION}.md`.
-6. A dedicated technical point of contact (infra team) for the duration.
+5. VPS signer implementation and architecture: `signer/`,
+   `api/src/services/remoteSigner.js`, and `docs/VPS_SIGNER_ARCHITECTURE.md`.
+6. Operator runbooks and a dedicated technical point of contact for the duration.
+
+The Solidity review remains the fixed 533-LOC scope. Please quote the off-chain
+signer protocol review separately so its source-event verification, message
+construction, mTLS boundary and anti-equivocation behavior are explicitly covered.
 
 ---
 

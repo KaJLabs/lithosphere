@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 
-dotenv.config();
+// Production secrets are loaded by entrypoint.mjs from mounted files. Do not
+// permit a production .env file to silently bypass those controls.
+if (process.env.NODE_ENV !== 'production') dotenv.config();
 
 // ── Multichain token registry (M4 v1) ──────────────────────────────────────
 // Pairs (sourceChain, sourceToken) ↔ (destChain, destToken) so the event

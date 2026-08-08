@@ -1,12 +1,14 @@
 # MultX Bridge — Threat Model
 
-> **Migration notice (2026-08-02):** This document captures the historical
-> Makalu/Kamet architecture. AWS/KMS statements are not the current LITHO
-> mainnet design; production infrastructure has moved to VPS hosts. MultX is
-> disabled on LITHO mainnet and this threat model must be revised and
-> independently reviewed before any production enablement.
+> **Current architecture notice (2026-08-08):** LITHO mainnet uses Cosmos ID
+> `lithosphere_9005-1` and EVM chain ID `9005`. MultX remains disabled. The
+> production candidate replaces centralized AWS KMS signing with independent,
+> rootless VPS signer services using TLS 1.3 mTLS, source-event verification,
+> route policies, and fsync-backed anti-equivocation journals. The contracts
+> and this off-chain signer protocol require independent review before MultX
+> can be enabled. Historical Kamet deployment details remain for provenance.
 
-**Last reviewed:** 2026-05-18
+**Last reviewed:** 2026-08-08
 **Audience:** External security audit firm + internal review
 **Repo:** `KaJLabs/Lithosphere` (`MultX/contracts/contracts/MultXBridge.sol`)
 **Companion docs:**
@@ -85,7 +87,7 @@ User                  MultXBridge (dest)         Validator service       MultXBr
 
 | # | Assumption | What we mitigate / accept |
 |---|---|---|
-| T1 | Validator key custody is secure | **Done: AWS KMS per validator** (keys never leave the HSM; `bridge-api` signs via KMS Sign API). Recommend audit firm review the KMS signing path in `bridge-api/src/services/kmsSigner.js`. |
+| T1 | Validator key custody is secure | Each independent operator runs one rootless VPS signer. The API holds no validator private keys. Keys are mounted from operator-controlled encrypted storage; TLS 1.3 mTLS authenticates API-to-signer traffic. Review `MultX/signer/`, `api/src/services/remoteSigner.js`, and the operator controls in `docs/VPS_SIGNER_ARCHITECTURE.md`. |
 | T2 | At least `signaturesRequired` validators (live: **5 of 7**) act honestly | This is the core security assumption. Any N out of M collusion can mint arbitrary wrapped tokens (limit: total locked on source). |
 | T3 | The Kamet chain itself is not 51%-attacked | Bridge security inherits chain security. Kamet runs CometBFT BFT consensus with the existing validator set (separate from bridge validators). |
 | T4 | Dest-chain RPC providers return honest state to validators | Mitigation: each validator runs its own RPC client; majority-truth via N-of-M signing already guards against a single bad RPC. |
@@ -115,7 +117,7 @@ Actually — on dest chains, `releaseTokens` calls `IERC20(token).safeTransfer(u
 
 **This is the core trust boundary.** Mitigated only by:
 - Validator set composition (independent operators, ideally not all under one legal/operational entity)
-- KMS / HSM key custody making single-validator compromise difficult
+- Independent VPS operators, encrypted key custody, mTLS and signer-local policy checks making a quorum compromise materially harder
 - Daily caps (`dailyCap[token]`) — limits damage of a single-day rogue release
 - Emergency pause — owner can halt all bridge operations within one block of detection
 
@@ -205,8 +207,8 @@ function invariant_pause_blocks_lock() public {
 |---|---|---|---|
 | L1 | Owner is a single EOA, not a multisig — **MITIGATION BUILT, transfer deferred to production** | The Safe + TimelockController(48h) + guardian design is implemented and tested (`Governance.integration.test.js`), and the migration tooling is ready. Per client decision (2026-06-20), the **live** Kamet bridge stays under the deployer EOA through audit/testnet (test wallets used for rehearsal); ownership is transferred to the client-held M-of-N Safe at production cutover (M4.6). See ADR-0004 + `docs/operations/GOVERNANCE_MIGRATION.md`. | Execute live ownership transfer at production cutover |
 | L2 | No economic slashing of misbehaving validators | Out of scope for v1; bridge can rotate via `setValidatorSet` instead | Optional: stake LITHO via separate contract that can slash on equivocation proof |
-| L3 | Validator service is a single coordinator (`bridge-api`), not P2P mesh | Single coordinator is easier to operate and monitor. Validators sign independently but submit through one aggregator. | Optional: P2P signature aggregation if coordinator centralization becomes a concern |
-| L4 | No on-chain replay protection across chains for the SAME source nonce | The `processedNonces` mapping is keyed by `(sourceChain, sourceNonce)`, so cross-chain replay is already prevented — but worth audit confirmation that no edge case allows the same release on two different dest chains |
+| L3 | Validator service uses one signature coordinator (`MultX/api`), not a P2P mesh | The coordinator cannot forge signatures and each signer independently validates the source event, confirmations, bridge and route. A coordinator outage can halt transfers, but cannot satisfy the quorum. | Add redundant coordinators or P2P aggregation if availability requires it |
+| L4 | **Required before mainnet:** the signed hash does not bind the destination chain or destination bridge | `processedNonces[sourceChain][sourceNonce]` is local to each bridge contract. If two destination contracts share a validator set and release-token address, one valid signature quorum can be replayed on both. Add destination-domain binding (preferably EIP-712), migration tests and independent review before deployment. |
 | L5 | `block.timestamp` used for daily cap reset | Acceptable: 24-hour window cannot be meaningfully manipulated by ±15s block-time drift | None |
 | L6 | Pause guardian == owner — **RESOLVED in code** | Dedicated `pauseGuardian` role added: a fast ops key can `pause()` without holding owner rights; `unpause()`/config stay owner-only. Proven in `contracts/test/Governance.integration.test.js`. The live `pauseGuardian` is assigned during the governance wiring at production cutover (address(0) until then → pause is owner-only, as today). | Assign guardian at cutover |
 | L7 | No on-chain `setSignaturesRequired` independent of `setValidatorSet` | `setValidatorSet` always takes both; intentional to prevent inconsistent state | None |
@@ -221,7 +223,7 @@ To keep the audit scoped tightly and the fee predictable:
 - **ENS fork (DNNS)** in `contracts/dnns/` — separate audit scope if/when needed
 - **Faucet** scripts and contracts — testnet helper only, doesn't hold mainnet funds
 - **Indexer + bridge-api business logic** in `bridge-api/` — not on-chain code; assess via separate ops security review
-- **Validator service infrastructure** (KMS setup, networking, monitoring) — separate ops review
+- **Validator signer infrastructure** (VPS hardening, mTLS PKI, backups, monitoring) — separate ops review; the signing protocol itself still requires application-security review
 - **Frontend** (`kamet-explorer`) — not security-critical; users can always interact directly with the contract
 
 ---
@@ -253,12 +255,16 @@ We'd like the audit to specifically opine on:
   - `#4 0xc8C5c89ddb70CAEC942f2C5A77F4F4001ef3B415`
   - `#5 0x4CDd6D160Bd79fe7d4Bab06a9E0607870e8108D9`
   - `#6 0xB161611185Ce2c95849134188AC9F5DbC26bfD2D`
-- Validator keys: **AWS KMS per validator** (`ECC_SECG_P256K1` / `SIGN_VERIFY`, alias `alias/litho-multx-validator-{0..6}`). Private keys never leave KMS; `bridge-api` signs via the KMS Sign API. The IAM role on the indexer (`litho-mainnet-indexer-role`, inline policy `MultXValidatorKMSSigning`) is restricted to those 7 specific key ARNs. The env-var scheme (`VALIDATOR_PRIVATE_KEY_0..2`) is retired.
+- Validator keys: the Kamet deployment historically used AWS KMS. The LITHO
+  mainnet candidate does not use AWS. It requires independently operated VPS
+  signers and mounted operator-controlled key files. Production rejects local
+  validator keys in the API process. No LITHO mainnet signer set is active yet.
 
 ### Operational runbooks supplied to audit firm
 
 - `docs/operations/BRIDGE_RUNBOOK.md` — pause procedure, validator-set rotation, daily-cap management, incident-response playbook (key compromise / suspected contract bug / RPC brownout)
-- `docs/operations/VALIDATOR_KEY_ROTATION.md` — KMS validator key generation, address derivation, single-validator rotation, emergency retirement of a compromised validator, IAM policy update procedure
+- `docs/VPS_SIGNER_ARCHITECTURE.md` — current signer trust boundaries and launch gates
+- `docs/operations/VALIDATOR_KEY_ROTATION.md` — historical KMS procedures; must not be used for the VPS-only LITHO mainnet deployment
 
 ---
 
@@ -273,7 +279,8 @@ Items the audit firm should expect at kickoff:
 - [x] Hardhat test suite (`contracts/test/MultXBridge.test.js`, `MultXBridgeDest.test.js`, `WrappedLEP100.test.js`)
 - [x] Deployment scripts (`contracts/scripts/02-redeploy-bridge-hardened.js`, `03-deploy-dest-chain.js`)
 - [x] Operator runbooks (`docs/operations/BRIDGE_RUNBOOK.md`, `VALIDATOR_KEY_ROTATION.md`)
-- [x] Validator key custody plan — KMS migration completed 2026-05-19 (see Section 8)
+- [x] VPS signer reference implementation and architecture document
+- [ ] Independent review of the VPS signer protocol, mTLS deployment and operator key-custody procedure
 - [x] Foundry invariant suite (`contracts/test/foundry/MultXBridgeInvariant.t.sol`) — solvency / release≤lock / nonce / threshold invariants over 16,384 fuzzed calls
 
 ---

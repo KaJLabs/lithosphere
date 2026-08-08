@@ -1,4 +1,4 @@
-// Process entrypoint: fetch secrets, THEN start the app.
+// Process entrypoint: load mounted VPS/Docker secrets, THEN start the app.
 //
 // The top-level await below fully resolves before the dynamic import() of
 // index.js runs, so index.js's whole static graph (incl. config.js) evaluates

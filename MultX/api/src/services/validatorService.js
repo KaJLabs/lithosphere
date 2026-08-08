@@ -1,66 +1,85 @@
+import fs from 'fs';
 import { ethers } from 'ethers';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
-import { kmsKeyAddress, kmsSignEthMessage } from './kmsSigner.js';
+import { createRemoteSigner } from './remoteSigner.js';
 
 let validators = [];
 let signingIntervalId = null;
 
 /**
- * Load validator identities. Each validator is identified by an AWS KMS
- * key ARN (or alias). At startup we GetPublicKey to derive the Ethereum
- * address — that address is what the on-chain bridge expects in the
- * validator set. If no KMS ARNs are configured, falls back to env-var
- * private keys (legacy / local dev only).
+ * Production uses one independently operated HTTPS signer per validator,
+ * authenticated with mTLS. A signer-reported address must match the explicit
+ * configured on-chain address before the API accepts it.
+ *
+ * File-backed keys exist only for local development and tests. Production
+ * rejects them so a single API VPS cannot silently hold the whole quorum.
  */
 async function loadValidators() {
   const loaded = [];
 
-  // ── Preferred: KMS-managed validators ───────────────────────────────────
   for (let i = 0; i < 10; i++) {
-    const kmsArn = process.env[`VALIDATOR_KMS_KEY_ARN_${i}`];
-    if (!kmsArn) break;
+    const url = process.env[`VALIDATOR_SIGNER_URL_${i}`];
+    if (!url) break;
     try {
-      const address = await kmsKeyAddress(kmsArn);
-      loaded.push({ index: i, address, kmsArn, kind: 'kms' });
+      loaded.push(await createRemoteSigner({
+        index: i,
+        url,
+        expectedAddress: process.env[`VALIDATOR_SIGNER_ADDRESS_${i}`],
+        caFile: process.env[`VALIDATOR_SIGNER_CA_FILE_${i}`],
+        certFile: process.env[`VALIDATOR_SIGNER_CERT_FILE_${i}`],
+        keyFile: process.env[`VALIDATOR_SIGNER_KEY_FILE_${i}`],
+        timeoutMs: parseInt(process.env.VALIDATOR_SIGNER_TIMEOUT_MS || '8000', 10),
+      }));
     } catch (err) {
-      console.error(`[ValidatorService] KMS init failed for VALIDATOR_KMS_KEY_ARN_${i}: ${err.message}`);
+      throw new Error(`[ValidatorService] remote signer ${i} initialization failed: ${err.message}`);
     }
   }
 
-  if (loaded.length > 0) return loaded;
+  if (loaded.length > 0 || process.env.NODE_ENV === 'production') return loaded;
 
-  // ── Fallback: env-var private keys (legacy v0 path) ─────────────────────
   for (let i = 0; i < 10; i++) {
-    const key = process.env[`VALIDATOR_PRIVATE_KEY_${i}`];
-    if (!key) break;
+    const keyFile = process.env[`VALIDATOR_PRIVATE_KEY_FILE_${i}`];
+    if (!keyFile) break;
     try {
+      const key = fs.readFileSync(keyFile, 'utf8').trim();
       const wallet = new ethers.Wallet(key);
-      loaded.push({ index: i, address: wallet.address, wallet, kind: 'envkey' });
+      loaded.push({ index: i, address: wallet.address, wallet, kind: 'filekey' });
     } catch (err) {
-      console.error(`[ValidatorService] Invalid key at VALIDATOR_PRIVATE_KEY_${i}: ${err.message}`);
+      console.error(`[ValidatorService] Invalid key file at VALIDATOR_PRIVATE_KEY_FILE_${i}: ${err.message}`);
     }
   }
   return loaded;
 }
 
 export async function startValidatorService() {
+  if (process.env.NODE_ENV === 'production' && !process.env.SIGNATURES_REQUIRED) {
+    throw new Error('[ValidatorService] SIGNATURES_REQUIRED must be explicit in production');
+  }
+  if (!Number.isSafeInteger(config.signaturesRequired) || config.signaturesRequired < 1) {
+    throw new Error('[ValidatorService] SIGNATURES_REQUIRED must be a positive safe integer');
+  }
   validators = await loadValidators();
 
   if (validators.length === 0) {
     throw new Error(
-      '[ValidatorService] No validator keys found. Set either ' +
-      'VALIDATOR_KMS_KEY_ARN_0..N (preferred) or VALIDATOR_PRIVATE_KEY_0..N (legacy), ' +
-      'or set MOCK_VALIDATOR=true for local dev with the deterministic mock.'
+      '[ValidatorService] No validator signers found. Production requires ' +
+      'VALIDATOR_SIGNER_URL_0..N plus address and mTLS file settings. ' +
+      'Local development may use VALIDATOR_PRIVATE_KEY_FILE_0..N or MOCK_VALIDATOR=true.'
+    );
+  }
+  if (validators.length < config.signaturesRequired) {
+    throw new Error(
+      `[ValidatorService] Loaded ${validators.length} signer(s), below configured threshold ` +
+      `${config.signaturesRequired}. Refusing to start.`
     );
   }
 
-  const kinds = validators.map((v) => v.kind);
-  const kmsCount = kinds.filter((k) => k === 'kms').length;
-  const envCount = kinds.filter((k) => k === 'envkey').length;
+  const remoteCount = validators.filter((v) => v.kind === 'remote').length;
+  const fileCount = validators.filter((v) => v.kind === 'filekey').length;
   console.log(
-    `[ValidatorService] Loaded ${validators.length} validator(s) — ` +
-    `KMS: ${kmsCount}, env-var: ${envCount}`
+    `[ValidatorService] Loaded ${validators.length} validator(s) - ` +
+    `remote: ${remoteCount}, local-file: ${fileCount}`
   );
   validators.forEach((v) =>
     console.log(`  Validator ${v.index} (${v.kind}): ${v.address}`)
@@ -70,50 +89,62 @@ export async function startValidatorService() {
   console.log('[ValidatorService] Signing loop started (interval: 5s)');
 }
 
-async function signWith(validator, messageBytes) {
-  // ethers.Wallet.signMessage and KMS both produce signatures verifiable by
-  // ecrecover(hashMessage(messageBytes), sig). The on-chain bridge calls
-  // ecrecover with that exact hash, so both paths interop with the contract.
-  if (validator.kind === 'kms') {
-    return kmsSignEthMessage({
-      keyId: validator.kmsArn,
-      message: messageBytes,
-      expectedAddress: validator.address,
-    });
-  }
-  return validator.wallet.signMessage(messageBytes);
+async function signWith(validator, attestation) {
+  if (validator.kind === 'remote') return validator.signRelease(attestation);
+  const hashHex = ethers.utils.solidityKeccak256(
+    ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
+    [
+      attestation.sourceTxHash,
+      attestation.releaseToken,
+      attestation.user,
+      attestation.amount,
+      attestation.sourceChain,
+      attestation.sourceNonce,
+    ]
+  );
+  return validator.wallet.signMessage(ethers.utils.arrayify(hashHex));
 }
 
 async function processSignings() {
   try {
     const result = await pool.query(
       `SELECT tx_hash, from_address, token_address, release_token, amount,
-              target_chain, source_chain, source_nonce
-       FROM bridge_transactions WHERE status = 'locked'`
+              target_chain, source_chain, source_nonce, block_number
+       FROM bridge_transactions WHERE status IN ('locked', 'signing')`
     );
 
     if (result.rows.length === 0) return;
 
     for (const tx of result.rows) {
+      const releaseToken = tx.release_token || tx.token_address;
+      const sourceChain = tx.source_chain || 900523;
+      const sourceSpec = config.chainsToWatch.find((c) => Number(c.chainId) === Number(sourceChain));
+      if (!sourceSpec?.bridge || !tx.block_number) {
+        console.error(`[ValidatorService] Refusing ${tx.tx_hash}: missing source bridge or block evidence`);
+        continue;
+      }
+
+      const attestation = {
+        sourceTxHash: tx.tx_hash,
+        sourceChain,
+        sourceNonce: tx.source_nonce,
+        sourceBlock: tx.block_number,
+        sourceBridge: sourceSpec.bridge,
+        sourceToken: tx.token_address,
+        releaseToken,
+        user: tx.from_address,
+        amount: tx.amount,
+        targetChain: tx.target_chain,
+      };
+
       await pool.query(
-        `UPDATE bridge_transactions SET status = 'signing' WHERE tx_hash = $1`,
+        `UPDATE bridge_transactions SET status = 'signing' WHERE tx_hash = $1 AND status = 'locked'`,
         [tx.tx_hash]
       );
 
-      // The release-side contract verifies:
-      //   keccak256(sourceTxHash, token, user, amount, sourceChain, sourceNonce)
-      // where `token` is the address on the RELEASE chain (release_token).
-      const releaseToken = tx.release_token || tx.token_address;
-      const sourceChain  = tx.source_chain  || 900523;
-
       for (const validator of validators) {
         try {
-          const hashHex = ethers.utils.solidityKeccak256(
-            ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
-            [tx.tx_hash, releaseToken, tx.from_address, tx.amount, sourceChain, tx.source_nonce]
-          );
-
-          const signature = await signWith(validator, ethers.utils.arrayify(hashHex));
+          const signature = await signWith(validator, attestation);
 
           await pool.query(
             `INSERT INTO bridge_signatures (tx_hash, validator_address, signature)

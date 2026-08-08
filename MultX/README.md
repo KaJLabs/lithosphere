@@ -9,6 +9,8 @@ cross-chain bridge.
   deployment scripts; and testnet deployment manifests.
 - `api/`: bridge API, database migrations, event listener, relayer and
   validator-signature services.
+- `signer/`: independent VPS validator signer with mTLS, source-event policy
+  verification and an equivocation journal.
 - `sdk/`: `@litho/multx-sdk` v0.3.0 source, React adapter, presets and tests.
 - `web/`: the complete Vite/React application containing the MultX bridge UI.
 - `infra/`: testnet-only Compose and legacy Ansible deployment references.
@@ -39,7 +41,8 @@ manager.
 ```bash
 cd MultX/contracts && npm ci && npm test && npm run compile
 cd ../sdk && npm ci && npm test && npm run typecheck && npm run build
-cd ../api && npm ci
+cd ../api && npm ci && npm test
+cd ../signer && npm ci && npm test
 cd ../web && npm ci && npm run lint && npm run test:unit && npm run build
 ```
 

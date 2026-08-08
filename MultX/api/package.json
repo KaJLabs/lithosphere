@@ -5,16 +5,14 @@
   "description": "MultX Bridge Backend API",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "start": "node src/entrypoint.mjs",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@aws-sdk/client-kms": "^3.1049.0",
-    "@aws-sdk/client-secrets-manager": "^3.1086.0",
-    "asn1.js": "^5.4.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "ethers": "^5.8.0",
