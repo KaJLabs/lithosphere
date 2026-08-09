@@ -7,7 +7,7 @@ import { ethers } from 'ethers';
  */
 export const isContractDeployed = (address: unknown): boolean => {
   try {
-    return ethers.utils.isAddress(String(address ?? '').trim());
+    return ethers.isAddress(String(address ?? '').trim());
   } catch {
     return false;
   }
@@ -40,7 +40,7 @@ export const normalizeAddress = (value: unknown = ''): string => {
   const trimmed = String(value ?? '').trim();
   if (!trimmed || trimmed === '0x') return '';
   try {
-    return ethers.utils.isAddress(trimmed) ? ethers.utils.getAddress(trimmed) : '';
+    return ethers.isAddress(trimmed) ? ethers.getAddress(trimmed) : '';
   } catch {
     return '';
   }

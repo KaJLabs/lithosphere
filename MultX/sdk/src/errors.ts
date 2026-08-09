@@ -35,8 +35,8 @@ export const isSequenceError = (err: unknown): boolean => {
 
 const formatUnitsSafe = (value: unknown, decimals: number): string => {
   try {
-    return ethers.utils.formatUnits(
-      ethers.BigNumber.from((value as string | number | bigint) ?? '0'),
+    return ethers.formatUnits(
+      ethers.toBigInt((value as string | number | bigint) ?? '0'),
       decimals,
     );
   } catch {

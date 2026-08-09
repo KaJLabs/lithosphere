@@ -37,7 +37,7 @@ const sendWithNonceRetry = async (
   contract: Contract,
   method: string,
   args: unknown[],
-): Promise<ethers.ContractTransaction> => {
+): Promise<ethers.ContractTransactionResponse> => {
   try {
     return await contract[method]!(...args);
   } catch (err) {
@@ -144,11 +144,11 @@ export class MultXClient {
         opts.signer,
         tokenContract,
         'approve',
-        [this.bridgeAddress, ethers.BigNumber.from(opts.amount as ethers.BigNumberish)],
+        [this.bridgeAddress, ethers.toBigInt(opts.amount as ethers.BigNumberish)],
       );
 
       const receipt = await tx.wait();
-      if (receipt.status === 1) {
+      if (receipt?.status === 1) {
         return tx.hash;
       }
       throw new Error('Approval transaction failed');
@@ -183,16 +183,16 @@ export class MultXClient {
         opts.signer,
       );
 
-      const amountBN = ethers.BigNumber.from(opts.amount as ethers.BigNumberish);
+      const amountBN = ethers.toBigInt(opts.amount as ethers.BigNumberish);
       const userAddress = await opts.signer.getAddress();
 
       const [balance, allowance, supported] = await Promise.all([
-        tokenContract.balanceOf(userAddress) as Promise<ethers.BigNumber>,
-        tokenContract.allowance(userAddress, this.bridgeAddress) as Promise<ethers.BigNumber>,
+        tokenContract.balanceOf!(userAddress) as Promise<bigint>,
+        tokenContract.allowance!(userAddress, this.bridgeAddress) as Promise<bigint>,
         // `supportedTokens` is the deployed contract's public mapping getter.
         // Default to `true` on RPC failure so a flaky read never blocks a lock
         // the on-chain `require(supportedTokens[token])` would anyway enforce.
-        (bridgeContract.supportedTokens(opts.tokenAddress) as Promise<boolean>).catch(() => true),
+        (bridgeContract.supportedTokens!(opts.tokenAddress) as Promise<boolean>).catch(() => true),
       ]);
 
       if (!supported) {
@@ -201,16 +201,16 @@ export class MultXClient {
         );
       }
 
-      if (balance.lt(amountBN)) {
+      if (balance < amountBN) {
         const decimals = Number.isFinite(opts.tokenMeta?.decimals)
           ? Number(opts.tokenMeta!.decimals)
           : 18;
         throw new Error(
-          `Insufficient ${opts.tokenMeta?.symbol || 'token'} balance: have ${ethers.utils.formatUnits(balance, decimals)}, need ${ethers.utils.formatUnits(amountBN, decimals)}`,
+          `Insufficient ${opts.tokenMeta?.symbol || 'token'} balance: have ${ethers.formatUnits(balance, decimals)}, need ${ethers.formatUnits(amountBN, decimals)}`,
         );
       }
 
-      if (allowance.lt(amountBN)) {
+      if (allowance < amountBN) {
         throw new Error(
           'Bridge allowance is below the requested amount — re-run the approval step',
         );
@@ -223,11 +223,11 @@ export class MultXClient {
       ]);
 
       const receipt = await tx.wait();
-      if (receipt.status === 1) {
+      if (receipt?.status === 1) {
         return {
           txHash: tx.hash,
           blockNumber: receipt.blockNumber,
-          transactionIndex: receipt.transactionIndex,
+          transactionIndex: receipt.index,
         };
       }
       throw new Error('Lock transaction failed');

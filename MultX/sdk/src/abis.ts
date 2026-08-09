@@ -1,5 +1,5 @@
 /**
- * Solidity-style ABI fragments accepted by ethers v5 `Contract`.
+ * Solidity-style ABI fragments accepted by ethers v6 `Contract`.
  * Keep as `string[]` arrays for compactness — ethers parses them at construction.
  */
 

@@ -27,9 +27,9 @@ describe('Kamet preset', () => {
   it('lists all 11 supported tokens with valid, checksummed, 18-decimal addresses', () => {
     expect(KAMET_SUPPORTED_TOKENS).toHaveLength(11);
     for (const t of KAMET_SUPPORTED_TOKENS) {
-      expect(ethers.utils.isAddress(t.address)).toBe(true);
+      expect(ethers.isAddress(t.address)).toBe(true);
       // addresses are stored checksummed
-      expect(ethers.utils.getAddress(t.address)).toBe(t.address);
+      expect(ethers.getAddress(t.address)).toBe(t.address);
       expect(t.decimals).toBe(18);
       expect(t.symbol).toMatch(/^[A-Za-z]+$/);
     }
@@ -69,8 +69,8 @@ describe('Makalu preset', () => {
   it('lists 10 supported tokens (no QTT) with valid checksummed 18-decimal addresses', () => {
     expect(MAKALU_SUPPORTED_TOKENS).toHaveLength(10);
     for (const t of MAKALU_SUPPORTED_TOKENS) {
-      expect(ethers.utils.isAddress(t.address)).toBe(true);
-      expect(ethers.utils.getAddress(t.address)).toBe(t.address);
+      expect(ethers.isAddress(t.address)).toBe(true);
+      expect(ethers.getAddress(t.address)).toBe(t.address);
       expect(t.decimals).toBe(18);
     }
     const symbols = MAKALU_SUPPORTED_TOKENS.map((t) => t.symbol);
