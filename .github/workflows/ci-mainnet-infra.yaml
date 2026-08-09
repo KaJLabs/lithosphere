@@ -31,7 +31,8 @@ jobs:
       - name: Validate Prometheus alert rules
         run: >-
           docker run --rm
+          --entrypoint /bin/promtool
           -v "$PWD:/workspace:ro"
-          prom/prometheus:v2.48.1
-          promtool check rules
+          prom/prometheus@sha256:a67e5e402ff5410b86ec48b39eab1a3c4df2a7e78a71bf025ec5e32e09090ad4
+          check rules
           /workspace/infra/litho-mainnet-9005/monitoring/prometheus/litho-mainnet-9005-alerts.yml
