@@ -10,6 +10,18 @@ python ../../scripts/check_validator_expansion_readiness.py \
   --rest-url https://REPLACE_WITH_APPROVED_LCD_ENDPOINT
 ```
 
+Validate the completed, sanitized operator intake before approving the first
+wave:
+
+```bash
+python ../../scripts/validate_validator_intake.py validator-intake.csv \
+  --minimum-new 32
+```
+
+The validator-intake validator rejects placeholders, duplicate identities,
+malformed public identifiers, incomplete security attestations, and invalid
+commission/self-delegation values. It accepts public information only.
+
 ## Confirmed constraints
 
 - Network: `lithosphere_9005-1` / EVM `9005`.

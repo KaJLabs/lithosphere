@@ -1,0 +1,29 @@
+name: LITHO mainnet infrastructure gates
+
+on:
+  pull_request:
+    paths:
+      - "infra/litho-mainnet-9005/**"
+      - ".github/workflows/ci-mainnet-infra.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/litho-mainnet-9005/**"
+      - ".github/workflows/ci-mainnet-infra.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  validator-expansion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile mainnet verification scripts
+        run: python -m compileall -q infra/litho-mainnet-9005/scripts
+      - name: Test validator intake gates
+        run: python -m unittest discover -s infra/litho-mainnet-9005/scripts/tests -v
+
