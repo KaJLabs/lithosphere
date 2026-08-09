@@ -69,7 +69,7 @@ const requestJson = ({ baseUrl, path, method, body, tls, timeoutMs }) => new Pro
   req.end();
 });
 
-export const releaseMessageHash = (attestation) => ethers.utils.solidityKeccak256(
+export const releaseMessageHash = (attestation) => ethers.solidityPackedKeccak256(
   ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
   [
     attestation.sourceTxHash,
@@ -83,7 +83,7 @@ export const releaseMessageHash = (attestation) => ethers.utils.solidityKeccak25
 
 export const verifyReleaseSignature = ({ attestation, signature, expectedAddress }) => {
   const hash = releaseMessageHash(attestation);
-  const recovered = ethers.utils.verifyMessage(ethers.utils.arrayify(hash), signature);
+  const recovered = ethers.verifyMessage(ethers.getBytes(hash), signature);
   if (recovered.toLowerCase() !== expectedAddress.toLowerCase()) {
     throw new Error(`signature recovered ${recovered}, expected ${expectedAddress}`);
   }
@@ -99,7 +99,7 @@ export const createRemoteSigner = async ({
   keyFile,
   timeoutMs = 8_000,
 }) => {
-  const address = ethers.utils.getAddress(expectedAddress);
+  const address = ethers.getAddress(expectedAddress);
   const tls = {
     ca: requiredFile(caFile, `VALIDATOR_SIGNER_CA_FILE_${index}`),
     cert: requiredFile(certFile, `VALIDATOR_SIGNER_CERT_FILE_${index}`),
@@ -113,7 +113,7 @@ export const createRemoteSigner = async ({
     tls,
     timeoutMs,
   });
-  const reported = ethers.utils.getAddress(identity.address || '');
+  const reported = ethers.getAddress(identity.address || '');
   if (reported !== address) {
     throw new Error(`remote signer ${index} reports ${reported}, expected ${address}`);
   }
@@ -138,4 +138,3 @@ export const createRemoteSigner = async ({
     },
   };
 };
-

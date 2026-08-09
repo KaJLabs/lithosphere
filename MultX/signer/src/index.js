@@ -15,7 +15,7 @@ const requiredFile = (envName) => {
 const policy = JSON.parse(requiredFile('SIGNER_POLICY_FILE').toString('utf8'));
 const privateKey = requiredFile('SIGNER_PRIVATE_KEY_FILE').toString('utf8').trim();
 const wallet = new ethers.Wallet(privateKey);
-if (policy.signerAddress && ethers.utils.getAddress(policy.signerAddress) !== wallet.address) {
+if (policy.signerAddress && ethers.getAddress(policy.signerAddress) !== wallet.address) {
   throw new Error(`policy signer ${policy.signerAddress} does not match key ${wallet.address}`);
 }
 
@@ -23,7 +23,7 @@ const providers = new Map();
 const sourceContract = (source) => {
   const key = Number(source.chainId);
   if (!providers.has(key)) {
-    const provider = new ethers.providers.StaticJsonRpcProvider(source.rpcUrl, key);
+    const provider = new ethers.JsonRpcProvider(source.rpcUrl, key, { staticNetwork: true });
     const contract = new ethers.Contract(source.bridgeAddress, [
       'event TokensLocked(bytes32 indexed txHash,address indexed token,address indexed user,uint256 amount,uint256 targetChain,uint256 nonce)',
     ], provider);
@@ -90,7 +90,7 @@ const verifyAndSign = async (input) => {
   return serializeSigning(async () => {
     const prior = signed.get(key);
     if (prior && prior !== hash) throw new Error(`refusing equivocation for ${key}`);
-    const signature = await wallet.signMessage(ethers.utils.arrayify(hash));
+    const signature = await wallet.signMessage(ethers.getBytes(hash));
     if (!prior) persistDecision(key, hash);
     return signature;
   });

@@ -21,15 +21,15 @@ export const validateAttestation = (input) => ({
   sourceChain: safePositiveInteger(input?.sourceChain, 'sourceChain'),
   sourceNonce: positiveIntegerString(input?.sourceNonce, 'sourceNonce'),
   sourceBlock: safePositiveInteger(input?.sourceBlock, 'sourceBlock'),
-  sourceBridge: ethers.utils.getAddress(input?.sourceBridge || ''),
-  sourceToken: ethers.utils.getAddress(input?.sourceToken || ''),
-  releaseToken: ethers.utils.getAddress(input?.releaseToken || ''),
-  user: ethers.utils.getAddress(input?.user || ''),
+  sourceBridge: ethers.getAddress(input?.sourceBridge || ''),
+  sourceToken: ethers.getAddress(input?.sourceToken || ''),
+  releaseToken: ethers.getAddress(input?.releaseToken || ''),
+  user: ethers.getAddress(input?.user || ''),
   amount: positiveIntegerString(input?.amount, 'amount'),
   targetChain: safePositiveInteger(input?.targetChain, 'targetChain'),
 });
 
-export const releaseMessageHash = (attestation) => ethers.utils.solidityKeccak256(
+export const releaseMessageHash = (attestation) => ethers.solidityPackedKeccak256(
   ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
   [
     attestation.sourceTxHash,
@@ -45,13 +45,13 @@ export const resolvePolicy = (policy, attestation) => {
   if (attestation.version !== 1) throw new Error('unsupported attestation version');
   const source = policy.sources?.find((item) => Number(item.chainId) === attestation.sourceChain);
   if (!source) throw new Error(`source chain ${attestation.sourceChain} is not allowed`);
-  if (ethers.utils.getAddress(source.bridgeAddress) !== attestation.sourceBridge) {
+  if (ethers.getAddress(source.bridgeAddress) !== attestation.sourceBridge) {
     throw new Error('source bridge does not match policy');
   }
   const route = source.routes?.find((item) =>
-    ethers.utils.getAddress(item.sourceToken) === attestation.sourceToken &&
+    ethers.getAddress(item.sourceToken) === attestation.sourceToken &&
     Number(item.targetChain) === attestation.targetChain &&
-    ethers.utils.getAddress(item.releaseToken) === attestation.releaseToken
+    ethers.getAddress(item.releaseToken) === attestation.releaseToken
   );
   if (!route) throw new Error('token route is not allowed');
   return { source, route };
@@ -62,8 +62,8 @@ export const assertLockEvent = (event, attestation) => {
   if (!args) throw new Error('lock event is missing');
   const matches =
     String(args.txHash).toLowerCase() === attestation.sourceTxHash.toLowerCase() &&
-    ethers.utils.getAddress(args.token) === attestation.sourceToken &&
-    ethers.utils.getAddress(args.user) === attestation.user &&
+    ethers.getAddress(args.token) === attestation.sourceToken &&
+    ethers.getAddress(args.user) === attestation.user &&
     args.amount.toString() === attestation.amount &&
     args.targetChain.toString() === String(attestation.targetChain) &&
     args.nonce.toString() === attestation.sourceNonce;

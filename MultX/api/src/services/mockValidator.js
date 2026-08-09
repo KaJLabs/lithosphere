@@ -12,7 +12,7 @@ export async function startMockValidator() {
   validators = [];
   for (let i = 0; i < config.mockValidatorCount; i++) {
     const path = `m/44'/60'/0'/0/${i}`;
-    const wallet = ethers.Wallet.fromMnemonic(MNEMONIC, path);
+    const wallet = ethers.HDNodeWallet.fromPhrase(MNEMONIC, undefined, path);
     validators.push({
       index: i,
       address: wallet.address,
@@ -52,12 +52,12 @@ async function processSignings() {
           try {
             const releaseToken = tx.release_token || tx.token_address;
             const sourceChain  = tx.source_chain  || 900523;
-            const hash = ethers.utils.solidityKeccak256(
+            const hash = ethers.solidityPackedKeccak256(
               ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
               [tx.tx_hash, releaseToken, tx.from_address, tx.amount, sourceChain, tx.source_nonce]
             );
 
-            const signature = await validator.wallet.signMessage(ethers.utils.arrayify(hash));
+            const signature = await validator.wallet.signMessage(ethers.getBytes(hash));
 
             await pool.query(
               `INSERT INTO bridge_signatures (tx_hash, validator_address, signature)

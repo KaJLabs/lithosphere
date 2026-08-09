@@ -91,7 +91,7 @@ export async function startValidatorService() {
 
 async function signWith(validator, attestation) {
   if (validator.kind === 'remote') return validator.signRelease(attestation);
-  const hashHex = ethers.utils.solidityKeccak256(
+  const hashHex = ethers.solidityPackedKeccak256(
     ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
     [
       attestation.sourceTxHash,
@@ -102,7 +102,7 @@ async function signWith(validator, attestation) {
       attestation.sourceNonce,
     ]
   );
-  return validator.wallet.signMessage(ethers.utils.arrayify(hashHex));
+  return validator.wallet.signMessage(ethers.getBytes(hashHex));
 }
 
 async function processSignings() {

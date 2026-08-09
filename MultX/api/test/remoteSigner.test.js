@@ -19,7 +19,7 @@ const attestation = {
 test('accepts a signature from the configured validator', async () => {
   const wallet = ethers.Wallet.createRandom();
   const hash = releaseMessageHash(attestation);
-  const signature = await wallet.signMessage(ethers.utils.arrayify(hash));
+  const signature = await wallet.signMessage(ethers.getBytes(hash));
 
   assert.equal(
     verifyReleaseSignature({ attestation, signature, expectedAddress: wallet.address }),
@@ -30,7 +30,7 @@ test('accepts a signature from the configured validator', async () => {
 test('rejects a signature if any signed release field changes', async () => {
   const wallet = ethers.Wallet.createRandom();
   const hash = releaseMessageHash(attestation);
-  const signature = await wallet.signMessage(ethers.utils.arrayify(hash));
+  const signature = await wallet.signMessage(ethers.getBytes(hash));
 
   assert.throws(() => verifyReleaseSignature({
     attestation: { ...attestation, amount: '1000000000000000001' },
@@ -43,7 +43,7 @@ test('rejects a valid signature from an unexpected validator', async () => {
   const signer = ethers.Wallet.createRandom();
   const expected = ethers.Wallet.createRandom();
   const hash = releaseMessageHash(attestation);
-  const signature = await signer.signMessage(ethers.utils.arrayify(hash));
+  const signature = await signer.signMessage(ethers.getBytes(hash));
 
   assert.throws(() => verifyReleaseSignature({
     attestation,

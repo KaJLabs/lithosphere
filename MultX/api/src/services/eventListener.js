@@ -139,7 +139,7 @@ async function startWatcher(spec) {
   clearTimers(w);                       // clear any prior interval/retry before reconnecting
 
   try {
-    w.provider = new ethers.providers.StaticJsonRpcProvider(spec.rpc, { chainId: spec.chainId, name: spec.name });
+    w.provider = new ethers.JsonRpcProvider(spec.rpc, spec.chainId, { staticNetwork: true });
     await w.provider.getNetwork();
     const currentBlock = await w.provider.getBlockNumber();
     // Preserve progress across reconnects so a blip doesn't skip locks; only

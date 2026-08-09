@@ -39,7 +39,7 @@ async function getDeploymentStatus() {
   let error = '';
 
   try {
-    const provider = new ethers.providers.JsonRpcProvider(config.lithoRpcHttp);
+    const provider = new ethers.JsonRpcProvider(config.lithoRpcHttp);
     const [bridgeCode, tokenCode] = await Promise.all([
       bridgeAddress ? provider.getCode(bridgeAddress) : Promise.resolve('0x'),
       kametTokenAddress ? provider.getCode(kametTokenAddress) : Promise.resolve('0x'),

@@ -16,7 +16,7 @@ router.get('/:tokenAddress', async (req, res, next) => {
   try {
     const { tokenAddress } = req.params;
 
-    const provider = new ethers.providers.JsonRpcProvider(config.lithoRpcHttp);
+    const provider = new ethers.JsonRpcProvider(config.lithoRpcHttp);
     const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
 
     const [name, symbol, decimals, totalSupply] = await Promise.all([

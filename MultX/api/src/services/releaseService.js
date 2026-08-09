@@ -48,14 +48,14 @@ async function getChainCtx(chainId) {
   const cc = destChainConfig(key);
   if (!cc || !cc.bridge) return null;
 
-  const provider = new ethers.providers.JsonRpcProvider(cc.rpc);
+  const provider = new ethers.JsonRpcProvider(cc.rpc);
   const wallet = new ethers.Wallet(config.relayerPrivateKey, provider);
   const bridge = new ethers.Contract(cc.bridge, BRIDGE_ABI, wallet);
   const [required, validatorList] = await Promise.all([bridge.signaturesRequired(), bridge.getValidators()]);
   const ctx = {
     bridge,
     name: cc.name,
-    required: required.toNumber(),
+    required: Number(required),
     validators: new Set(validatorList.map((a) => a.toLowerCase())),
   };
   chainCtx.set(key, ctx);
@@ -71,16 +71,16 @@ async function orderedSignatures(tx, token, ctx) {
     'SELECT signature FROM bridge_signatures WHERE tx_hash = $1',
     [tx.tx_hash]
   );
-  const msgHash = ethers.utils.solidityKeccak256(
+  const msgHash = ethers.solidityPackedKeccak256(
     ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
     [tx.tx_hash, token, tx.from_address, tx.amount, tx.source_chain, tx.source_nonce]
   );
-  const ethHash = ethers.utils.hashMessage(ethers.utils.arrayify(msgHash));
+  const ethHash = ethers.hashMessage(ethers.getBytes(msgHash));
 
   const bySigner = new Map();
   for (const r of rows) {
     let signer;
-    try { signer = ethers.utils.recoverAddress(ethHash, r.signature); } catch { continue; }
+    try { signer = ethers.recoverAddress(ethHash, r.signature); } catch { continue; }
     if (!ctx.validators.has(signer.toLowerCase())) continue;
     bySigner.set(signer.toLowerCase(), r.signature);
   }
@@ -102,7 +102,7 @@ async function releaseOne(tx) {
     return;
   }
   const token = tx.release_token || tx.token_address;
-  const amount = ethers.BigNumber.from(tx.amount);
+  const amount = BigInt(tx.amount);
 
   // Idempotency: already released on-chain (e.g. the user claimed via the
   // explorer). Reconcile the DB and move on — never resubmit.
