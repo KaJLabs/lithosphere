@@ -8,7 +8,7 @@
 > and this off-chain signer protocol require independent review before MultX
 > can be enabled. Historical Kamet deployment details remain for provenance.
 
-**Last reviewed:** 2026-08-08
+**Last reviewed:** 2026-08-09
 **Audience:** External security audit firm + internal review
 **Repo:** `KaJLabs/Lithosphere` (`MultX/contracts/contracts/MultXBridge.sol`)
 **Companion docs:**
@@ -19,12 +19,15 @@
 
 ## 1. System Overview
 
-MultX is an N-of-M signature bridge between Lithosphere Kamet (source / canonical chain, EVM `900523`) and three EVM destination chains (Ethereum mainnet, BNB Chain mainnet, Base mainnet — testnet equivalents live in this branch).
+MultX is an N-of-M signature bridge between LITHO mainnet (source/canonical
+chain, EVM `9005`) and Ethereum, BNB Chain, and Base mainnets. Historical
+Kamet/Makalu and external testnet deployments are retained only as test
+evidence; their addresses are not production defaults.
 
-### 1.1 Forward flow (Kamet → dest chain)
+### 1.1 Forward flow (LITHO mainnet → destination chain)
 
 ```
-User                  MultXBridge (Kamet)         Validator service        MultXBridge (dest)
+User                  MultXBridge (LITHO)         Validator service        MultXBridge (dest)
  │                          │                            │                         │
  │  approve(bridge, amt)    │                            │                         │
  │ ───────────────────────► │                            │                         │
@@ -45,34 +48,34 @@ User                  MultXBridge (Kamet)         Validator service        MultX
  │  user receives wrapped LEP100 on dest chain                                    │
 ```
 
-### 1.2 Reverse flow (dest chain → Kamet)
+### 1.2 Reverse flow (destination chain → LITHO mainnet)
 
 ```
-User                  MultXBridge (dest)         Validator service       MultXBridge (Kamet)
+User                  MultXBridge (dest)         Validator service       MultXBridge (LITHO)
  │  approve(bridge, amt)    │                            │                         │
  │ ───────────────────────► │                            │                         │
  │                          │                            │                         │
  │  lockTokens(wrapped,     │                            │                         │
- │  amt, 900523)            │                            │                         │
+ │  amt, 9005)              │                            │                         │
  │ ───────────────────────► │                            │                         │
  │                          │ TokensLocked event         │                         │
  │                          │ ──────────────────────────►│                         │
  │                          │                            │ sign(..., source=dest)  │
  │                          │                            │                         │
- │                          │                            │ submit sigs to Kamet    │
+ │                          │                            │ submit sigs to LITHO    │
  │                          │                            │ ───────────────────────►│
  │                          │                            │                         │ releaseTokens(...)
  │ ◄──────────────────────────────────────────────────────────────────────────────│
- │  user receives original LEP100 back on Kamet                                   │
+ │  user receives original LEP100 back on LITHO mainnet                           │
 ```
 
 ### 1.3 Contracts in scope
 
-| Contract | LOC | Purpose | Storage |
-|---|---:|---|---|
-| `MultXBridge.sol` | ~253 | Source-chain lock + release (LITHO) | nonce, validators[], supportedTokens, processedNonces, dailyCap/dailyVolume/lastCapReset, Pausable._paused |
-| `MultXBridgeDest.sol` | ~250 | Dest-chain lock(burn) + release(mint) (Ethereum/BNB/Base) | same layout as `MultXBridge`, but `lockTokens` burns the wrapped token via `burnFrom` and `releaseTokens` mints via `bridgeMint` |
-| `WrappedLEP100.sol` | 54 | Wrapped representation on dest chains | OZ ERC20 + ERC20Burnable + AccessControl with `BRIDGE_ROLE` |
+| Contract | Code lines | Physical lines | Purpose | Storage |
+|---|---:|---:|---|---|
+| `MultXBridge.sol` | 175 | 314 | Source-chain lock + release (LITHO) | nonce, validators[], supportedTokens, processedNonces, dailyCap/dailyVolume/lastCapReset, Pausable._paused |
+| `MultXBridgeDest.sol` | 168 | 309 | Destination-chain lock(burn) + release(mint) | same layout as `MultXBridge`, but `lockTokens` burns the wrapped token via `burnFrom` and `releaseTokens` mints via `bridgeMint` |
+| `WrappedLEP100.sol` | 35 | 54 | Wrapped representation on destination chains | OZ ERC20 + ERC20Burnable + AccessControl with `BRIDGE_ROLE` |
 
 ### 1.4 Contracts out of scope (don't audit, don't bill)
 
@@ -137,7 +140,7 @@ Actually — on dest chains, `releaseTokens` calls `IERC20(token).safeTransfer(u
 | Lock to current chain (no-op bridge) | `require(targetChain != block.chainid)` |
 | Bridge unsupported token | `require(supportedTokens[token], "Token not supported")` |
 | Exceed daily cap | Per-token rolling 24h window + `require(dailyVolume + amount <= dailyCap)` (when cap > 0) |
-| Front-run an in-flight signature submission | Signatures are over `(sourceTxHash, token, user, amount, sourceChain, sourceNonce)` — no malleability the recipient can exploit |
+| Front-run or malleate an in-flight signature submission | Signatures bind `(sourceTxHash, token, user, amount, sourceChain, sourceNonce, destinationChain, destinationBridge)`; OpenZeppelin ECDSA rejects non-canonical high-s signatures, and only the bound recipient receives funds |
 | Inflate cap by waiting just under 24h then bursting | `lastCapReset` is reset only when 24h has passed; a 23h59m burst still counts against the cap |
 
 ### 3.4 Malicious bridge owner
@@ -274,8 +277,8 @@ Items the audit firm should expect at kickoff:
 
 - [x] Contract source code (`contracts/contracts/MultXBridge.sol`, `MultXBridgeDest.sol`, `WrappedLEP100.sol`)
 - [x] This threat model document
-- [x] Slither pre-audit report (`slither-pre.txt`) — refreshed 2026-05-21 over all three in-scope contracts
-- [x] Git commit hash of frozen code (`9f939ab8501bd351024ffc7ca5e884a3090c3ecc`; firms re-confirm at kickoff)
+- [x] Slither 0.11.5 pre-audit report (`slither-pre.txt`) — refreshed 2026-08-09 over the immutable candidate; 13 results retained with engineering triage for independent review
+- [x] Immutable candidate tag (`multx-audit-candidate-v0.5.0-20260809`; firms re-confirm the resolved commit at kickoff)
 - [x] Hardhat test suite (`contracts/test/MultXBridge.test.js`, `MultXBridgeDest.test.js`, `WrappedLEP100.test.js`)
 - [x] Deployment scripts (`contracts/scripts/02-redeploy-bridge-hardened.js`, `03-deploy-dest-chain.js`)
 - [x] Operator runbooks (`docs/operations/BRIDGE_RUNBOOK.md`, `VALIDATOR_KEY_ROTATION.md`)

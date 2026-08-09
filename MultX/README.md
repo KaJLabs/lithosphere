@@ -36,6 +36,11 @@ No private keys, credentials, signing material or live `.env` files belong in
 Git. Use protected GitHub environments or the approved deployment secret
 manager.
 
+Current immutable candidate:
+[`multx-audit-candidate-v0.5.0-20260809`](https://github.com/KaJLabs/Lithosphere/releases/tag/multx-audit-candidate-v0.5.0-20260809).
+See [`docs/MAINNET_DEPLOYMENT_GATES.md`](docs/MAINNET_DEPLOYMENT_GATES.md) for
+the fail-closed production sequence and remaining approvals.
+
 ## Reproducible checks
 
 ```bash

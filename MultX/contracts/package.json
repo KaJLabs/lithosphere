@@ -6,6 +6,7 @@
   "scripts": {
     "test": "hardhat test",
     "compile": "hardhat compile",
+    "audit:bytecode-hashes": "node scripts/hash-audit-bytecode.js",
     "coverage": "hardhat coverage",
     "deploy": "hardhat run scripts/deploy.js",
     "deploy:litho": "hardhat run scripts/deploy.js --network litho_kamet",

@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /// @notice Destination-chain MultX bridge.
 ///
@@ -268,7 +269,7 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
         uint256 sigLen = signatures.length;
 
         for (uint256 i = 0; i < sigLen; i++) {
-            address signer = recover(ethSignedHash, signatures[i]);
+            address signer = ECDSA.recover(ethSignedHash, signatures[i]);
 
             require(isValidator[signer], "Invalid signer");
             require(signer > lastSigner, "Signatures must be in ascending order");
@@ -290,34 +291,6 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
         IWrappedLEP100(token).bridgeMint(user, amount);
 
         emit TokensReleased(sourceTxHash, token, user, amount, sourceChain, msg.sender);
-    }
-
-    // ── Internal: ECDSA recovery ────────────────────────────────────────────────
-
-    /// @dev Recover the signer of `hash` from a 65-byte (r,s,v) signature.
-    ///      Normalizes legacy v in {0,1} to {27,28}. Malleability is not exploitable:
-    ///      each (sourceChain, sourceNonce) is single-use and signers must be
-    ///      strictly ascending+distinct validators per release.
-    /// @param hash EIP-191 prefixed message hash that was signed.
-    /// @param sig 65-byte signature.
-    /// @return Recovered signer address.
-    function recover(bytes32 hash, bytes memory sig) internal pure returns (address) {
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-
-        require(sig.length == 65, "Invalid signature length");
-
-        assembly {
-            r := mload(add(sig, 32))
-            s := mload(add(sig, 64))
-            v := byte(0, mload(add(sig, 96)))
-        }
-
-        if (v < 27) v += 27;
-        require(v == 27 || v == 28, "Invalid signature");
-
-        return ecrecover(hash, v, r, s);
     }
 
     // ── Views ───────────────────────────────────────────────────────────────────

@@ -3,6 +3,9 @@ const { ethers } = require("hardhat");
 
 describe("MultXBridge", function () {
   let bridge, token, owner, validator1, validator2, validator3, user;
+  const SECP256K1_ORDER = ethers.BigNumber.from(
+    "0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"
+  );
 
   // Helper: sort signatures by signer address (ascending) as required by contract
   async function getSortedSignatures(signers, msgHash) {
@@ -13,6 +16,17 @@ describe("MultXBridge", function () {
     }
     signed.sort((a, b) => a.address.toLowerCase() < b.address.toLowerCase() ? -1 : 1);
     return signed.map(s => s.sig);
+  }
+
+  function toHighSSignature(signature) {
+    const split = ethers.utils.splitSignature(signature);
+    const highS = SECP256K1_ORDER.sub(split.s);
+    const flippedV = split.v === 27 ? 28 : 27;
+    return ethers.utils.hexConcat([
+      split.r,
+      ethers.utils.hexZeroPad(highS.toHexString(), 32),
+      ethers.utils.hexlify(flippedV),
+    ]);
   }
 
   async function getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce) {
@@ -75,7 +89,7 @@ describe("MultXBridge", function () {
     const lockEvent = lockReceipt.events.find(e => e.event === "TokensLocked");
     const sourceTxHash = lockEvent.args.txHash;
     const sourceNonce = lockEvent.args.nonce;
-    const sourceChain = 700777;
+    const sourceChain = 1;
 
     // Create message hash
     const msgHash = await getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
@@ -115,7 +129,7 @@ describe("MultXBridge", function () {
     const lockEvent = lockReceipt.events.find(e => e.event === "TokensLocked");
     const sourceTxHash = lockEvent.args.txHash;
     const sourceNonce = lockEvent.args.nonce;
-    const sourceChain = 700777;
+    const sourceChain = 1;
 
     const msgHash = await getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
 
@@ -156,7 +170,7 @@ describe("MultXBridge", function () {
     const lockEvent = lockReceipt.events.find(e => e.event === "TokensLocked");
     const sourceTxHash = lockEvent.args.txHash;
     const sourceNonce = lockEvent.args.nonce;
-    const sourceChain = 700777;
+    const sourceChain = 1;
 
     const msgHash = await getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
 
@@ -173,6 +187,30 @@ describe("MultXBridge", function () {
         [sig1]
       )
     ).to.be.revertedWith("Insufficient signatures");
+  });
+
+  it("Should reject a malleable high-s validator signature", async function () {
+    const amount = ethers.utils.parseEther("10");
+    const sourceTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("high-s-source"));
+    const sourceChain = 1;
+    const sourceNonce = 88;
+    await token.mint(bridge.address, amount);
+
+    const msgHash = await getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
+    const signatures = await getSortedSignatures([validator1, validator2], msgHash);
+    signatures[0] = toHighSSignature(signatures[0]);
+
+    await expect(
+      bridge.releaseTokens(
+        token.address,
+        user.address,
+        amount,
+        sourceChain,
+        sourceNonce,
+        sourceTxHash,
+        signatures
+      )
+    ).to.be.reverted;
   });
 
   it("Should reject signatures replayed on another destination bridge", async function () {

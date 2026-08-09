@@ -3,9 +3,12 @@ const { ethers } = require("hardhat");
 
 describe("MultXBridgeDest", function () {
   let bridge, wrapped, owner, v1, v2, v3, user;
+  const SECP256K1_ORDER = ethers.BigNumber.from(
+    "0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"
+  );
   const ORIGIN_TOKEN = "0xC0FC628e3aB128fe387e7ed5e729bD809C017888";
-  const ORIGIN_CHAIN_ID = 900523; // Kamet
-  const TARGET_CHAIN = ORIGIN_CHAIN_ID; // Reverse-bridge target is always source (Kamet)
+  const ORIGIN_CHAIN_ID = 9005; // LITHO mainnet
+  const TARGET_CHAIN = ORIGIN_CHAIN_ID; // Reverse-bridge target is the LITHO source
   const HARDHAT_CHAIN_ID = 700777; // Default hardhat chainId per repo config
 
   async function getSortedSignatures(signers, msgHash) {
@@ -16,6 +19,17 @@ describe("MultXBridgeDest", function () {
     }
     signed.sort((a, b) => a.address.toLowerCase() < b.address.toLowerCase() ? -1 : 1);
     return signed.map((s) => s.sig);
+  }
+
+  function toHighSSignature(signature) {
+    const split = ethers.utils.splitSignature(signature);
+    const highS = SECP256K1_ORDER.sub(split.s);
+    const flippedV = split.v === 27 ? 28 : 27;
+    return ethers.utils.hexConcat([
+      split.r,
+      ethers.utils.hexZeroPad(highS.toHexString(), 32),
+      ethers.utils.hexlify(flippedV),
+    ]);
   }
 
   function getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce, releaseBridge = bridge.address) {
@@ -80,7 +94,7 @@ describe("MultXBridgeDest", function () {
     });
   });
 
-  describe("lockTokens (reverse direction — burn wrapped, target Kamet)", function () {
+  describe("lockTokens (reverse direction — burn wrapped, target LITHO)", function () {
     it("Burns the user's wrapped balance and emits TokensLocked", async function () {
       const amount = ethers.utils.parseEther("50");
       await wrapped.connect(user).approve(bridge.address, amount);
@@ -138,7 +152,7 @@ describe("MultXBridgeDest", function () {
     it("Mints wrapped tokens with valid sigs", async function () {
       const amount = ethers.utils.parseEther("75");
       const sourceTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("source-tx-1"));
-      const sourceChain = ORIGIN_CHAIN_ID; // Kamet lock observed here
+      const sourceChain = ORIGIN_CHAIN_ID; // LITHO lock observed here
       const sourceNonce = 1;
 
       const msgHash = getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
@@ -158,6 +172,28 @@ describe("MultXBridgeDest", function () {
       expect(await wrapped.balanceOf(user.address)).to.equal(ethers.utils.parseEther("1075"));
       // Total supply went up
       expect(await wrapped.totalSupply()).to.equal(ethers.utils.parseEther("1075"));
+    });
+
+    it("Rejects a malleable high-s validator signature", async function () {
+      const amount = ethers.utils.parseEther("5");
+      const sourceTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("high-s-dest"));
+      const sourceChain = ORIGIN_CHAIN_ID;
+      const sourceNonce = 2;
+      const msgHash = getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
+      const signatures = await getSortedSignatures([v1, v2], msgHash);
+      signatures[0] = toHighSSignature(signatures[0]);
+
+      await expect(
+        bridge.releaseTokens(
+          wrapped.address,
+          user.address,
+          amount,
+          sourceChain,
+          sourceNonce,
+          sourceTxHash,
+          signatures
+        )
+      ).to.be.reverted;
     });
 
     it("Rejects duplicate sourceNonce on the same sourceChain", async function () {

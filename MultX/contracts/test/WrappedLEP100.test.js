@@ -6,8 +6,8 @@ describe("WrappedLEP100", function () {
   const NAME = "Wrapped wLITHO";
   const SYMBOL = "wwLITHO";
   const DECIMALS = 18;
-  const ORIGIN_TOKEN = "0xC0FC628e3aB128fe387e7ed5e729bD809C017888"; // wLITHO on Kamet
-  const ORIGIN_CHAIN_ID = 900523;
+  const ORIGIN_TOKEN = "0xC0FC628e3aB128fe387e7ed5e729bD809C017888"; // placeholder LITHO-side token
+  const ORIGIN_CHAIN_ID = 9005;
   const BRIDGE_ROLE = ethers.utils.id("BRIDGE_ROLE");
   const DEFAULT_ADMIN_ROLE = "0x0000000000000000000000000000000000000000000000000000000000000000";
 

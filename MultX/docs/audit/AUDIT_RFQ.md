@@ -18,7 +18,8 @@ historical Kamet testnet deployment is retained only as test evidence. The
 contract audit, remediation review, signer-protocol review and final deployment
 approval are mandatory gates before mainnet contracts or real assets are enabled.
 
-The scope is small and self-contained: **three Solidity files, approximately 557 LOC total**,
+The scope is small and self-contained: **three Solidity files, 378 code lines
+(677 physical lines including NatSpec/comments) total**,
 no external protocol composability, no upgradeable proxies. We have prepared a
 full threat model and a triaged Slither report so the firm can move straight to
 manual review.
@@ -27,19 +28,20 @@ manual review.
 
 ## 2. Scope (what to audit / bill for)
 
-| File | LOC | Role |
-|---|---:|---|
-| `contracts/contracts/MultXBridge.sol` | ~253 | Source-chain lock/release (LITHO) |
-| `contracts/contracts/MultXBridgeDest.sol` | ~250 | Dest-chain burn/mint (Ethereum, BNB, Base) |
-| `contracts/contracts/WrappedLEP100.sol` | 54 | Wrapped-asset ERC20 on dest chains |
-| **Total** | **~557** | |
+| File | Code lines | Physical lines | Role |
+|---|---:|---:|---|
+| `contracts/contracts/MultXBridge.sol` | 175 | 314 | Source-chain lock/release (LITHO) |
+| `contracts/contracts/MultXBridgeDest.sol` | 168 | 309 | Dest-chain burn/mint (Ethereum, BNB, Base) |
+| `contracts/contracts/WrappedLEP100.sol` | 35 | 54 | Wrapped-asset ERC20 on destination chains |
+| **Total** | **378** | **677** | |
 
 - **Solidity:** `0.8.24`, optimizer runs = 200
 - **Dependencies:** OpenZeppelin Contracts (Pausable, ReentrancyGuard,
   AccessControl, SafeERC20, ERC20Burnable) — assume sound (T6); do not re-audit.
-- **Frozen commit:** the new immutable audit-candidate tag will be created only
-  after destination-domain tests and all PR checks pass. Earlier freeze tags are
-  historical and must not be audited for LITHO mainnet deployment.
+- **Frozen candidate:** `multx-audit-candidate-v0.5.0-20260809`. Earlier freeze tags are
+  historical and must not be audited for LITHO mainnet deployment. If the
+  reviewed source changes, KaJ Labs will publish a new immutable version rather
+  than moving this tag.
 
 ### Explicitly OUT of scope (do not bill)
 
@@ -54,7 +56,8 @@ manual review.
 ## 3. Architecture (one paragraph)
 
 MultX is an N-of-M validator-multisig lock/mint bridge. On the source chain a
-user calls `lockTokens`, which escrows (Kamet) or burns (dest) the asset and
+user calls `lockTokens`, which escrows the source asset or burns a destination
+wrapped asset and
 emits `TokensLocked` with a monotonic nonce. A set of **7 validators
 (5-of-7 threshold)** runs on independently operated VPSs. Each rootless signer
 authenticates the coordinator with TLS 1.3 mTLS, independently verifies the
@@ -76,7 +79,7 @@ owner-gated. Full detail in the threat model (attached).
 2. `docs/audit/slither-pre.txt` — Slither 0.11.5 report over all 3 contracts,
    with our triage of every finding.
 3. Hardhat test suite: `contracts/test/{MultXBridge,MultXBridgeDest,WrappedLEP100}.test.js`
-   (72 passing) **plus a Foundry invariant suite** (`contracts/test/foundry/`, 12
+   (76 passing) **plus a Foundry invariant suite** (`contracts/test/foundry/`, 12
    invariants across both bridges — solvency/backing, no-double-release, daily-cap,
    nonce-monotonicity, threshold well-formedness — each mutation-validated and run
    in CI). Directly addresses several §5 questions with executable properties.
@@ -85,7 +88,7 @@ owner-gated. Full detail in the threat model (attached).
    `api/src/services/remoteSigner.js`, and `docs/VPS_SIGNER_ARCHITECTURE.md`.
 6. Operator runbooks and a dedicated technical point of contact for the duration.
 
-The Solidity review remains the fixed approximately 557-LOC scope. Please quote the off-chain
+The Solidity review remains the fixed three-file, 378-code-line scope. Please quote the off-chain
 signer protocol review separately so its source-event verification, message
 construction, mTLS boundary and anti-equivocation behavior are explicitly covered.
 

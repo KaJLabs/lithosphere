@@ -32,6 +32,28 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - run: npm test
       - run: npm run compile
+      - run: npm run audit:bytecode-hashes
+
+  foundry-invariants:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: MultX/contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: MultX/contracts/package-lock.json
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+      - name: Install pinned Foundry test library
+        run: forge install --no-git foundry-rs/forge-std@v1.16.1
+      - name: Run bridge invariant suites
+        run: forge test --match-path "test/foundry/*.t.sol" -vv
 
   sdk:
     runs-on: ubuntu-latest

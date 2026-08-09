@@ -25,11 +25,10 @@ forge test --match-path "test/foundry/*.t.sol" -vv
 
 ## CI
 
-Runs on GitHub Actions via `.github/workflows/foundry-invariants.yml` — a
-path-filtered check (triggers only when `contracts/**` changes) that installs
-`@openzeppelin` (`npm ci --omit=dev`), vendors `forge-std` (pinned `v1.16.1`),
-installs Foundry (pinned `1.7.1`), then runs both invariant suites. Hardhat is
-not run there; this workflow is Foundry-only.
+Runs in the `foundry-invariants` job of
+`.github/workflows/ci-multx.yaml`. The path-filtered workflow installs the npm
+dependencies, vendors `forge-std` (pinned `v1.16.1`), installs Foundry (pinned
+`1.7.1`), and runs both invariant suites independently of the Hardhat job.
 
 ## What's covered — `MultXBridgeInvariant.t.sol`
 
@@ -69,7 +68,7 @@ removing the contract's `require(!processedNonces[...])` makes
 ## What's covered — `MultXBridgeDestInvariant.t.sol`
 
 The **destination** bridge is mint/burn, not escrow: `releaseTokens` MINTS wrapped
-tokens on an attested Kamet lock (forward), `lockTokens` BURNS them to bridge back
+tokens on an attested LITHO mainnet lock (forward), `lockTokens` BURNS them to bridge back
 (reverse). A `DestBridgeHandler` drives it against the real `WrappedLEP100` token
 (which grants `BRIDGE_ROLE` to the bridge), as the sole mint recipient and sole
 burner, so the accounting is exact:

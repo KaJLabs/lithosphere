@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { loadProductionNetworkConfig } from './networkConfig.js';
 
 // Production secrets are loaded by entrypoint.mjs from mounted files. Do not
 // permit a production .env file to silently bypass those controls.
@@ -134,6 +135,24 @@ for (const [makaluToken, wrappedToken] of MAKALU_DEST_PAIRS) {
   addPair(BASE_SEPOLIA, wrappedToken, MAKALU, makaluToken);
 }
 
+// Production never inherits historical Kamet/Makalu/testnet addresses. It
+// starts only with an explicit, audited mainnet manifest mounted read-only by
+// the VPS deployment. A missing or malformed manifest fails startup.
+const productionNetwork = process.env.NODE_ENV === 'production'
+  ? loadProductionNetworkConfig(process.env.MULTX_NETWORK_CONFIG_FILE)
+  : null;
+
+if (productionNetwork) {
+  for (const chainId of Object.keys(tokenRegistry)) delete tokenRegistry[chainId];
+  for (const route of productionNetwork.tokenPairs) {
+    addPair(route.sourceChain, route.sourceToken, route.targetChain, route.releaseToken);
+  }
+}
+
+const productionSource = productionNetwork?.chainsToWatch.find(
+  (chain) => chain.chainId === productionNetwork.sourceChainId
+);
+
 /**
  * Resolve the token address on the release chain given an observed lock.
  * Returns null if no mapping exists (the row will be flagged for manual handling).
@@ -149,12 +168,13 @@ export const resolveReleaseToken = (sourceChain, sourceToken, releaseChain) => {
 export const config = {
   port: parseInt(process.env.PORT || '4000', 10),
   corsOrigins: process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || ['http://localhost:3002'],
-  lithoRpcWs:   process.env.LITHO_RPC_WS   || 'wss://rpc-3.litho.ai:8546',
-  lithoRpcHttp: process.env.LITHO_RPC_HTTP || 'https://rpc-3.litho.ai',
-  bridgeAddress: process.env.BRIDGE_CONTRACT_ADDRESS || '',
-  // Canonical wrapped-LITHO on Kamet — used by /health to report bridge-asset
-  // deployment readiness to the explorer Swap UI.
-  kametLithoTokenAddress: process.env.KAMET_LITHO_TOKEN_ADDRESS || '0xC0FC628e3aB128fe387e7ed5e729bD809C017888',
+  lithoRpcWs: productionNetwork ? productionSource.ws : (process.env.LITHO_RPC_WS || 'wss://rpc-3.litho.ai:8546'),
+  lithoRpcHttp: productionNetwork ? productionSource.rpc : (process.env.LITHO_RPC_HTTP || 'https://rpc-3.litho.ai'),
+  bridgeAddress: productionNetwork ? productionSource.bridge : (process.env.BRIDGE_CONTRACT_ADDRESS || ''),
+  // Canonical LITHO-side token used by /health to report bridge-asset
+  // deployment readiness. Production obtains it from the mounted manifest.
+  lithoTokenAddress: productionNetwork?.lithoTokenAddress || process.env.KAMET_LITHO_TOKEN_ADDRESS || '0xC0FC628e3aB128fe387e7ed5e729bD809C017888',
+  kametLithoTokenAddress: productionNetwork?.lithoTokenAddress || process.env.KAMET_LITHO_TOKEN_ADDRESS || '0xC0FC628e3aB128fe387e7ed5e729bD809C017888',
   bridgeContracts: {
     sepolia:    process.env.BRIDGE_CONTRACT_SEPOLIA || '',
     bnbTestnet: process.env.BRIDGE_CONTRACT_BNB    || ''
@@ -181,7 +201,7 @@ export const config = {
     windowMs:  parseInt(process.env.RATE_LIMIT_WINDOW_MS  || '60000',  10),
     max:       parseInt(process.env.RATE_LIMIT_MAX        || '100',    10),
   },
-  supportedChains: [
+  supportedChains: productionNetwork?.supportedChains || [
     { chainId: 900523,   name: 'Lithosphere Kamet',  symbol: 'LITHO', bridge: process.env.BRIDGE_CONTRACT_ADDRESS || '' },
     { chainId: 700777,   name: 'Lithosphere Makalu', symbol: 'LITHO', bridge: process.env.BRIDGE_CONTRACT_MAKALU || '0x5832D5E609c6690f74c7683606Eb20F89ff096a6' },
     { chainId: 11155111, name: 'Ethereum Sepolia',   symbol: 'ETH',   bridge: process.env.BRIDGE_CONTRACT_SEPOLIA || '' },
@@ -193,7 +213,7 @@ export const config = {
   // Each entry needs an rpc URL and the deployed bridge address. Missing
   // bridge addresses are skipped (so a chain can be configured but inactive
   // until its bridge is deployed).
-  chainsToWatch: [
+  chainsToWatch: productionNetwork?.chainsToWatch || [
     {
       name: 'kamet',
       chainId: 900523,

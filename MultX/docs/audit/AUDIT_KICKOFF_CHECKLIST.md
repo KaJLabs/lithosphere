@@ -14,43 +14,37 @@
 - [ ] **[C/F]** Sign the firm's **mutual NDA** before any code is shared.
 - [ ] **[I]** Agree start date + primary comms channel; name the [I] technical point of contact for the engagement.
 
-## Phase 1 — Freeze the code
+## Phase 1 — Verify the immutable candidate
 
-> ⚠️ **The freeze commit is NO LONGER `9f939ab`.** Since the RFQ was drafted, the
-> in-scope contracts gained the **`pauseGuardian` governance role** (owner-OR-guardian
-> `pause()`, owner-only `unpause()`/config — see ADR `0004-multx-bridge-governance.md`)
-> and a **full NatSpec pass**. These are intentional pre-audit hardening and must be in
-> the frozen scope. Re-take the freeze at the current `kamet-mainnet-prep` tip and
-> **update the RFQ's commit reference** before sending.
+> The historical `9f939ab` and `audit-freeze-2026-07-14` references are
+> superseded. The current published candidate is
+> `multx-audit-candidate-v0.5.0-20260809`. It includes destination-chain and
+> bridge domain binding plus OpenZeppelin low-s ECDSA recovery. Never move or
+> reuse an audit tag; publish a new version if any reviewed source changes.
 
-- [ ] **[I]** Confirm the 3 in-scope files are final, with **no pending contract changes** after the governance + NatSpec work:
+- [x] **[I]** Confirm the 3 in-scope files are final for this candidate:
       `contracts/contracts/{MultXBridge,MultXBridgeDest,WrappedLEP100}.sol`.
-- [ ] **[I]** Sanity-check that the only diff vs `9f939ab` is the guardian role + NatSpec (no unexpected logic drift):
+- [x] **[I]** Verify the tag resolves to the recorded commit:
       ```bash
-      git diff 9f939ab8501bd351024ffc7ca5e884a3090c3ecc..HEAD -- \
-        contracts/contracts/MultXBridge.sol \
-        contracts/contracts/MultXBridgeDest.sol \
-        contracts/contracts/WrappedLEP100.sol
-      # expect: pauseGuardian additions + doc comments only
+      git rev-list -n 1 multx-audit-candidate-v0.5.0-20260809
       ```
-- [ ] **[I]** Tag the freeze at the current tip: `git tag audit-freeze-<date> <commit> && git push origin audit-freeze-<date>`.
-- [ ] **[I]** Verify the frozen bytecode == what will deploy to mainnet (`solc 0.8.24`, optimizer runs 200) — record the build hash.
+- [x] **[I]** Compile with `solc 0.8.24`, optimizer runs `200`, and record the candidate artifact hashes in [`AUDIT_BYTECODE_HASHES_2026-08-09.md`](./AUDIT_BYTECODE_HASHES_2026-08-09.md). Final deployment still requires constructor-linked deployed-bytecode verification.
 - [ ] **[I]** Share a read-only snapshot at the frozen commit (private repo invite **or** tarball — firm's preference).
 
 ## Phase 2 — Hand over the package
 
-- [ ] **[I]** Deliver: threat model, triaged Slither report, Hardhat test suite (`contracts/test/`), Foundry invariant suite (`contracts/test/foundry/`), deployment records (`contracts/deployments/`), and operator runbooks (`docs/operations/{BRIDGE_RUNBOOK,VALIDATOR_KEY_ROTATION}.md`).
-- [ ] **[I]** Deliver the **test-coverage report** (`cd contracts && npm run coverage`). Baseline at freeze prep (2026-06-30, 72 Hardhat tests passing):
+- [ ] **[I]** Deliver: threat model, triaged Slither report, Hardhat test suite (`contracts/test/`), Foundry invariant suite (`contracts/test/foundry/`), historical testnet deployment evidence (`contracts/deployments/`), VPS signer architecture (`docs/VPS_SIGNER_ARCHITECTURE.md`), and signer operator runbook (`signer/OPERATOR_RUNBOOK.md`). Historical AWS/KMS runbooks are not production instructions.
+- [x] **[I]** Generate the **test-coverage report** (`cd contracts && npm run coverage`). The candidate has 76 passing Hardhat tests. Regenerate from the immutable tag when handing the package to the firm.
 
       | File | % Stmts | % Branch | % Funcs | % Lines |
       |---|---|---|---|---|
-      | MultXBridge.sol | 86.21 | 55.26 | 71.43 | 83.33 |
-      | MultXBridgeDest.sol | 98.33 | 84.21 | 85.71 | 98.68 |
+      | MultXBridge.sol | 84.31 | 55.88 | 69.23 | 82.61 |
+      | MultXBridgeDest.sol | 98.11 | 86.76 | 84.62 | 98.53 |
       | WrappedLEP100.sol | 100 | 100 | 100 | 100 |
       | governance/GovTimelock.sol | 100 | 100 | 100 | 100 |
 
-      ⚠️ **Known gap:** `MultXBridge.sol` branch coverage (55%) trails `MultXBridgeDest.sol`
-      (84%) — the source-bridge test file predates the daily-cap/guardian hardening, so
+      ⚠️ **Known gap:** `MultXBridge.sol` branch coverage (55.88%) trails `MultXBridgeDest.sol`
+      (86.76%) — the source-bridge test file predates the daily-cap/guardian hardening, so
       its revert/edge branches are under-exercised. Recommend bringing the two suites to
       parity (daily-cap reset + exceeded paths, guardian-pause negative cases,
       `getDailyRemaining` branches) before or during the engagement. The Foundry invariant
@@ -75,7 +69,7 @@
 ## Phase 5 — Mainnet gate (the unblock)
 
 - [ ] **[I]** Publish the final report (GitHub + linked from docs).
-- [ ] ✅ **Gate cleared** → proceed with mainnet rollout: deploy the audited `MultXBridge` + 33 `WrappedLEP100` to ETH/BNB/Base mainnet (M4.3), then DNNS mainnet (M3) and launch coordination (M7).
+- [ ] ✅ **Gate cleared** → proceed with a separately approved deployment of the audited bridge contracts and approved wrapped assets to LITHO, Ethereum, BNB and Base mainnets. Keep every feature disabled until the production canary passes.
 
 ---
 

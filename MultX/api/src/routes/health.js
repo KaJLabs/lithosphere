@@ -5,12 +5,9 @@ import { config } from '../config.js';
 
 const router = express.Router();
 
-// Canonical wrapped-LITHO on Kamet (the token the explorer Swap treats as the
-// bridge's native asset). Overridable via env; falls back to config if present.
-const KAMET_LITHO_TOKEN =
-  config.kametLithoTokenAddress ||
-  process.env.KAMET_LITHO_TOKEN_ADDRESS ||
-  '0xC0FC628e3aB128fe387e7ed5e729bD809C017888';
+// Canonical LITHO-side token. Production obtains this only from the validated
+// mainnet network manifest; the historical env/default path is development-only.
+const LITHO_TOKEN = config.lithoTokenAddress || '';
 
 // On-chain contract bytecode at a fixed address is immutable, so cache the
 // deployment probe instead of hitting the RPC on every /health poll. A positive
@@ -33,7 +30,7 @@ async function getDeploymentStatus() {
   if (_cache.data && now - _cache.at < ttl) return _cache.data;
 
   const bridgeAddress = config.bridgeAddress || '';
-  const kametTokenAddress = KAMET_LITHO_TOKEN || '';
+  const lithoTokenAddress = LITHO_TOKEN;
   let bridgeContractDeployed = false;
   let kametTokenContractDeployed = false;
   let error = '';
@@ -42,7 +39,7 @@ async function getDeploymentStatus() {
     const provider = new ethers.JsonRpcProvider(config.lithoRpcHttp);
     const [bridgeCode, tokenCode] = await Promise.all([
       bridgeAddress ? provider.getCode(bridgeAddress) : Promise.resolve('0x'),
-      kametTokenAddress ? provider.getCode(kametTokenAddress) : Promise.resolve('0x'),
+      lithoTokenAddress ? provider.getCode(lithoTokenAddress) : Promise.resolve('0x'),
     ]);
     bridgeContractDeployed = isDeployed(bridgeCode);
     kametTokenContractDeployed = isDeployed(tokenCode);
@@ -52,7 +49,9 @@ async function getDeploymentStatus() {
 
   const data = {
     bridgeAddress,
-    kametTokenAddress,
+    lithoTokenAddress,
+    // Deprecated compatibility field for existing testnet explorer clients.
+    kametTokenAddress: lithoTokenAddress,
     bridgeContractDeployed,
     kametTokenContractDeployed,
     error,

@@ -1,26 +1,31 @@
 # MultX Bridge Audit — Decision Brief (for Litho leadership)
 
-**Prepared by:** infra team · **Date:** 2026-06-18 · **Decision owner:** Litho leadership
+**Prepared by:** infra team · **Updated:** 2026-08-09 · **Decision owner:** Litho leadership
 **One-line ask:** approve the budget + pick a firm so we can sign the NDA and kick off the MultX bridge audit.
 
 ---
 
 ## Why this is the critical path
 
-The security audit is the **single blocker between everything we've built and mainnet.** Until it's done and findings are fixed, the following are all on hold:
+The security audit is the next external blocker for MultX mainnet. Until it is
+complete and findings are resolved, no MultX contract may hold real assets and
+the production feature remains disabled. Audit completion is followed by the
+governance, signer, deployment, and canary gates; it is not automatic launch
+approval.
 
-- MultX bridge — real-asset transfers on **Ethereum / BNB / Base mainnet** (Kamet source + all dest contracts are built and tested on testnet, waiting on this)
+- MultX bridge — real-asset transfers between **LITHO 9005** and **Ethereum / BNB / Base mainnets**
 - DNNS — mainnet deployment of the naming service (testnet-complete on 3 chains)
 - Public mainnet launch (M7)
 
-Everything *we* control is done. This is the gate.
+The engineering candidate and audit package are ready. Production addresses,
+operator acceptance, and activation remain deliberately unset.
 
 ## What's being audited (small + cheap by design)
 
 A deliberately tight, self-contained scope so the audit is fast and inexpensive:
 
-- **3 Solidity files, 533 lines total** — the bridge + wrapped-token contracts. No proxies, no external protocol composability.
-- We've pre-delivered a full **threat model**, a triaged **Slither** report, the **test suite**, and a frozen commit — so the firm goes straight to manual review (less billable time).
+- **3 Solidity files, 378 code lines (677 physical lines including NatSpec/comments)** — the bridge + wrapped-token contracts. No proxies, no external protocol composability.
+- The package includes the threat model, triaged Slither evidence, 76-test Hardhat suite, Foundry invariants, bytecode hashes, VPS signer protocol, and immutable candidate `multx-audit-candidate-v0.5.0-20260809`.
 
 ## Cost & timeline (ballpark — firms confirm exact)
 
@@ -43,4 +48,6 @@ RFQ already prepared and addressed to three top-tier firms — **Trail of Bits, 
 - Forwardable RFQ: `client-work/MultX-Bridge-Audit-RFQ.pdf`
 - Technical package: `docs/audit/AUDIT_RFQ.md`, `MULTX_THREAT_MODEL.md`, `slither-pre.txt`
 
-Once you green-light, we sign the NDA, freeze the final commit, and the firm can start within the window above.
+Once leadership approves the engagement, the firm can review the already
+published immutable candidate. Any remediation produces a new immutable tag;
+the existing tag is never moved.

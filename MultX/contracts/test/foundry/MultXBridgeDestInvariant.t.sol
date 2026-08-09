@@ -8,7 +8,7 @@ import {WrappedLEP100} from "../../contracts/WrappedLEP100.sol";
 /// Bounded handler that drives the DESTINATION bridge through legitimate
 /// operations. The dest bridge is mint/burn (not escrow):
 ///   - releaseTokens MINTS wrapped tokens to a user on a valid N-of-M quorum
-///     attesting a Kamet lock (forward direction),
+///     attesting a LITHO mainnet lock (forward direction),
 ///   - lockTokens BURNS the caller's wrapped tokens to bridge back (reverse).
 /// The handler is the sole mint recipient AND sole burner, so the wrapped
 /// token's total supply must equal (total minted − total burned) at all times.
@@ -35,8 +35,8 @@ contract DestBridgeHandler is Test {
     bytes32 internal lastSourceTxHash;
     address internal lastUser;
 
-    uint256 constant SOURCE_CHAIN = 900523; // kamet (where the original lock happened)
-    uint256 constant TARGET_CHAIN = 900523; // bridging back to kamet (≠ block.chainid)
+    uint256 constant SOURCE_CHAIN = 9005; // LITHO mainnet (where the original lock happened)
+    uint256 constant TARGET_CHAIN = 9005; // bridging back to LITHO (not block.chainid)
 
     constructor(
         MultXBridgeDest _bridge,
@@ -93,7 +93,7 @@ contract DestBridgeHandler is Test {
         } catch {}
     }
 
-    /// Reverse: burn the handler's wrapped tokens to bridge back to Kamet.
+    /// Reverse: burn the handler's wrapped tokens to bridge back to LITHO.
     function lock(uint256 amountSeed) external {
         uint256 bal = wrapped.balanceOf(address(this));
         if (bal == 0) return;
@@ -175,7 +175,7 @@ contract MultXBridgeDestInvariant is Test {
         bridge = new MultXBridgeDest(vals, sigsRequired);
         // Deploy the wrapped token granting BRIDGE_ROLE to the bridge, then
         // register it so the burn (lockTokens) path accepts it.
-        wrapped = new WrappedLEP100("Wrapped LITHO", "wLITHO", 18, address(bridge), address(0x0AB1), 900523);
+        wrapped = new WrappedLEP100("Wrapped LITHO", "wLITHO", 18, address(bridge), address(0x0AB1), 9005);
         bridge.addSupportedToken(address(wrapped));
 
         handler = new DestBridgeHandler(bridge, wrapped, address(this), pks, sigsRequired);
