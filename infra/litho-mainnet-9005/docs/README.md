@@ -5,7 +5,10 @@ Status: **base chain launched and independently reverified on 2026-07-28**.
 The client handoff entry point is
 [`CLIENT_HANDOFF_2026-07-29.md`](CLIENT_HANDOFF_2026-07-29.md), with the
 current [operations runbook](MAINNET_OPERATIONS_RUNBOOK.md) and
-[acceptance checklist](CLIENT_ACCEPTANCE_CHECKLIST.md). The
+[acceptance checklist](CLIENT_ACCEPTANCE_CHECKLIST.md). The remaining external
+owners, inputs, evidence and ready-to-send requests are consolidated in the
+[external requirements action plan](EXTERNAL_REQUIREMENTS_ACTION_PLAN_2026-08-09.md).
+The
 [ownership and admin-control handover](OWNERSHIP_AND_ADMIN_CONTROL_HANDOVER.md)
 defines KaJ Labs' accountable ownership, technical-control boundaries, and the
 validator-key replacement procedure. The authoritative
