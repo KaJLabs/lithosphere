@@ -343,7 +343,7 @@ async function main() {
   const repoRoot = path.join(__dirname, "..", "..");
   const defaultResultsDir = path.join(repoRoot, "docs", "load-test-results");
   const config = {
-    rpcUrl: envOrArg(args, "rpc-url", "MAKALU_LOAD_TEST_RPC_URL", "http://31.97.39.138:8545"),
+    rpcUrl: envOrArg(args, "rpc-url", "MAKALU_LOAD_TEST_RPC_URL", ""),
     chainId: toInt(envOrArg(args, "chain-id", "MAKALU_LOAD_TEST_CHAIN_ID", "700777"), 700777),
     walletFile: envOrArg(args, "wallet-file", "MAKALU_LOAD_TEST_WALLET_FILE", ""),
     durationSeconds: toInt(envOrArg(args, "duration", "MAKALU_LOAD_TEST_DURATION", "120"), 120),
@@ -362,6 +362,10 @@ async function main() {
     label: envOrArg(args, "label", "MAKALU_LOAD_TEST_LABEL", "makalu-load-test"),
     dryRun: Boolean(args["dry-run"]),
   };
+
+  if (!config.rpcUrl) {
+    throw new Error("--rpc-url or MAKALU_LOAD_TEST_RPC_URL is required");
+  }
 
   config.confirmTimeoutMs = config.confirmTimeoutSeconds * 1000;
   config.drainTimeoutMs = config.drainTimeoutSeconds * 1000;

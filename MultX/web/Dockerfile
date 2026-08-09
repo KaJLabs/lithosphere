@@ -16,7 +16,7 @@ WORKDIR /app/web
 # Build-time ARGs — Vite bakes these into the bundle at build time
 ARG VITE_RPC_URL=https://rpc-3.litho.ai
 ARG VITE_REST_URL=https://api-3.litho.ai
-ARG VITE_GRPC_URL=31.97.39.146:9090
+ARG VITE_GRPC_URL
 ARG VITE_EVM_RPC_URL=https://rpc-3.litho.ai
 ARG VITE_EVM_RPC_DRPC_URL=
 ARG VITE_EXPLORER_DATA_API_URL=https://kamet.litho.ai/api
@@ -77,6 +77,7 @@ COPY web/package*.json ./
 RUN npm ci --legacy-peer-deps
 COPY web/ ./
 # Increase Node memory limit to handle large vendor chunk (4MB+)
+RUN test -n "$VITE_GRPC_URL"
 RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 FROM nginx:alpine

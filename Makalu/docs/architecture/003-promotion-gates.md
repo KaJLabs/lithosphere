@@ -75,7 +75,7 @@ Inherited from [security-baselines.md](../governance/security-baselines.md) sect
 
 1. SSH to indexer via bastion:
    ```bash
-   ssh -o ProxyJump="ec2-user@44.218.142.100" ec2-user@10.0.10.16
+   ssh -o ProxyJump="<DEPLOY_USER>@<BASTION_HOST>" <DEPLOY_USER>@<INDEXER_HOST>
    ```
 2. Roll back to previous commit:
    ```bash

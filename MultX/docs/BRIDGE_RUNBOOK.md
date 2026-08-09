@@ -347,10 +347,10 @@ provider; signing rate falls to zero.
 1. **Verify it's RPC, not contract**: query Kamet RPC directly via curl.
    If RPC is healthy, look at validator service logs.
 2. **Failover the RPC**: bridge-api reads `LITHO_RPC_HTTP` from
-   `/opt/bridge/docker-compose.yml` on indexer (`10.0.10.16`). Edit the
+   `/opt/bridge/docker-compose.yml` on the protected-inventory indexer. Edit the
    env, restart `bridge-api`:
    ```bash
-   ssh -J ec2-user@<bastion> ec2-user@10.0.10.16
+   ssh -J <DEPLOY_USER>@<BASTION_HOST> <DEPLOY_USER>@<INDEXER_HOST>
    sudo nano /opt/bridge/docker-compose.yml
    # change LITHO_RPC_HTTP value to a healthy RPC
    sudo docker compose up -d bridge-api
@@ -379,7 +379,7 @@ only** — so the `:443` request fell through to the first `:443` server block
 on the box (a Cosmos REST proxy, e.g. `api-kamet` → lithod `:1317`), which
 emitted the 501.
 
-**Diagnostic (run on vps2 — `187.124.133.209`, SSH key `~/.ssh/id_ed25519`)**:
+**Diagnostic (run on the protected bridge origin using the approved operator key)**:
 
 ```bash
 # :80 with the right Host reaches bridge-api (correct) ...
@@ -402,7 +402,7 @@ behind Cloudflare in **Full** SSL mode (same as how `rpc-3.litho.ai` already
 serves), so no new cert issuance is needed.
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 root@187.124.133.209
+ssh -i <PATH_TO_OPERATOR_KEY> <DEPLOY_USER>@<BRIDGE_ORIGIN_HOST>
 cp /etc/nginx/sites-available/bridge.conf \
    /etc/nginx/sites-available/bridge.conf.bak.$(date +%Y%m%d-%H%M%S)
 cat >> /etc/nginx/sites-available/bridge.conf <<'EOF'
@@ -468,10 +468,10 @@ this API.
 
 - **Bridge contract (Kamet)**: `0x3a896BDF3a1088287FA84aB5a43bB30e2535F263` (deployed 2026-05-09; hardened with Pausable + setValidatorSet + dailyCap)
 - **Owner / deployer**: `0x10ed4F004Fe708014ae27Bcc20c9Ed9df3f4eadF` (single EOA — gating on Gnosis Safe migration before mainnet dest-chain deploys, see threat-model §5 L1)
-- **Validators (May-19 KMS migration)**: 7 KMS keys in `us-east-1`, aliases `alias/litho-multx-validator-{0..6}`. Full ARN list in [`../../contracts/deployments/kamet-validators-latest.json`](../../contracts/deployments/kamet-validators-latest.json).
-- **Bridge-api host (current, verified 2026-06-10)**: **vps2 `187.124.133.209`**, `/opt/bridge`, Docker container `bridge-api` published `0.0.0.0:4001 → 4000` (+ `bridge-postgres` on `127.0.0.1:5433`). SSH key `~/.ssh/id_ed25519` as `root`. *(The earlier AWS indexer `10.0.10.16:4001` location is superseded — bridge stack migrated to vps2; §6.3's RPC-failover edit path is likewise now on vps2.)*
+- **Validators (May-19 KMS migration)**: seven public validator addresses with custody references held in protected operator inventory. Public addresses remain in [`../../contracts/deployments/kamet-validators-latest.json`](../../contracts/deployments/kamet-validators-latest.json).
+- **Bridge-api host (current, verified 2026-06-10)**: protected bridge origin, `/opt/bridge`, Docker container `bridge-api` published on the configured service port (+ `bridge-postgres` loopback-only). Origin address, SSH account, and key path are held in protected inventory. The earlier AWS indexer location is superseded; §6.3's RPC-failover edit path is likewise on the protected bridge origin.
 - **Public edge**: `bridge.litho.ai` → Cloudflare (orange, Full SSL) → vps2 nginx vhost `/etc/nginx/sites-available/bridge.conf` (`:80` + `:443`, the `:443` block added 2026-06-10 — see §6.4) → `127.0.0.1:4001`.
-- **IAM role** for validator service: `litho-mainnet-indexer-role`, inline policy `MultXValidatorKMSSigning`.
+- **Validator-service cloud permissions**: legacy role and signing-policy identifiers are retained only in protected operator inventory.
 
 ---
 

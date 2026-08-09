@@ -3,7 +3,7 @@
 # ----------------------------------------------------------------------------
 # makalu.litho.ai is served from the protected VPS1 deployment target since the
 # 2026-06-03 migration. The previous pipeline deployed via SSM + build-from-source
-# to the AWS indexer (i-057bf8e4baabd9f31, /opt/lithosphere/Makalu) — which is NO
+# to the former AWS indexer (`/opt/lithosphere/Makalu`) — which is NO
 # LONGER in the public path, so its "green" never reached the live site.
 #
 # This pipeline deploys the published GHCR images to vps1 over SSH and gates on

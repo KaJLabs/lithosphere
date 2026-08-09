@@ -68,7 +68,7 @@ services:
       args:
         VITE_RPC_URL: ${KAMET_RPC_URL:-https://rpc-3.litho.ai}
         VITE_REST_URL: ${KAMET_REST_URL:-https://api-3.litho.ai}
-        VITE_GRPC_URL: ${KAMET_GRPC_URL:-grpc-3.litho.ai:9090}
+        VITE_GRPC_URL: ${KAMET_GRPC_URL:?KAMET_GRPC_URL is required}
         VITE_EVM_RPC_URL: ${KAMET_EVM_RPC_URL:-https://rpc-3.litho.ai}
         VITE_CHAIN_ID: ${KAMET_CHAIN_ID:-lithosphere_900523-1}
         VITE_CHAIN_NAME: Lithosphere Kamet

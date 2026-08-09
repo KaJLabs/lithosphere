@@ -68,7 +68,7 @@ cast send <faucet-address> --value 100000ether \
 
 SSH to the EC2 indexer via bastion:
 ```bash
-ssh -o ProxyJump="ec2-user@44.218.142.100" ec2-user@10.0.10.16
+ssh -o ProxyJump="<DEPLOY_USER>@<BASTION_HOST>" <DEPLOY_USER>@<INDEXER_HOST>
 ```
 
 Edit the `.env` file in the Makalu directory:

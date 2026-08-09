@@ -1,7 +1,7 @@
 {
   "network": "makalu",
   "chainId": 700777,
-  "rpc": "http://31.97.39.138:8545",
+  "rpc": "<REDACTED_OPERATIONAL_ENDPOINT>",
   "delaySeconds": 150,
   "bridge": "0x2Ebd9EeF00C6AeC85c2512DcDd8093f72A9E6059",
   "timelock": "0x8C7DcB61f6a2044E4F9B40abc2a74D30aB233099",

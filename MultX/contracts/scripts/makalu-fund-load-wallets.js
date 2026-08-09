@@ -168,7 +168,7 @@ async function main() {
   const rawAmountLitho = envOrArg(args, "amount-litho", "MAKALU_LOAD_TEST_FUND_AMOUNT_LITHO", "");
 
   const config = {
-    rpcUrl: envOrArg(args, "rpc-url", "MAKALU_LOAD_TEST_RPC_URL", "http://31.97.39.138:8545"),
+    rpcUrl: envOrArg(args, "rpc-url", "MAKALU_LOAD_TEST_RPC_URL", ""),
     chainId: toInt(envOrArg(args, "chain-id", "MAKALU_LOAD_TEST_CHAIN_ID", "700777"), 700777),
     fundingMode: envOrArg(args, "funding-mode", "MAKALU_LOAD_TEST_FUNDING_MODE", "auto"),
     fundingKey: envOrArg(args, "funding-key", "MAKALU_LOAD_TEST_FUNDING_KEY", ""),
@@ -186,6 +186,10 @@ async function main() {
     ),
     dryRun: Boolean(args["dry-run"]),
   };
+
+  if (!config.rpcUrl) {
+    throw new Error("--rpc-url or MAKALU_LOAD_TEST_RPC_URL is required");
+  }
 
   if (!["auto", "source", "faucet"].includes(config.fundingMode)) {
     throw new Error(`Unsupported funding mode: ${config.fundingMode}`);

@@ -14,7 +14,7 @@
  * split with a single funded key. In production these are distinct: guardian =
  * fast ops key/2-of-3, proposer/executor = the Gnosis Safe.
  *
- * Env: DEPLOYER_PRIVATE_KEY=0x...   MAKALU_RPC (optional, default synced sentry)
+ * Env: DEPLOYER_PRIVATE_KEY=0x...   MAKALU_RPC (required)
  * Run: node scripts/governance/rehearse-makalu.js
  */
 require("dotenv").config();
@@ -22,7 +22,8 @@ const { ethers } = require("ethers");
 const fs = require("fs");
 const path = require("path");
 
-const RPC = process.env.MAKALU_RPC || "http://31.97.39.138:8545";
+const RPC = process.env.MAKALU_RPC;
+if (!RPC) throw new Error("MAKALU_RPC is required");
 const CHAIN_ID = 700777;
 const DELAY = 150; // timelock minDelay for the rehearsal (production = 48h)
 const OV = { type: 0, gasPrice: ethers.utils.parseUnits("10", "gwei") };

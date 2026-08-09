@@ -8,7 +8,7 @@ services:
       args:
         VITE_RPC_URL: ${KAMET_RPC_URL:-https://rpc-3.litho.ai}
         VITE_REST_URL: ${KAMET_REST_URL:-https://api-3.litho.ai}
-        VITE_GRPC_URL: ${KAMET_GRPC_URL:-31.97.39.146:9090}
+        VITE_GRPC_URL: ${KAMET_GRPC_URL:?KAMET_GRPC_URL is required}
         VITE_EVM_RPC_URL: ${KAMET_EVM_RPC_URL:-https://rpc-3.litho.ai}
         # dRPC/Nodehaus fallback — leave blank until endpoint is assigned
         # Register at: https://drpc.org/nodehaus-rpc-infrastructure-for-chains

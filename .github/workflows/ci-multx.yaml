@@ -143,5 +143,7 @@ jobs:
         with:
           context: MultX
           file: MultX/web/Dockerfile
+          build-args: |
+            VITE_GRPC_URL=grpc.invalid:9090
           push: false
           tags: multx-web:ci

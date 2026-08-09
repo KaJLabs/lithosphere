@@ -1,6 +1,6 @@
 const RPC_URL = import.meta.env.VITE_RPC_URL || 'https://rpc-3.litho.ai';
 const REST_URL = import.meta.env.VITE_REST_URL || 'https://api-3.litho.ai';
-const GRPC_URL = import.meta.env.VITE_GRPC_URL || '31.97.39.146:9090';
+const GRPC_URL = import.meta.env.VITE_GRPC_URL || '';
 const EXPLORER_URL = import.meta.env.VITE_EXPLORER_URL || 'https://kamet.litho.ai';
 const EXPLORER_DATA_API_URL = (
   import.meta.env.VITE_EXPLORER_DATA_API_URL ||

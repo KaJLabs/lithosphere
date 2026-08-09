@@ -51,7 +51,7 @@ survives team turnover.
 | Decision / activity | Dev Infra | Validator Team | Validator Infra | Chain Team | Security Lead |
 |---|---|---|---|---|---|
 | Promote a validator to live block production          | I   | A,R | C   | C   | I   |
-| Decommission a validator (e.g. AWS 10.0.10.65 stale)  | I   | A,R | C   | C   | I   |
+| Decommission a stale validator from protected inventory | I   | A,R | C   | C   | I   |
 | Adjust `timeout_commit` or block-time params          | I   | C   | C   | A,R | I   |
 | Cosmos chain-ID change (700777-1 → 700777-2 etc.)     | I   | C   | C   | A,R | C   |
 | Hard-fork / consensus upgrade                         | C   | C   | C   | A,R | C   |

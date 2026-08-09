@@ -29,13 +29,7 @@
         "provider": "Lithosphere Foundation"
       }
     ],
-    "grpc": [
-      {
-        "address": "31.97.39.138:9090",
-        "provider": "Lithosphere Foundation",
-        "note": "Direct plaintext gRPC. grpc.litho.ai DNS pending."
-      }
-    ],
+    "grpc": [],
     "evmJsonRpc": [
       {
         "address": "https://evm-rpc.litho.ai",

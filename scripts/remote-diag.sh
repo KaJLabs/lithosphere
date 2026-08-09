@@ -12,7 +12,10 @@ curl -sf --max-time 5 http://localhost:9091/-/healthy && echo ' -> port 9091 hea
 
 echo ''
 echo '=== 2. CONNECTIVITY TO VALIDATOR/SENTRIES ==='
-for pair in '10.0.10.65:26660:validator-cometbft' '10.0.10.65:9100:validator-nodeexp' '10.0.1.218:26660:sentry01-cometbft' '10.0.1.218:9100:sentry01-nodeexp' '10.1.1.227:26660:sentry02-cometbft' '10.1.1.227:9100:sentry02-nodeexp'; do
+: "${MONITORING_VALIDATOR_HOST:?MONITORING_VALIDATOR_HOST is required}"
+: "${MONITORING_SENTRY1_HOST:?MONITORING_SENTRY1_HOST is required}"
+: "${MONITORING_SENTRY2_HOST:?MONITORING_SENTRY2_HOST is required}"
+for pair in "$MONITORING_VALIDATOR_HOST:26660:validator-cometbft" "$MONITORING_VALIDATOR_HOST:9100:validator-nodeexp" "$MONITORING_SENTRY1_HOST:26660:sentry01-cometbft" "$MONITORING_SENTRY1_HOST:9100:sentry01-nodeexp" "$MONITORING_SENTRY2_HOST:26660:sentry02-cometbft" "$MONITORING_SENTRY2_HOST:9100:sentry02-nodeexp"; do
   IP=$(echo "$pair" | cut -d: -f1)
   PORT=$(echo "$pair" | cut -d: -f2)
   LABEL=$(echo "$pair" | cut -d: -f3)

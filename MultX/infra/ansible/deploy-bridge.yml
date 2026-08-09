@@ -1,5 +1,5 @@
 ---
-# Deploy MultX Bridge stack to Indexer EC2 (10.0.10.16)
+# Deploy MultX Bridge stack to the protected-inventory monitoring host.
 # Services: bridge-postgres (5433), bridge-api (4001)
 #
 # Usage:
@@ -177,7 +177,7 @@
           ==========================================
           MultX Bridge Deployed
           ==========================================
-          API:      http://10.0.10.16:{{ bridge_port }}  (→ https://bridge.litho.ai)
+          API:      protected monitoring host:{{ bridge_port }}  (→ https://bridge.litho.ai)
           Postgres: 127.0.0.1:{{ bridge_db_port }}
           Contracts:
             Sepolia:      {{ bridge_contract_sepolia }}
@@ -223,7 +223,7 @@
           ==========================================
           Sentry-1 Nginx Updated
           ==========================================
-          bridge.litho.ai → 10.0.10.16:4001
+          bridge.litho.ai → protected monitoring host:4001
           TLS: {{ certbot_result.stdout_lines | default(['check certbot output']) | last }}
           Nginx: {{ 'reloaded' if nginx_test.rc == 0 else 'config test FAILED - check manually' }}
           ==========================================

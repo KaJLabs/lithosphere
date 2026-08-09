@@ -12,7 +12,7 @@
 >
 > **Do NOT run `ansible/playbooks/deploy-bridge.yml` or use `.env.bridge.example`.**
 > Those are stale pre-VPS-migration scaffolding (mock validators, AWS Indexer
-> 10.0.10.16, Sentry-1 nginx rewrite, dead chain id `lithosphere_700777-1`). The
+> the legacy protected-inventory indexer, Sentry-1 nginx rewrite, and dead chain ID `lithosphere_700777-1`). The
 > live bridge-api already runs on **vps2** (`/opt/bridge`) with **real KMS
 > multisig** signing and is served at `bridge.litho.ai` — running that playbook
 > would regress it and risk the Sentry-1 nginx. The bridge **backend** does not
@@ -106,7 +106,7 @@ Makalu→Sepolia/Base). Once both the bridge address and the route are known, in
    address + the route's destination chains), mirroring `KAMET_MAINNET`.
 
 > Note: bridge-api `LITHO_RPC_HTTP` for Kamet points at a direct sentry
-> (`http://31.97.39.146:8545`) to dodge the Cloudflare 2-level TLS gap; the
+> (a protected origin endpoint) to avoid the historical Cloudflare TLS gap; the
 > Makalu watcher should likewise use a working Makalu RPC (`https://rpc.litho.ai`
 > resolves to the mtest sentries today).
 

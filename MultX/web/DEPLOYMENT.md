@@ -81,7 +81,7 @@ Create `.env.local` or pass to Docker:
 VITE_RPC_URL=https://rpc.litho.ai
 VITE_REST_URL=https://api.litho.ai
 # grpc.litho.ai is pending DNS and cert issuance; use the current direct endpoint
-VITE_GRPC_URL=31.97.39.138:9090
+VITE_GRPC_URL=<KAMET_GRPC_ENDPOINT>
 VITE_EVM_RPC_URL=https://rpc.litho.ai
 
 # Chain Configuration
@@ -106,7 +106,7 @@ export const CHAIN_CONFIG = {
   chainName: 'Lithosphere Makalu',
   rpcUrl: 'https://rpc.litho.ai',
   restUrl: 'https://api.litho.ai',
-  grpcUrl: '31.97.39.138:9090',
+  grpcUrl: process.env.KAMET_GRPC_ENDPOINT,
 };
 ```
 
