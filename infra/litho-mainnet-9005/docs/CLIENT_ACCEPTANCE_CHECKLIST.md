@@ -76,7 +76,7 @@ written risk acceptance and review date.
 |---|---|---|---|---|
 | Single active validator and no active failover signer | `TBD` | KaJ Labs | `TBD` | [ ] |
 | No recurring encrypted backup of current signing state | `TBD` | KaJ Labs | `TBD` | [ ] |
-| Mainnet monitoring/no-block paging not configured in repo | `TBD` | KaJ Labs | `TBD` | [ ] |
+| Mainnet monitor/rules prepared but protected access and paging route not activated | `TBD` | KaJ Labs | `TBD` | [ ] |
 | Raw sentry node ports not yet restricted | `TBD` | KaJ Labs | `TBD` | [ ] |
 | Restore, failover, and transaction drills outstanding | `TBD` | KaJ Labs | `TBD` | [ ] |
 | Fixed-supply patch lacks independent external review | `TBD` | KaJ Labs | `TBD` | [ ] |

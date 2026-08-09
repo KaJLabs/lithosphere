@@ -122,7 +122,7 @@ Not enabled or not included:
 |---|---|---|
 | Critical | One validator is the entire active validator set | Client accepts the availability risk and approves a multi-validator or controlled failover roadmap. Never run a second signer with the same consensus key. |
 | Critical | Recurring live signing-state backup is not enabled (`backup_enabled: false`) | Implement encrypted backups of the current `priv_validator_state.json`, test restoration without starting a signer, define retention, and name two custodians. The launch-time height-0 identity package is not a current-state backup. |
-| High | Mainnet-specific Prometheus targets and no-block alert are not present in the repository monitoring configuration | Add all three nodes, page when no block is committed for more than two minutes, test routing, and assign 24/7 response ownership. |
+| High | Mainnet progression checks and Prometheus no-block rules are present, but protected credentials and 24/7 paging are not activated | Configure the `litho-mainnet-monitoring` environment, load the rules through private/allowlisted metrics paths, test routing, and assign primary plus backup response ownership. |
 | High | Raw sentry node ports remain available during integration | Restrict raw RPC/REST/gRPC/EVM ports after consumers move to TLS endpoints; retain required P2P access. |
 | High | Restore, failover, and transaction drills remain unrecorded | Execute controlled drills and retain evidence before claiming full operational readiness. |
 | High | Consensus-critical fixed-supply patch has internal review only | Obtain an external review or record explicit client risk acceptance. |

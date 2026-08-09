@@ -1,0 +1,71 @@
+name: LITHO Mainnet Chain Monitor
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  progression:
+    runs-on: ubuntu-latest
+    environment: litho-mainnet-monitoring
+    env:
+      MONITOR_SSH_KEY: ${{ secrets.MONITOR_SSH_KEY }}
+      MONITOR_KNOWN_HOSTS: ${{ secrets.MONITOR_KNOWN_HOSTS }}
+      MONITOR_SSH_USER: ${{ vars.MONITOR_SSH_USER || 'lithoadmin' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate protected monitor configuration
+        shell: bash
+        run: |
+          for name in MONITOR_SSH_KEY MONITOR_KNOWN_HOSTS MONITOR_SSH_USER; do
+            [[ -n "${!name:-}" ]] || { echo "Missing protected environment value: $name"; exit 1; }
+          done
+
+      - name: Configure pinned SSH trust
+        shell: bash
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$MONITOR_SSH_KEY" > ~/.ssh/litho-monitor
+          printf '%s\n' "$MONITOR_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/litho-monitor ~/.ssh/known_hosts
+
+      - name: Check every consensus node twice
+        id: monitor
+        continue-on-error: true
+        shell: bash
+        run: |
+          python infra/litho-mainnet-9005/scripts/monitor_mainnet_progression.py \
+            --ssh-key ~/.ssh/litho-monitor \
+            --ssh-user "$MONITOR_SSH_USER" \
+            --sample-seconds 30 | tee /tmp/litho-mainnet-monitor.json
+
+      - name: Open one deduplicated incident issue
+        if: steps.monitor.outcome == 'failure'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = 'LITHO mainnet progression alert';
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            if (!issues.some(issue => issue.title === title && !issue.pull_request)) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body: `The protected five-minute consensus progression check failed.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nTreat this as a P0 until chain progression and validator signing are independently confirmed. Do not restart or restore the validator without the single-writer and signing-state recovery gates.`,
+              });
+            }
+
+      - name: Fail after incident creation
+        if: steps.monitor.outcome == 'failure'
+        run: exit 1

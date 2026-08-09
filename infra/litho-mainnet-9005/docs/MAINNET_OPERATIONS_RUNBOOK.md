@@ -186,6 +186,14 @@ requests/second/IP, with bounded bursts. Raw node ports are temporary
 integration paths, not preferred production interfaces; close them after
 dependency confirmation while retaining required P2P traffic.
 
+The repository includes a read-only five-minute progression workflow and
+Prometheus rules under `monitoring/prometheus/`. They check all three nodes,
+chain identity, height advancement, peer floors, validator signing and missing
+metrics. They are not an accepted paging control until the protected
+`litho-mainnet-monitoring` environment has a restricted SSH identity, pinned
+host keys, a tested Alertmanager/on-call route, and named primary plus backup
+responders. Consensus metrics must remain private or allowlisted.
+
 ## 8. Change and maintenance procedure
 
 For every change:

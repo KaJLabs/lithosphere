@@ -5,11 +5,13 @@ on:
     paths:
       - "infra/litho-mainnet-9005/**"
       - ".github/workflows/ci-mainnet-infra.yaml"
+      - ".github/workflows/mainnet-chain-monitor.yaml"
   push:
     branches: [main]
     paths:
       - "infra/litho-mainnet-9005/**"
       - ".github/workflows/ci-mainnet-infra.yaml"
+      - ".github/workflows/mainnet-chain-monitor.yaml"
 
 permissions:
   contents: read
@@ -26,4 +28,10 @@ jobs:
         run: python -m compileall -q infra/litho-mainnet-9005/scripts
       - name: Test validator intake gates
         run: python -m unittest discover -s infra/litho-mainnet-9005/scripts/tests -v
-
+      - name: Validate Prometheus alert rules
+        run: >-
+          docker run --rm
+          -v "$PWD:/workspace:ro"
+          prom/prometheus:v2.48.1
+          promtool check rules
+          /workspace/infra/litho-mainnet-9005/monitoring/prometheus/litho-mainnet-9005-alerts.yml

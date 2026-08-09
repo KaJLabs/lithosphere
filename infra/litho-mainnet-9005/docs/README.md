@@ -142,9 +142,10 @@ The no-message launch behavior is documented in
    EVM chain ID `9005`.
 5. Preserve the pinned mainnet binary and final genesis checksums.
 6. Periodically verify both encrypted offline validator identity backups.
-7. DNS, TLS, and proxy rate limiting are active. Add mainnet monitoring and
-   paging, implement recurring live signing-state backups, and restrict raw
-   node ports after integration consumers move to the TLS endpoints.
+7. DNS, TLS, and proxy rate limiting are active. Mainnet progression and
+   Prometheus alert definitions are prepared; configure protected monitoring
+   access and paging, implement recurring live signing-state backups, and
+   restrict raw node ports after integration consumers move to the TLS endpoints.
 8. **Completed 2026-07-31:** the isolated mainnet Lithoscan indexer was
    synchronized, `lithoscan.ai` was switched to mainnet, and public smoke,
    synchronization, and rollback-closeout checks passed.
