@@ -22,7 +22,7 @@
     "@sentry/browser": "^10.49.0",
     "@walletconnect/ethereum-provider": "^2.23.9",
     "@web3modal/ethers": "^5.1.11",
-    "axios": "^1.4.0",
+    "axios": "^1.18.0",
     "bech32": "^2.0.0",
     "chart.js": "^4.3.0",
     "classnames": "^2.3.2",
@@ -57,6 +57,11 @@
     "vite": "^7.3.2",
     "vite-plugin-node-polyfills": "^0.26.0",
     "vite-plugin-svgr": "^5.2.0",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "@coinbase/wallet-sdk": "^4.3.7",
+    "axios": "^1.18.0",
+    "ws": "^8.21.0"
   }
 }
