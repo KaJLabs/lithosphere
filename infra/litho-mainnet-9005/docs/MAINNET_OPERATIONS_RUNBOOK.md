@@ -159,6 +159,13 @@ Two encrypted offline copies of the launch-time identity package were
 client-confirmed, but that height-0 package does not contain current signing
 state. Recurring live signing-state backup is an open Critical gate.
 
+The repository now contains the encrypted streaming implementation, restricted
+export-only Ansible playbook, scheduled workflow, and offline verification
+procedure in [SIGNING_STATE_BACKUP_RUNBOOK.md](SIGNING_STATE_BACKUP_RUNBOOK.md).
+The gate remains open until the client provisions the protected environments,
+names two recovery custodians, completes a scheduled backup, and passes an
+isolated restore-verification drill.
+
 Before operational acceptance, the client must define and test a process that:
 
 - snapshots the current `priv_validator_state.json` consistently;

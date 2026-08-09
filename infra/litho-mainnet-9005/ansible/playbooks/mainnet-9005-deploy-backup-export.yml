@@ -1,0 +1,60 @@
+---
+- name: Install restricted LITHO validator backup export identity
+  hosts: validators
+  become: true
+  serial: 1
+  vars:
+    signing_state_backup_user: lithobackup
+    signing_state_backup_public_key: ""
+  pre_tasks:
+    - name: Require an explicitly supplied backup public key
+      ansible.builtin.assert:
+        that:
+          - signing_state_backup_public_key is string
+          - signing_state_backup_public_key is match('^ssh-(ed25519|rsa) [A-Za-z0-9+/=]+(?: .*)?$')
+          - "'REPLACE' not in signing_state_backup_public_key"
+        fail_msg: Supply the restricted backup SSH public key through Ansible Vault or protected extra vars.
+
+  tasks:
+    - name: Create locked export-only account
+      ansible.builtin.user:
+        name: "{{ signing_state_backup_user }}"
+        shell: /bin/sh
+        create_home: true
+        password: "!"
+        update_password: on_create
+
+    - name: Create export-only SSH directory
+      ansible.builtin.file:
+        path: "/home/{{ signing_state_backup_user }}/.ssh"
+        state: directory
+        owner: "{{ signing_state_backup_user }}"
+        group: "{{ signing_state_backup_user }}"
+        mode: "0700"
+
+    - name: Install root-owned signing-state exporter
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../scripts/litho-signing-state-export"
+        dest: /usr/local/sbin/litho-signing-state-export
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Permit only the exporter under the litho service account
+      ansible.builtin.copy:
+        dest: /etc/sudoers.d/litho-signing-state-export
+        owner: root
+        group: root
+        mode: "0440"
+        validate: /usr/sbin/visudo -cf %s
+        content: |
+          {{ signing_state_backup_user }} ALL=(litho) NOPASSWD: /usr/local/sbin/litho-signing-state-export
+
+    - name: Pin the forced export command to the supplied key
+      ansible.builtin.copy:
+        dest: "/home/{{ signing_state_backup_user }}/.ssh/authorized_keys"
+        owner: "{{ signing_state_backup_user }}"
+        group: "{{ signing_state_backup_user }}"
+        mode: "0600"
+        content: >-
+          command="/usr/bin/sudo -n -u litho /usr/local/sbin/litho-signing-state-export",no-agent-forwarding,no-port-forwarding,no-pty,no-user-rc,no-X11-forwarding {{ signing_state_backup_public_key }}

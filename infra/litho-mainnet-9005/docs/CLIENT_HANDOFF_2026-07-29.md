@@ -121,7 +121,7 @@ Not enabled or not included:
 | Priority | Gate | Required closure |
 |---|---|---|
 | Critical | One validator is the entire active validator set | Client accepts the availability risk and approves a multi-validator or controlled failover roadmap. Never run a second signer with the same consensus key. |
-| Critical | Recurring live signing-state backup is not enabled (`backup_enabled: false`) | Implement encrypted backups of the current `priv_validator_state.json`, test restoration without starting a signer, define retention, and name two custodians. The launch-time height-0 identity package is not a current-state backup. |
+| Critical | Recurring encrypted signing-state backup is implemented but not activated or restore-tested (`backup_enabled: false`) | Configure the protected export/recipient credentials, complete a scheduled ciphertext backup, test verification without starting a signer, define retention, and name two custodians. |
 | High | Mainnet progression checks and Prometheus no-block rules are present, but protected credentials and 24/7 paging are not activated | Configure the `litho-mainnet-monitoring` environment, load the rules through private/allowlisted metrics paths, test routing, and assign primary plus backup response ownership. |
 | High | Raw sentry node ports remain available during integration | Restrict raw RPC/REST/gRPC/EVM ports after consumers move to TLS endpoints; retain required P2P access. |
 | High | Restore, failover, and transaction drills remain unrecorded | Execute controlled drills and retain evidence before claiming full operational readiness. |

@@ -75,7 +75,7 @@ written risk acceptance and review date.
 | Risk/gate | Closure or acceptance reference | Owner | Review date | Done |
 |---|---|---|---|---|
 | Single active validator and no active failover signer | `TBD` | KaJ Labs | `TBD` | [ ] |
-| No recurring encrypted backup of current signing state | `TBD` | KaJ Labs | `TBD` | [ ] |
+| Signing-state backup prepared but protected activation/restore drill pending | `TBD` | KaJ Labs | `TBD` | [ ] |
 | Mainnet monitor/rules prepared but protected access and paging route not activated | `TBD` | KaJ Labs | `TBD` | [ ] |
 | Raw sentry node ports not yet restricted | `TBD` | KaJ Labs | `TBD` | [ ] |
 | Restore, failover, and transaction drills outstanding | `TBD` | KaJ Labs | `TBD` | [ ] |
