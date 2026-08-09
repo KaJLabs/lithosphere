@@ -13,11 +13,9 @@
  * stay distinct from the Kamet-origin `w`-prefixed wrapped tokens already on
  * the dest bridge.
  *
- * OWNER KEY: `addSupportedToken` is onlyOwner on the dest bridge, whose owner is
- * the DNNS deployer 0x67317166F2cAc192fA3485856ffe4bB0b17A713C (secret
- * litho/dnns/deployer-key) — NOT the LEP100 deployer 0x10ed…. Run this with
- * DEPLOYER_PRIVATE_KEY set to the 0x6731 key; the script asserts signer==owner.
- * 0x6731 was funded on both chains via packages/dnns-faucet (2026-06-17).
+ * OWNER KEY: `addSupportedToken` is onlyOwner on the destination bridge. Read
+ * the current owner on-chain and load its key from the approved secret manager;
+ * the script asserts signer==owner. Ensure that owner is funded on both chains.
  *
  * Usage (run once per dest chain):
  *   DEPLOYER_PRIVATE_KEY=<0x6731 key> \
@@ -77,7 +75,7 @@ async function main() {
   const owner = await bridge.owner();
   if (owner.toLowerCase() !== signer.address.toLowerCase()) {
     console.error(`ERROR: signer ${signer.address} is not the dest bridge owner (${owner}).`);
-    console.error("Run with DEPLOYER_PRIVATE_KEY = the dest-bridge owner key (DNNS deployer 0x6731…, secret litho/dnns/deployer-key).");
+    console.error("Run with DEPLOYER_PRIVATE_KEY set to the current destination-bridge owner key from the approved secret manager.");
     process.exit(1);
   }
 

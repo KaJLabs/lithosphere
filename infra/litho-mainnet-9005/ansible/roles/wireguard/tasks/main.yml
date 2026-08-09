@@ -82,6 +82,7 @@
     owner: root
     group: root
     mode: '0600'
+  no_log: true
   notify: restart wireguard
 
 - name: Enable IP forwarding for WireGuard

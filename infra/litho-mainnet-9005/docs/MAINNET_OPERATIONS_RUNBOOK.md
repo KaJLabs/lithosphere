@@ -68,7 +68,10 @@ From an authorized operator workstation with a client-managed SSH key:
 
 ```powershell
 python scripts\verify_litho_mainnet_9005_live.py `
-  --ssh-key "C:\secure-path\litho-validator"
+  --ssh-key "C:\secure-path\litho-validator" `
+  --validator-host "$env:LITHO_VALIDATOR_HOST" `
+  --sentry1-host "$env:LITHO_SENTRY1_HOST" `
+  --sentry2-host "$env:LITHO_SENTRY2_HOST"
 ```
 
 The read-only verifier requires strict known-host checking and validates all
@@ -79,11 +82,11 @@ SSH options to bypass a host-key mismatch; investigate the mismatch.
 
 ## 4. Service map and local checks
 
-| Role | SSH host | Service | Local Comet RPC | Local EVM RPC |
+| Role | SSH host source | Service | Local Comet RPC | Local EVM RPC |
 |---|---|---|---|---|
-| Validator | `194.5.157.233` | `lithod-mainnet-9005-val` | `127.0.0.1:26657` | `127.0.0.1:8545` |
-| Sentry 1 | `31.97.39.146` | `lithod-mainnet-9005-sentry` | `127.0.0.1:27057` | `127.0.0.1:8945` |
-| Sentry 2 | `72.60.177.106` | `lithod-mainnet-9005-sentry` | `127.0.0.1:27057` | `127.0.0.1:8945` |
+| Validator | `LITHO_VALIDATOR_HOST` / protected inventory | `lithod-mainnet-9005-val` | `127.0.0.1:26657` | `127.0.0.1:8545` |
+| Sentry 1 | `LITHO_SENTRY1_HOST` / protected inventory | `lithod-mainnet-9005-sentry` | `127.0.0.1:27057` | `127.0.0.1:8945` |
+| Sentry 2 | `LITHO_SENTRY2_HOST` / protected inventory | `lithod-mainnet-9005-sentry` | `127.0.0.1:27057` | `127.0.0.1:8945` |
 
 On an affected host:
 

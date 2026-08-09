@@ -27,10 +27,10 @@ class Node:
     minimum_peers: int
 
 
-NODES = (
-    Node("validator", "194.5.157.233", "lithod-mainnet-9005-val", 26657, 8545, 2),
-    Node("sentry1", "31.97.39.146", "lithod-mainnet-9005-sentry", 27057, 8945, 1),
-    Node("sentry2", "72.60.177.106", "lithod-mainnet-9005-sentry", 27057, 8945, 1),
+NODE_SPECS = (
+    Node("validator", "", "lithod-mainnet-9005-val", 26657, 8545, 2),
+    Node("sentry1", "", "lithod-mainnet-9005-sentry", 27057, 8945, 1),
+    Node("sentry2", "", "lithod-mainnet-9005-sentry", 27057, 8945, 1),
 )
 
 EXPECTED_BALANCES = {
@@ -121,8 +121,22 @@ def verify_node(node: Node, ssh_key: str) -> dict:
     }
 
 
-def verify_validator_state(ssh_key: str) -> dict:
-    node = NODES[0]
+def build_nodes(validator_host: str, sentry1_host: str, sentry2_host: str) -> tuple[Node, ...]:
+    hosts = (validator_host, sentry1_host, sentry2_host)
+    return tuple(
+        Node(
+            spec.name,
+            host,
+            spec.service,
+            spec.comet_port,
+            spec.evm_port,
+            spec.minimum_peers,
+        )
+        for spec, host in zip(NODE_SPECS, hosts, strict=True)
+    )
+
+
+def verify_validator_state(node: Node, ssh_key: str) -> dict:
     supply_response = remote_json(
         node,
         ssh_key,
@@ -163,9 +177,11 @@ def verify_validator_state(ssh_key: str) -> dict:
     }
 
 
-def verify_common_block(ssh_key: str, height: int = 1) -> str:
+def verify_common_block(
+    nodes: tuple[Node, ...], ssh_key: str, height: int = 1
+) -> str:
     hashes = {}
-    for node in NODES:
+    for node in nodes:
         block = remote_json(
             node,
             ssh_key,
@@ -180,11 +196,17 @@ def verify_common_block(ssh_key: str, height: int = 1) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ssh-key", required=True)
+    parser.add_argument("--validator-host", required=True)
+    parser.add_argument("--sentry1-host", required=True)
+    parser.add_argument("--sentry2-host", required=True)
     args = parser.parse_args()
+    node_specs = build_nodes(
+        args.validator_host, args.sentry1_host, args.sentry2_host
+    )
     try:
-        nodes = {node.name: verify_node(node, args.ssh_key) for node in NODES}
-        chain = verify_validator_state(args.ssh_key)
-        chain["height_1_hash"] = verify_common_block(args.ssh_key, 1)
+        nodes = {node.name: verify_node(node, args.ssh_key) for node in node_specs}
+        chain = verify_validator_state(node_specs[0], args.ssh_key)
+        chain["height_1_hash"] = verify_common_block(node_specs, args.ssh_key, 1)
     except Exception as error:
         print(f"LIVE_VERIFICATION=failed\nERROR={error}", file=sys.stderr)
         return 1

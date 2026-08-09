@@ -5,25 +5,23 @@ launched, independently reverified, and cutover-accepted**.
 
 ## Selected topology
 
-| Role | Host | Mainnet service | Mainnet home | Notes |
+| Role | Host source | Mainnet service | Mainnet home | Notes |
 |---|---|---|---|---|
-| Validator | `194.5.157.233` | `lithod-mainnet-9005-val` | `/var/lib/litho-mainnet-9005-val` | Dedicated validator; no public RPC/API |
-| Sentry/RPC 1 | `31.97.39.146` | `lithod-mainnet-9005-sentry` | `/var/lib/litho-mainnet-9005-sentry` | Replaces only obsolete `700777-1` sentry slot |
-| Sentry/RPC 2 | `72.60.177.106` | `lithod-mainnet-9005-sentry` | `/var/lib/litho-mainnet-9005-sentry` | Replaces only obsolete `700777-1` sentry slot |
+| Validator | Protected inventory | `lithod-mainnet-9005-val` | `/var/lib/litho-mainnet-9005-val` | Dedicated validator; no public RPC/API |
+| Sentry/RPC 1 | Protected inventory | `lithod-mainnet-9005-sentry` | `/var/lib/litho-mainnet-9005-sentry` | Replaces only obsolete `700777-1` sentry slot |
+| Sentry/RPC 2 | Protected inventory | `lithod-mainnet-9005-sentry` | `/var/lib/litho-mainnet-9005-sentry` | Replaces only obsolete `700777-1` sentry slot |
 
 AWS is not part of this topology. The active Makalu and Kamet services on the
 two shared VPS hosts remain in place.
 
-The other available VPS hosts were not selected: `31.97.39.138` is at 69% disk
-usage and carries four node processes, while `187.124.51.229` already carries
-six node processes and had materially higher load during the 2026-07-22
-capacity check. They remain emergency capacity, not launch dependencies.
+Other available VPS hosts were not selected because of their existing process,
+disk, and load profiles during the 2026-07-22 capacity check. They remain
+emergency capacity in the protected inventory, not launch dependencies.
 
 ## Isolation
 
-- Mainnet mesh: `10.200.5.0/24`, interface `wg-mainnet`, UDP `51825`.
-- Validator mesh address: `10.200.5.1`.
-- Sentry mesh addresses: `10.200.5.2` and `10.200.5.3`.
+- Mainnet mesh addresses and WireGuard public keys are maintained in the
+  client-controlled private inventory; the interface is `wg-mainnet`.
 - Validator RPC, REST, gRPC, EVM RPC, and WebSocket bind to loopback only.
 - Sentries reuse the obsolete fork's isolated slots: Comet P2P/RPC/metrics
   `27056/27057/27060`, REST `1717`, gRPC `9490`, EVM RPC/WS `8945/8946`.
@@ -42,8 +40,8 @@ Approved names:
 - Final genesis: `https://rpc-mainnet.litho.ai/genesis.json`
 
 The endpoints were published and externally validated on 2026-07-28. RPC and
-API route through sentry 1 (`31.97.39.146`); gRPC routes through sentry 2
-(`72.60.177.106`) because sentry 1 already uses port `9090` for another chain.
+API route through sentry 1; gRPC routes through sentry 2 because sentry 1
+already uses the standard gRPC port for another chain.
 Both sentries returned EVM chain ID `9005`, Cosmos chain ID
 `lithosphere_9005-1`, and matching chain state before publication.
 
@@ -54,8 +52,8 @@ Transaction broadcast and administrative CometBFT routes are not published.
 
 ## Safe execution order
 
-1. **Complete (2026-07-23):** install the deployment SSH public key on
-   `194.5.157.233` and verify key-only login.
+1. **Complete (2026-07-23):** install the deployment SSH public key on the
+   protected-inventory validator host and verify key-only login.
 2. **Complete (2026-07-23):** verify validator capacity. Observed Ubuntu 26.04
    LTS, x86_64, 8 vCPU, 31 GiB RAM, 385 GiB free disk, synchronized UTC clock,
    and no conflicts on the planned mainnet ports.

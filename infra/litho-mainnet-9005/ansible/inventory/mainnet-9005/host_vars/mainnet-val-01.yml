@@ -16,15 +16,15 @@ evm_rpc_address: "127.0.0.1:8545"
 evm_ws_address: "127.0.0.1:8546"
 prometheus_listen_addr: "127.0.0.1:26660"
 
-wireguard_address: "10.200.5.1"
+wireguard_address: "{{ mainnet_validator_wg_ip }}"
 wireguard_peers:
   - name: mainnet-sentry-01
     public_key: "{{ mainnet_sentry1_wg_public_key }}"
-    endpoint: "31.97.39.146:51825"
-    allowed_ips: ["10.200.5.2/32"]
+    endpoint: "{{ hostvars['mainnet-sentry-01'].ansible_host }}:{{ wireguard_port }}"
+    allowed_ips: ["{{ mainnet_sentry1_wg_ip }}/32"]
     persistent_keepalive: 25
   - name: mainnet-sentry-02
     public_key: "{{ mainnet_sentry2_wg_public_key }}"
-    endpoint: "72.60.177.106:51825"
-    allowed_ips: ["10.200.5.3/32"]
+    endpoint: "{{ hostvars['mainnet-sentry-02'].ansible_host }}:{{ wireguard_port }}"
+    allowed_ips: ["{{ mainnet_sentry2_wg_ip }}/32"]
     persistent_keepalive: 25

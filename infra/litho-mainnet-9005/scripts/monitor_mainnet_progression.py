@@ -25,11 +25,19 @@ class Node:
     minimum_peers: int
 
 
-NODES = (
-    Node("validator", "194.5.157.233", "lithod-mainnet-9005-val", 26657, 2),
-    Node("sentry1", "31.97.39.146", "lithod-mainnet-9005-sentry", 27057, 1),
-    Node("sentry2", "72.60.177.106", "lithod-mainnet-9005-sentry", 27057, 1),
+NODE_SPECS = (
+    Node("validator", "", "lithod-mainnet-9005-val", 26657, 2),
+    Node("sentry1", "", "lithod-mainnet-9005-sentry", 27057, 1),
+    Node("sentry2", "", "lithod-mainnet-9005-sentry", 27057, 1),
 )
+
+
+def build_nodes(validator_host: str, sentry1_host: str, sentry2_host: str) -> tuple[Node, ...]:
+    hosts = (validator_host, sentry1_host, sentry2_host)
+    return tuple(
+        Node(spec.name, host, spec.service, spec.comet_port, spec.minimum_peers)
+        for spec, host in zip(NODE_SPECS, hosts, strict=True)
+    )
 
 
 def ssh(node: Node, user: str, ssh_key: str, command: str) -> str:
@@ -86,11 +94,13 @@ def sample_node(node: Node, user: str, ssh_key: str) -> dict[str, object]:
     }
 
 
-def sample_all(user: str, ssh_key: str) -> dict[str, dict[str, object]]:
-    with ThreadPoolExecutor(max_workers=len(NODES)) as executor:
+def sample_all(
+    user: str, ssh_key: str, nodes: tuple[Node, ...]
+) -> dict[str, dict[str, object]]:
+    with ThreadPoolExecutor(max_workers=len(nodes)) as executor:
         futures = {
             node.name: executor.submit(sample_node, node, user, ssh_key)
-            for node in NODES
+            for node in nodes
         }
         return {name: future.result() for name, future in futures.items()}
 
@@ -98,7 +108,7 @@ def sample_all(user: str, ssh_key: str) -> dict[str, dict[str, object]]:
 def evaluate_progression(
     first: dict[str, dict[str, object]],
     second: dict[str, dict[str, object]],
-    nodes: tuple[Node, ...] = NODES,
+    nodes: tuple[Node, ...] = NODE_SPECS,
     max_height_spread: int = 20,
 ) -> dict[str, object]:
     checks: dict[str, bool] = {}
@@ -129,6 +139,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ssh-key", required=True)
     parser.add_argument("--ssh-user", default="lithomonitor")
+    parser.add_argument("--validator-host", required=True)
+    parser.add_argument("--sentry1-host", required=True)
+    parser.add_argument("--sentry2-host", required=True)
     parser.add_argument("--sample-seconds", type=int, default=30)
     parser.add_argument("--max-height-spread", type=int, default=20)
     args = parser.parse_args()
@@ -138,12 +151,14 @@ def main() -> int:
     if args.max_height_spread < 0:
         parser.error("--max-height-spread must not be negative")
 
+    nodes = build_nodes(args.validator_host, args.sentry1_host, args.sentry2_host)
+
     try:
-        first = sample_all(args.ssh_user, args.ssh_key)
+        first = sample_all(args.ssh_user, args.ssh_key, nodes)
         time.sleep(args.sample_seconds)
-        second = sample_all(args.ssh_user, args.ssh_key)
+        second = sample_all(args.ssh_user, args.ssh_key, nodes)
         result = evaluate_progression(
-            first, second, max_height_spread=args.max_height_spread
+            first, second, nodes=nodes, max_height_spread=args.max_height_spread
         )
     except Exception as error:
         print(json.dumps({"healthy": False, "error": str(error)}, indent=2))

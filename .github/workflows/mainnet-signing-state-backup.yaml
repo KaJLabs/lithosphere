@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: litho-mainnet-backup
     env:
-      BACKUP_HOST: ${{ vars.BACKUP_HOST || '194.5.157.233' }}
+      BACKUP_HOST: ${{ secrets.BACKUP_HOST }}
       BACKUP_SSH_USER: ${{ vars.BACKUP_SSH_USER || 'lithobackup' }}
       BACKUP_SSH_KEY: ${{ secrets.BACKUP_SSH_KEY }}
       BACKUP_KNOWN_HOSTS: ${{ secrets.BACKUP_KNOWN_HOSTS }}

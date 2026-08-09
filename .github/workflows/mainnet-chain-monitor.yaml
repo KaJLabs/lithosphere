@@ -16,6 +16,9 @@ jobs:
     env:
       MONITOR_SSH_KEY: ${{ secrets.MONITOR_SSH_KEY }}
       MONITOR_KNOWN_HOSTS: ${{ secrets.MONITOR_KNOWN_HOSTS }}
+      MONITOR_VALIDATOR_HOST: ${{ secrets.MONITOR_VALIDATOR_HOST }}
+      MONITOR_SENTRY1_HOST: ${{ secrets.MONITOR_SENTRY1_HOST }}
+      MONITOR_SENTRY2_HOST: ${{ secrets.MONITOR_SENTRY2_HOST }}
       MONITOR_SSH_USER: ${{ vars.MONITOR_SSH_USER || 'lithomonitor' }}
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +26,7 @@ jobs:
       - name: Validate protected monitor configuration
         shell: bash
         run: |
-          for name in MONITOR_SSH_KEY MONITOR_KNOWN_HOSTS MONITOR_SSH_USER; do
+          for name in MONITOR_SSH_KEY MONITOR_KNOWN_HOSTS MONITOR_VALIDATOR_HOST MONITOR_SENTRY1_HOST MONITOR_SENTRY2_HOST MONITOR_SSH_USER; do
             [[ -n "${!name:-}" ]] || { echo "Missing protected environment value: $name"; exit 1; }
           done
 
@@ -43,6 +46,9 @@ jobs:
           python infra/litho-mainnet-9005/scripts/monitor_mainnet_progression.py \
             --ssh-key ~/.ssh/litho-monitor \
             --ssh-user "$MONITOR_SSH_USER" \
+            --validator-host "$MONITOR_VALIDATOR_HOST" \
+            --sentry1-host "$MONITOR_SENTRY1_HOST" \
+            --sentry2-host "$MONITOR_SENTRY2_HOST" \
             --sample-seconds 30 | tee /tmp/litho-mainnet-monitor.json
 
       - name: Open one deduplicated incident issue

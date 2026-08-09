@@ -20,14 +20,31 @@
     - name: Verify node and WireGuard ceremonies are complete
       ansible.builtin.assert:
         that:
-          - not mainnet_validator_node_id.startswith('PENDING_')
-          - not mainnet_sentry1_node_id.startswith('PENDING_')
-          - not mainnet_sentry2_node_id.startswith('PENDING_')
-          - not mainnet_validator_wg_public_key.startswith('PENDING_')
-          - not mainnet_sentry1_wg_public_key.startswith('PENDING_')
-          - not mainnet_sentry2_wg_public_key.startswith('PENDING_')
-        fail_msg: "Run the mainnet node/WireGuard key ceremony and replace all PENDING_* values."
+          - not mainnet_validator_node_id.startswith('REPLACE_')
+          - not mainnet_sentry1_node_id.startswith('REPLACE_')
+          - not mainnet_sentry2_node_id.startswith('REPLACE_')
+          - not mainnet_validator_wg_public_key.startswith('REPLACE_')
+          - not mainnet_sentry1_wg_public_key.startswith('REPLACE_')
+          - not mainnet_sentry2_wg_public_key.startswith('REPLACE_')
+          - not mainnet_validator_wg_ip.startswith('REPLACE_')
+          - not mainnet_sentry1_wg_ip.startswith('REPLACE_')
+          - not mainnet_sentry2_wg_ip.startswith('REPLACE_')
+          - not wireguard_network.startswith('REPLACE_')
+        fail_msg: >-
+          The committed inventory is a sanitized public template. Supply the
+          client-controlled private inventory before running any playbook.
       run_once: true
+
+    - name: Verify every host comes from the private inventory
+      ansible.builtin.assert:
+        that:
+          - ansible_host is defined
+          - not ansible_host.startswith('REPLACE_')
+          - ansible_user is defined
+          - not ansible_user.startswith('REPLACE_')
+        fail_msg: >-
+          Each node address and administrative account must be supplied by the
+          client-controlled private inventory.
 
     - name: Check final genesis exists on the controller
       ansible.builtin.stat:

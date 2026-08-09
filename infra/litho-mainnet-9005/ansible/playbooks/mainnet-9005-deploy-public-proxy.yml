@@ -16,7 +16,7 @@
     # Production Lithoscan/indexer origin. Its replay traffic is trusted and
     # bypasses only Nginx request/connection accounting; all RPC route and
     # method restrictions remain enforced.
-    mainnet_proxy_trusted_indexer_ip: "93.115.16.13"
+    mainnet_proxy_trusted_indexer_ip: ""
     mainnet_proxy_tls_certificate: ""
     mainnet_proxy_tls_certificate_key: ""
     mainnet_proxy_config_path: /etc/nginx/conf.d/litho-mainnet-9005.conf
@@ -33,11 +33,14 @@
         that:
           - mainnet_proxy_confirm | bool
           - mainnet_proxy_enable_rpc_api | bool or mainnet_proxy_enable_grpc | bool
+          - mainnet_proxy_trusted_indexer_ip | length > 0
+          - not mainnet_proxy_trusted_indexer_ip.startswith('REPLACE_')
           - mainnet_proxy_tls_certificate | length > 0
           - mainnet_proxy_tls_certificate_key | length > 0
         fail_msg: >-
-          Publication is gated. Pass mainnet_proxy_confirm=true and the
-          existing TLS certificate/key paths only after DNS is configured.
+          Publication is gated. Pass mainnet_proxy_confirm=true, the private
+          indexer origin address, and existing TLS certificate/key paths only
+          after DNS is configured.
 
     - name: Verify the local mainnet Cosmos identity before proxy deployment
       ansible.builtin.uri:

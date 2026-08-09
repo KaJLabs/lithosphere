@@ -10,8 +10,8 @@
 //   OWNER_PRIVATE_KEY=0x... node scripts/governance/rotate-dest-validators.js <sepolia|base>
 //   (add DRY_RUN=1 to only read + print the intended change)
 //
-// The owner key is the DNNS deployer (0x6731…713C) — pull it from Secrets
-// Manager (litho/dnns/deployer-key) into OWNER_PRIVATE_KEY; never hardcode it.
+// Pull the current on-chain owner's key from the approved secret manager into
+// OWNER_PRIVATE_KEY; never hardcode it or name its storage path.
 
 const { ethers } = require('ethers');
 

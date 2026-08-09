@@ -38,7 +38,7 @@ and LEP100 fungible tokens. Detailed implementation guidance is provided in:
 | gRPC | `grpc-mainnet.litho.ai:9090` |
 | Read-only CometBFT RPC | `https://rpc-mainnet.litho.ai/status` and allowlisted query routes |
 | Explorer | `https://lithoscan.ai`; production cutover accepted 2026-07-31 |
-| Public P2P peers | `76cadd27f507c401f58c1335c3f5ece39412f179@31.97.39.146:27056`,`94aa07934bc0614134056bcfe90feb0d214a6e66@72.60.177.106:27056` |
+| Public P2P peers | Obtain the current peer list from the KaJ Labs operator-maintained peer registry; do not pin historical origin addresses. |
 | Fixed native supply | `1,000,000,000 LITHO` |
 | Measured block interval | 0.525 seconds average over heights 177439–178439 on 2026-07-29 |
 

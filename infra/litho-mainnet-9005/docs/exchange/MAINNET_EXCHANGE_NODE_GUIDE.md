@@ -138,7 +138,7 @@ unsafe = false
 laddr = "tcp://0.0.0.0:26656"
 external_address = ""
 seeds = ""
-persistent_peers = "76cadd27f507c401f58c1335c3f5ece39412f179@31.97.39.146:27056,94aa07934bc0614134056bcfe90feb0d214a6e66@72.60.177.106:27056"
+persistent_peers = "<CURRENT_PEERS_FROM_KAJ_LABS_OPERATOR_REGISTRY>"
 pex = true
 
 [tx_index]

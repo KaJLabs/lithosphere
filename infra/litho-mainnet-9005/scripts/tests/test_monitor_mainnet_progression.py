@@ -38,16 +38,16 @@ class ProgressionTests(unittest.TestCase):
         self.assertTrue(result["healthy"])
 
     def test_rejects_a_stalled_node(self):
-        first = {node.name: sample(100, node.minimum_peers) for node in MODULE.NODES}
-        second = {node.name: sample(120, node.minimum_peers) for node in MODULE.NODES}
+        first = {node.name: sample(100, node.minimum_peers) for node in MODULE.NODE_SPECS}
+        second = {node.name: sample(120, node.minimum_peers) for node in MODULE.NODE_SPECS}
         second["sentry2"]["height"] = 100
         result = MODULE.evaluate_progression(first, second)
         self.assertFalse(result["healthy"])
         self.assertFalse(result["checks"]["sentry2_height_advanced"])
 
     def test_rejects_wrong_chain_or_peer_floor(self):
-        first = {node.name: sample(100, node.minimum_peers) for node in MODULE.NODES}
-        second = {node.name: sample(120, node.minimum_peers) for node in MODULE.NODES}
+        first = {node.name: sample(100, node.minimum_peers) for node in MODULE.NODE_SPECS}
+        second = {node.name: sample(120, node.minimum_peers) for node in MODULE.NODE_SPECS}
         second["validator"]["chain_id"] = "lithosphere_700777-1"
         second["validator"]["peers"] = 0
         result = MODULE.evaluate_progression(first, second)

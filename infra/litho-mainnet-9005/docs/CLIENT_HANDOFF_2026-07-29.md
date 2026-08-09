@@ -64,13 +64,14 @@ passed without requiring rollback.
 
 ## 3. Deployed topology
 
-| Role | Host | Service | Mainnet home | Exposure |
+| Role | Host source | Service | Mainnet home | Exposure |
 |---|---|---|---|---|
-| Validator | `194.5.157.233` | `lithod-mainnet-9005-val` | `/var/lib/litho-mainnet-9005-val` | Node APIs loopback-only; P2P through private mesh |
-| Sentry/RPC 1 | `31.97.39.146` | `lithod-mainnet-9005-sentry` | `/var/lib/litho-mainnet-9005-sentry` | Public node and proxy traffic |
-| Sentry/RPC 2 | `72.60.177.106` | `lithod-mainnet-9005-sentry` | `/var/lib/litho-mainnet-9005-sentry` | Public node and gRPC traffic |
+| Validator | Protected inventory | `lithod-mainnet-9005-val` | `/var/lib/litho-mainnet-9005-val` | Node APIs loopback-only; P2P through private mesh |
+| Sentry/RPC 1 | Protected inventory | `lithod-mainnet-9005-sentry` | `/var/lib/litho-mainnet-9005-sentry` | Public node and proxy traffic |
+| Sentry/RPC 2 | Protected inventory | `lithod-mainnet-9005-sentry` | `/var/lib/litho-mainnet-9005-sentry` | Public node and gRPC traffic |
 
-The nodes use the dedicated `wg-mainnet` mesh (`10.200.5.0/24`, UDP `51825`).
+The nodes use a dedicated `wg-mainnet` mesh whose addresses and keys are held
+in the client-controlled private inventory.
 This mainnet is VPS-only and has no AWS, KMS, or Secrets Manager dependency.
 Existing Makalu and Kamet services on the shared sentries are separate and must
 not be modified during mainnet work.

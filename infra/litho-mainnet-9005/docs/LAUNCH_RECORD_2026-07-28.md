@@ -47,7 +47,10 @@ The verifier was run again after launch:
 
 ```powershell
 python scripts\verify_litho_mainnet_9005_live.py `
-  --ssh-key "C:\Users\Bachal\.ssh\litho-validator"
+  --ssh-key "C:\secure-path\litho-validator" `
+  --validator-host "$env:LITHO_VALIDATOR_HOST" `
+  --sentry1-host "$env:LITHO_SENTRY1_HOST" `
+  --sentry2-host "$env:LITHO_SENTRY2_HOST"
 ```
 
 It returned `LIVE_VERIFICATION=passed` and confirmed:
@@ -65,17 +68,10 @@ It returned `LIVE_VERIFICATION=passed` and confirmed:
 
 ## Public endpoint and explorer handoff
 
-The mainnet node interfaces are live on both sentries. Until DNS and TLS are
-configured, the explorer team may use sentry 1 for controlled staging only:
-
-- Cosmos RPC: `http://31.97.39.146:27057`
-- EVM JSON-RPC: `http://31.97.39.146:8945`
-- EVM WebSocket: `ws://31.97.39.146:8946`
-- REST/LCD: `http://31.97.39.146:1717`
-- gRPC: `31.97.39.146:9490`
-
-Sentry 2 (`72.60.177.106`) exposes the same ports as a staging fallback.
-These plaintext IP endpoints are not the final production URLs.
+The mainnet node interfaces were first made available to the explorer team
+through a controlled staging window. Historical plaintext origin addresses
+are intentionally omitted from this public record; current origin access is
+held in the protected deployment inventory.
 
 The production endpoint names remain:
 
@@ -92,10 +88,9 @@ The production endpoint names remain:
 The production endpoints were activated and externally validated on
 2026-07-28 after the DNS split was made explicit:
 
-- `rpc-mainnet.litho.ai` and `api-mainnet.litho.ai` resolve to sentry 1
-  (`31.97.39.146`).
-- `grpc-mainnet.litho.ai` resolves to sentry 2 (`72.60.177.106`) because port
-  `9090` on sentry 1 is occupied by a pre-existing chain service.
+- `rpc-mainnet.litho.ai` and `api-mainnet.litho.ai` route to sentry 1.
+- `grpc-mainnet.litho.ai` routes to sentry 2 because the standard gRPC port on
+  sentry 1 is occupied by a pre-existing chain service.
 - EVM JSON-RPC returned `eth_chainId = 0x232d` (`9005`).
 - REST/LCD returned Cosmos network `lithosphere_9005-1`.
 - WSS returned `101 Switching Protocols` at `/websocket`.
