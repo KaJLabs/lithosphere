@@ -83,8 +83,8 @@ async function main() {
 
   // 2) reconstruct the signed message and validate + sort signatures ascending by signer
   const msgHash = hre.ethers.utils.keccak256(hre.ethers.utils.solidityPack(
-    ["bytes32", "address", "address", "uint256", "uint256", "uint256"],
-    [btx, token, user, amount, sourceChain, sourceNonce]
+    ["bytes32", "address", "address", "uint256", "uint256", "uint256", "uint256", "address"],
+    [btx, token, user, amount, sourceChain, sourceNonce, net.chainId, bridgeAddr]
   ));
   const ethHash = hre.ethers.utils.hashMessage(hre.ethers.utils.arrayify(msgHash));
   const paired = sigs.map((sig) => ({ sig, signer: hre.ethers.utils.recoverAddress(ethHash, sig) }))

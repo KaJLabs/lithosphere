@@ -15,13 +15,19 @@ const input = {
   user: '0x5555555555555555555555555555555555555555',
   amount: '1000',
   targetChain: 1,
+  releaseBridge: '0x6666666666666666666666666666666666666666',
 };
 
 const policy = {
   sources: [{
     chainId: 9005,
     bridgeAddress: input.sourceBridge,
-    routes: [{ sourceToken: input.sourceToken, targetChain: 1, releaseToken: input.releaseToken }],
+    routes: [{
+      sourceToken: input.sourceToken,
+      targetChain: 1,
+      releaseToken: input.releaseToken,
+      releaseBridge: input.releaseBridge,
+    }],
   }],
 };
 
@@ -33,6 +39,11 @@ test('accepts an allowlisted source bridge and token route', () => {
 
 test('rejects a release token not in signer policy', () => {
   const attestation = validateAttestation({ ...input, releaseToken: ethers.Wallet.createRandom().address });
+  assert.throws(() => resolvePolicy(policy, attestation), /route is not allowed/);
+});
+
+test('rejects a destination bridge not in signer policy', () => {
+  const attestation = validateAttestation({ ...input, releaseBridge: ethers.Wallet.createRandom().address });
   assert.throws(() => resolvePolicy(policy, attestation), /route is not allowed/);
 });
 

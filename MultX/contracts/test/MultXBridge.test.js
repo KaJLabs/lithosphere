@@ -15,6 +15,14 @@ describe("MultXBridge", function () {
     return signed.map(s => s.sig);
   }
 
+  async function getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce) {
+    const { chainId } = await ethers.provider.getNetwork();
+    return ethers.utils.solidityKeccak256(
+      ["bytes32", "address", "address", "uint256", "uint256", "uint256", "uint256", "address"],
+      [sourceTxHash, token.address, user.address, amount, sourceChain, sourceNonce, chainId, bridge.address]
+    );
+  }
+
   beforeEach(async function () {
     [owner, validator1, validator2, validator3, user] = await ethers.getSigners();
 
@@ -70,10 +78,7 @@ describe("MultXBridge", function () {
     const sourceChain = 700777;
 
     // Create message hash
-    const msgHash = ethers.utils.solidityKeccak256(
-      ["bytes32", "address", "address", "uint256", "uint256", "uint256"],
-      [sourceTxHash, token.address, user.address, amount, sourceChain, sourceNonce]
-    );
+    const msgHash = await getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
 
     // Get sorted signatures from 2 validators
     const signatures = await getSortedSignatures([validator1, validator2], msgHash);
@@ -112,10 +117,7 @@ describe("MultXBridge", function () {
     const sourceNonce = lockEvent.args.nonce;
     const sourceChain = 700777;
 
-    const msgHash = ethers.utils.solidityKeccak256(
-      ["bytes32", "address", "address", "uint256", "uint256", "uint256"],
-      [sourceTxHash, token.address, user.address, amount, sourceChain, sourceNonce]
-    );
+    const msgHash = await getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
 
     const signatures = await getSortedSignatures([validator1, validator2], msgHash);
 
@@ -156,10 +158,7 @@ describe("MultXBridge", function () {
     const sourceNonce = lockEvent.args.nonce;
     const sourceChain = 700777;
 
-    const msgHash = ethers.utils.solidityKeccak256(
-      ["bytes32", "address", "address", "uint256", "uint256", "uint256"],
-      [sourceTxHash, token.address, user.address, amount, sourceChain, sourceNonce]
-    );
+    const msgHash = await getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
 
     const sig1 = await validator1.signMessage(ethers.utils.arrayify(msgHash));
 
@@ -174,6 +173,35 @@ describe("MultXBridge", function () {
         [sig1]
       )
     ).to.be.revertedWith("Insufficient signatures");
+  });
+
+  it("Should reject signatures replayed on another destination bridge", async function () {
+    const amount = ethers.utils.parseEther("10");
+    const sourceTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("domain-replay"));
+    const sourceChain = 9005;
+    const sourceNonce = 44;
+    const msgHash = await getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
+    const signatures = await getSortedSignatures([validator1, validator2], msgHash);
+
+    const MultXBridge = await ethers.getContractFactory("MultXBridge");
+    const secondBridge = await MultXBridge.deploy(
+      [validator1.address, validator2.address, validator3.address],
+      2
+    );
+    await secondBridge.deployed();
+    await token.transfer(secondBridge.address, amount);
+
+    await expect(
+      secondBridge.releaseTokens(
+        token.address,
+        user.address,
+        amount,
+        sourceChain,
+        sourceNonce,
+        sourceTxHash,
+        signatures
+      )
+    ).to.be.revertedWith("Invalid signer");
   });
 
   describe("Pause guardian", function () {

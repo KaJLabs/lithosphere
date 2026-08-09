@@ -52,9 +52,14 @@ async function processSignings() {
           try {
             const releaseToken = tx.release_token || tx.token_address;
             const sourceChain  = tx.source_chain  || 900523;
+            const targetSpec = config.chainsToWatch.find(
+              (chain) => Number(chain.chainId) === Number(tx.target_chain)
+            );
+            if (!targetSpec?.bridge) throw new Error('target bridge is not configured');
             const hash = ethers.solidityPackedKeccak256(
-              ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
-              [tx.tx_hash, releaseToken, tx.from_address, tx.amount, sourceChain, tx.source_nonce]
+              ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256', 'uint256', 'address'],
+              [tx.tx_hash, releaseToken, tx.from_address, tx.amount, sourceChain, tx.source_nonce,
+                tx.target_chain, targetSpec.bridge]
             );
 
             const signature = await validator.wallet.signMessage(ethers.getBytes(hash));

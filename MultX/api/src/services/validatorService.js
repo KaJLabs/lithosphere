@@ -92,7 +92,7 @@ export async function startValidatorService() {
 async function signWith(validator, attestation) {
   if (validator.kind === 'remote') return validator.signRelease(attestation);
   const hashHex = ethers.solidityPackedKeccak256(
-    ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
+    ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256', 'uint256', 'address'],
     [
       attestation.sourceTxHash,
       attestation.releaseToken,
@@ -100,6 +100,8 @@ async function signWith(validator, attestation) {
       attestation.amount,
       attestation.sourceChain,
       attestation.sourceNonce,
+      attestation.targetChain,
+      attestation.releaseBridge,
     ]
   );
   return validator.wallet.signMessage(ethers.getBytes(hashHex));
@@ -119,8 +121,9 @@ async function processSignings() {
       const releaseToken = tx.release_token || tx.token_address;
       const sourceChain = tx.source_chain || 900523;
       const sourceSpec = config.chainsToWatch.find((c) => Number(c.chainId) === Number(sourceChain));
-      if (!sourceSpec?.bridge || !tx.block_number) {
-        console.error(`[ValidatorService] Refusing ${tx.tx_hash}: missing source bridge or block evidence`);
+      const targetSpec = config.chainsToWatch.find((c) => Number(c.chainId) === Number(tx.target_chain));
+      if (!sourceSpec?.bridge || !targetSpec?.bridge || !tx.block_number) {
+        console.error(`[ValidatorService] Refusing ${tx.tx_hash}: missing source/target bridge or block evidence`);
         continue;
       }
 
@@ -135,6 +138,7 @@ async function processSignings() {
         user: tx.from_address,
         amount: tx.amount,
         targetChain: tx.target_chain,
+        releaseBridge: targetSpec.bridge,
       };
 
       await pool.query(

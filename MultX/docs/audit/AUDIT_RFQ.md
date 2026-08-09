@@ -18,7 +18,7 @@ historical Kamet testnet deployment is retained only as test evidence. The
 contract audit, remediation review, signer-protocol review and final deployment
 approval are mandatory gates before mainnet contracts or real assets are enabled.
 
-The scope is small and self-contained: **three Solidity files, 533 LOC total**,
+The scope is small and self-contained: **three Solidity files, approximately 557 LOC total**,
 no external protocol composability, no upgradeable proxies. We have prepared a
 full threat model and a triaged Slither report so the firm can move straight to
 manual review.
@@ -29,17 +29,17 @@ manual review.
 
 | File | LOC | Role |
 |---|---:|---|
-| `contracts/contracts/MultXBridge.sol` | 241 | Source-chain lock/release (Kamet) |
-| `contracts/contracts/MultXBridgeDest.sol` | 238 | Dest-chain burn/mint (Ethereum, BNB, Base) |
+| `contracts/contracts/MultXBridge.sol` | ~253 | Source-chain lock/release (LITHO) |
+| `contracts/contracts/MultXBridgeDest.sol` | ~250 | Dest-chain burn/mint (Ethereum, BNB, Base) |
 | `contracts/contracts/WrappedLEP100.sol` | 54 | Wrapped-asset ERC20 on dest chains |
-| **Total** | **533** | |
+| **Total** | **~557** | |
 
 - **Solidity:** `0.8.24`, optimizer runs = 200
 - **Dependencies:** OpenZeppelin Contracts (Pausable, ReentrancyGuard,
   AccessControl, SafeERC20, ERC20Burnable) — assume sound (T6); do not re-audit.
-- **Frozen commit:** tag **`audit-freeze-2026-07-14`** (`415faa1`) — the 3 in-scope
-  files are final (unchanged since the governance-guardian commit `bc88975`; work
-  since then is tests/docs only). Supersedes the earlier `9f939ab` reference.
+- **Frozen commit:** the new immutable audit-candidate tag will be created only
+  after destination-domain tests and all PR checks pass. Earlier freeze tags are
+  historical and must not be audited for LITHO mainnet deployment.
 
 ### Explicitly OUT of scope (do not bill)
 
@@ -85,7 +85,7 @@ owner-gated. Full detail in the threat model (attached).
    `api/src/services/remoteSigner.js`, and `docs/VPS_SIGNER_ARCHITECTURE.md`.
 6. Operator runbooks and a dedicated technical point of contact for the duration.
 
-The Solidity review remains the fixed 533-LOC scope. Please quote the off-chain
+The Solidity review remains the fixed approximately 557-LOC scope. Please quote the off-chain
 signer protocol review separately so its source-event verification, message
 construction, mTLS boundary and anti-equivocation behavior are explicitly covered.
 
@@ -95,9 +95,9 @@ construction, mTLS boundary and anti-equivocation behavior are explicitly covere
 
 Beyond a standard full-coverage review, we specifically want findings on:
 
-1. **Signature scheme** — is the `eth_sign`-style prefixed `keccak256` recovery
-   with ordered-signer enforcement robust against malleability? Should we move to
-   EIP-712 typed data?
+1. **Signature scheme** — confirm the `eth_sign`-style prefixed hash, including
+   destination chain ID and bridge address, plus ordered-signer enforcement is
+   robust against malleability and cross-domain replay. Should we still move to EIP-712?
 2. **Daily-cap boundary** — any day-boundary / `block.timestamp` edge cases?
 3. **Pause semantics on `releaseTokens`** — mid-execution behavior when paused.
 4. **Validator-set rotation** — `setValidatorSet` invalidates in-flight signatures

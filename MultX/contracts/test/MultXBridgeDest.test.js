@@ -18,6 +18,14 @@ describe("MultXBridgeDest", function () {
     return signed.map((s) => s.sig);
   }
 
+  function getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce, releaseBridge = bridge.address) {
+    return ethers.utils.solidityKeccak256(
+      ["bytes32", "address", "address", "uint256", "uint256", "uint256", "uint256", "address"],
+      [sourceTxHash, wrapped.address, user.address, amount, sourceChain, sourceNonce,
+        HARDHAT_CHAIN_ID, releaseBridge]
+    );
+  }
+
   beforeEach(async function () {
     [owner, v1, v2, v3, user] = await ethers.getSigners();
 
@@ -133,10 +141,7 @@ describe("MultXBridgeDest", function () {
       const sourceChain = ORIGIN_CHAIN_ID; // Kamet lock observed here
       const sourceNonce = 1;
 
-      const msgHash = ethers.utils.solidityKeccak256(
-        ["bytes32", "address", "address", "uint256", "uint256", "uint256"],
-        [sourceTxHash, wrapped.address, user.address, amount, sourceChain, sourceNonce]
-      );
+      const msgHash = getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
       const signatures = await getSortedSignatures([v1, v2], msgHash);
 
       const tx = await bridge.releaseTokens(
@@ -161,10 +166,7 @@ describe("MultXBridgeDest", function () {
       const sourceChain = ORIGIN_CHAIN_ID;
       const sourceNonce = 7;
 
-      const msgHash = ethers.utils.solidityKeccak256(
-        ["bytes32", "address", "address", "uint256", "uint256", "uint256"],
-        [sourceTxHash, wrapped.address, user.address, amount, sourceChain, sourceNonce]
-      );
+      const msgHash = getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
       const sigs = await getSortedSignatures([v1, v2], msgHash);
 
       await bridge.releaseTokens(wrapped.address, user.address, amount, sourceChain, sourceNonce, sourceTxHash, sigs);
@@ -177,10 +179,7 @@ describe("MultXBridgeDest", function () {
     it("Rejects fewer signatures than required", async function () {
       const amount = ethers.utils.parseEther("5");
       const sourceTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("source-tx-2"));
-      const msgHash = ethers.utils.solidityKeccak256(
-        ["bytes32", "address", "address", "uint256", "uint256", "uint256"],
-        [sourceTxHash, wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, 2]
-      );
+      const msgHash = getReleaseHash(sourceTxHash, amount, ORIGIN_CHAIN_ID, 2);
       const sig1 = await v1.signMessage(ethers.utils.arrayify(msgHash));
 
       await expect(
@@ -191,10 +190,7 @@ describe("MultXBridgeDest", function () {
     it("Rejects out-of-order signatures (non-ascending signer address)", async function () {
       const amount = ethers.utils.parseEther("5");
       const sourceTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("source-tx-3"));
-      const msgHash = ethers.utils.solidityKeccak256(
-        ["bytes32", "address", "address", "uint256", "uint256", "uint256"],
-        [sourceTxHash, wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, 3]
-      );
+      const msgHash = getReleaseHash(sourceTxHash, amount, ORIGIN_CHAIN_ID, 3);
 
       // Get sorted, then reverse — guarantees out-of-order
       const sortedSigs = await getSortedSignatures([v1, v2], msgHash);
@@ -208,16 +204,39 @@ describe("MultXBridgeDest", function () {
     it("Rejects signatures from unknown signer", async function () {
       const amount = ethers.utils.parseEther("5");
       const sourceTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("source-tx-4"));
-      const msgHash = ethers.utils.solidityKeccak256(
-        ["bytes32", "address", "address", "uint256", "uint256", "uint256"],
-        [sourceTxHash, wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, 4]
-      );
+      const msgHash = getReleaseHash(sourceTxHash, amount, ORIGIN_CHAIN_ID, 4);
 
       // `user` is NOT a validator
       const sigs = await getSortedSignatures([v1, user], msgHash);
 
       await expect(
         bridge.releaseTokens(wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, 4, sourceTxHash, sigs)
+      ).to.be.revertedWith("Invalid signer");
+    });
+
+    it("Rejects signatures replayed on another destination bridge", async function () {
+      const amount = ethers.utils.parseEther("5");
+      const sourceTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("dest-domain-replay"));
+      const sourceNonce = 45;
+      const msgHash = getReleaseHash(sourceTxHash, amount, ORIGIN_CHAIN_ID, sourceNonce);
+      const sigs = await getSortedSignatures([v1, v2], msgHash);
+
+      const Bridge = await ethers.getContractFactory("MultXBridgeDest");
+      const secondBridge = await Bridge.deploy([v1.address, v2.address, v3.address], 2);
+      await secondBridge.deployed();
+      const BRIDGE_ROLE = ethers.utils.id("BRIDGE_ROLE");
+      await wrapped.grantRole(BRIDGE_ROLE, secondBridge.address);
+
+      await expect(
+        secondBridge.releaseTokens(
+          wrapped.address,
+          user.address,
+          amount,
+          ORIGIN_CHAIN_ID,
+          sourceNonce,
+          sourceTxHash,
+          sigs
+        )
       ).to.be.revertedWith("Invalid signer");
     });
   });
@@ -247,10 +266,7 @@ describe("MultXBridgeDest", function () {
       await bridge.pause();
       const amount = ethers.utils.parseEther("1");
       const sourceTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("paused-test"));
-      const msgHash = ethers.utils.solidityKeccak256(
-        ["bytes32", "address", "address", "uint256", "uint256", "uint256"],
-        [sourceTxHash, wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, 99]
-      );
+      const msgHash = getReleaseHash(sourceTxHash, amount, ORIGIN_CHAIN_ID, 99);
       const sigs = await getSortedSignatures([v1, v2], msgHash);
       await expect(
         bridge.releaseTokens(wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, 99, sourceTxHash, sigs)

@@ -24,13 +24,14 @@ export const validateAttestation = (input) => ({
   sourceBridge: ethers.getAddress(input?.sourceBridge || ''),
   sourceToken: ethers.getAddress(input?.sourceToken || ''),
   releaseToken: ethers.getAddress(input?.releaseToken || ''),
+  releaseBridge: ethers.getAddress(input?.releaseBridge || ''),
   user: ethers.getAddress(input?.user || ''),
   amount: positiveIntegerString(input?.amount, 'amount'),
   targetChain: safePositiveInteger(input?.targetChain, 'targetChain'),
 });
 
 export const releaseMessageHash = (attestation) => ethers.solidityPackedKeccak256(
-  ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
+  ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256', 'uint256', 'address'],
   [
     attestation.sourceTxHash,
     attestation.releaseToken,
@@ -38,6 +39,8 @@ export const releaseMessageHash = (attestation) => ethers.solidityPackedKeccak25
     attestation.amount,
     attestation.sourceChain,
     attestation.sourceNonce,
+    attestation.targetChain,
+    attestation.releaseBridge,
   ],
 );
 
@@ -51,7 +54,8 @@ export const resolvePolicy = (policy, attestation) => {
   const route = source.routes?.find((item) =>
     ethers.getAddress(item.sourceToken) === attestation.sourceToken &&
     Number(item.targetChain) === attestation.targetChain &&
-    ethers.getAddress(item.releaseToken) === attestation.releaseToken
+    ethers.getAddress(item.releaseToken) === attestation.releaseToken &&
+    ethers.getAddress(item.releaseBridge) === attestation.releaseBridge
   );
   if (!route) throw new Error('token route is not allowed');
   return { source, route };

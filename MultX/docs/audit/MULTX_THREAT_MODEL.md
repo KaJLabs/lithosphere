@@ -70,8 +70,8 @@ User                  MultXBridge (dest)         Validator service       MultXBr
 
 | Contract | LOC | Purpose | Storage |
 |---|---:|---|---|
-| `MultXBridge.sol` | 241 | Source-chain lock + release (Kamet) | nonce, validators[], supportedTokens, processedNonces, dailyCap/dailyVolume/lastCapReset, Pausable._paused |
-| `MultXBridgeDest.sol` | 238 | Dest-chain lock(burn) + release(mint) (Ethereum/BNB/Base) | same layout as `MultXBridge`, but `lockTokens` burns the wrapped token via `burnFrom` and `releaseTokens` mints via `bridgeMint` |
+| `MultXBridge.sol` | ~253 | Source-chain lock + release (LITHO) | nonce, validators[], supportedTokens, processedNonces, dailyCap/dailyVolume/lastCapReset, Pausable._paused |
+| `MultXBridgeDest.sol` | ~250 | Dest-chain lock(burn) + release(mint) (Ethereum/BNB/Base) | same layout as `MultXBridge`, but `lockTokens` burns the wrapped token via `burnFrom` and `releaseTokens` mints via `bridgeMint` |
 | `WrappedLEP100.sol` | 54 | Wrapped representation on dest chains | OZ ERC20 + ERC20Burnable + AccessControl with `BRIDGE_ROLE` |
 
 ### 1.4 Contracts out of scope (don't audit, don't bill)
@@ -208,7 +208,7 @@ function invariant_pause_blocks_lock() public {
 | L1 | Owner is a single EOA, not a multisig — **MITIGATION BUILT, transfer deferred to production** | The Safe + TimelockController(48h) + guardian design is implemented and tested (`Governance.integration.test.js`), and the migration tooling is ready. Per client decision (2026-06-20), the **live** Kamet bridge stays under the deployer EOA through audit/testnet (test wallets used for rehearsal); ownership is transferred to the client-held M-of-N Safe at production cutover (M4.6). See ADR-0004 + `docs/operations/GOVERNANCE_MIGRATION.md`. | Execute live ownership transfer at production cutover |
 | L2 | No economic slashing of misbehaving validators | Out of scope for v1; bridge can rotate via `setValidatorSet` instead | Optional: stake LITHO via separate contract that can slash on equivocation proof |
 | L3 | Validator service uses one signature coordinator (`MultX/api`), not a P2P mesh | The coordinator cannot forge signatures and each signer independently validates the source event, confirmations, bridge and route. A coordinator outage can halt transfers, but cannot satisfy the quorum. | Add redundant coordinators or P2P aggregation if availability requires it |
-| L4 | **Required before mainnet:** the signed hash does not bind the destination chain or destination bridge | `processedNonces[sourceChain][sourceNonce]` is local to each bridge contract. If two destination contracts share a validator set and release-token address, one valid signature quorum can be replayed on both. Add destination-domain binding (preferably EIP-712), migration tests and independent review before deployment. |
+| L4 | Cross-destination replay — **resolved in audit candidate** | The signed hash now includes `block.chainid` and `address(this)`. Signer policies also bind the release bridge. Contract, API and signer tests reject reuse on a different chain/bridge. Independent audit confirmation remains required. |
 | L5 | `block.timestamp` used for daily cap reset | Acceptable: 24-hour window cannot be meaningfully manipulated by ±15s block-time drift | None |
 | L6 | Pause guardian == owner — **RESOLVED in code** | Dedicated `pauseGuardian` role added: a fast ops key can `pause()` without holding owner rights; `unpause()`/config stay owner-only. Proven in `contracts/test/Governance.integration.test.js`. The live `pauseGuardian` is assigned during the governance wiring at production cutover (address(0) until then → pause is owner-only, as today). | Assign guardian at cutover |
 | L7 | No on-chain `setSignaturesRequired` independent of `setValidatorSet` | `setValidatorSet` always takes both; intentional to prevent inconsistent state | None |
@@ -232,7 +232,7 @@ To keep the audit scoped tightly and the fee predictable:
 
 We'd like the audit to specifically opine on:
 
-1. **Signature scheme:** is the current `keccak256("\x19Ethereum Signed Message:\n32", msgHash)` recovery + ordered-signer pattern robust against all known signature malleability? Should we move to EIP-712 typed structured data signing?
+1. **Signature scheme:** confirm that the EIP-191 hash, now explicitly bound to destination `block.chainid` and `address(this)`, plus ordered-signer enforcement is robust against malleability and cross-domain replay. Advise whether EIP-712 is still required.
 2. **Cap semantics:** is the daily cap reset logic safe against day-boundary edge cases (e.g., timestamp manipulation by a malicious validator on Kamet — though that would require 51% control of Kamet, see T3)?
 3. **Pause behavior on `releaseTokens`:** if a release is mid-execution when pause is called, does it complete? Should it?
 4. **Validator set rotation:** when `setValidatorSet` is called, any release tx not yet executed will reject signatures from the old set. Is this the desired behavior, or should there be a grace period? Recommend documenting this in operator runbook.

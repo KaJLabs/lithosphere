@@ -243,8 +243,20 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
         require(signatures.length >= signaturesRequired, "Insufficient signatures");
         require(amount > 0, "Amount must be greater than 0");
 
+        // Bind the quorum to this exact destination chain and bridge. Without
+        // these fields, a valid release could be replayed on another deployed
+        // bridge that shares the validator set and token address.
         bytes32 msgHash = keccak256(
-            abi.encodePacked(sourceTxHash, token, user, amount, sourceChain, sourceNonce)
+            abi.encodePacked(
+                sourceTxHash,
+                token,
+                user,
+                amount,
+                sourceChain,
+                sourceNonce,
+                block.chainid,
+                address(this)
+            )
         );
 
         bytes32 ethSignedHash = keccak256(

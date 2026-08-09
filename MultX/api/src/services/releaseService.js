@@ -54,6 +54,8 @@ async function getChainCtx(chainId) {
   const [required, validatorList] = await Promise.all([bridge.signaturesRequired(), bridge.getValidators()]);
   const ctx = {
     bridge,
+    bridgeAddress: cc.bridge,
+    chainId: key,
     name: cc.name,
     required: Number(required),
     validators: new Set(validatorList.map((a) => a.toLowerCase())),
@@ -72,8 +74,9 @@ async function orderedSignatures(tx, token, ctx) {
     [tx.tx_hash]
   );
   const msgHash = ethers.solidityPackedKeccak256(
-    ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
-    [tx.tx_hash, token, tx.from_address, tx.amount, tx.source_chain, tx.source_nonce]
+    ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256', 'uint256', 'address'],
+    [tx.tx_hash, token, tx.from_address, tx.amount, tx.source_chain, tx.source_nonce,
+      ctx.chainId, ctx.bridgeAddress]
   );
   const ethHash = ethers.hashMessage(ethers.getBytes(msgHash));
 

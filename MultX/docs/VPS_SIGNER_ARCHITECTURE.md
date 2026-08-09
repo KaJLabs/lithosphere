@@ -24,17 +24,16 @@ policy, then recomputes the same EIP-191 release hash enforced by
 `MultXBridge.releaseTokens`. The API independently recovers the returned
 signature and rejects any address other than the configured validator.
 
-The current contract hash does not bind the destination chain or destination
-bridge. Therefore signatures could be replayed on another destination contract
-that shares the same validator set and token address. This is a known
-required-before-mainnet contract change; signer policy alone cannot eliminate
-an on-chain replay surface once a valid signature has been released.
+The audit candidate binds every signature to the destination chain ID and
+destination bridge address in addition to the source event and release fields.
+Both bridge implementations, the API, independent signer and relayer recompute
+the same domain-bound hash. Cross-destination and cross-contract replay tests
+must remain in the frozen audit suite.
 
 ## Remaining production gates
 
 - Independent review of this signer protocol and the bridge message domain.
-- Bind destination chain and destination bridge into the audited on-chain
-  signature domain, with migration and replay tests.
+- Independent audit confirmation of the destination-domain binding and replay tests.
 - Seven operator-approved VPSs, addresses, mTLS certificates and policies.
 - Encrypted offline backups and recovery drills for every signer.
 - Deployment contract addresses and token routes after the contract audit.

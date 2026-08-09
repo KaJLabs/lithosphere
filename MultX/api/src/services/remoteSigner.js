@@ -70,7 +70,7 @@ const requestJson = ({ baseUrl, path, method, body, tls, timeoutMs }) => new Pro
 });
 
 export const releaseMessageHash = (attestation) => ethers.solidityPackedKeccak256(
-  ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
+  ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256', 'uint256', 'address'],
   [
     attestation.sourceTxHash,
     attestation.releaseToken,
@@ -78,6 +78,8 @@ export const releaseMessageHash = (attestation) => ethers.solidityPackedKeccak25
     attestation.amount,
     attestation.sourceChain,
     attestation.sourceNonce,
+    attestation.targetChain,
+    attestation.releaseBridge,
   ],
 );
 
