@@ -128,7 +128,7 @@ def evaluate_progression(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ssh-key", required=True)
-    parser.add_argument("--ssh-user", default="lithoadmin")
+    parser.add_argument("--ssh-user", default="lithomonitor")
     parser.add_argument("--sample-seconds", type=int, default=30)
     parser.add_argument("--max-height-spread", type=int, default=20)
     args = parser.parse_args()

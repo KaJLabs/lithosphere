@@ -201,6 +201,15 @@ metrics. They are not an accepted paging control until the protected
 host keys, a tested Alertmanager/on-call route, and named primary plus backup
 responders. Consensus metrics must remain private or allowlisted.
 
+Install the dedicated forced-command identity on all three consensus nodes
+with `ansible/playbooks/mainnet-9005-deploy-monitor-account.yml`, supplying
+only a newly generated Ed25519 public key through a protected extra variable.
+The root-owned wrapper permits only the exact service-state, CometBFT status,
+and peer-count commands used by `monitor_mainnet_progression.py`; it denies
+arbitrary commands, forwarding, PTY allocation and user startup files. Store
+the corresponding private key only as `MONITOR_SSH_KEY` in the protected
+GitHub environment and set `MONITOR_SSH_USER` to `lithomonitor`.
+
 ## 8. Change and maintenance procedure
 
 For every change:

@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+
+# This forced-command entrypoint deliberately accepts only the exact read-only
+# commands emitted by monitor_mainnet_progression.py. Never pass the original
+# command to a shell, eval, or a generic command dispatcher.
+case "${SSH_ORIGINAL_COMMAND-}" in
+  "systemctl is-active lithod-mainnet-9005-val")
+    exec /usr/bin/systemctl is-active lithod-mainnet-9005-val
+    ;;
+  "systemctl is-active lithod-mainnet-9005-sentry")
+    exec /usr/bin/systemctl is-active lithod-mainnet-9005-sentry
+    ;;
+  "curl -fsS --max-time 8 http://127.0.0.1:26657/status")
+    exec /usr/bin/curl -fsS --max-time 8 http://127.0.0.1:26657/status
+    ;;
+  "curl -fsS --max-time 8 http://127.0.0.1:26657/net_info")
+    exec /usr/bin/curl -fsS --max-time 8 http://127.0.0.1:26657/net_info
+    ;;
+  "curl -fsS --max-time 8 http://127.0.0.1:27057/status")
+    exec /usr/bin/curl -fsS --max-time 8 http://127.0.0.1:27057/status
+    ;;
+  "curl -fsS --max-time 8 http://127.0.0.1:27057/net_info")
+    exec /usr/bin/curl -fsS --max-time 8 http://127.0.0.1:27057/net_info
+    ;;
+  *)
+    printf '%s\n' 'Denied: unsupported LITHO monitoring command' >&2
+    exit 126
+    ;;
+esac

@@ -16,7 +16,7 @@ jobs:
     env:
       MONITOR_SSH_KEY: ${{ secrets.MONITOR_SSH_KEY }}
       MONITOR_KNOWN_HOSTS: ${{ secrets.MONITOR_KNOWN_HOSTS }}
-      MONITOR_SSH_USER: ${{ vars.MONITOR_SSH_USER || 'lithoadmin' }}
+      MONITOR_SSH_USER: ${{ vars.MONITOR_SSH_USER || 'lithomonitor' }}
     steps:
       - uses: actions/checkout@v4
 
