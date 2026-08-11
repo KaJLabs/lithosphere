@@ -2,6 +2,9 @@ name: Publish immutable MultX security images
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - "multx-security-images-*"
 
 permissions:
   contents: read
