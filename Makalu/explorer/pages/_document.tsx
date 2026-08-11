@@ -19,8 +19,9 @@ export default function Document() {
             `,
           }}
         />
-        <link rel="icon" href={NETWORK.faviconPath} />
-        <link rel="apple-touch-icon" href={NETWORK.faviconPath} />
+        <link rel="icon" href={NETWORK.faviconPath} type={NETWORK.faviconType} sizes="any" />
+        <link rel="shortcut icon" href={NETWORK.faviconPath} type={NETWORK.faviconType} />
+        <link rel="apple-touch-icon" href={NETWORK.appleTouchIconPath} />
       </Head>
       <body>
         <Main />

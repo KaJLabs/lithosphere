@@ -25,6 +25,10 @@ describe('explorer network configuration', () => {
       bridgeEnabled: false,
       walletReady: true,
       logoPath: '/litho-logo.png',
+      faviconPath: '/mainnet-favicon.svg',
+      faviconType: 'image/svg+xml',
+      appleTouchIconPath: '/litho-logo.png',
+      walletIconPath: '/litho-logo.png',
     });
   });
 
@@ -45,6 +49,8 @@ describe('explorer network configuration', () => {
     });
 
     expect(config.logoPath).toBe('/litho-logo.png');
+    expect(config.faviconPath).toBe('/makalu-testnet-favicon.png');
+    expect(config.faviconType).toBe('image/png');
     expect(config.isMainnet).toBe(false);
   });
 });

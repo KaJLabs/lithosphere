@@ -59,7 +59,7 @@ const metadata = {
   name: `${NETWORK.label} Explorer`,
   description: `${NETWORK.label} Block Explorer`,
   url: NETWORK.siteUrl,
-  icons: [`${NETWORK.siteUrl}${NETWORK.faviconPath}`],
+  icons: [`${NETWORK.siteUrl}${NETWORK.walletIconPath}`],
 };
 
 const ethersConfig = defaultConfig({
