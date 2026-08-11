@@ -10,6 +10,7 @@
     "coverage": "hardhat coverage",
     "deploy": "hardhat run scripts/deploy.js",
     "deploy:litho": "hardhat run scripts/deploy.js --network litho_kamet",
+    "deploy:v05-testnet": "hardhat run scripts/deploy-v05-testnet.js",
     "load:makalu": "node scripts/makalu-load-test.js",
     "fund:makalu-load-wallets": "node scripts/makalu-fund-load-wallets.js",
     "correlate:makalu-profiled-run": "node scripts/makalu-correlate-profiled-run.js"
