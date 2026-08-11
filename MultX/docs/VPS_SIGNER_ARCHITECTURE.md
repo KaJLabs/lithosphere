@@ -1,4 +1,4 @@
-# MultX VPS-only signing architecture
+# MultX VPS relay and AWS KMS signing architecture
 
 ## Production topology
 
@@ -7,14 +7,17 @@
   separate providers/regions.
 - Five-of-seven contract threshold.
 - TLS 1.3 mutual authentication between the API and every signer.
-- A distinct ECDSA key, TLS server key, policy and persistent equivocation
-  journal per signer.
+- A distinct non-exportable AWS KMS `ECC_SECG_P256K1` key, TLS server key,
+  bearer token, policy and persistent equivocation journal per signer.
 - PostgreSQL, monitoring and backups isolated from validator key custody.
 
-The API contains no AWS SDK, cloud credentials or validator private keys.
+The API contains no AWS credentials or validator private keys. Each signer
+uses its own IAM Roles Anywhere X.509 identity to obtain automatically renewed
+temporary credentials through the standard AWS SDK credential chain. The
+signer role has only `kms:GetPublicKey` and `kms:Sign` on one KMS key.
 Relayer and application secrets are injected through mounted files. In
-production, local validator key files and plaintext secret environment values
-are rejected.
+production, permanent AWS access keys, local validator key files and plaintext
+secret environment values are rejected.
 
 ## Signing protocol
 
@@ -38,6 +41,7 @@ must remain in the frozen audit suite.
 - Encrypted offline backups and recovery drills for every signer.
 - Deployment contract addresses and token routes after the contract audit.
 - Staging fault tests: signer outage, wrong identity, expired certificate,
+  invalid bearer token, expired Roles Anywhere certificate, KMS denial,
   reorg/insufficient confirmations, route mismatch and equivocation attempt.
 
 Until these gates pass, `MULTX_ENABLED=false` and all bridge contracts and

@@ -33,7 +33,7 @@
 
 ## Phase 2 — Hand over the package
 
-- [ ] **[I]** Deliver: threat model, triaged Slither report, Hardhat test suite (`contracts/test/`), Foundry invariant suite (`contracts/test/foundry/`), historical testnet deployment evidence (`contracts/deployments/`), VPS signer architecture (`docs/VPS_SIGNER_ARCHITECTURE.md`), and signer operator runbook (`signer/OPERATOR_RUNBOOK.md`). Historical AWS/KMS runbooks are not production instructions.
+- [ ] **[I]** Deliver: threat model, triaged Slither report, Hardhat test suite (`contracts/test/`), Foundry invariant suite (`contracts/test/foundry/`), historical testnet deployment evidence (`contracts/deployments/`), VPS/KMS relay architecture (`docs/VPS_SIGNER_ARCHITECTURE.md`), and signer operator runbook (`signer/OPERATOR_RUNBOOK.md`). Historical KMS runbooks are not production instructions; the current Roles Anywhere package is authoritative.
 - [x] **[I]** Generate the **test-coverage report** (`cd contracts && npm run coverage`). The candidate has 76 passing Hardhat tests. Regenerate from the immutable tag when handing the package to the firm.
 
       | File | % Stmts | % Branch | % Funcs | % Lines |

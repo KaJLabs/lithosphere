@@ -1,15 +1,13 @@
-# MultX independent VPS signer
+# MultX AWS KMS signer relay
 
-This service replaces the historical AWS KMS integration. Each bridge
-validator operates one hardened signer on a separate VPS and failure domain.
-The MultX API connects over TLS 1.3 with a client certificate; the validator
-private key never enters the API container or repository.
+Each bridge validator operates one private signer relay on a separate VPS and
+failure domain. Its non-exportable secp256k1 key remains in AWS KMS. The relay
+uses IAM Roles Anywhere temporary credentials through the standard AWS SDK
+credential chain; no permanent AWS access key is accepted or configured. The
+MultX API connects over TLS 1.3 and supplies a bearer token. Optional mTLS is a
+supported additional control.
 
-Deployment templates and operator acceptance steps are in
-[`compose.example.yaml`](./compose.example.yaml) and
-[`OPERATOR_RUNBOOK.md`](./OPERATOR_RUNBOOK.md).
-
-The signer does not blindly sign an API-provided digest. For every request it:
+For every signing request the relay:
 
 1. validates the configured source chain, bridge, token route and destination;
 2. queries its own source-chain RPC;
@@ -17,23 +15,22 @@ The signer does not blindly sign an API-provided digest. For every request it:
 4. verifies the exact `TokensLocked` event at the supplied block;
 5. recomputes the release hash locally;
 6. records an fsync-backed `(sourceChain, sourceNonce) -> hash` decision and
-   rejects equivocation; and
-7. returns an EIP-191 signature only after those checks pass.
+   rejects equivocation;
+7. asks KMS to sign the locally computed EIP-191 digest; and
+8. recovers the signature to the configured public signer address before return.
 
 ## Required mounted files
 
-- `SIGNER_PRIVATE_KEY_FILE`: validator ECDSA private key, readable only by the
-  rootless container user.
-- `SIGNER_TLS_CERT_FILE` and `SIGNER_TLS_KEY_FILE`: signer server certificate.
-- `SIGNER_CLIENT_CA_FILE`: CA that issued the MultX API client certificate.
+- `AWS_CONFIG_FILE`: shared AWS config using `aws_signing_helper
+  credential-process` for the named `AWS_PROFILE`.
+- Roles Anywhere certificate and certificate private key: mounted locally for
+  the credential helper; never committed or sent to the coordinator.
+- `SIGNER_BEARER_TOKEN_FILE`: random bearer token mounted as a file.
+- `SIGNER_TLS_CERT_FILE` and `SIGNER_TLS_KEY_FILE`: HTTPS certificate and key.
+- `SIGNER_CLIENT_CA_FILE`: optional mTLS client CA.
 - `SIGNER_POLICY_FILE`: reviewed source-chain and token-route allowlist.
-- `SIGNER_STATE_FILE`: persistent decision journal; defaults to
-  `/var/lib/multx-signer/signed-releases.jsonl`.
+- `SIGNER_STATE_FILE`: persistent anti-equivocation journal.
 
-The host should use full-disk encryption, SSH-key-only administration, a
-default-deny firewall allowing port 9443 only from the MultX API VPS, offline
-encrypted key backup, log shipping and uptime alerts. Validator operators must
-not share VPS accounts, private keys or TLS server keys.
-
-No production policy or key material is included. Bridge contracts and routes
-must be populated only after audit approval and mainnet deployment.
+The runtime role requires exactly `kms:GetPublicKey` and `kms:Sign` on its one
+asymmetric KMS key. It receives no decrypt or TOTP permission. No production
+policy, token, certificate, private key or AWS identifier is included.

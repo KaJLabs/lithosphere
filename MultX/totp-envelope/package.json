@@ -1,14 +1,14 @@
 {
-  "name": "@litho/multx-signer",
+  "name": "@litho/multx-totp-envelope",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
+    "encrypt": "node scripts/encrypt-envelope.js",
     "test": "node --test"
   },
   "dependencies": {
-    "@aws-sdk/client-kms": "3.1107.0",
-    "ethers": "^6.17.0"
+    "@aws-sdk/client-kms": "3.1107.0"
   }
 }

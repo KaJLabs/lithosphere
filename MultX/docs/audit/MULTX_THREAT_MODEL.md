@@ -2,8 +2,8 @@
 
 > **Current architecture notice (2026-08-08):** LITHO mainnet uses Cosmos ID
 > `lithosphere_9005-1` and EVM chain ID `9005`. MultX remains disabled. The
-> production candidate replaces centralized AWS KMS signing with independent,
-> rootless VPS signer services using TLS 1.3 mTLS, source-event verification,
+> production candidate uses independent, rootless VPS relays backed by distinct
+> non-exportable AWS KMS keys, TLS 1.3, bearer authentication, source-event verification,
 > route policies, and fsync-backed anti-equivocation journals. The contracts
 > and this off-chain signer protocol require independent review before MultX
 > can be enabled. Historical Kamet deployment details remain for provenance.
@@ -90,7 +90,7 @@ User                  MultXBridge (dest)         Validator service       MultXBr
 
 | # | Assumption | What we mitigate / accept |
 |---|---|---|
-| T1 | Validator key custody is secure | Each independent operator runs one rootless VPS signer. The API holds no validator private keys. Keys are mounted from operator-controlled encrypted storage; TLS 1.3 mTLS authenticates API-to-signer traffic. Review `MultX/signer/`, `api/src/services/remoteSigner.js`, and the operator controls in `docs/VPS_SIGNER_ARCHITECTURE.md`. |
+| T1 | Validator key custody is secure | Each independent operator runs one rootless VPS relay backed by a distinct non-exportable AWS KMS secp256k1 key. IAM Roles Anywhere supplies temporary credentials; the API holds no validator key or AWS credential. TLS 1.3 plus bearer authentication protects API-to-signer traffic, with optional mTLS. Review `MultX/signer/`, `api/src/services/remoteSigner.js`, and `docs/VPS_SIGNER_ARCHITECTURE.md`. |
 | T2 | At least `signaturesRequired` validators (live: **5 of 7**) act honestly | This is the core security assumption. Any N out of M collusion can mint arbitrary wrapped tokens (limit: total locked on source). |
 | T3 | The Kamet chain itself is not 51%-attacked | Bridge security inherits chain security. Kamet runs CometBFT BFT consensus with the existing validator set (separate from bridge validators). |
 | T4 | Dest-chain RPC providers return honest state to validators | Mitigation: each validator runs its own RPC client; majority-truth via N-of-M signing already guards against a single bad RPC. |
@@ -258,16 +258,17 @@ We'd like the audit to specifically opine on:
   - `#4 0xc8C5c89ddb70CAEC942f2C5A77F4F4001ef3B415`
   - `#5 0x4CDd6D160Bd79fe7d4Bab06a9E0607870e8108D9`
   - `#6 0xB161611185Ce2c95849134188AC9F5DbC26bfD2D`
-- Validator keys: the Kamet deployment historically used AWS KMS. The LITHO
-  mainnet candidate does not use AWS. It requires independently operated VPS
-  signers and mounted operator-controlled key files. Production rejects local
-  validator keys in the API process. No LITHO mainnet signer set is active yet.
+- Validator keys: the Kamet deployment historically used AWS KMS. The revised
+  LITHO candidate uses distinct non-exportable KMS keys behind independently
+  operated VPS relays and IAM Roles Anywhere temporary credentials. Production
+  rejects permanent AWS credentials and local validator keys. No LITHO mainnet
+  signer set is active yet.
 
 ### Operational runbooks supplied to audit firm
 
 - `docs/operations/BRIDGE_RUNBOOK.md` — pause procedure, validator-set rotation, daily-cap management, incident-response playbook (key compromise / suspected contract bug / RPC brownout)
 - `docs/VPS_SIGNER_ARCHITECTURE.md` — current signer trust boundaries and launch gates
-- `docs/operations/VALIDATOR_KEY_ROTATION.md` — historical KMS procedures; must not be used for the VPS-only LITHO mainnet deployment
+- `docs/operations/VALIDATOR_KEY_ROTATION.md` — historical procedures; the current Roles Anywhere package and operator runbook supersede it
 
 ---
 
@@ -283,7 +284,7 @@ Items the audit firm should expect at kickoff:
 - [x] Deployment scripts (`contracts/scripts/02-redeploy-bridge-hardened.js`, `03-deploy-dest-chain.js`)
 - [x] Operator runbooks (`docs/operations/BRIDGE_RUNBOOK.md`, `VALIDATOR_KEY_ROTATION.md`)
 - [x] VPS signer reference implementation and architecture document
-- [ ] Independent review of the VPS signer protocol, mTLS deployment and operator key-custody procedure
+- [ ] Independent review of the VPS/KMS relay protocol, bearer/mTLS deployment and IAM/key-custody procedure
 - [x] Foundry invariant suite (`contracts/test/foundry/MultXBridgeInvariant.t.sol`) — solvency / release≤lock / nonce / threshold invariants over 16,384 fuzzed calls
 
 ---

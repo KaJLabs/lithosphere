@@ -7,7 +7,10 @@ services:
     ports:
       - "9443:9443"
     volumes:
-      - "${SIGNER_PRIVATE_KEY_PATH}:/run/secrets/validator-key:ro"
+      - "${AWS_CONFIG_PATH}:/run/aws/config:ro"
+      - "${ROLES_ANYWHERE_CERT_PATH}:/run/aws/roles-anywhere.crt:ro"
+      - "${ROLES_ANYWHERE_KEY_PATH}:/run/aws/roles-anywhere.key:ro"
+      - "${SIGNER_BEARER_TOKEN_PATH}:/run/secrets/signer-bearer-token:ro"
       - "${SIGNER_POLICY_PATH}:/run/config/policy.json:ro"
       - "${SIGNER_TLS_CERT_PATH}:/run/tls/server.crt:ro"
       - "${SIGNER_TLS_KEY_PATH}:/run/tls/server.key:ro"
@@ -28,4 +31,3 @@ services:
       options:
         max-size: 10m
         max-file: "5"
-

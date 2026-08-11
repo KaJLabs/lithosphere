@@ -11,7 +11,7 @@ const requiredFile = (path, label) => {
   return value;
 };
 
-const requestJson = ({ baseUrl, path, method, body, tls, timeoutMs }) => new Promise((resolve, reject) => {
+const requestJson = ({ baseUrl, path, method, body, tls, bearerToken, timeoutMs }) => new Promise((resolve, reject) => {
   const url = new URL(path, baseUrl);
   if (url.protocol !== 'https:') {
     reject(new Error(`remote signer URL must use https (got ${url.protocol})`));
@@ -33,6 +33,7 @@ const requestJson = ({ baseUrl, path, method, body, tls, timeoutMs }) => new Pro
     timeout: timeoutMs,
     headers: {
       accept: 'application/json',
+      authorization: `Bearer ${bearerToken}`,
       ...(payload ? {
         'content-type': 'application/json',
         'content-length': String(payload.length),
@@ -99,6 +100,7 @@ export const createRemoteSigner = async ({
   caFile,
   certFile,
   keyFile,
+  tokenFile,
   timeoutMs = 8_000,
 }) => {
   const address = ethers.getAddress(expectedAddress);
@@ -107,12 +109,15 @@ export const createRemoteSigner = async ({
     cert: requiredFile(certFile, `VALIDATOR_SIGNER_CERT_FILE_${index}`),
     key: requiredFile(keyFile, `VALIDATOR_SIGNER_KEY_FILE_${index}`),
   };
+  const bearerToken = requiredFile(tokenFile, `VALIDATOR_SIGNER_TOKEN_FILE_${index}`).toString('utf8').trim();
+  if (bearerToken.length < 32) throw new Error(`VALIDATOR_SIGNER_TOKEN_FILE_${index} must contain at least 32 characters`);
 
   const identity = await requestJson({
     baseUrl: url,
     path: '/v1/identity',
     method: 'GET',
     tls,
+    bearerToken,
     timeoutMs,
   });
   const reported = ethers.getAddress(identity.address || '');
@@ -131,6 +136,7 @@ export const createRemoteSigner = async ({
         method: 'POST',
         body: { version: 1, ...attestation },
         tls,
+        bearerToken,
         timeoutMs,
       });
       if (typeof response.signature !== 'string') {

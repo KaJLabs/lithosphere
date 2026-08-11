@@ -45,42 +45,50 @@ services:
       VALIDATOR_SIGNER_CA_FILE_0: /run/tls/signers/signer-0-ca.crt
       VALIDATOR_SIGNER_CERT_FILE_0: /run/tls/coordinator/client.crt
       VALIDATOR_SIGNER_KEY_FILE_0: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_TOKEN_FILE_0: /run/secrets/signers/signer-0-token
       VALIDATOR_SIGNER_URL_1: https://REPLACE_WITH_SIGNER_1:9443
       VALIDATOR_SIGNER_ADDRESS_1: REPLACE_WITH_SIGNER_1_ADDRESS
       VALIDATOR_SIGNER_CA_FILE_1: /run/tls/signers/signer-1-ca.crt
       VALIDATOR_SIGNER_CERT_FILE_1: /run/tls/coordinator/client.crt
       VALIDATOR_SIGNER_KEY_FILE_1: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_TOKEN_FILE_1: /run/secrets/signers/signer-1-token
       VALIDATOR_SIGNER_URL_2: https://REPLACE_WITH_SIGNER_2:9443
       VALIDATOR_SIGNER_ADDRESS_2: REPLACE_WITH_SIGNER_2_ADDRESS
       VALIDATOR_SIGNER_CA_FILE_2: /run/tls/signers/signer-2-ca.crt
       VALIDATOR_SIGNER_CERT_FILE_2: /run/tls/coordinator/client.crt
       VALIDATOR_SIGNER_KEY_FILE_2: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_TOKEN_FILE_2: /run/secrets/signers/signer-2-token
       VALIDATOR_SIGNER_URL_3: https://REPLACE_WITH_SIGNER_3:9443
       VALIDATOR_SIGNER_ADDRESS_3: REPLACE_WITH_SIGNER_3_ADDRESS
       VALIDATOR_SIGNER_CA_FILE_3: /run/tls/signers/signer-3-ca.crt
       VALIDATOR_SIGNER_CERT_FILE_3: /run/tls/coordinator/client.crt
       VALIDATOR_SIGNER_KEY_FILE_3: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_TOKEN_FILE_3: /run/secrets/signers/signer-3-token
       VALIDATOR_SIGNER_URL_4: https://REPLACE_WITH_SIGNER_4:9443
       VALIDATOR_SIGNER_ADDRESS_4: REPLACE_WITH_SIGNER_4_ADDRESS
       VALIDATOR_SIGNER_CA_FILE_4: /run/tls/signers/signer-4-ca.crt
       VALIDATOR_SIGNER_CERT_FILE_4: /run/tls/coordinator/client.crt
       VALIDATOR_SIGNER_KEY_FILE_4: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_TOKEN_FILE_4: /run/secrets/signers/signer-4-token
       VALIDATOR_SIGNER_URL_5: https://REPLACE_WITH_SIGNER_5:9443
       VALIDATOR_SIGNER_ADDRESS_5: REPLACE_WITH_SIGNER_5_ADDRESS
       VALIDATOR_SIGNER_CA_FILE_5: /run/tls/signers/signer-5-ca.crt
       VALIDATOR_SIGNER_CERT_FILE_5: /run/tls/coordinator/client.crt
       VALIDATOR_SIGNER_KEY_FILE_5: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_TOKEN_FILE_5: /run/secrets/signers/signer-5-token
       VALIDATOR_SIGNER_URL_6: https://REPLACE_WITH_SIGNER_6:9443
       VALIDATOR_SIGNER_ADDRESS_6: REPLACE_WITH_SIGNER_6_ADDRESS
       VALIDATOR_SIGNER_CA_FILE_6: /run/tls/signers/signer-6-ca.crt
       VALIDATOR_SIGNER_CERT_FILE_6: /run/tls/coordinator/client.crt
       VALIDATOR_SIGNER_KEY_FILE_6: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_TOKEN_FILE_6: /run/secrets/signers/signer-6-token
     ports:
       - "127.0.0.1:4000:4000"
     volumes:
       - ${MULTX_DB_PASSWORD_PATH}:/run/secrets/db-password:ro
       - ${MULTX_NETWORK_CONFIG_PATH}:/run/config/network.json:ro
       - ${MULTX_SIGNER_CA_DIR}:/run/tls/signers:ro
+      - ${MULTX_SIGNER_TOKEN_DIR}:/run/secrets/signers:ro
       - ${MULTX_COORDINATOR_TLS_DIR}:/run/tls/coordinator:ro
     networks:
       - backend

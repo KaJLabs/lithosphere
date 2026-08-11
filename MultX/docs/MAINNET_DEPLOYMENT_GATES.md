@@ -16,8 +16,10 @@ mainnet.
 - Contract, API, signer, SDK, and web source gates pass.
 - Candidate bytecode hashes and coverage evidence are recorded under
   `docs/audit/`.
-- Production uses independent rootless VPS signers over TLS 1.3 mTLS; AWS/KMS
-  and coordinator-held validator keys are excluded.
+- Production uses independent rootless VPS relays over TLS 1.3, bearer
+  authentication and optional mTLS. Validator keys are non-exportable AWS KMS
+  secp256k1 keys reached with IAM Roles Anywhere temporary credentials;
+  coordinator-held keys and permanent AWS access keys are excluded.
 - Production API startup now requires an explicit audited network manifest and
   rejects all historical test-chain defaults.
 
@@ -31,8 +33,8 @@ mainnet.
    addresses for LITHO, Ethereum, BNB, and Base.
 5. Approved bridge/token routes, daily caps, and supported assets.
 6. Seven independent bridge signer operators, with an approved threshold,
-   unique keys, mTLS identities, policies, backups, recovery exercises, and
-   acceptance records. These bridge signers are separate from the target 33+
+  unique KMS keys, Roles Anywhere and TLS identities, bearer secrets, policies,
+  recovery exercises, and acceptance records. These bridge signers are separate from the target 33+
    LITHO consensus validators.
 7. Approved HTTPS/WSS RPC endpoints for every chain and funded deployment/gas
    accounts held through the approved custody process.

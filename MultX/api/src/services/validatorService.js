@@ -29,6 +29,7 @@ async function loadValidators() {
         caFile: process.env[`VALIDATOR_SIGNER_CA_FILE_${i}`],
         certFile: process.env[`VALIDATOR_SIGNER_CERT_FILE_${i}`],
         keyFile: process.env[`VALIDATOR_SIGNER_KEY_FILE_${i}`],
+        tokenFile: process.env[`VALIDATOR_SIGNER_TOKEN_FILE_${i}`],
         timeoutMs: parseInt(process.env.VALIDATOR_SIGNER_TIMEOUT_MS || '8000', 10),
       }));
     } catch (err) {

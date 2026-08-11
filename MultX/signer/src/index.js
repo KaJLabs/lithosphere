@@ -2,6 +2,8 @@ import fs from 'fs';
 import https from 'https';
 import path from 'path';
 import { ethers } from 'ethers';
+import { bearerAuthorised } from './auth.js';
+import { createKmsSigner } from './kms.js';
 import { assertLockEvent, releaseMessageHash, resolvePolicy, validateAttestation } from './policy.js';
 
 const requiredFile = (envName) => {
@@ -13,10 +15,15 @@ const requiredFile = (envName) => {
 };
 
 const policy = JSON.parse(requiredFile('SIGNER_POLICY_FILE').toString('utf8'));
-const privateKey = requiredFile('SIGNER_PRIVATE_KEY_FILE').toString('utf8').trim();
-const wallet = new ethers.Wallet(privateKey);
-if (policy.signerAddress && ethers.getAddress(policy.signerAddress) !== wallet.address) {
-  throw new Error(`policy signer ${policy.signerAddress} does not match key ${wallet.address}`);
+const bearerToken = requiredFile('SIGNER_BEARER_TOKEN_FILE').toString('utf8').trim();
+if (bearerToken.length < 32) throw new Error('signer bearer token must contain at least 32 characters');
+const signer = await createKmsSigner({
+  keyId: process.env.KMS_KEY_ID,
+  region: process.env.AWS_REGION,
+  expectedAddress: process.env.KMS_EXPECTED_ADDRESS,
+});
+if (policy.signerAddress && ethers.getAddress(policy.signerAddress) !== signer.address) {
+  throw new Error(`policy signer ${policy.signerAddress} does not match KMS signer ${signer.address}`);
 }
 
 const providers = new Map();
@@ -90,7 +97,7 @@ const verifyAndSign = async (input) => {
   return serializeSigning(async () => {
     const prior = signed.get(key);
     if (prior && prior !== hash) throw new Error(`refusing equivocation for ${key}`);
-    const signature = await wallet.signMessage(ethers.getBytes(hash));
+    const signature = await signer.signMessage(ethers.getBytes(hash));
     if (!prior) persistDecision(key, hash);
     return signature;
   });
@@ -124,17 +131,18 @@ const send = (res, status, body) => {
 const server = https.createServer({
   cert: requiredFile('SIGNER_TLS_CERT_FILE'),
   key: requiredFile('SIGNER_TLS_KEY_FILE'),
-  ca: requiredFile('SIGNER_CLIENT_CA_FILE'),
-  requestCert: true,
-  rejectUnauthorized: true,
+  ...(process.env.SIGNER_CLIENT_CA_FILE ? {
+    ca: requiredFile('SIGNER_CLIENT_CA_FILE'), requestCert: true, rejectUnauthorized: true,
+  } : {}),
   minVersion: 'TLSv1.3',
 }, async (req, res) => {
   try {
     if (req.method === 'GET' && req.url === '/health') return send(res, 200, { status: 'healthy' });
-    if (req.method === 'GET' && req.url === '/v1/identity') return send(res, 200, { address: wallet.address });
+    if (!bearerAuthorised(req.headers.authorization, bearerToken)) return send(res, 401, { error: 'unauthorized' });
+    if (req.method === 'GET' && req.url === '/v1/identity') return send(res, 200, { address: signer.address, backend: 'aws-kms' });
     if (req.method === 'POST' && req.url === '/v1/sign-release') {
       const signature = await verifyAndSign(await readJson(req));
-      return send(res, 200, { address: wallet.address, signature });
+      return send(res, 200, { address: signer.address, signature });
     }
     return send(res, 404, { error: 'not_found' });
   } catch (err) {
@@ -145,5 +153,5 @@ const server = https.createServer({
 
 const port = Number(process.env.SIGNER_PORT || 9443);
 server.listen(port, '0.0.0.0', () => {
-  console.log(`[signer] listening on ${port}; address=${wallet.address}`);
+  console.log(`[signer] listening on ${port}; KMS address=${signer.address}`);
 });
