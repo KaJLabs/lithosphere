@@ -1,0 +1,42 @@
+name: LITHO mainnet infrastructure gates
+
+on:
+  pull_request:
+    paths:
+      - "infra/litho-mainnet-9005/**"
+      - ".github/workflows/ci-mainnet-infra.yaml"
+      - ".github/workflows/mainnet-chain-monitor.yaml"
+      - ".github/workflows/mainnet-signing-state-backup.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/litho-mainnet-9005/**"
+      - ".github/workflows/ci-mainnet-infra.yaml"
+      - ".github/workflows/mainnet-chain-monitor.yaml"
+      - ".github/workflows/mainnet-signing-state-backup.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  validator-expansion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install validator-backup encryption dependency
+        run: python -m pip install --disable-pip-version-check PyNaCl==1.5.0
+      - name: Compile mainnet verification scripts
+        run: python -m compileall -q infra/litho-mainnet-9005/scripts
+      - name: Test validator intake gates
+        run: python -m unittest discover -s infra/litho-mainnet-9005/scripts/tests -v
+      - name: Validate Prometheus alert rules
+        run: >-
+          docker run --rm
+          --entrypoint /bin/promtool
+          -v "$PWD:/workspace:ro"
+          prom/prometheus@sha256:a67e5e402ff5410b86ec48b39eab1a3c4df2a7e78a71bf025ec5e32e09090ad4
+          check rules
+          /workspace/infra/litho-mainnet-9005/monitoring/prometheus/litho-mainnet-9005-alerts.yml

@@ -1,0 +1,267 @@
+---
+# Lithod Role Default Variables
+
+# =============================================================================
+# BUILD CONFIGURATION
+# =============================================================================
+
+# Build method: "source", "binary" (download from URL), or "upload" (copy from control machine)
+litho_build_method: "upload"
+
+# Go version (for source builds)
+litho_go_version: "1.22.0"
+
+# Build dependencies (Amazon Linux 2023)
+litho_build_dependencies:
+  - git
+  - gcc
+  - make
+  - wget
+  - curl
+  - jq
+  - openssl
+
+# Git repository (Evmos fork — build script: bin/build-lithod.sh)
+litho_git_repo: "https://github.com/evmos/evmos.git"
+litho_git_version: "main"
+
+# Local binary path (for upload method - relative to playbook or absolute)
+litho_binary_local_path: "{{ playbook_dir }}/../../bin/lithod"
+
+# =============================================================================
+# NODE CONFIGURATION
+# =============================================================================
+
+litho_user: "litho"
+litho_group: "litho"
+litho_home: "/opt/litho"
+litho_binary_path: "/usr/local/bin/lithod"
+
+# Node role: "validator" or "sentry"
+node_role: "validator"
+
+# Systemd service name (override for multi-process hosts, e.g. "lithod-kamet-sentry")
+litho_service_name: "lithod"
+
+# Chain configuration
+litho_chain_id: "lithosphere_700777-1"
+
+# =============================================================================
+# AWS CONFIGURATION
+# =============================================================================
+
+aws_region: "us-east-1"
+
+# =============================================================================
+# KEY INJECTION (Secrets Manager)
+# =============================================================================
+
+# Set to false to use legacy encrypt-in-place (keys placed manually on node)
+fetch_keys_from_secrets: true
+
+# Validator signing-key backend. Existing AWS inventories retain the historical
+# KMS flow; VPS-only inventories can use a manually provisioned key without
+# invoking AWS tooling from systemd.
+validator_key_backend: "aws_kms"  # aws_kms | manual
+
+# Secrets Manager secret IDs (populated by scripts/key-ceremony.sh)
+secrets_validator_signing_key: "litho-mainnet/validator/signing-key"
+secrets_node_keys: "litho-mainnet/nodes/keys"
+
+# =============================================================================
+# GENESIS DISTRIBUTION
+# =============================================================================
+
+# Genesis source: "local" (copy from control machine) or "s3" (download from S3)
+genesis_source: "local"
+
+# Local genesis (when genesis_source == "local")
+genesis_file_local: "{{ playbook_dir }}/../../genesis.json"
+
+# S3 genesis (when genesis_source == "s3")
+genesis_s3_uri: ""
+genesis_s3_region: "{{ aws_region }}"
+
+# SHA256 checksum (REQUIRED - deployment FAILS on mismatch)
+# UPDATE THIS after running: scripts/regen-genesis-with-note.sh on the validator
+# Previous (6-decimal, no gentx note): 24ed20e8b6542dd9463fbecc256aac48c28e4a067f6b23941deee13b0e38a4bd
+genesis_checksum_expected: "bca784d91c842db199c6dd58e44ce7867d581640d1460eaff9945f0eb4ebe58e"
+
+# Force re-deploy even if checksum matches
+genesis_force_update: false
+
+# Set false for already-running chains where the canonical genesis is managed
+# outside this repository. This prevents stale local genesis files from being
+# pushed during incident recovery.
+genesis_verify_checksum: "{{ genesis_source != 'none' }}"
+
+# =============================================================================
+# SYSTEM RESOURCE LIMITS
+# =============================================================================
+
+system_limits:
+  nofile: 65535
+  nproc: 4096
+
+lithod_memory_limit: "8G"
+lithod_cpu_quota: "400%"  # 4 cores
+
+# =============================================================================
+# P2P CONFIGURATION
+# =============================================================================
+
+p2p_persistent_peers: ""
+p2p_seeds: ""
+p2p_private_peer_ids: ""
+p2p_max_num_inbound_peers: 40
+p2p_max_num_outbound_peers: 10
+
+# =============================================================================
+# CONSENSUS CONFIGURATION
+# =============================================================================
+
+consensus_timeout_propose: "3s"
+consensus_timeout_prevote: "1s"
+consensus_timeout_precommit: "1s"
+consensus_timeout_commit: "5s"
+consensus_create_empty_blocks: true
+consensus_create_empty_blocks_interval: "0s"
+
+# =============================================================================
+# STATE SYNC (recommended for sentries)
+# =============================================================================
+
+statesync_enable: false
+statesync_rpc_servers: ""
+statesync_trust_height: 0
+statesync_trust_hash: ""
+
+# =============================================================================
+# PRUNING
+# =============================================================================
+
+pruning: "default"  # "default", "nothing", "everything", or "custom"
+pruning_keep_recent: "100"
+pruning_interval: "10"
+
+# =============================================================================
+# API / RPC CONFIGURATION
+# =============================================================================
+
+api_enable: true
+api_address: "tcp://0.0.0.0:1317"
+grpc_enable: true
+grpc_address: "0.0.0.0:9090"
+# Leave blank to use the role default (validators bind 127.0.0.1, sentries 0.0.0.0).
+rpc_laddr: ""
+
+# =============================================================================
+# EVM CONFIGURATION
+# =============================================================================
+
+evm_rpc_enable: true
+evm_rpc_address: "0.0.0.0:8545"
+evm_ws_address: "0.0.0.0:8546"
+
+# =============================================================================
+# OBSERVABILITY
+# =============================================================================
+
+prometheus_enabled: true
+# Leave blank to derive from litho_metrics_port.
+prometheus_listen_addr: ""
+
+log_level: "info"
+log_format: "json"
+
+# =============================================================================
+# MEMIAVL STORAGE (app.toml [memiavl])
+# =============================================================================
+
+# The Cronos memiavl store. MUST stay enabled on every node — a memiavl-disabled
+# node cannot load snapshots from memiavl-enabled peers. Defaults match the live
+# fleet (verified via drift check 2026-06-22); the template carries the same
+# defaults so the block renders even if these are unset.
+litho_memiavl_enable: true
+litho_memiavl_zero_copy: false
+litho_memiavl_async_commit_buffer: 0
+litho_memiavl_snapshot_keep_recent: 1
+litho_memiavl_snapshot_interval: 1000
+litho_memiavl_cache_size: 1000
+
+# =============================================================================
+# MEMIAVL LEAK MITIGATION
+# =============================================================================
+
+# The mmap/fd leak is driven by public RPC/API traffic on sentries. Validators
+# must not be restarted automatically because short restart/catch-up windows can
+# trip downtime slashing on fast testnets.
+lithod_mmap_leak_mitigation_enabled: "{{ node_role == 'sentry' }}"
+
+lithod_restart_timer_enabled: "{{ lithod_mmap_leak_mitigation_enabled }}"
+lithod_restart_timer_calendar: "*-*-* 00/4:00:00 UTC"
+lithod_restart_randomized_delay_sec: "15m"
+
+lithod_leak_watchdog_enabled: "{{ lithod_mmap_leak_mitigation_enabled }}"
+lithod_leak_watchdog_on_boot_sec: "2min"
+lithod_leak_watchdog_interval: "5min"
+lithod_leak_watchdog_accuracy_sec: "30s"
+lithod_leak_watchdog_maps_threshold: 250000
+lithod_leak_watchdog_fd_threshold: 5000
+lithod_leak_watchdog_min_interval_sec: 240
+lithod_leak_watchdog_script_path: "/usr/local/bin/{{ litho_service_name }}-leak-watchdog.sh"
+
+# Stall watchdog: catches the wedge mode the leak watchdog cannot see —
+# lithod "active (running)" with sane map/fd counts but sitting at its cgroup
+# memory ceiling, no longer committing blocks or serving RPC (observed on the
+# AWS kamet sentry 2026-07-08, undetected for ~2.5h). Restarts when the local
+# RPC height stops advancing for stall_sec. Sentry-only, like the other
+# auto-restarts: validators are never restarted automatically.
+lithod_stall_watchdog_enabled: "{{ node_role == 'sentry' }}"
+lithod_stall_watchdog_on_boot_sec: "3min"
+lithod_stall_watchdog_interval: "2min"
+lithod_stall_watchdog_accuracy_sec: "20s"
+lithod_stall_watchdog_stall_sec: 300      # no height progress for this long = wedged
+lithod_stall_watchdog_grace_sec: 600      # skip after service start (startup replay keeps RPC down)
+lithod_stall_watchdog_cooldown_sec: 1800  # min seconds between watchdog restarts
+lithod_stall_watchdog_rpc: "http://127.0.0.1:26657"
+lithod_stall_watchdog_script_path: "/usr/local/bin/{{ litho_service_name }}-stall-watchdog.sh"
+
+# =============================================================================
+# MEMIAVL APPHASH AUTO-HEAL (sentries)
+# =============================================================================
+
+# Sentries occasionally corrupt their memiavl app state (a hard-kill / OOM /
+# reboot mid-commit) and either crash-loop ("is higher than core") or, worse,
+# keep running while rejecting every block on an AppHash mismatch and silently
+# freeze ~hours behind tip. This heals both by wiping data + state-syncing from
+# healthy at-tip validator RPCs. Sentry-only: a validator is never auto-wiped.
+lithod_apphash_autoheal_enabled: "{{ node_role == 'sentry' }}"
+lithod_apphash_autoheal_on_boot_sec: "3min"
+lithod_apphash_autoheal_interval: "2min"
+lithod_apphash_autoheal_accuracy_sec: "20s"
+lithod_apphash_autoheal_cooldown_sec: 1800     # min seconds between heals
+lithod_apphash_autoheal_behind_min: 300        # blocks behind tip to flag "far behind"
+lithod_apphash_autoheal_min_healthy: 2         # abort (no wipe) below this many at-tip RPCs
+lithod_apphash_autoheal_trust_offset: 3000     # trust_height = tip - this
+lithod_apphash_autoheal_trust_period: "168h0m0s"
+lithod_apphash_autoheal_local_rpc: "http://127.0.0.1:26657"
+lithod_apphash_autoheal_script_path: "/usr/local/bin/{{ litho_service_name }}-apphash-autoheal.sh"
+# State-sync source RPCs (at-tip validators for this chain). Set per chain in
+# group_vars; default is local-only, which safely aborts (needs >= min_healthy).
+lithod_apphash_autoheal_rpc_candidates:
+  - "http://127.0.0.1:26757"
+
+# =============================================================================
+# GOVERNANCE WATCHER
+# =============================================================================
+
+# Telegram credentials for governance notifications (pass via -e or vault)
+governance_telegram_bot_token: "PLACEHOLDER_BOT_TOKEN"
+governance_telegram_chat_id: "PLACEHOLDER_CHAT_ID"
+
+# LCD API endpoint for governance queries
+governance_api_endpoint: "https://api.litho.ai"
+
+# Validator operator address
+governance_validator_oper: "lithovaloper1jvp5v362quy9mwhg0zsghjky8xt2y8vtlekc4w"

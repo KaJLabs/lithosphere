@@ -1,0 +1,200 @@
+@use '../../common/mixins' as *;
+
+.tokenIdentity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  &.large {
+    margin-bottom: 20px;
+  }
+}
+
+.tokenLogo {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+
+  &.large {
+    width: 56px;
+    height: 56px;
+  }
+}
+
+.tokenName {
+  margin-top: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.typeBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+
+  &.native {
+    background: rgba(11, 133, 255, 0.12);
+    color: var(--text-active);
+  }
+
+  &.contract {
+    background: rgba(37, 165, 14, 0.12);
+    color: #7ce88a;
+  }
+}
+
+.tokenAddressGuide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--text-primary);
+  line-height: 1.7;
+}
+
+.explorerStats.compact.tokenDetailStats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  .statCard {
+    min-width: 0;
+  }
+
+  .statValue {
+    display: block;
+    min-width: 0;
+    font-size: clamp(20px, 1.2vw + 14px, 28px);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  @include onPhone {
+    grid-template-columns: 1fr;
+  }
+}
+
+.explorerGrid.two-up.tokenDetailLayout {
+  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
+
+  @media (max-width: 1500px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nftCollectionHero {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 20px;
+
+  @include onPhone {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nftCollectionImage {
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  min-height: 280px;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+}
+
+.nftCollectionCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nftCollectionDescription {
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.75;
+}
+
+.nftPreviewGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+
+  @media (max-width: 1200px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include onPhone {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nftPreviewCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  padding: 14px;
+}
+
+.nftPreviewArtwork {
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+}
+
+.nftPreviewFallback {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.nftPreviewMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  strong {
+    color: var(--text-secondary);
+    font-size: 15px;
+  }
+
+  span {
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  small {
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+}

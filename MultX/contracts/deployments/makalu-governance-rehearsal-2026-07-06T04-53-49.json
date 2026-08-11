@@ -1,0 +1,80 @@
+{
+  "network": "makalu",
+  "chainId": 700777,
+  "rpc": "<REDACTED_OPERATIONAL_ENDPOINT>",
+  "delaySeconds": 150,
+  "bridge": "0x2Ebd9EeF00C6AeC85c2512DcDd8093f72A9E6059",
+  "timelock": "0x8C7DcB61f6a2044E4F9B40abc2a74D30aB233099",
+  "guardian": "0x10ed4F004Fe708014ae27Bcc20c9Ed9df3f4eadF",
+  "safeStandin": "0x10ed4F004Fe708014ae27Bcc20c9Ed9df3f4eadF",
+  "passed": true,
+  "transcript": [
+    {
+      "step": "1",
+      "action": "deployed MultXBridge (guarded)",
+      "address": "0x2Ebd9EeF00C6AeC85c2512DcDd8093f72A9E6059",
+      "tx": "0x92198a24515efa3473b2bd43cd62b466352a324a0d6e622564b98bfabb2ff098"
+    },
+    {
+      "step": "2",
+      "action": "deployed GovTimelock",
+      "address": "0x8C7DcB61f6a2044E4F9B40abc2a74D30aB233099",
+      "tx": "0x2834bba2844c9388f77cb2c95cad80df0467865d9c6e2de7ed67b3538356c9c2",
+      "minDelay": "150"
+    },
+    {
+      "step": "3a",
+      "action": "setPauseGuardian(deployer)",
+      "guardian": "0x10ed4F004Fe708014ae27Bcc20c9Ed9df3f4eadF"
+    },
+    {
+      "step": "3b",
+      "action": "transferOwnership -> timelock",
+      "owner": "0x8C7DcB61f6a2044E4F9B40abc2a74D30aB233099",
+      "isTimelock": true
+    },
+    {
+      "step": "4",
+      "action": "guardian.pause() -> instant",
+      "paused": true
+    },
+    {
+      "step": "5a",
+      "action": "reverted as expected",
+      "ok": true,
+      "reason": "OwnableUnauthorizedAccount"
+    },
+    {
+      "step": "5b",
+      "action": "reverted as expected",
+      "ok": true,
+      "reason": "OwnableUnauthorizedAccount"
+    },
+    {
+      "step": "6",
+      "action": "scheduled unpause + setValidatorSet",
+      "unpauseReady": false,
+      "pending": true
+    },
+    {
+      "step": "7",
+      "action": "reverted as expected",
+      "ok": true,
+      "reason": "TimelockUnexpectedOperationState"
+    },
+    {
+      "step": "8a",
+      "action": "timelock.execute(unpause) after delay",
+      "paused": false
+    },
+    {
+      "step": "8b",
+      "action": "timelock.execute(setValidatorSet) after delay",
+      "validators": [
+        "0x10ed4F004Fe708014ae27Bcc20c9Ed9df3f4eadF",
+        "0x000000000000000000000000000000000000dEaD"
+      ],
+      "signaturesRequired": "2"
+    }
+  ]
+}

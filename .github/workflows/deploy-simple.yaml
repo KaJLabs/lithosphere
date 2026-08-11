@@ -1,9 +1,9 @@
 # ============================================================================
 # Lithosphere Makalu Explorer Deploy  → vps1 (the LIVE public host)
 # ----------------------------------------------------------------------------
-# makalu.litho.ai is served from vps1 (93.115.16.13) /opt/lithoscan since the
+# makalu.litho.ai is served from the protected VPS1 deployment target since the
 # 2026-06-03 migration. The previous pipeline deployed via SSM + build-from-source
-# to the AWS indexer (i-057bf8e4baabd9f31, /opt/lithosphere/Makalu) — which is NO
+# to the former AWS indexer (`/opt/lithosphere/Makalu`) — which is NO
 # LONGER in the public path, so its "green" never reached the live site.
 #
 # This pipeline deploys the published GHCR images to vps1 over SSH and gates on
@@ -46,8 +46,6 @@ on:
         options: [testnet, staging, mainnet]
 
 env:
-  VPS_HOST: 93.115.16.13          # vps1 — serves makalu.litho.ai (/opt/lithoscan)
-  VPS_USER: root
   DEPLOY_PATH: /opt/lithoscan
   PUBLIC_URL: https://makalu.litho.ai
   REGISTRY: ghcr.io/kajlabs
@@ -60,6 +58,9 @@ jobs:
   deploy:
     name: Deploy to vps1
     runs-on: ubuntu-latest
+    env:
+      VPS_HOST: ${{ secrets.VPS1_DEPLOY_HOST }}
+      VPS_USER: ${{ secrets.VPS1_DEPLOY_USER }}
     outputs:
       # "true" once we get past the image-wait and actually touch vps1. Gates the
       # rollback job so a wait-for-images failure (nothing deployed) does NOT
@@ -72,6 +73,12 @@ jobs:
       contents: read
       packages: read
     steps:
+      - name: Validate protected deployment target
+        shell: bash
+        run: |
+          [[ -n "$VPS_HOST" ]] || { echo "Missing VPS1_DEPLOY_HOST"; exit 1; }
+          [[ -n "$VPS_USER" ]] || { echo "Missing VPS1_DEPLOY_USER"; exit 1; }
+
       - name: Resolve commit short SHA
         id: sha
         run: echo "short=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
@@ -135,7 +142,7 @@ jobs:
             echo "## Makalu Deploy (vps1)"
             echo "| Property | Value |"
             echo "|----------|-------|"
-            echo "| Host | makalu.litho.ai → vps1 (\`$VPS_HOST\`) \`/opt/lithoscan\` |"
+            echo "| Host | makalu.litho.ai → protected vps1 target \`/opt/lithoscan\` |"
             echo "| Commit | \`${{ github.sha }}\` |"
             echo "| Method | SSH + GHCR image pull (compose/.env preserved) |"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -143,6 +150,9 @@ jobs:
   rollback:
     name: Rollback on failure
     runs-on: ubuntu-latest
+    env:
+      VPS_HOST: ${{ secrets.VPS1_DEPLOY_HOST }}
+      VPS_USER: ${{ secrets.VPS1_DEPLOY_USER }}
     needs: deploy
     # Only roll back if we actually deployed (got past the image-wait). A
     # wait-for-images failure means nothing changed on vps1 — nothing to revert.

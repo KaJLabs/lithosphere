@@ -1,0 +1,46 @@
+@use '../../common/mixins' as *;
+
+.summary {
+  @include card;
+
+  min-width: 365px;
+  flex: 1 1 0px;
+
+  padding: 21px;
+  color: var(--text-secondary);
+
+  &-title {
+    font-weight: 700;
+    font-size: 17px;
+  }
+
+  &-content {
+    margin-top: 20px;
+    padding: 20px 17px;
+
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+
+    @include primaryCard;
+
+    &-item {
+      display: flex;
+      justify-content: space-between;
+
+      &-value {
+        color: var(--text-primary);
+
+        &.yellow{
+          color: #FDBF43;
+        }
+        &.green{
+          color: #25A50E;
+        }
+        &.red{
+          color: #FF7272;
+        }
+      }
+    }
+  }
+}

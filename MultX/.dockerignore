@@ -1,0 +1,10 @@
+**/.git
+**/node_modules
+**/dist
+**/coverage
+**/artifacts
+**/cache
+**/*.log
+**/.env
+**/.env.*
+!**/.env.example

@@ -1,0 +1,56 @@
+{
+  "release": "751d4f7092ef69577075ab0905134bb112031dc9",
+  "verification_completed_at": "2026-07-31T12:54:55Z",
+  "result": "pass",
+  "window_status": "closed",
+  "closed_at": "2026-07-31T12:54:55Z",
+  "closure_decision": "approved",
+  "rollback_required": false,
+  "clock_policy": {
+    "ntp_synchronized": true,
+    "minimum_block_age_seconds": -5,
+    "maximum_block_age_seconds": 120,
+    "reason": "Allow bounded verifier/producer clock skew while rejecting stale or materially future-dated blocks."
+  },
+  "samples": [
+    {
+      "timestamp": "2026-07-31T12:53:52Z",
+      "indexed_height": 548822,
+      "lag_blocks": 10,
+      "latest_block_age_seconds": 6.944,
+      "result": "pass"
+    },
+    {
+      "timestamp": "2026-07-31T12:54:23Z",
+      "indexed_height": 548885,
+      "lag_blocks": 8,
+      "latest_block_age_seconds": 5.745,
+      "result": "pass"
+    },
+    {
+      "timestamp": "2026-07-31T12:54:55Z",
+      "indexed_height": 548948,
+      "lag_blocks": 6,
+      "latest_block_age_seconds": 4.701,
+      "result": "pass"
+    }
+  ],
+  "gates": {
+    "core_http_routes": "pass",
+    "evm_chain_id_9005": "pass",
+    "cosmos_chain_id_lithosphere_9005_1": "pass",
+    "rpc_health": "pass",
+    "indexer_progression": "pass",
+    "is_syncing_false": "pass",
+    "inconsistent_blocks_zero": "pass",
+    "faucet_disabled_http_404": "pass",
+    "bridge_disabled_http_404": "pass",
+    "swap_disabled_http_404": "pass",
+    "multx_disabled_http_404": "pass"
+  },
+  "prior_alert": {
+    "classification": "verifier_clock_skew_false_positive",
+    "observed_future_offsets_seconds": [-0.29, -2.19],
+    "production_change_made_for_alert": false
+  }
+}

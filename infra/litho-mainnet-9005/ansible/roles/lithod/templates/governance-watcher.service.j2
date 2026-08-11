@@ -1,0 +1,32 @@
+# Lithosphere Governance Watcher — Systemd Service
+# Runs the governance watcher once per invocation (Type=oneshot)
+# Triggered by governance-watcher.timer every 5 minutes
+
+[Unit]
+Description=Lithosphere Governance Watcher
+Documentation=https://github.com/BrewCodeDev/lithosphere-dev-infra
+After=network-online.target lithod.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{ litho_user }}
+Group={{ litho_group }}
+EnvironmentFile=-/etc/litho/governance.env
+
+ExecStart=/usr/local/bin/governance-watcher.sh
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=governance-watcher
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/litho/governance
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

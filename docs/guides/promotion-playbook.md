@@ -80,7 +80,7 @@ If automatic rollback fails or you need to roll back outside of CI:
 
 ```bash
 # 1. SSH to the server
-ssh -o ProxyJump="ec2-user@44.218.142.100" ec2-user@10.0.10.16
+ssh -o ProxyJump="<DEPLOY_USER>@<BASTION_HOST>" <DEPLOY_USER>@<INDEXER_HOST>
 
 # 2. Option A: Use the rollback script
 cd /opt/lithosphere/Makalu
@@ -103,7 +103,7 @@ curl -s http://localhost:3100
 Roll back to a specific commit:
 
 ```bash
-ssh -o ProxyJump="ec2-user@44.218.142.100" ec2-user@10.0.10.16
+ssh -o ProxyJump="<DEPLOY_USER>@<BASTION_HOST>" <DEPLOY_USER>@<INDEXER_HOST>
 
 cd /opt/lithosphere/Makalu
 # View recent deploys
@@ -143,7 +143,7 @@ Document the emergency in a post-incident review.
 For zero-downtime deploys, use the blue/green script:
 
 ```bash
-ssh -o ProxyJump="ec2-user@44.218.142.100" ec2-user@10.0.10.16
+ssh -o ProxyJump="<DEPLOY_USER>@<BASTION_HOST>" <DEPLOY_USER>@<INDEXER_HOST>
 cd /opt/lithosphere/Makalu
 sudo bash scripts/blue-green-deploy.sh
 ```
@@ -182,15 +182,15 @@ Similarly for `staging` if needed.
 ### Deploy stuck / SSH timeout
 ```bash
 # Check bastion connectivity
-ssh ec2-user@44.218.142.100 echo "bastion ok"
+ssh <DEPLOY_USER>@<BASTION_HOST> echo "bastion ok"
 
 # Check indexer via bastion
-ssh -o ProxyJump="ec2-user@44.218.142.100" ec2-user@10.0.10.16 echo "indexer ok"
+ssh -o ProxyJump="<DEPLOY_USER>@<BASTION_HOST>" <DEPLOY_USER>@<INDEXER_HOST> echo "indexer ok"
 ```
 
 ### Containers not starting
 ```bash
-ssh -o ProxyJump="ec2-user@44.218.142.100" ec2-user@10.0.10.16
+ssh -o ProxyJump="<DEPLOY_USER>@<BASTION_HOST>" <DEPLOY_USER>@<INDEXER_HOST>
 cd /opt/lithosphere/Makalu
 sudo docker compose ps -a
 sudo docker compose logs --tail 50 api

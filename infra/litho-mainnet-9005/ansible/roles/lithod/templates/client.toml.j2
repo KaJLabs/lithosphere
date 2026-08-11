@@ -1,0 +1,8 @@
+# Client Configuration for LITHO Node
+# Managed by Ansible - {{ node_role }}
+
+chain-id = "{{ litho_chain_id_cosmos }}"
+keyring-backend = "os"
+output = "text"
+node = "tcp://localhost:{{ litho_rpc_port }}"
+broadcast-mode = "sync"

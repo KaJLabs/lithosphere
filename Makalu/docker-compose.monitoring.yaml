@@ -103,9 +103,9 @@ services:
       - "${GRAFANA_PORT:-3001}:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-lithosphere}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?GRAFANA_PASSWORD is required}
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://72.60.177.106:3001
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:?GRAFANA_ROOT_URL is required}
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_ANALYTICS_REPORTING_ENABLED=false

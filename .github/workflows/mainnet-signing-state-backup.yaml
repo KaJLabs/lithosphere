@@ -1,0 +1,96 @@
+name: LITHO Mainnet Signing-State Backup
+
+on:
+  schedule:
+    - cron: "37 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  encrypted-backup:
+    runs-on: ubuntu-latest
+    environment: litho-mainnet-backup
+    env:
+      BACKUP_HOST: ${{ secrets.BACKUP_HOST }}
+      BACKUP_SSH_USER: ${{ vars.BACKUP_SSH_USER || 'lithobackup' }}
+      BACKUP_SSH_KEY: ${{ secrets.BACKUP_SSH_KEY }}
+      BACKUP_KNOWN_HOSTS: ${{ secrets.BACKUP_KNOWN_HOSTS }}
+      BACKUP_RECIPIENT: ${{ secrets.BACKUP_RECIPIENT }}
+      CONSENSUS_PUBLIC_KEY: 7o+6DXvzUZditxqvBH8RHScpB7KrAGrB4CvIHwByBSc=
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate protected backup configuration
+        shell: bash
+        run: |
+          for name in BACKUP_HOST BACKUP_SSH_USER BACKUP_SSH_KEY BACKUP_KNOWN_HOSTS BACKUP_RECIPIENT; do
+            [[ -n "${!name:-}" ]] || { echo "Missing protected environment value: $name"; exit 1; }
+          done
+
+      - name: Configure pinned SSH trust and public encryption recipient
+        shell: bash
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$BACKUP_SSH_KEY" > ~/.ssh/litho-backup
+          printf '%s\n' "$BACKUP_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$BACKUP_RECIPIENT" > /tmp/litho-backup-recipient.json
+          chmod 600 ~/.ssh/litho-backup ~/.ssh/known_hosts
+          chmod 644 /tmp/litho-backup-recipient.json
+
+      - name: Install encryption dependency
+        run: python -m pip install --disable-pip-version-check PyNaCl==1.5.0
+
+      - name: Stream, validate, and encrypt current signing state
+        shell: bash
+        run: |
+          output="/tmp/litho-signing-state-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sealed"
+          python infra/litho-mainnet-9005/scripts/signing_state_backup.py create \
+            --host "$BACKUP_HOST" \
+            --ssh-user "$BACKUP_SSH_USER" \
+            --ssh-key ~/.ssh/litho-backup \
+            --remote-home /var/lib/litho-mainnet-9005-val \
+            --recipient /tmp/litho-backup-recipient.json \
+            --expected-consensus-public-key "$CONSENSUS_PUBLIC_KEY" \
+            --output "$output"
+
+      - name: Upload ciphertext and manifest only
+        uses: actions/upload-artifact@v4
+        with:
+          name: litho-signing-state-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            /tmp/litho-signing-state-*.sealed
+            /tmp/litho-signing-state-*.sealed.manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove ephemeral credentials
+        if: always()
+        shell: bash
+        run: rm -f ~/.ssh/litho-backup /tmp/litho-backup-recipient.json
+
+      - name: Open one deduplicated backup incident issue
+        if: failure()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = 'LITHO mainnet signing-state backup alert';
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            if (!issues.some(issue => issue.title === title && !issue.pull_request)) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body: `The protected recurring signing-state backup failed.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nDo not treat the launch-time height-0 archive as a substitute. Preserve single-writer validator safety while investigating.`,
+              });
+            }

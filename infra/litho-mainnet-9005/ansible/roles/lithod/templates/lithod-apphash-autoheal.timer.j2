@@ -1,0 +1,14 @@
+# Check {{ litho_service_name }} for memiavl AppHash corruption periodically.
+# Cheap (a few curl/jq calls); a real heal is rate-limited by the script's
+# cooldown so a short interval is safe.
+
+[Unit]
+Description=Run {{ litho_service_name }} memiavl AppHash auto-heal check
+
+[Timer]
+OnBootSec={{ lithod_apphash_autoheal_on_boot_sec }}
+OnUnitActiveSec={{ lithod_apphash_autoheal_interval }}
+AccuracySec={{ lithod_apphash_autoheal_accuracy_sec }}
+
+[Install]
+WantedBy=timers.target

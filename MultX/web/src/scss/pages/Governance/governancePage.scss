@@ -1,0 +1,294 @@
+@use '../../common/mixins' as *;
+
+.governance-back-btn {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  margin-bottom: -8px;
+
+  &:hover {
+    color: var(--text-secondary);
+  }
+}
+
+// ── Filter tabs ─────────────────────────────────────────────────────────────
+
+.governance-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.governance-filter-btn {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+  }
+
+  &.active {
+    background: var(--button-color);
+    border-color: transparent;
+    color: #fff;
+  }
+}
+
+// ── Proposal list ────────────────────────────────────────────────────────────
+
+.governance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.governance-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.12s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  &__id {
+    color: var(--text-primary);
+    font-size: 13px;
+    min-width: 40px;
+    padding-top: 2px;
+  }
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__title {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  &__date {
+    font-size: 12px;
+    color: var(--text-primary);
+  }
+}
+
+// ── Compact tally bar (list view) ────────────────────────────────────────────
+
+.governance-tally {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  overflow: hidden;
+
+  &__yes     { background: #25a50e; }
+  &__no      { background: #ef4e4e; }
+  &__abstain { background: rgba(255, 255, 255, 0.25); }
+  &__veto    { background: #f59e0b; }
+}
+
+// ── Detail tally bars ────────────────────────────────────────────────────────
+
+.governance-tally-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  &__row {
+    display: grid;
+    grid-template-columns: 110px 1fr 60px;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__label {
+    font-size: 13px;
+    font-weight: 500;
+
+    &--yes     { color: #25a50e; }
+    &--no      { color: #ef4e4e; }
+    &--abstain { color: var(--text-primary); }
+    &--veto    { color: #f59e0b; }
+  }
+
+  &__bar-wrap {
+    height: 10px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+  }
+
+  &__bar {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.4s ease;
+
+    &--yes     { background: #25a50e; }
+    &--no      { background: #ef4e4e; }
+    &--abstain { background: rgba(255, 255, 255, 0.3); }
+    &--veto    { background: #f59e0b; }
+  }
+
+  &__pct {
+    font-size: 13px;
+    color: var(--text-primary);
+    text-align: right;
+  }
+}
+
+// ── Detail page layout ───────────────────────────────────────────────────────
+
+.governance-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+
+  @include onTablet {
+    grid-template-columns: 1fr;
+  }
+}
+
+// ── Metadata block ───────────────────────────────────────────────────────────
+
+.governance-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    font-size: 14px;
+    gap: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+
+    &:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    span:first-child {
+      color: var(--text-primary);
+      flex-shrink: 0;
+    }
+
+    span:last-child {
+      color: var(--text-secondary);
+      text-align: right;
+      word-break: break-word;
+    }
+  }
+
+  &__type {
+    font-family: monospace;
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+}
+
+// ── Description ──────────────────────────────────────────────────────────────
+
+.governance-description {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+// ── Vote section ─────────────────────────────────────────────────────────────
+
+.governance-vote-closed,
+.governance-vote-success p,
+.governance-vote-actions p {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin: 0 0 12px;
+}
+
+.governance-vote-txhash {
+  font-family: monospace;
+  font-size: 12px;
+  word-break: break-all;
+  color: var(--text-secondary) !important;
+}
+
+.governance-vote-error {
+  font-size: 13px;
+  color: #ef4e4e;
+  margin-bottom: 12px;
+}
+
+.governance-vote-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.governance-vote-btn {
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  color: #fff;
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  &:not(:disabled):hover { opacity: 0.88; transform: translateY(-1px); }
+
+  &--yes     { background: #25a50e; border-color: #25a50e; }
+  &--no      { background: #ef4e4e; border-color: #ef4e4e; }
+  &--abstain { background: rgba(255,255,255,0.12); color: var(--text-secondary); }
+  &--veto    { background: #f59e0b; border-color: #f59e0b; }
+}
+
+.btn-primary {
+  padding: 10px 24px;
+  border-radius: 10px;
+  border: none;
+  background: var(--button-color);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover { opacity: 0.88; }
+}

@@ -1,0 +1,105 @@
+{
+  "network": "base_sepolia",
+  "chainId": 84532,
+  "timestamp": "2026-05-19T05:54:27.253Z",
+  "deployer": "0x67317166f2CAC192FA3485856FFe4BB0B17a713C",
+  "contracts": {
+    "MultXBridgeDest": "0xfdA3b83FE8438123eAF5153945A46F8fcF6175f4",
+    "wrappedTokens": {
+      "wDOGE": {
+        "address": "0xbB86A8ed1170f5Be9cCC7C8df3541F9aA0f7e8F3",
+        "origin": "0x72791d72B6097D487cEC58605A62396c50C08b69",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wwLITHO": {
+        "address": "0x1904e61aD439D2A9c18305D53Db296Af6844DC7b",
+        "origin": "0xC0FC628e3aB128fe387e7ed5e729bD809C017888",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wLitBTC": {
+        "address": "0xe6eaECAB0a9A6CD63582DFd568c2014bb1a43808",
+        "origin": "0x3A8D5FdC6c8dA9f14C535424b6F7206eC1996016",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wLAX": {
+        "address": "0xe69eA31F9795De5236B27664B44aB6E507570E28",
+        "origin": "0xe8f504f9cE5391Fb5968b317f0b24b8A0306ACeb",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wJOT": {
+        "address": "0x2B3E9Ad23a6E384B4eA8f579074266B27F6a7Fe9",
+        "origin": "0x6AE14CEb3962664b13c5dEF29EB172De76bd0ac9",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wCOLLE": {
+        "address": "0x933d3cA124e19883E812265AE27B61C347562C36",
+        "origin": "0x0573f66cb4bC34618e7AB8a941F7883DD2515dCA",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wIMAGE": {
+        "address": "0xC9234d0C56e1a9F439d672a27d9fd8Bb3027FefD",
+        "origin": "0x8Ba6E3A0759144245f2939eB54164e32bb78B8E0",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wAGII": {
+        "address": "0x1AEDC79abB9d3067Da042AB3a976D8fD088D7917",
+        "origin": "0x17D506aF1d0Dc2f4f64f15748a5aC46FAd3f06D7",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wBLDR": {
+        "address": "0x950cEaFEb9C754fEe171fFDE25B20ee2FA93E9D3",
+        "origin": "0xF05f1F79273874E554F02ce06585E16132a3B62B",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wFGPT": {
+        "address": "0xB8b385645799e3365706d615a21e30C3F6E0a51a",
+        "origin": "0x2F366c6350A6b211f6D6F847c3D56738C2E847ca",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wMUSA": {
+        "address": "0x396460c16A644f86965e2d5120f69Ed23fff6F4c",
+        "origin": "0x17A357262097B4e70acFfe8B71bC61e8bBcc3B42",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wQTT": {
+        "address": "0x7126Fa6c66B6e09d026Dd170a2519bb6d57c87D4",
+        "origin": "0x16EE7127C9E03e29ca5727e23dd7CB03D283cDBe",
+        "originChainId": 900523,
+        "decimals": 18
+      }
+    }
+  },
+  "bridge": {
+    "validators": [
+      "0xA5BD41d5325A0462873c813D9f377f6C8BE52DEd",
+      "0xDC3cB79A773617f24dF1FB249D38E59b91Fa2B0D",
+      "0x94625372007f90ebB570E363de57d3a5340C27de"
+    ],
+    "signaturesRequired": 2,
+    "supportedTokens": [
+      "0xbB86A8ed1170f5Be9cCC7C8df3541F9aA0f7e8F3",
+      "0x1904e61aD439D2A9c18305D53Db296Af6844DC7b",
+      "0xe6eaECAB0a9A6CD63582DFd568c2014bb1a43808",
+      "0xe69eA31F9795De5236B27664B44aB6E507570E28",
+      "0x2B3E9Ad23a6E384B4eA8f579074266B27F6a7Fe9",
+      "0x933d3cA124e19883E812265AE27B61C347562C36",
+      "0xC9234d0C56e1a9F439d672a27d9fd8Bb3027FefD",
+      "0x1AEDC79abB9d3067Da042AB3a976D8fD088D7917",
+      "0x950cEaFEb9C754fEe171fFDE25B20ee2FA93E9D3",
+      "0xB8b385645799e3365706d615a21e30C3F6E0a51a",
+      "0x396460c16A644f86965e2d5120f69Ed23fff6F4c",
+      "0x7126Fa6c66B6e09d026Dd170a2519bb6d57c87D4"
+    ]
+  }
+}

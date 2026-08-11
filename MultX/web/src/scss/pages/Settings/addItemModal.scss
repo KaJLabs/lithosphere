@@ -1,0 +1,61 @@
+@use '../../common/mixins' as *;
+
+.addItemModal {
+  z-index: 999;
+
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  left: 0;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  &-content {
+    position: relative;
+    padding: 20px;
+
+    z-index: 9999;
+
+    width: 375px;
+
+    &-title {
+      color: var(--text-secondary);
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    &-description {
+      font-size: 12px;
+      margin-top: 20px;
+      line-height: 25px
+    }
+
+    &-input {
+      text-align: center;
+      font-size: 16px;
+      margin-top: 26px;
+      width: 100%;
+      resize: none;
+      padding: 5px;
+      color: var(--text-secondary);
+
+      @include card;
+    }
+
+    &-btns {
+      display: flex;
+      gap: 15px;
+      margin-top: 20px;
+
+      &-btn {
+        height: 40px;
+        flex: 1 1 auto;
+      }
+    }
+
+    @include card;
+  }
+}

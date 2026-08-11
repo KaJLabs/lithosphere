@@ -3,7 +3,7 @@
 # fix-grafana-no-data.sh
 # Diagnose and fix the "No data" issue on grafana.litho.ai
 #
-# This script runs against the Indexer-EC2 (10.0.10.16) via Bastion SSH and:
+# This script runs against the protected-inventory indexer via Bastion SSH and:
 #   1. Checks if Prometheus is running (Docker or systemd)
 #   2. If not running, deploys the monitoring stack via docker compose
 #   3. Tests network connectivity to Validator/Sentry CometBFT (:26660)
@@ -43,11 +43,11 @@ error()   { echo -e "${RED}[ERROR]${RESET} $*" >&2; exit 1; }
 step()    { echo -e "\n${BOLD}══════════════════════════════════════════════════════════════${RESET}"; echo -e "${BOLD}  $* ${RESET}"; echo -e "${BOLD}══════════════════════════════════════════════════════════════${RESET}"; }
 
 # ── Network topology ─────────────────────────────────────────────────────────
-INDEXER_IP="10.0.10.16"
+INDEXER_IP="${INDEXER_HOST:-}"
 
-VALIDATOR_IP="10.0.10.65"
-SENTRY01_IP="10.0.1.218"
-SENTRY02_IP="10.1.1.227"
+VALIDATOR_IP="${MONITORING_VALIDATOR_HOST:-}"
+SENTRY01_IP="${MONITORING_SENTRY1_HOST:-}"
+SENTRY02_IP="${MONITORING_SENTRY2_HOST:-}"
 
 COMETBFT_PORT=26660
 NODE_EXPORTER_PORT=9100
@@ -72,6 +72,10 @@ DIAG_ONLY=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --bastion)        BASTION_HOST="$2";  shift 2 ;;
+    --indexer)        INDEXER_IP="$2";    shift 2 ;;
+    --validator-host) VALIDATOR_IP="$2";  shift 2 ;;
+    --sentry01-host)  SENTRY01_IP="$2";   shift 2 ;;
+    --sentry02-host)  SENTRY02_IP="$2";   shift 2 ;;
     --bastion-user)   BASTION_USER="$2";  shift 2 ;;
     --target-user)    TARGET_USER="$2";   shift 2 ;;
     --key)            SSH_KEY="$2";       shift 2 ;;
@@ -86,6 +90,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -z "$BASTION_HOST" ]] && error "--bastion <host> is required."
+[[ -z "$INDEXER_IP" ]] && error "--indexer <host> or INDEXER_HOST is required."
+[[ -z "$VALIDATOR_IP" ]] && error "--validator-host or MONITORING_VALIDATOR_HOST is required."
+[[ -z "$SENTRY01_IP" ]] && error "--sentry01-host or MONITORING_SENTRY1_HOST is required."
+[[ -z "$SENTRY02_IP" ]] && error "--sentry02-host or MONITORING_SENTRY2_HOST is required."
 
 # ── SSH helper ────────────────────────────────────────────────────────────────
 SSH_OPTS="-o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=15"

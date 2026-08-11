@@ -1,0 +1,74 @@
+---
+# Stage the sealed genesis into the dedicated mainnet homes without starting
+# services, enabling WireGuard, or changing any existing network.
+
+- name: Stage sealed LITHO mainnet genesis
+  hosts: mainnet_nodes
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  tasks:
+    - name: Confirm the dedicated mainnet service is not active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - "{{ litho_service_name }}"
+      register: mainnet_service_state
+      changed_when: false
+      failed_when: false
+
+    - name: Refuse staging while the mainnet service is active
+      ansible.builtin.assert:
+        that:
+          - mainnet_service_state.stdout | trim != 'active'
+        fail_msg: "{{ litho_service_name }} is active; staging is intentionally stopped."
+
+    - name: Inspect any existing launch genesis
+      ansible.builtin.stat:
+        path: "{{ litho_home }}/config/genesis.json"
+        checksum_algorithm: sha256
+      register: existing_launch_genesis
+
+    - name: Refuse to overwrite a different launch genesis
+      ansible.builtin.assert:
+        that:
+          - not existing_launch_genesis.stat.exists
+            or existing_launch_genesis.stat.checksum == genesis_checksum_expected
+        fail_msg: >-
+          A different genesis already exists at {{ litho_home }}/config/genesis.json;
+          refusing to overwrite it.
+
+    - name: Copy the sealed genesis into the launch home
+      ansible.builtin.copy:
+        src: "{{ genesis_file_local }}"
+        dest: "{{ litho_home }}/config/genesis.json"
+        owner: "{{ litho_user }}"
+        group: "{{ litho_group }}"
+        mode: "0640"
+      register: staged_genesis
+
+    - name: Verify staged genesis checksum
+      ansible.builtin.stat:
+        path: "{{ litho_home }}/config/genesis.json"
+        checksum_algorithm: sha256
+      register: staged_genesis_stat
+
+    - name: Require the exact sealed genesis on every node
+      ansible.builtin.assert:
+        that:
+          - staged_genesis_stat.stat.exists
+          - staged_genesis_stat.stat.checksum == genesis_checksum_expected
+        fail_msg: >-
+          Staged genesis checksum mismatch on {{ inventory_hostname }}:
+          expected {{ genesis_checksum_expected }},
+          got {{ staged_genesis_stat.stat.checksum | default('missing') }}.
+
+    - name: Report staging result without starting services
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "Genesis: {{ litho_home }}/config/genesis.json"
+          - "Checksum: {{ staged_genesis_stat.stat.checksum }}"
+          - "Changed: {{ staged_genesis.changed }}"
+          - "Mainnet service remains inactive: {{ mainnet_service_state.stdout | trim }}"

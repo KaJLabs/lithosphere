@@ -22,8 +22,20 @@ jobs:
       INDEXER_IP: ${{ secrets.INDEXER_IP }}
       BASTION_HOST: ${{ secrets.BASTION_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
+      MONITORING_VALIDATOR_HOST: ${{ secrets.MONITORING_VALIDATOR_HOST }}
+      MONITORING_SENTRY1_HOST: ${{ secrets.MONITORING_SENTRY1_HOST }}
+      MONITORING_SENTRY2_HOST: ${{ secrets.MONITORING_SENTRY2_HOST }}
 
     steps:
+      - name: Validate protected topology
+        shell: bash
+        run: |
+          for name in INDEXER_IP BASTION_HOST SERVER_USER MONITORING_VALIDATOR_HOST MONITORING_SENTRY1_HOST MONITORING_SENTRY2_HOST; do
+            value="${!name:-}"
+            [[ -n "$value" ]] || { echo "Missing protected value: $name"; exit 1; }
+            [[ "$value" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Invalid protected value: $name"; exit 1; }
+          done
+
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -41,7 +53,8 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no \
               -o ProxyJump="$SERVER_USER@$BASTION_HOST" \
-              "$SERVER_USER@$INDEXER_IP" << 'ENDSSH'
+              "$SERVER_USER@$INDEXER_IP" \
+              "MONITORING_VALIDATOR_HOST=$MONITORING_VALIDATOR_HOST MONITORING_SENTRY1_HOST=$MONITORING_SENTRY1_HOST MONITORING_SENTRY2_HOST=$MONITORING_SENTRY2_HOST bash -s" << 'ENDSSH'
           set -euo pipefail
 
           echo "=============================================="
@@ -75,7 +88,7 @@ jobs:
           # ── 2. CometBFT / Tendermint metrics (port 26660) ──────────────
           echo ""
           echo "=== 2. COMETBFT METRICS (port 26660) ==="
-          for entry in "10.0.10.65:validator" "10.0.1.218:sentry-01" "10.1.1.227:sentry-02"; do
+          for entry in "$MONITORING_VALIDATOR_HOST:validator" "$MONITORING_SENTRY1_HOST:sentry-01" "$MONITORING_SENTRY2_HOST:sentry-02"; do
             ip="${entry%%:*}"
             name="${entry##*:}"
             printf "  %-12s (%s): " "$name" "$ip"
@@ -89,7 +102,7 @@ jobs:
           # ── 3. node_exporter (port 9100) ───────────────────────────────
           echo ""
           echo "=== 3. NODE_EXPORTER (port 9100) ==="
-          for entry in "10.0.10.65:validator" "10.0.1.218:sentry-01" "10.1.1.227:sentry-02"; do
+          for entry in "$MONITORING_VALIDATOR_HOST:validator" "$MONITORING_SENTRY1_HOST:sentry-01" "$MONITORING_SENTRY2_HOST:sentry-02"; do
             ip="${entry%%:*}"
             name="${entry##*:}"
             printf "  %-12s (%s): " "$name" "$ip"
@@ -103,7 +116,7 @@ jobs:
           # ── 4. Network connectivity test ───────────────────────────────
           echo ""
           echo "=== 4. NETWORK CONNECTIVITY ==="
-          for entry in "10.0.10.65:validator" "10.0.1.218:sentry-01" "10.1.1.227:sentry-02"; do
+          for entry in "$MONITORING_VALIDATOR_HOST:validator" "$MONITORING_SENTRY1_HOST:sentry-01" "$MONITORING_SENTRY2_HOST:sentry-02"; do
             ip="${entry%%:*}"
             name="${entry##*:}"
             printf "  %-12s (%s) ping: " "$name" "$ip"

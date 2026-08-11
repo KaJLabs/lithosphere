@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+home=/var/lib/litho-mainnet-9005-val
+cd "$home"
+exec /bin/tar -cf - \
+  config/priv_validator_key.json \
+  data/priv_validator_state.json

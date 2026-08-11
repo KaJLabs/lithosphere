@@ -68,7 +68,7 @@ We've documented what we know in `docs/network/chain-parameters.md`. But we need
 
 Your endpoint cleanup changed the default gRPC to `grpc.litho.ai:9090`. We've used this in our `network-parameters.json`. Is TLS actually configured on this endpoint now, or is it still direct/plaintext? If plaintext, we should note that in our docs.
 
-Same question for **EVM WebSocket** — is `wss://` available via Nginx, or still `ws://54.163.248.63:8546` direct?
+Same question for **EVM WebSocket** — is the approved `wss://` hostname available via Nginx, or is protected origin access still required?
 
 ---
 
@@ -100,7 +100,7 @@ We've renamed the monorepo directory from `Makulu/` to `Makalu/` to match the ne
 **Before the next deploy**, you must rename the directory on the production server:
 
 ```bash
-ssh ec2-user@<INDEXER_IP> -o ProxyJump="ec2-user@44.218.142.100"
+ssh <DEPLOY_USER>@<INDEXER_HOST> -o ProxyJump="<DEPLOY_USER>@<BASTION_HOST>"
 sudo mv /opt/lithosphere/Makulu /opt/lithosphere/Makalu
 ```
 

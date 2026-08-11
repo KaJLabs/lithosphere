@@ -1,0 +1,14 @@
+# Lithosphere periodic restart — releases leaked memiavl mmaps + FDs.
+#
+# Cronos memiavl never releases old snapshot files when they are rewritten;
+# the leaked mmap()s and FDs persist as "(deleted)" entries and count
+# against vm.max_map_count and fs.file-max. The leak rate is highly
+# load-driven; see lithod-restart.timer for cadence reasoning.
+
+[Unit]
+Description=Periodic restart of {{ litho_service_name }} (memiavl mmap leak workaround)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/systemctl restart {{ litho_service_name }}

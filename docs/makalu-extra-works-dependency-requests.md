@@ -87,7 +87,7 @@ Scope once unblocked (from prior findings):
 - Clean `app.toml.j2` so an `ansible --tags config` dry-run shows **only** intended deltas — today it carries
   40+ pending drift changes (RPC `0.0.0.0` exposure, telemetry flips, economics) that make `--tags config`
   unsafe, forcing surgical `sed` edits and defeating intent-as-code.
-- Align the 4 drifted sentries (AWS `10.0.1.218`, `10.1.1.227` + 2 Hostinger) from
+- Align the four drifted sentries (two legacy AWS roles plus two VPS roles) from
   `timeout_commit=3s / timeout_propose=900ms` to match the active validators (`timeout_commit=500ms`).
 - Add **automated drift detection** (scheduled diff of live `config.toml`/`app.toml` vs. Ansible intent),
   since drift has recurred (Kamet val-04 2026-05-05, mtest-val-01 2026-05-08).

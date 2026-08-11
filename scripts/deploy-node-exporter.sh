@@ -13,7 +13,7 @@
 # Optional flags:
 #   --bastion-user  <user>   SSH user for bastion   (default: ec2-user)
 #   --node-user     <user>   SSH user for nodes     (default: ec2-user)
-#   --nodes         <csv>    Comma-separated IPs    (default: 10.0.10.65,10.0.1.218,10.1.1.227)
+#   --nodes         <csv>    Comma-separated protected node hosts (required)
 #   --dry-run                Print commands without executing
 #
 # This installs node_exporter v1.7.0 as a systemd service listening on :9100.
@@ -27,7 +27,7 @@ CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
 info()    { echo -e "${CYAN}[INFO]${RESET}  $*"; }
 success() { echo -e "${GREEN}[ OK ]${RESET}  $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${RESET}  $*"; }
-error()   { echo -e "${RED}[ERROR]${RESET} $*" >&2; exit 1; }& "C:\Program Files\Git\bin\bash.exe" ./scripts/fix-grafana-no-data.sh --bastion <bastion-ip> --key ~/.ssh/your-key.pem --diag-only& "C:\Program Files\Git\bin\bash.exe" ./scripts/fix-grafana-no-data.sh --bastion <bastion-ip> --key ~/.ssh/your-key.pem --diag-only& "C:\Program Files\Git\bin\bash.exe" ./scripts/fix-grafana-no-data.sh --bastion <bastion-ip> --key ~/.ssh/your-key.pem --diag-only
+error()   { echo -e "${RED}[ERROR]${RESET} $*" >&2; exit 1; }
 
 NODE_EXPORTER_VERSION="1.7.0"
 
@@ -36,7 +36,7 @@ BASTION_USER="ec2-user"
 NODE_USER="ec2-user"
 SSH_KEY=""
 DRY_RUN=false
-NODES="10.0.10.65,10.0.1.218,10.1.1.227"
+NODES=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,6 +51,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -z "$BASTION_HOST" ]] && error "--bastion <host> is required."
+[[ -z "$NODES" ]] && error "--nodes <comma-separated-hosts> is required."
 
 SSH_OPTS="-o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=15"
 [[ -n "$SSH_KEY" ]] && SSH_OPTS="${SSH_OPTS} -i ${SSH_KEY}"
@@ -170,7 +171,7 @@ done
 echo ""
 echo -e "${BOLD}── Verification ──${RESET}"
 echo ""
-echo "Run from the Indexer (${CYAN}10.0.10.16${RESET}):"
+echo "Run from the authorized monitoring host:"
 for NODE_IP in "${NODE_LIST[@]}"; do
   echo "  curl -sf http://${NODE_IP}:9100/metrics | head -3"
 done

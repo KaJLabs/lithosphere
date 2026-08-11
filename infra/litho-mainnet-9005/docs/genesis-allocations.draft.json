@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "status": "final_genesis_sealed_pending_offline_backup_and_launch",
+  "source": {
+    "description": "Client-supplied mainnet LITHO distribution",
+    "receivedDate": "2026-07-22"
+  },
+  "network": {
+    "evmChainId": 9005,
+    "cosmosChainId": "lithosphere_9005-1"
+  },
+  "asset": {
+    "symbol": "LITHO",
+    "baseDenom": "ulitho",
+    "decimals": 18,
+    "totalSupplyLITHO": "1000000000",
+    "totalSupplyBaseUnits": "1000000000000000000000000000",
+    "maximumSupplyLITHO": "1000000000",
+    "maximumSupplyBaseUnits": "1000000000000000000000000000",
+    "unitConfirmationPending": false,
+    "inflationaryMintingEnabled": false,
+    "rewardsSource": "transaction_fees_only_at_genesis",
+    "burnsReduceTotalSupply": true,
+    "securityReserveAllocationIndex": null,
+    "securityReserveAmountLITHO": "0",
+    "securityReserveAmountBaseUnits": "0"
+  },
+  "allocations": [
+    {
+      "index": 1,
+      "purpose": null,
+      "percentage": "29.9999999",
+      "amountLITHO": "299999999",
+      "amountBaseUnits": "299999999000000000000000000",
+      "originalClientPercentage": "30.0",
+      "originalClientAmountLITHO": "300000000",
+      "validatorStakeAdjustmentLITHO": "-1",
+      "evmAddress": "0x903AA7a6fc37F1947B6e4fC3832139A8D4152149",
+      "lithoAddress": "litho1jqa20fhuxlceg7mwflpcxgfe4r2p2g2f0nrnj5"
+    },
+    {
+      "index": 2,
+      "purpose": null,
+      "percentage": "20.0",
+      "amountLITHO": "200000000",
+      "amountBaseUnits": "200000000000000000000000000",
+      "evmAddress": "0x8A21FeDfB1782F446C3b6D3062dd31E3b5392d4c",
+      "lithoAddress": "litho13gslaha30qh5gmpmd5cx9hf3uw6njt2vru8kn9"
+    },
+    {
+      "index": 3,
+      "purpose": null,
+      "percentage": "18.0",
+      "amountLITHO": "180000000",
+      "amountBaseUnits": "180000000000000000000000000",
+      "evmAddress": "0x4E7d740Af889EADcC902F9304315677E479aB3b6",
+      "lithoAddress": "litho1fe7hgzhc384dejgzlycyx9t80ere4vakcnphsm"
+    },
+    {
+      "index": 4,
+      "purpose": null,
+      "percentage": "15.0",
+      "amountLITHO": "150000000",
+      "amountBaseUnits": "150000000000000000000000000",
+      "evmAddress": "0xF10f9C6Dd40bF34B6d9c02811dC5653dDc278D4b",
+      "lithoAddress": "litho17y8ecmw5p0e5kmvuq2q3m3t98hwz0r2t8su5ng"
+    },
+    {
+      "index": 5,
+      "purpose": null,
+      "percentage": "12.0",
+      "amountLITHO": "120000000",
+      "amountBaseUnits": "120000000000000000000000000",
+      "evmAddress": "0x8819B1BdcD7727118014003b701982d9F11A50a1",
+      "lithoAddress": "litho13qvmr0wdwun3rqq5qqahqxvzm8c3559pfwwwr0"
+    },
+    {
+      "index": 6,
+      "purpose": null,
+      "percentage": "5.0",
+      "amountLITHO": "50000000",
+      "amountBaseUnits": "50000000000000000000000000",
+      "evmAddress": "0xeB99a25D5Ed9f40B57485a2D9413EadC605Daf99",
+      "lithoAddress": "litho1awv6yh27m86qk46gtgkegyl2m3s9mtue4epesa"
+    },
+    {
+      "index": 7,
+      "purpose": "validator1_initial_bonded_stake",
+      "percentage": "0.0000001",
+      "amountLITHO": "1",
+      "amountBaseUnits": "1000000000000000000",
+      "liquidAmountLITHO": "0",
+      "bondedAmountLITHO": "1",
+      "fundedFromAllocationIndex": 1,
+      "evmAddress": "0xba2b6fA3758296c5237235b2aF3Ba2a96D36A860",
+      "lithoAddress": "litho1hg4klgm4s2tv2gmjxke27waz49knd2rq908aw2"
+    }
+  ],
+  "validation": {
+    "addressCount": 7,
+    "uniqueAddressCount": 7,
+    "allEip55ChecksumsValid": true,
+    "percentageTotal": "100.0",
+    "amountTotalLITHO": "1000000000",
+    "amountTotalBaseUnits": "1000000000000000000000000000",
+    "securityReserveZeroConfirmed": true,
+    "initialBondedStakeLITHO": "1",
+    "postBondingLiquidPlusBondedLITHO": "1000000000"
+  },
+  "genesis": {
+    "generated": true,
+    "candidateGenerated": true,
+    "candidateFile": "genesis.candidate.json",
+    "candidateGenesisTime": "2026-07-23T15:46:33Z",
+    "candidateSha256": "eba1c832a1b5830400873a5c8eb88ae82d351762e31d00e5593d99484ce2bc71",
+    "candidateValidation": {
+      "moduleValidationPassed": true,
+      "applicationHandshakePassed": true,
+      "blockProductionPassed": true,
+      "cosmosChainIdObserved": "lithosphere_9005-1",
+      "evmChainIdObserved": 9005,
+      "totalSupplyBaseUnitsObserved": "1000000000000000000000000000",
+      "validatorBondedBaseUnitsObserved": "1000000000000000000",
+      "customHeight1MessageIncluded": false
+    },
+    "finalFile": "genesis.json",
+    "finalGenesisTime": "2026-07-27T17:00:00Z",
+    "finalSha256": "13e4875b4a9dddc63bdfbd4968c7265f9bbc49218b59c5b49231a56fa313046f",
+    "finalValidation": {
+      "moduleValidationPassed": true,
+      "chainIdValidated": true,
+      "fixedSupplyValidated": true,
+      "inflationDisabledValidated": true,
+      "initialBondValidated": true,
+      "customHeight1MessageIncluded": false,
+      "remotePreflightPassed": true,
+      "clientLaunchTimeApproved": true,
+      "clientApprovalRecordedDate": "2026-07-23"
+    },
+    "initialValidatorCount": 1,
+    "initialValidatorMoniker": "validator1",
+    "initialValidatorWalletEvmAddress": "0xba2b6fA3758296c5237235b2aF3Ba2a96D36A860",
+    "initialValidatorWalletLithoAddress": "litho1hg4klgm4s2tv2gmjxke27waz49knd2rq908aw2",
+    "initialValidatorStakeLITHO": "1",
+    "initialValidatorStakeBaseUnits": "1000000000000000000",
+    "initialValidatorOperatorAddress": "lithovaloper1hg4klgm4s2tv2gmjxke27waz49knd2rq5tzfcw",
+    "initialValidatorConsensusPublicKey": {
+      "@type": "/cosmos.crypto.ed25519.PubKey",
+      "key": "7o+6DXvzUZditxqvBH8RHScpB7KrAGrB4CvIHwByBSc="
+    },
+    "initialValidatorNodeId": "cdb42540c4be4728a1e435fd2af89c8c7920eeb8",
+    "stakeFundingAllocationIndex": 1,
+    "validatorWalletAllocationIndex": 7,
+    "validatorWalletAllocationIncludedInFixedSupply": true,
+    "liquidWalletBalanceTotalAfterBondingLITHO": "999999999",
+    "liquidWalletBalanceTotalAfterBondingBaseUnits": "999999999000000000000000000",
+    "allocationOwnershipIncludesBondedStake": true,
+    "additionalPostGenesisValidatorFundingMustBeTransfersNotMinting": true,
+    "initialValidatorIdentityGenerated": true,
+    "initialValidatorsConfiguredInCandidateGenesis": true,
+    "initialValidatorsConfiguredInFinalGenesis": true
+  }
+}

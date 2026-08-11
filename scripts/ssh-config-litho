@@ -1,12 +1,12 @@
 Host litho-bastion
-    HostName 44.218.142.100
-    User ec2-user
-    IdentityFile C:\Users\Bachal\.ssh\litho-validator
-    StrictHostKeyChecking no
+    HostName <BASTION_HOST_FROM_PROTECTED_INVENTORY>
+    User <DEPLOY_USER>
+    IdentityFile <PATH_TO_OPERATOR_SSH_KEY>
+    StrictHostKeyChecking yes
 
 Host litho-indexer
-    HostName 10.0.10.16
-    User ec2-user
-    IdentityFile C:\Users\Bachal\.ssh\litho-validator
-    StrictHostKeyChecking no
-    ProxyCommand ssh -F none -o StrictHostKeyChecking=no -i C:\Users\Bachal\.ssh\litho-validator -W %h:%p ec2-user@44.218.142.100
+    HostName <INDEXER_HOST_FROM_PROTECTED_INVENTORY>
+    User <DEPLOY_USER>
+    IdentityFile <PATH_TO_OPERATOR_SSH_KEY>
+    StrictHostKeyChecking yes
+    ProxyJump litho-bastion
