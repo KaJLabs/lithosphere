@@ -134,25 +134,6 @@ jobs:
           push: false
           tags: multx-signer:ci
 
-  totp-envelope:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: MultX/totp-envelope/package-lock.json
-      - name: Test isolated TOTP envelope service
-        working-directory: MultX/totp-envelope
-        run: npm ci && npm audit --omit=dev --audit-level=high && npm test
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
-        with:
-          context: MultX/totp-envelope
-          push: false
-          tags: multx-totp-envelope:ci
-
   web-image:
     runs-on: ubuntu-latest
     steps:

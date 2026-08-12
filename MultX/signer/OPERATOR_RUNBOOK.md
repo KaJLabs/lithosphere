@@ -31,7 +31,7 @@ through chat, source control or CI.
   address. If mTLS is configured, the approved client certificate is also
   required.
 - No `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, session token, EVM private
-  key or plaintext TOTP seed exists in Compose, environment files or images.
+  key exists in Compose, environment files or images.
 - Invalid routes, confirmations and equivocation are rejected before KMS Sign.
 - Restart preserves the journal and its equivocation decisions.
 

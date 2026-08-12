@@ -32,5 +32,5 @@ For every signing request the relay:
 - `SIGNER_STATE_FILE`: persistent anti-equivocation journal.
 
 The runtime role requires exactly `kms:GetPublicKey` and `kms:Sign` on its one
-asymmetric KMS key. It receives no decrypt or TOTP permission. No production
+asymmetric KMS key. It receives no encryption or decryption permission. No production
 policy, token, certificate, private key or AWS identifier is included.
