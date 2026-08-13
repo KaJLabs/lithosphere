@@ -40,19 +40,25 @@ export const decodeDerSignature = (input) => {
 export const createKmsSigner = async ({ keyId, region, expectedAddress, client }) => {
   if (!keyId || !region || !expectedAddress) throw new Error('KMS_KEY_ID, AWS_REGION and KMS_EXPECTED_ADDRESS are required');
   const kms = client || new KMSClient({ region }); // Uses the standard AWS credential provider chain.
-  const publicResult = await kms.send(new GetPublicKeyCommand({ KeyId: keyId }));
-  if (publicResult.KeySpec !== 'ECC_SECG_P256K1' || publicResult.KeyUsage !== 'SIGN_VERIFY') {
-    throw new Error(`KMS key must be ECC_SECG_P256K1/SIGN_VERIFY, got ${publicResult.KeySpec}/${publicResult.KeyUsage}`);
-  }
-  if (!publicResult.PublicKey) throw new Error('KMS GetPublicKey returned no public key');
-  const spki = Buffer.from(publicResult.PublicKey);
-  const point = spki.subarray(spki.length - 65);
-  if (point.length !== 65 || point[0] !== 0x04) throw new Error('KMS returned an unsupported secp256k1 public key');
-  const address = ethers.computeAddress(`0x${point.toString('hex')}`);
-  if (ethers.getAddress(expectedAddress) !== address) throw new Error(`KMS public key address ${address} does not match expected address`);
+  const approvedAddress = ethers.getAddress(expectedAddress);
+  const verifyIdentity = async () => {
+    const publicResult = await kms.send(new GetPublicKeyCommand({ KeyId: keyId }));
+    if (publicResult.KeySpec !== 'ECC_SECG_P256K1' || publicResult.KeyUsage !== 'SIGN_VERIFY') {
+      throw new Error(`KMS key must be ECC_SECG_P256K1/SIGN_VERIFY, got ${publicResult.KeySpec}/${publicResult.KeyUsage}`);
+    }
+    if (!publicResult.PublicKey) throw new Error('KMS GetPublicKey returned no public key');
+    const spki = Buffer.from(publicResult.PublicKey);
+    const point = spki.subarray(spki.length - 65);
+    if (point.length !== 65 || point[0] !== 0x04) throw new Error('KMS returned an unsupported secp256k1 public key');
+    const address = ethers.computeAddress(`0x${point.toString('hex')}`);
+    if (approvedAddress !== address) throw new Error(`KMS public key address ${address} does not match expected address`);
+    return { address, keySpec: publicResult.KeySpec, keyUsage: publicResult.KeyUsage };
+  };
+  const identity = await verifyIdentity();
 
   return {
-    address,
+    address: identity.address,
+    verifyIdentity,
     signMessage: async (messageBytes) => {
       const digest = ethers.hashMessage(messageBytes);
       const result = await kms.send(new SignCommand({
@@ -69,7 +75,7 @@ export const createKmsSigner = async ({ keyId, region, expectedAddress, client }
       const sHex = ethers.toBeHex(s, 32);
       for (const v of [27, 28]) {
         const signature = ethers.Signature.from({ r: rHex, s: sHex, v }).serialized;
-        if (ethers.recoverAddress(digest, signature) === address) return signature;
+        if (ethers.recoverAddress(digest, signature) === identity.address) return signature;
       }
       throw new Error('KMS signature does not recover the configured signer address');
     },

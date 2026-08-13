@@ -34,3 +34,7 @@ For every signing request the relay:
 The runtime role requires exactly `kms:GetPublicKey` and `kms:Sign` on its one
 asymmetric KMS key. It receives no encryption or decryption permission. No production
 policy, token, certificate, private key or AWS identifier is included.
+
+`GET /v1/readiness` requires the bearer token (and mTLS when configured). It
+performs a fresh KMS `GetPublicKey`, revalidates key spec, usage and derived EVM
+address, and never invokes KMS Sign or a blockchain transaction.

@@ -140,6 +140,10 @@ const server = https.createServer({
     if (req.method === 'GET' && req.url === '/health') return send(res, 200, { status: 'healthy' });
     if (!bearerAuthorised(req.headers.authorization, bearerToken)) return send(res, 401, { error: 'unauthorized' });
     if (req.method === 'GET' && req.url === '/v1/identity') return send(res, 200, { address: signer.address, backend: 'aws-kms' });
+    if (req.method === 'GET' && req.url === '/v1/readiness') {
+      const identity = await signer.verifyIdentity();
+      return send(res, 200, { status: 'ready', backend: 'aws-kms', ...identity });
+    }
     if (req.method === 'POST' && req.url === '/v1/sign-release') {
       const signature = await verifyAndSign(await readJson(req));
       return send(res, 200, { address: signer.address, signature });
