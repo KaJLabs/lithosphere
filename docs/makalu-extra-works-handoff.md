@@ -1,9 +1,9 @@
 # Makalu extra works — living handoff
 
 - **Status:** Active — closing one stream at a time
-- **Last verified:** 2026-08-14 15:26 PKT (UTC+05:00)
+- **Last verified:** 2026-08-14 21:27 PKT (UTC+05:00)
 - **Repository:** `KaJLabs/Lithosphere`
-- **Default branch inspected:** `origin/main` at `5db05ad0e5fc396b0a1c532dff84d5d69f06adee`
+- **Default branch inspected:** `origin/main` at `ae9bf1f341e26e8ed4cbdcb44cd5e8f3e3602f5e`
 - **Latest merged closure:** PR #82 at `f6303f9d39f3c8075284dc73ecb65d4b3556e7eb`
 - **Network in scope:** Makalu testnet, EVM chain ID `700777`, Cosmos chain ID `lithosphere_700777-2`
 
@@ -47,7 +47,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | --- | --- | --- | --- | --- |
 | MX-06 | Validator cleanup and safety | Chain monitor active; encrypted backup blocked | EXTERNAL BLOCKER | Assign custodians and add the public `BACKUP_RECIPIENT`, then run backup/restore verification. |
 | MX-02 | LEP100 faucet assets | Safeguards and secured image pipeline merged; production release remains manual | EXTERNAL BLOCKER | Rotate the exposed faucet key, install the protected wrapper, fund assets, deploy, and prove live claims/alerts. |
-| MX-03 | Thanos Wallet | Merged and deployed; acceptance open | IN PROGRESS | Complete wallet-team browser and signed-transaction acceptance. |
+| MX-03 | Thanos Wallet | Integration verified; acceptance open | IN PROGRESS | Complete the published-version browser matrix and one approved signed-transaction test. |
 | MX-04 | DNNS | Merged and deployed; live-name acceptance open | EXTERNAL BLOCKER | Obtain two stable test names and DNNS interface/cache confirmation. |
 | MX-05 | Quantt | Adapter deployed but deliberately unconfigured | EXTERNAL BLOCKER | Obtain API contract/credential and repair or replace the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | Candidate source merged; Makalu swap disabled | IN PROGRESS | Resolve open DEX PRs, audit, deploy, seed approved liquidity, and run live acceptance. |
@@ -198,10 +198,11 @@ Evidence:
 
 **Owners:** Dev Infra + Thanos Wallet team
 
-**Current state:** Thanos is integrated as the EIP-6963 injected provider `fi.thanos.wallet`. Direct discovery,
-network addition/switching, SIWE message signing, signature normalization, nonce verification, replay protection,
-bearer sessions, and disconnect behavior are implemented. Repository tests pass; wallet-team browser acceptance and
-production-secret evidence remain open.
+**Current state:** Thanos is integrated as the EIP-6963 injected provider `fi.thanos.wallet`, with the extension's
+official `window.thanos` surface as a fallback. Direct discovery, network addition/switching, SIWE message signing,
+signature normalization, nonce verification, replay protection, bearer sessions, and disconnect behavior are
+implemented. The published Chrome version and production secret gate are verified. Wallet-team browser acceptance
+and a low-value signed transaction remain open.
 
 Completed or evidenced:
 
@@ -210,12 +211,15 @@ Completed or evidenced:
 - [x] Makalu chain enforcement and add/switch-network flow exist.
 - [x] Server-validated nonce/SIWE/session flow with replay protection exists.
 - [x] API auth tests and explorer wallet/auth tests pass (2026-08-03).
+- [x] Published Chrome version `0.9.33` was verified on 2026-08-14; its source commit `c352a5cfef22` announces
+      EIP-6963 with RDNS `fi.thanos.wallet`, exposes `window.thanos`, and supports EIP-1193 signing.
+- [x] The production Makalu API uses a present, non-placeholder `AUTH_SESSION_SECRET` of at least 32 characters;
+      the value was not exposed (2026-08-14).
+- [x] Automated coverage includes late EIP-6963 announcement and the official `window.thanos` fallback.
 
 Remaining actions:
 
-- [ ] Verify deployment uses a stable, secret-managed `AUTH_SESSION_SECRET` of at least 32 characters without
-      exposing its value.
-- [ ] Wallet team tests the currently supported extension version in Chrome/Chromium and records the version.
+- [ ] Wallet team tests published extension version `0.9.33` in Chrome/Chromium and records browser/version evidence.
 - [ ] Test fresh install, late EIP-6963 announcement, user rejection, wrong chain, network switch, reconnect, sign-out,
       extension restart, and browser restart.
 - [ ] Submit an approved low-value signed transaction and verify it in Lithoscan.
@@ -236,6 +240,7 @@ Evidence:
 - `Makalu/api/src/__tests__/thanos-auth.test.ts`
 - `Makalu/explorer/test/auth.test.ts`
 - `Makalu/explorer/test/walletNetwork.test.ts`
+- `docs/thanos-wallet-acceptance.md`
 
 ## MX-04 — DNNS integration
 
@@ -495,12 +500,26 @@ Evidence:
 | 2026-08-14 | Faucet image pipeline | PASS | PR #82 merged as `f6303f9`; merged image run passed build, pre-publish Trivy gate, signing, provenance, and SBOM for all four services. No production deploy triggered. |
 | 2026-08-14 | Faucet production release | BLOCKED | Rotate the exposed funding key, install the reviewed protected wrappers, replenish approved reserves, then run the manual gated release. |
 | 2026-08-14 | Thanos deployment | PARTIAL | `/signin` and `/api/auth/nonce` respond; wallet-team acceptance remains. |
+| 2026-08-14 | Thanos published release | PASS | Chrome Web Store reports `0.9.33`; matching source commit `c352a5cfef22` confirms EIP-6963, `fi.thanos.wallet`, `window.thanos`, and signing support. |
+| 2026-08-14 | Thanos production auth | PASS | Makalu API secret checked value-free: present, non-placeholder, and at least 32 characters. `/signin` 200, nonce 200 with valid format, unauthenticated `/api/auth/me` 401. |
+| 2026-08-14 | Thanos repository verification | PASS | API: 6 focused tests and TypeScript build passed. Explorer: all 128 tests passed; Next compilation/type validation passed before Windows denied standalone symlink creation. |
 | 2026-08-14 | DNNS registry | PASS | Kamet chain ID 900523; configured registry address contains contract bytecode. |
 | 2026-08-14 | Quantt | BLOCKED | Live adapter reports `configured: false`; development hostname fails TLS validation. |
 | 2026-08-14 | Mainnet chain monitor | PASS | Three latest inspected protected runs passed. |
 | 2026-08-14 | Signing-state backup | BLOCKED | Scheduled workflow fails closed because `BACKUP_RECIPIENT` is empty. |
 
 ## Change log
+
+### 2026-08-14 — MX-03 repository verification and wallet-team handoff
+
+- Verified the currently published Chrome extension as `0.9.33` and checked its matching source instead of assuming
+  compatibility from the newer unreleased repository version.
+- Added a `window.thanos` fallback matching the official provider surface and automated both that path and late
+  EIP-6963 announcement discovery.
+- Verified the Makalu production session-secret gate without printing the secret and probed the live authentication
+  routes.
+- Added `docs/thanos-wallet-acceptance.md` with the exact remaining browser, restart, transaction, evidence, and
+  approver fields. MX-03 remains open until the wallet team completes that record.
 
 ### 2026-08-14 — MX-02 secured image pipeline merged; production held safely
 

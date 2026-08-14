@@ -53,11 +53,27 @@ function findThanosConnector(): Connector | undefined {
  */
 type ThanosWallet = { connector?: Connector; provider: Eip1193Provider };
 
-async function discoverThanosWallet(): Promise<ThanosWallet | undefined> {
+type ThanosInjectedWindow = Window & {
+  thanos?: Eip1193Provider & { isThanos?: boolean };
+};
+
+function findInjectedThanosProvider(): Eip1193Provider | undefined {
+  const provider = (window as ThanosInjectedWindow).thanos;
+  return provider?.isThanos === true && typeof provider.request === 'function'
+    ? provider
+    : undefined;
+}
+
+export async function discoverThanosWallet(): Promise<ThanosWallet | undefined> {
   const existing = findThanosConnector();
   if (existing?.provider) {
     return { connector: existing, provider: existing.provider as Eip1193Provider };
   }
+
+  // The published extension also exposes the same provider as window.thanos.
+  // Use it as a verified fallback when an EIP-6963 announcement was missed.
+  const injectedProvider = findInjectedThanosProvider();
+  if (injectedProvider) return { provider: injectedProvider };
 
   let announcedProvider: Eip1193Provider | undefined;
   const onAnnouncement = (event: Event) => {
@@ -83,6 +99,8 @@ async function discoverThanosWallet(): Promise<ThanosWallet | undefined> {
         return { connector, provider: connector.provider as Eip1193Provider };
       }
       if (announcedProvider) return { provider: announcedProvider };
+      const lateInjectedProvider = findInjectedThanosProvider();
+      if (lateInjectedProvider) return { provider: lateInjectedProvider };
     }
   } finally {
     window.removeEventListener('eip6963:announceProvider', onAnnouncement);
