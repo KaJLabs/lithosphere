@@ -2,7 +2,7 @@
 
 - **Workstream:** MX-04
 - **Environment:** Makalu explorer reading the Kamet DNNS registry
-- **Status:** Repository verification in progress; DNNS-team acceptance pending
+- **Status:** Explorer changes merged and deployed; DNNS-team acceptance pending
 - **Last verified:** 2026-08-14
 
 This record separates facts verified from deployed contracts and source-controlled deployment metadata from items
@@ -64,7 +64,7 @@ reverse resolution: the reverse node for the shared address currently has no res
 - [x] Malformed `.litho` names are rejected before RPC access.
 - [x] Reverse names are displayed only after the name resolves forward to the queried address.
 - [x] Components handle reverse-provider failures without an unhandled promise rejection.
-- [ ] Record the merged PR, deployment run, and live explorer release below.
+- [x] Record the merged PR, deployment run, and live explorer release below.
 
 ## Documentation/interface discrepancy
 
@@ -94,11 +94,11 @@ No network or contract migration should be inferred from documentation alone.
 
 | Field | Value |
 | --- | --- |
-| Explorer PR | Pending |
-| Merge commit | Pending |
-| Deployment workflow/run | Pending |
-| Deployed release | Pending |
-| Live smoke-test artifact | Pending |
+| Explorer PR | [#86](https://github.com/KaJLabs/Lithosphere/pull/86) |
+| Merge commit | `c5448da8c617cf06083f9c08be7e08bd1b5cb6b2` |
+| Deployment workflow/run | [31826844798](https://github.com/KaJLabs/Lithosphere/actions/runs/31826844798) — PASS |
+| Deployed release | `c5448da8c617cf06083f9c08be7e08bd1b5cb6b2` |
+| Live smoke-test artifact | Public version, home, blocks, shipped-bundle, and two forward-record probes recorded in the MX-04 handoff ledger (2026-08-14) |
 | DNNS approver | Pending |
 | Approval date | Pending |
 | Approval evidence | Pending |

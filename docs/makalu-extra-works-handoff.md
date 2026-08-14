@@ -1,10 +1,10 @@
 # Makalu extra works — living handoff
 
 - **Status:** Active — closing one stream at a time
-- **Last verified:** 2026-08-14 22:13 PKT (UTC+05:00)
+- **Last verified:** 2026-08-14 23:10 PKT (UTC+05:00)
 - **Repository:** `KaJLabs/Lithosphere`
-- **Default branch inspected:** `origin/main` at `4fdb3ca5a4bcb0d24978189ce158028ae6247984`
-- **Latest merged closure:** PR #84 at `4fdb3ca5a4bcb0d24978189ce158028ae6247984`
+- **Default branch inspected:** `origin/main` at `c5448da8c617cf06083f9c08be7e08bd1b5cb6b2`
+- **Latest merged closure:** PR #86 at `c5448da8c617cf06083f9c08be7e08bd1b5cb6b2`
 - **Network in scope:** Makalu testnet, EVM chain ID `700777`, Cosmos chain ID `lithosphere_700777-2`
 
 This is the source of truth for the seven Makalu extra-work streams. Update it whenever code is merged, a release is
@@ -48,7 +48,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-06 | Validator cleanup and safety | Chain monitor active; encrypted backup blocked | EXTERNAL BLOCKER | Assign custodians and add the public `BACKUP_RECIPIENT`, then run backup/restore verification. |
 | MX-02 | LEP100 faucet assets | Safeguards and secured image pipeline merged; production release remains manual | EXTERNAL BLOCKER | Rotate the exposed faucet key, install the protected wrapper, fund assets, deploy, and prove live claims/alerts. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
-| MX-04 | DNNS | Live v0 verified; explorer safety hardening under review | IN PROGRESS | Merge/deploy the verified resolver behavior, then obtain interface, reverse-record, and cache-policy acceptance. |
+| MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Adapter deployed but deliberately unconfigured | EXTERNAL BLOCKER | Obtain API contract/credential and repair or replace the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | Candidate source merged; Makalu swap disabled | IN PROGRESS | Resolve open DEX PRs, audit, deploy, seed approved liquidity, and run live acceptance. |
 | MX-07 | Developer toolchain | Expanded v0 local-only; no deployable compiler/release | IN PROGRESS, LOCAL ONLY | Review local tools, then implement compiler lowering/codegen and conformance. |
@@ -61,7 +61,7 @@ to the next executable stream without pretending the blocked stream is complete.
 1. [ ] **MX-06 Validator cleanup and safety** — waiting on responder/custodian governance and public backup recipient.
 2. [ ] **MX-02 LEP100 faucet assets** — safeguards and image publishing merged; key rotation, VPS wrapper activation, funding, live claims, and alerts remain.
 3. [ ] **MX-03 Thanos Wallet** — next after MX-02 repository work is verified.
-4. [ ] **MX-04 DNNS** — active: verified forward records exist; repository hardening and deployment are next.
+4. [ ] **MX-04 DNNS** — deployed; waiting on DNNS-owner interface, documentation, reverse-record, and cache-policy acceptance.
 5. [ ] **MX-05 Quantt** — waiting on API/TLS/product contract.
 6. [ ] **MX-01 MultX / Lithoswap** — security, deployment, liquidity, and acceptance remain.
 7. [ ] **MX-07 Developer toolchain** — separate major compiler/release program.
@@ -260,10 +260,13 @@ Evidence:
 **Current state:** Forward `.litho` search and reverse address display are merged and deployed. Direct source and
 on-chain verification identified the supported deployed v0 as a Kamet-only (`900523`) registry at
 `0x316dc15bF377F7187e5BE38BA19e673Ca823d1ab` through `https://rpc-3.litho.ai`. All nine reserved names resolve to
-the deployment address. Repository hardening removes process-lifetime negative caching, separates an RPC failure
+the deployment address. PR #86 merged and deployed hardening that removes process-lifetime negative caching,
+separates an RPC failure
 from a missing record, enforces the deployed 2LD normalization rules, and forward-verifies reverse names before
-display. The public documentation describes a different Makalu-oriented reference architecture without deployed
-addresses, and the deployed v0 currently has no reverse record for the shared reserved-name address.
+display. Protected run `31826844798` passed the deployment and public health gates for release
+`c5448da8c617cf06083f9c08be7e08bd1b5cb6b2`. The public documentation describes a different Makalu-oriented
+reference architecture without deployed addresses, and the deployed v0 currently has no reverse record for the
+shared reserved-name address. All executable repository work is complete; the stream is now externally blocked.
 
 Completed or evidenced:
 
@@ -277,10 +280,13 @@ Completed or evidenced:
 - [x] Deployed label rules were traced to the names portal and encoded in explorer normalization tests.
 - [x] Process-lifetime positive/negative caching was removed so new records can appear without a process restart.
 - [x] RPC failures are distinguished from unset records, and reverse results require forward verification.
+- [x] PR #86 passed all checks and merged as `c5448da8c617cf06083f9c08be7e08bd1b5cb6b2` (2026-08-14).
+- [x] Protected deployment run `31826844798` passed image, deploy, and public health gates (2026-08-14).
+- [x] Public release SHA, home, blocks, shipped validation text, and two live forward records were reverified after
+      deployment.
 
 Remaining actions:
 
-- [ ] Review, merge, and deploy the resolver safety and normalization changes with their focused tests.
 - [ ] DNNS owner confirms the verified Kamet v0 deployment remains the supported explorer interface or provides a
       reviewed replacement deployment and migration date.
 - [ ] DNNS owner updates public documentation with authoritative network IDs, contract addresses, normalization,
@@ -306,6 +312,8 @@ Evidence:
 - `Makalu/explorer/test/dnns-resolver.test.ts`
 - `docs/dnns-acceptance.md`
 - Public DNNS documentation: `https://dnns.litho.ai/`
+- Review PR: `https://github.com/KaJLabs/Lithosphere/pull/86`
+- Deployment run: `https://github.com/KaJLabs/Lithosphere/actions/runs/31826844798`
 
 ## MX-05 — Quantt integration
 
@@ -534,11 +542,25 @@ Evidence:
 | 2026-08-14 | DNNS forward records | PASS | All nine deployment-reserved `.litho` names resolve to the expected checksum address through their registry-selected resolver. |
 | 2026-08-14 | DNNS reverse record | BLOCKED | The reverse node for the reserved-name address has no resolver; DNNS owner must configure or nominate a stable fixture. |
 | 2026-08-14 | DNNS repository verification | PASS | All 134 explorer tests passed. Next compilation/type validation and static generation passed; Windows standalone symlink creation was denied by local OS policy. |
+| 2026-08-14 | DNNS merge and deployment | PASS | PR #86 passed all checks and merged as `c5448da`; protected run `31826844798` deployed that exact release and passed the public health gate. |
+| 2026-08-14 | DNNS post-deployment smoke | PASS | Public version reports `c5448da`; home/blocks return 200, shipped validation text is present, and `makalu.litho`/`faucet.litho` resolve to the expected address. |
 | 2026-08-14 | Quantt | BLOCKED | Live adapter reports `configured: false`; development hostname fails TLS validation. |
 | 2026-08-14 | Mainnet chain monitor | PASS | Three latest inspected protected runs passed. |
 | 2026-08-14 | Signing-state backup | BLOCKED | Scheduled workflow fails closed because `BACKUP_RECIPIENT` is empty. |
 
 ## Change log
+
+### 2026-08-14 — MX-04 merged and deployed; owner acceptance remains
+
+- PR #86 passed every required/reporting check and merged as
+  `c5448da8c617cf06083f9c08be7e08bd1b5cb6b2` by `bachal-mb`.
+- Protected deployment run `31826844798` published the immutable image, recreated only the core explorer services,
+  and passed the public health gate. The faucet remained outside the deployment.
+- The public API reports the exact release SHA; home and blocks return 200; the shipped explorer bundle contains the
+  new malformed-name validation; and fresh chain probes reconfirmed `makalu.litho` and `faucet.litho`.
+- MX-04 is now an external blocker: the DNNS owner must confirm the supported interface, correct the public docs,
+  supply one reverse fixture, approve the cache policy, and record acceptance.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-14 — MX-04 deployed interface verified and explorer hardened
 
