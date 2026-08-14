@@ -15,6 +15,8 @@ mislabel the historical deployments. MultX remains disabled on LITHO mainnet.
 - Governance owner and pause guardian must be distinct approved addresses.
 - Every supported token requires a positive, explicit base-unit daily cap.
 - Preflight is the default and signs nothing.
+- Execution is rejected unless the current time is inside the manifest's exact
+  approved UTC start/end window.
 - Execution requires the exact manifest SHA-256 and approval record, plus an
   expected deployer whose private key is read from a protected local file.
 - The new bridge is paused before tokens are enabled and remains paused after

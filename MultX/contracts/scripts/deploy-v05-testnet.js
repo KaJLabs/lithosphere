@@ -16,7 +16,13 @@
 const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
-const { CANDIDATE, loadManifest, sha256Hex, validateManifest } = require("./v05-testnet-manifest");
+const {
+  CANDIDATE,
+  assertWithinChangeWindow,
+  loadManifest,
+  sha256Hex,
+  validateManifest,
+} = require("./v05-testnet-manifest");
 
 const waitFor = async (label, transaction) => {
   const receipt = await transaction.wait();
@@ -102,6 +108,7 @@ async function main() {
   if (process.env.APPROVED_CHANGE_RECORD !== config.approval.record) {
     throw new Error("APPROVED_CHANGE_RECORD must exactly match approval.record");
   }
+  assertWithinChangeWindow(config.approval);
 
   const wallet = new hre.ethers.Wallet(readPrivateKey(process.env.DEPLOYER_PRIVATE_KEY_FILE), provider);
   if (wallet.address !== config.network.expectedDeployer) {

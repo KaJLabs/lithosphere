@@ -32,6 +32,14 @@ const utcTimestamp = (value, field) => {
   return normalized;
 };
 
+const assertWithinChangeWindow = (approval, now = Date.now()) => {
+  const start = Date.parse(approval.changeWindowStartUtc);
+  const end = Date.parse(approval.changeWindowEndUtc);
+  if (!Number.isFinite(now) || now < start || now > end) {
+    fail("execution is outside the approved UTC change window");
+  }
+};
+
 const address = (value, field) => {
   requiredText(value, field);
   let normalized;
@@ -78,9 +86,13 @@ const validateManifest = (manifest, networkKey) => {
   const approval = manifest.approval || {};
   const normalizedApproval = {
     record: requiredText(approval.record, "approval.record"),
-    changeWindowUtc: utcTimestamp(approval.changeWindowUtc, "approval.changeWindowUtc"),
+    changeWindowStartUtc: utcTimestamp(approval.changeWindowStartUtc, "approval.changeWindowStartUtc"),
+    changeWindowEndUtc: utcTimestamp(approval.changeWindowEndUtc, "approval.changeWindowEndUtc"),
     rollbackOwner: requiredText(approval.rollbackOwner, "approval.rollbackOwner"),
   };
+  if (Date.parse(normalizedApproval.changeWindowEndUtc) <= Date.parse(normalizedApproval.changeWindowStartUtc)) {
+    fail("approval.changeWindowEndUtc must be after approval.changeWindowStartUtc");
+  }
 
   const set = manifest.validatorSet || {};
   if (!Array.isArray(set.validators) || set.validators.length !== 7) {
@@ -145,4 +157,11 @@ const validateManifest = (manifest, networkKey) => {
   };
 };
 
-module.exports = { CANDIDATE, NETWORKS, loadManifest, sha256Hex, validateManifest };
+module.exports = {
+  CANDIDATE,
+  NETWORKS,
+  assertWithinChangeWindow,
+  loadManifest,
+  sha256Hex,
+  validateManifest,
+};

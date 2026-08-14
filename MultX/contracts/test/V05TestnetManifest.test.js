@@ -1,5 +1,9 @@
 const { expect } = require("chai");
-const { CANDIDATE, validateManifest } = require("../scripts/v05-testnet-manifest");
+const {
+  CANDIDATE,
+  assertWithinChangeWindow,
+  validateManifest,
+} = require("../scripts/v05-testnet-manifest");
 
 const addresses = [
   "0x0000000000000000000000000000000000000001",
@@ -14,7 +18,12 @@ const addresses = [
 const manifest = () => ({
   schemaVersion: 1,
   candidate: { ...CANDIDATE },
-  approval: { record: "private-issue-2", changeWindowUtc: "2026-08-20T20:00:00Z", rollbackOwner: "kaj-labs-ops" },
+  approval: {
+    record: "private-issue-2",
+    changeWindowStartUtc: "2026-08-20T20:00:00Z",
+    changeWindowEndUtc: "2026-08-20T21:00:00Z",
+    rollbackOwner: "kaj-labs-ops",
+  },
   validatorSet: { validators: [...addresses], signaturesRequired: 5 },
   networks: {
     kamet: {
@@ -63,10 +72,19 @@ describe("v0.5 testnet deployment manifest", function () {
     expect(() => validateManifest(input, "kamet")).to.throw("independent addresses");
   });
 
-  it("requires an exact UTC change window", function () {
+  it("requires an ordered exact UTC change window", function () {
     const input = manifest();
-    input.approval.changeWindowUtc = "next Thursday";
+    input.approval.changeWindowStartUtc = "next Thursday";
     expect(() => validateManifest(input, "kamet")).to.throw("exact UTC timestamp");
+    input.approval.changeWindowStartUtc = "2026-08-20T22:00:00Z";
+    expect(() => validateManifest(input, "kamet")).to.throw("must be after");
+  });
+
+  it("blocks execution before and after the approved window", function () {
+    const approval = validateManifest(manifest(), "kamet").approval;
+    expect(() => assertWithinChangeWindow(approval, Date.parse("2026-08-20T20:30:00Z"))).not.to.throw();
+    expect(() => assertWithinChangeWindow(approval, Date.parse("2026-08-20T19:59:59Z"))).to.throw("outside");
+    expect(() => assertWithinChangeWindow(approval, Date.parse("2026-08-20T21:00:01Z"))).to.throw("outside");
   });
 
   it("separates bridge validators from deployer and governance roles", function () {
