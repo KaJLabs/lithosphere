@@ -1,10 +1,10 @@
 # Makalu extra works — living handoff
 
 - **Status:** Active — closing one stream at a time
-- **Last verified:** 2026-08-14 23:35 PKT (UTC+05:00)
+- **Last verified:** 2026-08-15 00:04 PKT (UTC+05:00)
 - **Repository:** `KaJLabs/Lithosphere`
-- **Default branch inspected:** `origin/main` at `c01ec48472544270ec0716483e5a07bba947b079`
-- **Latest merged closure:** PR #88 at `c01ec48472544270ec0716483e5a07bba947b079`
+- **Default branch inspected:** `origin/main` at `5570c959c4dc746a5fdae28c859318d963b0a7ae`
+- **Latest merged workstream change:** PR #75 at `5570c959c4dc746a5fdae28c859318d963b0a7ae`
 - **Network in scope:** Makalu testnet, EVM chain ID `700777`, Cosmos chain ID `lithosphere_700777-2`
 
 This is the source of truth for the seven Makalu extra-work streams. Update it whenever code is merged, a release is
@@ -50,7 +50,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
-| MX-01 | MultX / Lithoswap | Candidate source merged; Makalu swap disabled | IN PROGRESS | Resolve open DEX PRs, audit, deploy, seed approved liquidity, and run live acceptance. |
+| MX-01 | MultX / Lithoswap | Bridge source/gated redeploy merged; same-chain DEX remains local-only | IN PROGRESS | Isolate/review the V2 DEX, replace the AWS signer proposal, then obtain audit/deployment/liquidity approvals. |
 | MX-07 | Developer toolchain | Expanded v0 local-only; no deployable compiler/release | IN PROGRESS, LOCAL ONLY | Review local tools, then implement compiler lowering/codegen and conformance. |
 
 ## Sequential closure queue
@@ -70,10 +70,14 @@ to the next executable stream without pretending the blocked stream is complete.
 
 **Owners:** Dev Infra + Backend/Bridge team + contract deploy authority + approved liquidity owner
 
-**Current state:** The MultX bridge UI/API integration is merged and the live feature configuration reports the bridge
-enabled. The same-chain Lithoswap DEX contracts, deployment scripts, liquidity scripts, E2E script, tests, and subgraph
-exist in the workspace, but the contract sources/scripts are not tracked on `main`. The live feature configuration
-reports `swap: false`; `/swap` and `/cross-swap` render unavailable states.
+**Current state:** The MultX bridge UI/API and consolidated MultX source are merged, and the live feature
+configuration reports the bridge enabled. PR #75 added a fail-closed, manifest-driven paused v0.5 Kamet/Makalu
+redeployment procedure and was review-hardened to enforce the exact approved UTC window before reading the key or
+signing. It merged as `5570c959c4dc746a5fdae28c859318d963b0a7ae`; no deployment occurred. PR #78 is explicitly
+blocked because its AWS KMS/IAM design conflicts with the confirmed no-AWS architecture. The same-chain Lithoswap
+V2 contracts, deployment/liquidity/E2E scripts, tests, and V2 subgraph exist only as uncommitted work in the original
+shared workspace and are not tracked on `main`. The live configuration reports `swap: false`; `/swap` and
+`/cross-swap` return HTTP 200 but render unavailable states.
 
 Completed or evidenced:
 
@@ -83,11 +87,19 @@ Completed or evidenced:
 - [x] Local Lithoswap V2 factory/router/pair and deployment/liquidity/E2E scripts exist.
 - [x] Nine contract tests pass, including four Lithoswap tests (2026-08-03).
 - [x] Live config reports `bridge: true` (2026-08-03).
+- [x] PR #75's paused v0.5 testnet redeployment procedure was updated to current `main`, review-hardened, passed all
+      checks plus 84 local Hardhat tests, and merged without executing a deployment (2026-08-15).
+- [x] PR #78 was reviewed and formally blocked from merge pending a provider-neutral, non-AWS signer architecture.
+- [x] Live config was reverified as `bridge: true`, `swap: false`; both swap routes show unavailable (2026-08-15).
 
 Remaining actions:
 
-- [ ] Separate the DEX contracts, scripts, tests, subgraph, explorer configuration, and CI changes from unrelated
-      working-tree changes; open and review the resulting PR(s).
+- [ ] Separate the local DEX contracts, scripts, tests, subgraph, explorer configuration, and CI changes from
+      unrelated working-tree changes; open and review the resulting PR(s).
+- [ ] Replace or close PR #78's AWS-specific signer proposal; the accepted design must use no AWS service or IAM
+      assumption.
+- [ ] Modernize or explicitly disposition the MultX deployment/test toolchain's transitive audit findings before
+      using it as a long-lived privileged runner (full local audit: 3 critical, 14 high; production-only audit: 0).
 - [ ] Obtain Backend/Bridge confirmation of the route contract, token map, relayer/claim behavior, and supported
       source/destination chains.
 - [ ] Complete contract security review and record deployer, admin/ownership, pause, upgradeability, and emergency
@@ -119,6 +131,9 @@ Evidence:
 - `Makalu/contracts/scripts/seed-dex-liquidity.ts`
 - `Makalu/contracts/scripts/dex-e2e.ts`
 - `docs/dex-team-request-lithoswap.md`
+- `MultX/docs/V05_TESTNET_REDEPLOYMENT.md`
+- Review PR: `https://github.com/KaJLabs/Lithosphere/pull/75`
+- Blocked AWS proposal: `https://github.com/KaJLabs/Lithosphere/pull/78`
 - Live probes: `https://makalu.litho.ai/api/config`, `https://makalu.litho.ai/swap`,
   `https://makalu.litho.ai/cross-swap`
 
@@ -567,8 +582,26 @@ Evidence:
 | 2026-08-14 | Quantt post-deployment smoke | PASS (disabled) | Public version reports `c01ec48`; page is HTTP 200, status is unconfigured with null origin, and insights fail closed with HTTP 503. |
 | 2026-08-14 | Mainnet chain monitor | PASS | Three latest inspected protected runs passed. |
 | 2026-08-14 | Signing-state backup | BLOCKED | Scheduled workflow fails closed because `BACKUP_RECIPIENT` is empty. |
+| 2026-08-15 | MultX live feature state | PASS (disabled swap) | Config reports bridge enabled and swap disabled; `/swap` and `/cross-swap` return 200 with unavailable states. |
+| 2026-08-15 | MultX v0.5 redeployment gates | MERGED | PR #75 passed all checks and 84 local Hardhat tests after UTC-window enforcement; merged as `5570c95` with no deployment. |
+| 2026-08-15 | MultX signer proposal | BLOCKED | PR #78 is AWS-specific and conflicts with the confirmed no-AWS architecture; provider-neutral redesign requested. |
+| 2026-08-15 | MultX toolchain audit | PARTIAL | `npm audit --omit=dev` reports zero; full operational/test dependency audit reports 3 critical and 14 high transitive findings. |
 
 ## Change log
+
+### 2026-08-15 — MX-01 MultX redeployment gates merged; swap remains disabled
+
+- Reconciled `main`, the original dirty workspace, open PRs, and live feature state. Same-chain Lithoswap V2 source
+  remains local-only; no router or liquidity deployment is recorded.
+- Reviewed PR #75 and found its documented change-window gate was not enforced. Added explicit UTC start/end fields
+  and blocked execution outside the interval before private-key access or transaction signing.
+- All 84 Hardhat tests, compilation, and every PR check passed. PR #75 merged as
+  `5570c959c4dc746a5fdae28c859318d963b0a7ae`; no contract deployment was executed.
+- Recorded the deployment toolchain's full transitive audit findings rather than relying only on the empty
+  production-dependency result.
+- Formally blocked AWS-specific PR #78 from merge and requested a provider-neutral, non-AWS signer redesign.
+- Live bridge remains enabled and swap remains disabled/unavailable.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-14 — MX-05 gates merged and deployed; Quantt owner inputs remain
 
