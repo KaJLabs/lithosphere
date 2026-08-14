@@ -7,35 +7,32 @@
 # LONGER in the public path, so its "green" never reached the live site.
 #
 # This pipeline deploys the published GHCR images to vps1 over SSH and gates on
-# the PUBLIC URL. It deliberately only `pull`s + `up -d`s the web/api services and
+# the PUBLIC URL. It deliberately only `pull`s + `up -d`s web/api/indexer and
 # NEVER overwrites vps1's hand-edited docker-compose.yml / .env, which carry the
 # "§4.4" hotfix wiring (drops the DB-hiding patch-live-chain-data/validators from
 # the api command, sets EXPLORER_INTERNAL_URL=http://web:3000, FORCE_REINDEX=0,
 # MAKALU_CHAIN_TIP_TOLERANCE=500). Overwriting them regresses the public site.
 # Full context: litho-validator-infra repo docs/MAKALU_STATE_AND_DEPLOY_HANDOFF.md
 #
-# ⚠️ INDEXER BLIND SPOT: the host ci-deploy.sh recreates ONLY web/api — the
-# indexer container keeps its old image across deploys. So an indexer-only code
-# change (e.g. a new src/mappings.ts migration) does NOT take effect here. Until
-# the host script is updated to also recreate the indexer, anything that must run
-# on deploy (DB migrations, index creation) belongs in the API startup, which IS
-# recreated — see Makalu/api/src/lib/ensure-indexes.ts. The image-wait below now
-# also waits for the indexer image so it is ready once the host script recreates it.
+# The protected host scripts are source-controlled at
+# Makalu/scripts/vps1-ci-{deploy,rollback}.sh and intentionally operate only on
+# the explorer, API, and indexer. Faucet releases use a separate approval path.
 # ============================================================================
 name: Deploy Makalu Explorer (vps1)
 
 on:
-  # Trigger ONLY on image-producing changes — these are the exact paths that
-  # publish-images.yaml builds from. A workflow/doc-only change does NOT publish
-  # an image, so triggering a deploy on it would wait forever for a sha image
-  # that never gets built (and then needlessly roll back). Use workflow_dispatch
-  # to deploy a commit manually.
+  # Trigger automatically on the established explorer stack only. Faucet
+  # releases remain separate and manual because they require an approved funded
+  # key, protected-host wrapper readiness, and a dedicated public health gate.
   push:
     branches: [main]
     paths:
       - 'Makalu/api/**'
       - 'Makalu/indexer/**'
       - 'Makalu/explorer/**'
+      - 'Makalu/scripts/vps1-ci-deploy.sh'
+      - 'Makalu/scripts/vps1-ci-rollback.sh'
+      - '.github/workflows/deploy-simple.yaml'
   workflow_dispatch:
     inputs:
       environment:
@@ -110,8 +107,9 @@ jobs:
       # that runs ONLY /opt/lithoscan/ci/ci-deploy.sh on the literal arg `deploy`
       # (and ci-rollback.sh on `rollback`); any other command is rejected, plus
       # `restrict` (no pty/forwarding). So we just send `deploy` — the actual
-      # pull + `up -d` web/api logic (compose/.env preserved) lives in that host
-      # script. See litho-validator-infra docs/MAKALU_STATE_AND_DEPLOY_HANDOFF.md.
+      # pull + `up -d` web/api/indexer logic (compose/.env preserved) lives in that host
+      # script. See Makalu/scripts/vps1-ci-deploy.sh and the validator-infra
+      # MAKALU_STATE_AND_DEPLOY_HANDOFF.md.
       - name: Deploy to vps1 (pull + recreate, compose preserved)
         id: deploy
         run: |
@@ -164,7 +162,7 @@ jobs:
           printf '%s\n' "${{ secrets.VPS1_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Revert web + api to :previous
+      - name: Revert web + api + indexer to :previous
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" rollback
           echo "::warning::Makalu deploy rolled back to previous images"
