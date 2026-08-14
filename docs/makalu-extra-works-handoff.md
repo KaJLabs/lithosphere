@@ -1,10 +1,10 @@
 # Makalu extra works — living handoff
 
 - **Status:** Active — closing one stream at a time
-- **Last verified:** 2026-08-14 23:26 PKT (UTC+05:00)
+- **Last verified:** 2026-08-14 23:35 PKT (UTC+05:00)
 - **Repository:** `KaJLabs/Lithosphere`
-- **Default branch inspected:** `origin/main` at `112359eb34c7a4a61bba35493e8b87524d18d49d`
-- **Latest merged closure:** PR #87 at `112359eb34c7a4a61bba35493e8b87524d18d49d`
+- **Default branch inspected:** `origin/main` at `c01ec48472544270ec0716483e5a07bba947b079`
+- **Latest merged closure:** PR #88 at `c01ec48472544270ec0716483e5a07bba947b079`
 - **Network in scope:** Makalu testnet, EVM chain ID `700777`, Cosmos chain ID `lithosphere_700777-2`
 
 This is the source of truth for the seven Makalu extra-work streams. Update it whenever code is merged, a release is
@@ -49,7 +49,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-02 | LEP100 faucet assets | Safeguards and secured image pipeline merged; production release remains manual | EXTERNAL BLOCKER | Rotate the exposed faucet key, install the protected wrapper, fund assets, deploy, and prove live claims/alerts. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
-| MX-05 | Quantt | Adapter disabled; assumption-free activation gates under review | IN PROGRESS | Merge/deploy explicit auth/path requirements, then obtain API contract/credential and repair the development TLS endpoint. |
+| MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | Candidate source merged; Makalu swap disabled | IN PROGRESS | Resolve open DEX PRs, audit, deploy, seed approved liquidity, and run live acceptance. |
 | MX-07 | Developer toolchain | Expanded v0 local-only; no deployable compiler/release | IN PROGRESS, LOCAL ONLY | Review local tools, then implement compiler lowering/codegen and conformance. |
 
@@ -62,7 +62,7 @@ to the next executable stream without pretending the blocked stream is complete.
 2. [ ] **MX-02 LEP100 faucet assets** — safeguards and image publishing merged; key rotation, VPS wrapper activation, funding, live claims, and alerts remain.
 3. [ ] **MX-03 Thanos Wallet** — next after MX-02 repository work is verified.
 4. [ ] **MX-04 DNNS** — deployed; waiting on DNNS-owner interface, documentation, reverse-record, and cache-policy acceptance.
-5. [ ] **MX-05 Quantt** — active: remove guessed activation defaults and publish the verified owner handoff.
+5. [ ] **MX-05 Quantt** — deployed; waiting on Quantt API/TLS/product inputs and acceptance.
 6. [ ] **MX-01 MultX / Lithoswap** — security, deployment, liquidity, and acceptance remain.
 7. [ ] **MX-07 Developer toolchain** — separate major compiler/release program.
 
@@ -323,8 +323,10 @@ Evidence:
 are deployed. The live status endpoint reports `configured: false`. The research site returns HTTP 200.
 `dev.quantt.at` resolves to `91.236.195.168`, but presents a certificate for `quantts.ai` names and fails hostname
 verification. The similarly named `dev.quantts.ai` is reachable, but is not an approved substitute. Repository
-hardening is removing guessed auth/path defaults and adding the previously missing acceptance runbook. The adapter
-must remain fail-closed until the exact owner-approved contract and secret-manager credential are available.
+hardening removed guessed auth/path defaults and added the previously missing acceptance runbook. The adapter
+must remain fail-closed until the exact owner-approved contract and secret-manager credential are available. PR #88
+merged and protected run `31828985116` deployed the assumption-free gates as release
+`c01ec48472544270ec0716483e5a07bba947b079`; all executable work is now externally blocked.
 
 Completed or evidenced:
 
@@ -337,6 +339,10 @@ Completed or evidenced:
 - [x] The unapproved `quantts.ai` lookalike was recorded but not substituted for the requested domain.
 - [x] Activation now requires an explicit auth scheme and insights path instead of guessed defaults locally.
 - [x] Five focused Quantt tests, all 164 API tests, and the strict TypeScript build pass locally (2026-08-14).
+- [x] PR #88 passed all checks and merged as `c01ec48472544270ec0716483e5a07bba947b079` (2026-08-14).
+- [x] Protected deployment run `31828985116` passed image, deploy, and public health gates (2026-08-14).
+- [x] Public release SHA, disabled status, null API origin, page HTTP 200, and insights HTTP 503 were reverified after
+      deployment.
 
 External inputs required:
 
@@ -349,7 +355,6 @@ External inputs required:
 
 Remaining actions after inputs arrive:
 
-- [ ] Review, merge, and deploy the explicit activation gates and `docs/integrations/quantt.md`.
 - [ ] Add schema validation and contract fixtures for approved responses.
 - [ ] Configure secrets in staging without placing keys in client bundles, files, or logs.
 - [ ] Validate reference symbols, empty results, rate limits, timeouts, and upstream failures.
@@ -372,6 +377,8 @@ Evidence:
 - `docs/integrations/quantt.md`
 - Live probe: `https://makalu.litho.ai/api/quantt/status`
 - Public sites: `https://research.quantt.at/`, `https://dev.quantt.at/`
+- Review PR: `https://github.com/KaJLabs/Lithosphere/pull/88`
+- Deployment run: `https://github.com/KaJLabs/Lithosphere/actions/runs/31828985116`
 
 ## MX-06 — Validator infrastructure cleanup
 
@@ -556,10 +563,24 @@ Evidence:
 | 2026-08-14 | Quantt public surfaces | PARTIAL | Research portal HTTP 200. `dev.quantt.at` resolves, but its certificate covers only `quantts.ai` names; the similar domain is not approved as a replacement. |
 | 2026-08-14 | Quantt activation audit | IN PROGRESS | Base URL/key gate exists, but auth and path defaults were guessed. Local hardening requires both explicitly and adds the missing acceptance record. |
 | 2026-08-14 | Quantt repository verification | PASS | Five focused tests and all 164 API tests passed; nine live-integration tests remained intentionally skipped; strict TypeScript build passed. |
+| 2026-08-14 | Quantt merge and deployment | PASS | PR #88 passed all checks and merged as `c01ec48`; protected run `31828985116` deployed that exact release and passed the public health gate. |
+| 2026-08-14 | Quantt post-deployment smoke | PASS (disabled) | Public version reports `c01ec48`; page is HTTP 200, status is unconfigured with null origin, and insights fail closed with HTTP 503. |
 | 2026-08-14 | Mainnet chain monitor | PASS | Three latest inspected protected runs passed. |
 | 2026-08-14 | Signing-state backup | BLOCKED | Scheduled workflow fails closed because `BACKUP_RECIPIENT` is empty. |
 
 ## Change log
+
+### 2026-08-14 — MX-05 gates merged and deployed; Quantt owner inputs remain
+
+- PR #88 passed every required/reporting check and merged as
+  `c01ec48472544270ec0716483e5a07bba947b079` by `bachal-mb`.
+- Protected deployment run `31828985116` published and deployed that exact core release and passed the public health
+  gate without touching the faucet.
+- Post-deployment probes confirmed the Quantt page is available while its API remains safely unconfigured: status
+  exposes no origin and insights return HTTP 503.
+- MX-05 is now an external blocker on the canonical API contract/credential, developer TLS repair or approved
+  replacement, product decisions, exact schema implementation, live tests, and owner acceptance.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-14 — MX-05 verified and assumption-based activation removed locally
 

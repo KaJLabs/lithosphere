@@ -2,7 +2,7 @@
 
 - **Workstream:** MX-05
 - **Environment:** Makalu explorer and API
-- **Status:** Fail-closed; Quantt owner inputs and TLS repair required
+- **Status:** Assumption-free gates deployed and fail-closed; Quantt owner inputs and TLS repair required
 - **Last verified:** 2026-08-14
 
 This is the activation and acceptance record for the Quantt explorer integration. Similar-looking domains, guessed
@@ -79,10 +79,10 @@ server-side and sanitized errors do not return it to clients.
 
 | Field | Value |
 | --- | --- |
-| Repository PR | Pending |
-| Merge commit | Pending |
-| Deployment run/release | Pending |
+| Repository PR | [#88](https://github.com/KaJLabs/Lithosphere/pull/88) |
+| Merge commit | `c01ec48472544270ec0716483e5a07bba947b079` |
+| Deployment run/release | [31828985116](https://github.com/KaJLabs/Lithosphere/actions/runs/31828985116) — PASS / `c01ec48472544270ec0716483e5a07bba947b079` |
 | Quantt contract/version | Pending |
-| Live test artifact | Pending |
+| Live test artifact | `/quantt` 200; status `configured: false`, `apiOrigin: null`; insights 503 after deployment (2026-08-14) |
 | Quantt approver/date | Pending |
 | Dev Infra approver/date | Pending |
