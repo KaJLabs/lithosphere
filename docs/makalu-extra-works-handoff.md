@@ -46,7 +46,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
 | MX-06 | Validator cleanup and safety | Chain monitor active; encrypted backup blocked | EXTERNAL BLOCKER | Assign custodians and add the public `BACKUP_RECIPIENT`, then run backup/restore verification. |
-| MX-02 | LEP100 faucet assets | Safeguards local; all ten live assets underfunded | IN PROGRESS, LOCAL ONLY | Test and review fail-closed handling, then obtain replenishment and deploy. |
+| MX-02 | LEP100 faucet assets | Review PR #80 open; all ten live assets underfunded | IN PROGRESS | Merge/deploy PR #80, then obtain replenishment and run live claims. |
 | MX-03 | Thanos Wallet | Merged and deployed; acceptance open | IN PROGRESS | Complete wallet-team browser and signed-transaction acceptance. |
 | MX-04 | DNNS | Merged and deployed; live-name acceptance open | EXTERNAL BLOCKER | Obtain two stable test names and DNNS interface/cache confirmation. |
 | MX-05 | Quantt | Adapter deployed but deliberately unconfigured | EXTERNAL BLOCKER | Obtain API contract/credential and repair or replace the development TLS endpoint. |
@@ -59,7 +59,7 @@ Only one repository stream is active at a time. An external blocker is recorded 
 to the next executable stream without pretending the blocked stream is complete.
 
 1. [ ] **MX-06 Validator cleanup and safety** — waiting on responder/custodian governance and public backup recipient.
-2. [ ] **MX-02 LEP100 faucet assets** — active repository slice.
+2. [ ] **MX-02 LEP100 faucet assets** — PR #80 open; deployment, funding, live claims, and alerts remain.
 3. [ ] **MX-03 Thanos Wallet** — next after MX-02 repository work is verified.
 4. [ ] **MX-04 DNNS** — waiting on stable test records and team confirmation.
 5. [ ] **MX-05 Quantt** — waiting on API/TLS/product contract.
@@ -172,6 +172,7 @@ Evidence:
 - `docs/FAUCET_SETUP_INSTRUCTIONS.md`
 - Live probe: `https://makalu.litho.ai/api/faucet/info`
 - Isolated implementation commit: `c83910f`
+- Review PR: `https://github.com/KaJLabs/Lithosphere/pull/80`
 
 ## MX-03 — Thanos Wallet integration
 
