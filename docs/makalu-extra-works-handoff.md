@@ -4,7 +4,7 @@
 - **Last verified:** 2026-08-14 14:56 PKT (UTC+05:00)
 - **Repository:** `KaJLabs/Lithosphere`
 - **Default branch inspected:** `origin/main` at `5db05ad0e5fc396b0a1c532dff84d5d69f06adee`
-- **Working branch:** `feat/mx01-multx-production-ready` (dirty worktree; preserve unrelated changes)
+- **Review branch:** `feat/mx02-faucet-fail-closed` based on `origin/main`
 - **Network in scope:** Makalu testnet, EVM chain ID `700777`, Cosmos chain ID `lithosphere_700777-2`
 
 This is the source of truth for the seven Makalu extra-work streams. Update it whenever code is merged, a release is
@@ -171,6 +171,7 @@ Evidence:
 - `Makalu/faucet/src/routes/health.ts`
 - `docs/FAUCET_SETUP_INSTRUCTIONS.md`
 - Live probe: `https://makalu.litho.ai/api/faucet/info`
+- Isolated implementation commit: `c83910f`
 
 ## MX-03 — Thanos Wallet integration
 
