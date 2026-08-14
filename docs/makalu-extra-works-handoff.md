@@ -48,7 +48,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-06 | Validator cleanup and safety | Chain monitor active; encrypted backup blocked | EXTERNAL BLOCKER | Assign custodians and add the public `BACKUP_RECIPIENT`, then run backup/restore verification. |
 | MX-02 | LEP100 faucet assets | Safeguards and secured image pipeline merged; production release remains manual | EXTERNAL BLOCKER | Rotate the exposed faucet key, install the protected wrapper, fund assets, deploy, and prove live claims/alerts. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
-| MX-04 | DNNS | Merged and deployed; live-name acceptance open | EXTERNAL BLOCKER | Obtain two stable test names and DNNS interface/cache confirmation. |
+| MX-04 | DNNS | Live v0 verified; explorer safety hardening under review | IN PROGRESS | Merge/deploy the verified resolver behavior, then obtain interface, reverse-record, and cache-policy acceptance. |
 | MX-05 | Quantt | Adapter deployed but deliberately unconfigured | EXTERNAL BLOCKER | Obtain API contract/credential and repair or replace the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | Candidate source merged; Makalu swap disabled | IN PROGRESS | Resolve open DEX PRs, audit, deploy, seed approved liquidity, and run live acceptance. |
 | MX-07 | Developer toolchain | Expanded v0 local-only; no deployable compiler/release | IN PROGRESS, LOCAL ONLY | Review local tools, then implement compiler lowering/codegen and conformance. |
@@ -61,7 +61,7 @@ to the next executable stream without pretending the blocked stream is complete.
 1. [ ] **MX-06 Validator cleanup and safety** — waiting on responder/custodian governance and public backup recipient.
 2. [ ] **MX-02 LEP100 faucet assets** — safeguards and image publishing merged; key rotation, VPS wrapper activation, funding, live claims, and alerts remain.
 3. [ ] **MX-03 Thanos Wallet** — next after MX-02 repository work is verified.
-4. [ ] **MX-04 DNNS** — waiting on stable test records and team confirmation.
+4. [ ] **MX-04 DNNS** — active: verified forward records exist; repository hardening and deployment are next.
 5. [ ] **MX-05 Quantt** — waiting on API/TLS/product contract.
 6. [ ] **MX-01 MultX / Lithoswap** — security, deployment, liquidity, and acceptance remain.
 7. [ ] **MX-07 Developer toolchain** — separate major compiler/release program.
@@ -257,9 +257,13 @@ Evidence:
 
 **Owners:** Dev Infra + DNNS team
 
-**Current state:** Forward `.litho` search and reverse address display are merged and tested. Resolution reads the
-DNNS registry on Kamet (`900523`) through `https://rpc-3.litho.ai`. The integration still needs known-name live tests,
-an agreed cache policy, and DNNS-team acceptance.
+**Current state:** Forward `.litho` search and reverse address display are merged and deployed. Direct source and
+on-chain verification identified the supported deployed v0 as a Kamet-only (`900523`) registry at
+`0x316dc15bF377F7187e5BE38BA19e673Ca823d1ab` through `https://rpc-3.litho.ai`. All nine reserved names resolve to
+the deployment address. Repository hardening removes process-lifetime negative caching, separates an RPC failure
+from a missing record, enforces the deployed 2LD normalization rules, and forward-verifies reverse names before
+display. The public documentation describes a different Makalu-oriented reference architecture without deployed
+addresses, and the deployed v0 currently has no reverse record for the shared reserved-name address.
 
 Completed or evidenced:
 
@@ -267,16 +271,23 @@ Completed or evidenced:
 - [x] Explorer search navigates resolved names to address pages.
 - [x] Address pages can display reverse-resolved names.
 - [x] Five DNNS tests pass (2026-08-03).
+- [x] Deployment metadata and contract bytecode were independently verified against Kamet chain ID `900523`.
+- [x] All nine source-controlled reserved names resolve live to
+      `0xE9267bDf7084815B0754545049AE45FE744Aefa8` (2026-08-14).
+- [x] Deployed label rules were traced to the names portal and encoded in explorer normalization tests.
+- [x] Process-lifetime positive/negative caching was removed so new records can appear without a process restart.
+- [x] RPC failures are distinguished from unset records, and reverse results require forward verification.
 
 Remaining actions:
 
-- [ ] Obtain at least two stable registered test names and expected addresses from the DNNS team.
-- [ ] Confirm the registry/resolver addresses, Kamet RPC, TLD, normalization rules, and reverse-record rules as the
-      supported production interface.
-- [ ] Agree on positive and negative cache TTLs; replace process-lifetime negative caching if records must become
-      visible without a page/process restart.
-- [ ] Smoke-test forward and reverse resolution from the deployed explorer, including missing/malformed names and
-      RPC failure.
+- [ ] Review, merge, and deploy the resolver safety and normalization changes with their focused tests.
+- [ ] DNNS owner confirms the verified Kamet v0 deployment remains the supported explorer interface or provides a
+      reviewed replacement deployment and migration date.
+- [ ] DNNS owner updates public documentation with authoritative network IDs, contract addresses, normalization,
+      and reverse-record rules; current public reference material conflicts with deployed v0.
+- [ ] DNNS owner configures or nominates one stable reverse record and supplies its expected address/name pair.
+- [ ] Agree on the no-persistent-cache policy or provide bounded positive/negative TTL requirements.
+- [ ] Smoke-test forward, reverse, missing/malformed names, and RPC failure from the newly deployed explorer release.
 - [ ] Obtain DNNS-team acceptance.
 
 Acceptance criteria:
@@ -292,6 +303,8 @@ Evidence:
 - `Makalu/explorer/components/DnnsName.tsx`
 - `Makalu/explorer/components/SearchBar.tsx`
 - `Makalu/explorer/test/dnns.test.tsx`
+- `Makalu/explorer/test/dnns-resolver.test.ts`
+- `docs/dnns-acceptance.md`
 - Public DNNS documentation: `https://dnns.litho.ai/`
 
 ## MX-05 — Quantt integration
@@ -518,11 +531,27 @@ Evidence:
 | 2026-08-14 | Thanos deployment | ROLLED BACK | Run `31819790372` served the correct release SHA and passed core routes, but an incorrectly coupled faucet-schema condition failed; automatic rollback passed and restored the prior healthy release. |
 | 2026-08-14 | Thanos deployment retry | PASS | PR #84 merged as `4fdb3ca`; run `31822244365` attempt 2 passed the core public gate. Live version, `/signin`, `/nfts`, stats, and nonce probes passed; faucet container start time and image remained unchanged. |
 | 2026-08-14 | DNNS registry | PASS | Kamet chain ID 900523; configured registry address contains contract bytecode. |
+| 2026-08-14 | DNNS forward records | PASS | All nine deployment-reserved `.litho` names resolve to the expected checksum address through their registry-selected resolver. |
+| 2026-08-14 | DNNS reverse record | BLOCKED | The reverse node for the reserved-name address has no resolver; DNNS owner must configure or nominate a stable fixture. |
+| 2026-08-14 | DNNS repository verification | PASS | All 134 explorer tests passed. Next compilation/type validation and static generation passed; Windows standalone symlink creation was denied by local OS policy. |
 | 2026-08-14 | Quantt | BLOCKED | Live adapter reports `configured: false`; development hostname fails TLS validation. |
 | 2026-08-14 | Mainnet chain monitor | PASS | Three latest inspected protected runs passed. |
 | 2026-08-14 | Signing-state backup | BLOCKED | Scheduled workflow fails closed because `BACKUP_RECIPIENT` is empty. |
 
 ## Change log
+
+### 2026-08-14 — MX-04 deployed interface verified and explorer hardened
+
+- Traced the explorer configuration to the deployed Kamet v0 metadata instead of assuming the public reference
+  documentation represented a live migration.
+- Confirmed registry bytecode and all nine reserved forward records directly on chain. The deployed reverse node is
+  unset, so reverse acceptance remains an owner action rather than an explorer code task.
+- Removed process-lifetime record caching, enforced the deployed 2LD normalization rules, distinguished resolver
+  outages from missing records, and required forward verification before displaying a reverse name.
+- Added the evidence and owner sign-off fields in `docs/dnns-acceptance.md`.
+- All 134 explorer tests passed. Next compilation, type validation, and static generation passed; the final local
+  standalone-copy step remains blocked by Windows symlink policy and will be rechecked by Linux CI.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-14 — MX-03 merged and deployed; wallet acceptance remains
 

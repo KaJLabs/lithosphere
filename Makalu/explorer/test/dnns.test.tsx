@@ -15,7 +15,7 @@ vi.mock('@/lib/dnns', async (importOriginal) => {
 
 import DnnsName from '@/components/DnnsName';
 import SearchBar from '@/components/SearchBar';
-import { isDnnsName, namehash } from '@/lib/dnns';
+import { isDnnsName, namehash, normalizeDnnsName } from '@/lib/dnns';
 
 beforeEach(() => {
   push.mockReset();
@@ -27,6 +27,10 @@ describe('DNNS integration', () => {
   it('recognizes .litho names case-insensitively and hashes deterministically', () => {
     expect(isDnnsName('Alice.LITHO')).toBe(true);
     expect(isDnnsName('alice.eth')).toBe(false);
+    expect(isDnnsName('ab.litho')).toBe(false);
+    expect(isDnnsName('sub.alice.litho')).toBe(false);
+    expect(isDnnsName('-alice.litho')).toBe(false);
+    expect(normalizeDnnsName(' Alice.LITHO ')).toBe('alice.litho');
     expect(namehash('alice.litho')).toMatch(/^0x[0-9a-f]{64}$/);
     expect(namehash('alice.litho')).toBe(namehash('alice.litho'));
   });
@@ -52,6 +56,17 @@ describe('DNNS integration', () => {
     });
     fireEvent.submit(screen.getByRole('button', { name: 'Search' }).closest('form')!);
     expect(await screen.findByText(/No address is set for missing\.litho/)).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed .litho name without querying or navigating', async () => {
+    render(<SearchBar />);
+    fireEvent.change(screen.getByPlaceholderText(/block, tx, address/i), {
+      target: { value: 'sub.alice.litho' },
+    });
+    fireEvent.submit(screen.getByRole('button', { name: 'Search' }).closest('form')!);
+    expect(await screen.findByText(/Invalid \.litho name/)).toBeInTheDocument();
+    expect(resolveName).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
   });
 

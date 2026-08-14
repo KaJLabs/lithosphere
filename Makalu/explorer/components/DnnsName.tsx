@@ -12,9 +12,13 @@ export default function DnnsName({ address }: { address?: string | null }) {
     setName(null);
     if (!address || !isAddress(address)) return () => { cancelled = true; };
 
-    void lookupAddress(address).then((resolved) => {
-      if (!cancelled) setName(resolved);
-    });
+    void lookupAddress(address)
+      .then((resolved) => {
+        if (!cancelled) setName(resolved);
+      })
+      .catch(() => {
+        if (!cancelled) setName(null);
+      });
     return () => { cancelled = true; };
   }, [address]);
 

@@ -49,23 +49,30 @@ export function namehash(name: string): string {
 /** True if `input` looks like a `.litho` DNNS name. */
 export function isDnnsName(input: string): boolean {
   const v = input.trim().toLowerCase();
-  return v.endsWith(`.${DNNS.tld}`) && v.length > DNNS.tld.length + 1;
+  return v.endsWith(`.${DNNS.tld}`) && normalizeDnnsName(v) !== null;
 }
 
-function fullName(input: string): string {
+/** Normalize the supported v0 2LD format, or return null when malformed. */
+export function normalizeDnnsName(input: string): string | null {
   const v = input.trim().toLowerCase();
-  return v.endsWith(`.${DNNS.tld}`) ? v : `${v}.${DNNS.tld}`;
+  const suffix = `.${DNNS.tld}`;
+  const label = v.endsWith(suffix) ? v.slice(0, -suffix.length) : v;
+  if (label.length < 3 || !/^[a-z0-9-]+$/.test(label)) return null;
+  if (label.startsWith('-') || label.endsWith('-')) return null;
+  return `${label}${suffix}`;
 }
 
-const forwardCache = new Map<string, string | null>();
-const reverseCache = new Map<string, string | null>();
+export class DnnsResolutionError extends Error {
+  constructor(direction: 'forward' | 'reverse', options?: ErrorOptions) {
+    super(`DNNS ${direction} resolution is unavailable`, options);
+    this.name = 'DnnsResolutionError';
+  }
+}
 
 /** Resolve a `.litho` name to an EVM address, or null if unregistered/unset. */
 export async function resolveName(input: string): Promise<string | null> {
-  const name = fullName(input);
-  if (forwardCache.has(name)) return forwardCache.get(name) ?? null;
-
-  let result: string | null = null;
+  const name = normalizeDnnsName(input);
+  if (!name) return null;
   try {
     const node = namehash(name);
     const registry = new Contract(DNNS.registry, REGISTRY_ABI, provider());
@@ -73,22 +80,18 @@ export async function resolveName(input: string): Promise<string | null> {
     if (resolverAddr && resolverAddr !== ZeroAddress) {
       const resolver = new Contract(resolverAddr, RESOLVER_ABI, provider());
       const addr: string = await resolver.addr(node);
-      if (addr && addr !== ZeroAddress) result = getAddress(addr);
+      if (addr && addr !== ZeroAddress) return getAddress(addr);
     }
-  } catch {
-    result = null;
+    return null;
+  } catch (cause) {
+    throw new DnnsResolutionError('forward', { cause });
   }
-  forwardCache.set(name, result);
-  return result;
 }
 
 /** Reverse-resolve an EVM address to its primary `.litho` name, or null. */
 export async function lookupAddress(address: string): Promise<string | null> {
   if (!isAddress(address)) return null;
   const key = address.toLowerCase();
-  if (reverseCache.has(key)) return reverseCache.get(key) ?? null;
-
-  let result: string | null = null;
   try {
     const reverseNode = namehash(`${key.slice(2)}.addr.reverse`);
     const registry = new Contract(DNNS.registry, REGISTRY_ABI, provider());
@@ -96,11 +99,17 @@ export async function lookupAddress(address: string): Promise<string | null> {
     if (resolverAddr && resolverAddr !== ZeroAddress) {
       const resolver = new Contract(resolverAddr, RESOLVER_ABI, provider());
       const name: string = await resolver.name(reverseNode);
-      if (name) result = name;
+      if (!name || !isDnnsName(name)) return null;
+
+      // A reverse resolver is not authoritative by itself. Confirm that the
+      // returned name resolves back to the address before displaying it.
+      const normalizedName = normalizeDnnsName(name);
+      if (!normalizedName) return null;
+      const forwardAddress = await resolveName(normalizedName);
+      if (forwardAddress?.toLowerCase() === key) return normalizedName;
     }
-  } catch {
-    result = null;
+    return null;
+  } catch (cause) {
+    throw new DnnsResolutionError('reverse', { cause });
   }
-  reverseCache.set(key, result);
-  return result;
 }
