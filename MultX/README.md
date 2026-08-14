@@ -40,6 +40,8 @@ Current immutable candidate:
 [`multx-audit-candidate-v0.5.0-20260809`](https://github.com/KaJLabs/Lithosphere/releases/tag/multx-audit-candidate-v0.5.0-20260809).
 See [`docs/MAINNET_DEPLOYMENT_GATES.md`](docs/MAINNET_DEPLOYMENT_GATES.md) for
 the fail-closed production sequence and remaining approvals.
+Use [`docs/V05_TESTNET_REDEPLOYMENT.md`](docs/V05_TESTNET_REDEPLOYMENT.md) for
+the manifest-driven, paused Kamet/Makalu candidate redeployment procedure.
 
 ## Reproducible checks
 

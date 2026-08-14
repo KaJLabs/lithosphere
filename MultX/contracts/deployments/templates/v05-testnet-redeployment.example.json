@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "candidate": {
+    "tag": "multx-audit-candidate-v0.5.0-20260809",
+    "commit": "620e300bce9c7d967ace6a778ba7ee84e79e5d86",
+    "multXBridgeRuntimeSha256": "6bfdb3d2c8e7ae5f26169ac8c1b982c86eded4dda74a1940cbb3e88093b11cfc"
+  },
+  "approval": {
+    "record": "<PRIVATE_REPOSITORY_APPROVAL_RECORD>",
+    "changeWindowStartUtc": "<APPROVED_UTC_WINDOW_START>",
+    "changeWindowEndUtc": "<APPROVED_UTC_WINDOW_END>",
+    "rollbackOwner": "<APPROVED_ROLLBACK_OWNER>"
+  },
+  "validatorSet": {
+    "validators": [
+      "<VALIDATOR_1_PUBLIC_ADDRESS>",
+      "<VALIDATOR_2_PUBLIC_ADDRESS>",
+      "<VALIDATOR_3_PUBLIC_ADDRESS>",
+      "<VALIDATOR_4_PUBLIC_ADDRESS>",
+      "<VALIDATOR_5_PUBLIC_ADDRESS>",
+      "<VALIDATOR_6_PUBLIC_ADDRESS>",
+      "<VALIDATOR_7_PUBLIC_ADDRESS>"
+    ],
+    "signaturesRequired": 5
+  },
+  "networks": {
+    "kamet": {
+      "hardhatNetwork": "litho_kamet",
+      "chainId": 900523,
+      "expectedDeployer": "<APPROVED_KAMET_DEPLOYER_ADDRESS>",
+      "governanceOwner": "<APPROVED_KAMET_GOVERNANCE_OWNER>",
+      "pauseGuardian": "<APPROVED_KAMET_PAUSE_GUARDIAN>",
+      "tokens": [
+        {
+          "symbol": "LAX",
+          "address": "0xe8f504f9cE5391Fb5968b317f0b24b8A0306ACeb",
+          "dailyCapBaseUnits": "<APPROVED_POSITIVE_BASE_UNIT_CAP>"
+        }
+      ]
+    },
+    "makalu": {
+      "hardhatNetwork": "litho_makalu",
+      "chainId": 700777,
+      "expectedDeployer": "<APPROVED_MAKALU_DEPLOYER_ADDRESS>",
+      "governanceOwner": "<APPROVED_MAKALU_GOVERNANCE_OWNER>",
+      "pauseGuardian": "<APPROVED_MAKALU_PAUSE_GUARDIAN>",
+      "tokens": [
+        {
+          "symbol": "LAX",
+          "address": "0x1Cde2Ca6c2ab8622003ebe06e382bC07850d4B8d",
+          "dailyCapBaseUnits": "<APPROVED_POSITIVE_BASE_UNIT_CAP>"
+        }
+      ]
+    }
+  }
+}
