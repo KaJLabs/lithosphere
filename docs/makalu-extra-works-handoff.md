@@ -1,10 +1,10 @@
 # Makalu extra works — living handoff
 
 - **Status:** Active — closing one stream at a time
-- **Last verified:** 2026-08-14 14:56 PKT (UTC+05:00)
+- **Last verified:** 2026-08-14 15:26 PKT (UTC+05:00)
 - **Repository:** `KaJLabs/Lithosphere`
 - **Default branch inspected:** `origin/main` at `5db05ad0e5fc396b0a1c532dff84d5d69f06adee`
-- **Review branch:** `feat/mx02-faucet-fail-closed` based on `origin/main`
+- **Latest merged closure:** PR #80 at `ef5092812cddc591836657cea6197f8aa2f46fac`
 - **Network in scope:** Makalu testnet, EVM chain ID `700777`, Cosmos chain ID `lithosphere_700777-2`
 
 This is the source of truth for the seven Makalu extra-work streams. Update it whenever code is merged, a release is
@@ -46,7 +46,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
 | MX-06 | Validator cleanup and safety | Chain monitor active; encrypted backup blocked | EXTERNAL BLOCKER | Assign custodians and add the public `BACKUP_RECIPIENT`, then run backup/restore verification. |
-| MX-02 | LEP100 faucet assets | Review PR #80 open; all ten live assets underfunded | IN PROGRESS | Merge/deploy PR #80, then obtain replenishment and run live claims. |
+| MX-02 | LEP100 faucet assets | PR #80 merged; live faucet still runs the previous build | EXTERNAL BLOCKER | Add faucet image/deploy support to the protected Makalu pipeline and VPS wrapper. |
 | MX-03 | Thanos Wallet | Merged and deployed; acceptance open | IN PROGRESS | Complete wallet-team browser and signed-transaction acceptance. |
 | MX-04 | DNNS | Merged and deployed; live-name acceptance open | EXTERNAL BLOCKER | Obtain two stable test names and DNNS interface/cache confirmation. |
 | MX-05 | Quantt | Adapter deployed but deliberately unconfigured | EXTERNAL BLOCKER | Obtain API contract/credential and repair or replace the development TLS endpoint. |
@@ -59,7 +59,7 @@ Only one repository stream is active at a time. An external blocker is recorded 
 to the next executable stream without pretending the blocked stream is complete.
 
 1. [ ] **MX-06 Validator cleanup and safety** — waiting on responder/custodian governance and public backup recipient.
-2. [ ] **MX-02 LEP100 faucet assets** — PR #80 open; deployment, funding, live claims, and alerts remain.
+2. [ ] **MX-02 LEP100 faucet assets** — code merged; image publishing/VPS deployment, funding, live claims, and alerts remain.
 3. [ ] **MX-03 Thanos Wallet** — next after MX-02 repository work is verified.
 4. [ ] **MX-04 DNNS** — waiting on stable test records and team confirmation.
 5. [ ] **MX-05 Quantt** — waiting on API/TLS/product contract.
@@ -128,9 +128,11 @@ Evidence:
 
 **Current state:** The live faucet exposes native LITHO plus ten LEP100 assets. Native LITHO is funded. Every LEP100
 asset is below its minimum ten-token claim: WLITHO, LITBTC, JOT, COLLE, and FGPT have zero; LAX, IMAGE, AGII, BLDR,
-and MUSA have five. Balance-aware, fail-closed API and explorer behavior is implemented locally and passed seven
-focused tests plus a strict TypeScript build on 2026-08-14. It is not merged or deployed, and treasury replenishment
-is still required before live token claims can pass.
+and MUSA have five. Balance-aware, fail-closed API and explorer behavior passed seven focused tests plus a strict
+TypeScript build. PR #80 merged it into `main` at `ef5092812cddc591836657cea6197f8aa2f46fac` on 2026-08-14. It is
+not deployed: the live payload still lacks the new readiness and per-asset availability fields. The image publisher
+excludes `Makalu/faucet/**`, the Makalu deploy workflow does not trigger on faucet changes, and the protected host
+wrapper recreates only web/API. Treasury replenishment is also required before live token claims can pass.
 
 Completed or evidenced:
 
@@ -145,9 +147,13 @@ Completed or evidenced:
 
 Remaining actions:
 
-- [ ] Isolate, review, and merge `availability.ts` plus the drip/health/UI behavior that prevents impossible claims.
+- [x] Isolate, review, and merge `availability.ts` plus the drip/health/UI behavior in PR #80 (2026-08-14).
 - [x] Add focused tests for zero balance, below-minimum balance, balance-read failure, malformed balance, and a
       successful funded claim path.
+- [ ] Extend the immutable GHCR publisher to build/sign/attest `lithosphere-faucet` on faucet changes.
+- [ ] Have the VPS owner update the restricted deploy and rollback wrappers to recreate/restore the faucet container.
+- [ ] Extend the Makalu deployment trigger, image wait, and public health gate to cover the faucet image and new
+      availability fields only after the protected wrapper is ready.
 - [ ] Deploy the faucet/API/explorer release and verify unavailable assets are clearly disabled.
 - [ ] Obtain approved replenishment amounts and fund every token above its operational reserve threshold.
 - [ ] Execute one live claim for every asset and retain transaction hashes.
@@ -173,6 +179,9 @@ Evidence:
 - Live probe: `https://makalu.litho.ai/api/faucet/info`
 - Isolated implementation commit: `c83910f`
 - Review PR: `https://github.com/KaJLabs/Lithosphere/pull/80`
+- Merge commit: `ef5092812cddc591836657cea6197f8aa2f46fac`
+- Live post-merge probe at 2026-08-14 15:24 PKT: previous payload still active (`ready` and per-asset `available`
+  absent).
 
 ## MX-03 — Thanos Wallet integration
 
@@ -470,7 +479,8 @@ Evidence:
 | 2026-08-03 | Rust toolchain | PARTIAL | Format and Clippy passed. Tests/build could not link because `link.exe` is absent on this host. |
 | 2026-08-14 | Live Makalu config | PASS | HTTP 200; faucet and bridge enabled, swap disabled. |
 | 2026-08-14 | Live faucet inventory | BLOCKED | Ten LEP100 assets present; five at zero and five at five, below minimum claim ten. |
-| 2026-08-14 | Faucet safeguards | PASS, LOCAL ONLY | Seven tests and strict TypeScript build pass; merge/deploy/funding remain. |
+| 2026-08-14 | Faucet safeguards | MERGED | PR #80 merged as `ef509281`; seven tests and strict TypeScript build passed. |
+| 2026-08-14 | Faucet deployment | BLOCKED | No faucet image was published/deployed; live API still serves the previous payload. |
 | 2026-08-14 | Thanos deployment | PARTIAL | `/signin` and `/api/auth/nonce` respond; wallet-team acceptance remains. |
 | 2026-08-14 | DNNS registry | PASS | Kamet chain ID 900523; configured registry address contains contract bytecode. |
 | 2026-08-14 | Quantt | BLOCKED | Live adapter reports `configured: false`; development hostname fails TLS validation. |
@@ -478,6 +488,16 @@ Evidence:
 | 2026-08-14 | Signing-state backup | BLOCKED | Scheduled workflow fails closed because `BACKUP_RECIPIENT` is empty. |
 
 ## Change log
+
+### 2026-08-14 — MX-02 safeguards merged; deployment gap identified
+
+- PR #80 merged to `main` as `ef5092812cddc591836657cea6197f8aa2f46fac`; all reported PR checks/statuses passed.
+- Confirmed the live faucet still serves the prior payload after merge.
+- Confirmed `publish-images.yaml` excludes the faucet, `deploy-simple.yaml` does not trigger on faucet changes, and
+  the protected VPS deploy/rollback wrapper currently covers only web/API.
+- MX-02 advanced from merge review to an external deployment-infrastructure blocker; funding, live claims, and
+  per-token alert ownership remain open.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-14 — Sequential closure tracking and MX-02 repository safeguards
 
