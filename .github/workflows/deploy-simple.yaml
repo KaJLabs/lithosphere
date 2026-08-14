@@ -21,18 +21,16 @@
 name: Deploy Makalu Explorer (vps1)
 
 on:
-  # Trigger ONLY on image-producing changes — these are the exact paths that
-  # publish-images.yaml builds from. A workflow/doc-only change does NOT publish
-  # an image, so triggering a deploy on it would wait forever for a sha image
-  # that never gets built (and then needlessly roll back). Use workflow_dispatch
-  # to deploy a commit manually.
+  # Trigger automatically on the established explorer stack only. Faucet
+  # releases remain explicitly manual because they require an approved funded
+  # key, protected-host wrapper readiness, and a dedicated public health gate.
+  # Use workflow_dispatch to deploy a faucet release after those gates pass.
   push:
     branches: [main]
     paths:
       - 'Makalu/api/**'
       - 'Makalu/indexer/**'
       - 'Makalu/explorer/**'
-      - 'Makalu/faucet/**'
   workflow_dispatch:
     inputs:
       environment:
