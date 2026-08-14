@@ -86,7 +86,7 @@ export async function drip(
   return { txHash, amount: amountStr, symbol: asset.symbol, assetId: asset.id };
 }
 
-async function getAssetBalance(asset: FaucetAsset): Promise<string> {
+export async function getAssetBalance(asset: FaucetAsset): Promise<string> {
   if (!config.privateKey) return '0';
 
   const acc = getAccount();
