@@ -3,8 +3,8 @@ set -euo pipefail
 
 cd /opt/lithoscan
 
-image_services=(explorer api indexer faucet)
-compose_services=(web api indexer faucet)
+image_services=(explorer api indexer)
+compose_services=(web api indexer)
 
 for service in "${image_services[@]}"; do
   current_image=$(docker inspect --format '{{.Id}}' "ghcr.io/kajlabs/lithosphere-$service:mainnet" 2>/dev/null || true)
@@ -17,4 +17,4 @@ docker compose pull "${compose_services[@]}"
 docker compose up -d "${compose_services[@]}"
 
 docker ps --format '{{.Names}} {{.Status}} {{.Image}}' \
-  | grep -E 'lithoscan-(web|api|indexer|faucet)'
+  | grep -E 'lithoscan-(web|api|indexer)'
