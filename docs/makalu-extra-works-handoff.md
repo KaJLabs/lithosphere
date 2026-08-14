@@ -1,10 +1,10 @@
 # Makalu extra works — living handoff
 
 - **Status:** Active — closing one stream at a time
-- **Last verified:** 2026-08-14 23:10 PKT (UTC+05:00)
+- **Last verified:** 2026-08-14 23:26 PKT (UTC+05:00)
 - **Repository:** `KaJLabs/Lithosphere`
-- **Default branch inspected:** `origin/main` at `c5448da8c617cf06083f9c08be7e08bd1b5cb6b2`
-- **Latest merged closure:** PR #86 at `c5448da8c617cf06083f9c08be7e08bd1b5cb6b2`
+- **Default branch inspected:** `origin/main` at `112359eb34c7a4a61bba35493e8b87524d18d49d`
+- **Latest merged closure:** PR #87 at `112359eb34c7a4a61bba35493e8b87524d18d49d`
 - **Network in scope:** Makalu testnet, EVM chain ID `700777`, Cosmos chain ID `lithosphere_700777-2`
 
 This is the source of truth for the seven Makalu extra-work streams. Update it whenever code is merged, a release is
@@ -49,7 +49,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-02 | LEP100 faucet assets | Safeguards and secured image pipeline merged; production release remains manual | EXTERNAL BLOCKER | Rotate the exposed faucet key, install the protected wrapper, fund assets, deploy, and prove live claims/alerts. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
-| MX-05 | Quantt | Adapter deployed but deliberately unconfigured | EXTERNAL BLOCKER | Obtain API contract/credential and repair or replace the development TLS endpoint. |
+| MX-05 | Quantt | Adapter disabled; assumption-free activation gates under review | IN PROGRESS | Merge/deploy explicit auth/path requirements, then obtain API contract/credential and repair the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | Candidate source merged; Makalu swap disabled | IN PROGRESS | Resolve open DEX PRs, audit, deploy, seed approved liquidity, and run live acceptance. |
 | MX-07 | Developer toolchain | Expanded v0 local-only; no deployable compiler/release | IN PROGRESS, LOCAL ONLY | Review local tools, then implement compiler lowering/codegen and conformance. |
 
@@ -62,7 +62,7 @@ to the next executable stream without pretending the blocked stream is complete.
 2. [ ] **MX-02 LEP100 faucet assets** — safeguards and image publishing merged; key rotation, VPS wrapper activation, funding, live claims, and alerts remain.
 3. [ ] **MX-03 Thanos Wallet** — next after MX-02 repository work is verified.
 4. [ ] **MX-04 DNNS** — deployed; waiting on DNNS-owner interface, documentation, reverse-record, and cache-policy acceptance.
-5. [ ] **MX-05 Quantt** — waiting on API/TLS/product contract.
+5. [ ] **MX-05 Quantt** — active: remove guessed activation defaults and publish the verified owner handoff.
 6. [ ] **MX-01 MultX / Lithoswap** — security, deployment, liquidity, and acceptance remain.
 7. [ ] **MX-07 Developer toolchain** — separate major compiler/release program.
 
@@ -319,10 +319,12 @@ Evidence:
 
 **Owners:** Dev Infra + Quantt team + product owner
 
-**Current state:** The credentials-safe server proxy, explorer page, normalizer, tests, OpenAPI paths, configuration,
-and runbook are implemented. The live status endpoint now exists but reports `configured: false`. The public research
-site responds, while `dev.quantt.at` fails hostname verification. The adapter intentionally fails closed without an
-approved API contract and key.
+**Current state:** The credentials-safe server proxy, explorer page, provisional normalizer, tests, and OpenAPI paths
+are deployed. The live status endpoint reports `configured: false`. The research site returns HTTP 200.
+`dev.quantt.at` resolves to `91.236.195.168`, but presents a certificate for `quantts.ai` names and fails hostname
+verification. The similarly named `dev.quantts.ai` is reachable, but is not an approved substitute. Repository
+hardening is removing guessed auth/path defaults and adding the previously missing acceptance runbook. The adapter
+must remain fail-closed until the exact owner-approved contract and secret-manager credential are available.
 
 Completed or evidenced:
 
@@ -330,6 +332,11 @@ Completed or evidenced:
 - [x] Server-only authentication, symbol validation, bounded timeouts, and sanitized upstream errors exist.
 - [x] `/api/quantt/status`, `/api/quantt/insights`, `/quantt`, tests, and OpenAPI documentation exist.
 - [x] Live `/api/quantt/status` returns HTTP 200 and safely reports unconfigured (2026-08-03).
+- [x] Live status, research portal, developer DNS, and the mismatched certificate subject/SANs were reverified on
+      2026-08-14 without bypassing TLS for acceptance.
+- [x] The unapproved `quantts.ai` lookalike was recorded but not substituted for the requested domain.
+- [x] Activation now requires an explicit auth scheme and insights path instead of guessed defaults locally.
+- [x] Five focused Quantt tests, all 164 API tests, and the strict TypeScript build pass locally (2026-08-14).
 
 External inputs required:
 
@@ -342,6 +349,7 @@ External inputs required:
 
 Remaining actions after inputs arrive:
 
+- [ ] Review, merge, and deploy the explicit activation gates and `docs/integrations/quantt.md`.
 - [ ] Add schema validation and contract fixtures for approved responses.
 - [ ] Configure secrets in staging without placing keys in client bundles, files, or logs.
 - [ ] Validate reference symbols, empty results, rate limits, timeouts, and upstream failures.
@@ -545,10 +553,26 @@ Evidence:
 | 2026-08-14 | DNNS merge and deployment | PASS | PR #86 passed all checks and merged as `c5448da`; protected run `31826844798` deployed that exact release and passed the public health gate. |
 | 2026-08-14 | DNNS post-deployment smoke | PASS | Public version reports `c5448da`; home/blocks return 200, shipped validation text is present, and `makalu.litho`/`faucet.litho` resolve to the expected address. |
 | 2026-08-14 | Quantt | BLOCKED | Live adapter reports `configured: false`; development hostname fails TLS validation. |
+| 2026-08-14 | Quantt public surfaces | PARTIAL | Research portal HTTP 200. `dev.quantt.at` resolves, but its certificate covers only `quantts.ai` names; the similar domain is not approved as a replacement. |
+| 2026-08-14 | Quantt activation audit | IN PROGRESS | Base URL/key gate exists, but auth and path defaults were guessed. Local hardening requires both explicitly and adds the missing acceptance record. |
+| 2026-08-14 | Quantt repository verification | PASS | Five focused tests and all 164 API tests passed; nine live-integration tests remained intentionally skipped; strict TypeScript build passed. |
 | 2026-08-14 | Mainnet chain monitor | PASS | Three latest inspected protected runs passed. |
 | 2026-08-14 | Signing-state backup | BLOCKED | Scheduled workflow fails closed because `BACKUP_RECIPIENT` is empty. |
 
 ## Change log
+
+### 2026-08-14 — MX-05 verified and assumption-based activation removed locally
+
+- Reverified the deployed adapter is disabled, the research portal is healthy, and standards-valid access to
+  `dev.quantt.at` fails hostname verification.
+- Inspected the presented certificate: it covers `quantts.ai` hosts, not the requested `dev.quantt.at`. The similar
+  domain was observed but deliberately not substituted without Quantt-owner approval.
+- Changed local configuration loading to require an explicit approved auth header and insights path rather than
+  defaulting to an assumed Bearer scheme and `/api/v1/insights`.
+- Added `docs/integrations/quantt.md` with verified evidence, exact owner inputs, activation sequence, acceptance
+  criteria, and approval fields.
+- Five focused Quantt tests, all 164 API tests, and the strict TypeScript build passed.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-14 — MX-04 merged and deployed; owner acceptance remains
 

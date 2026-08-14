@@ -28,13 +28,23 @@ export function loadQuanttConfig(env: NodeJS.ProcessEnv = process.env): QuanttCo
     return null;
   }
 
-  if (baseUrl.protocol !== 'https:' || !isQuanttHostname(baseUrl.hostname)) return null;
+  if (baseUrl.protocol !== 'https:'
+    || !isQuanttHostname(baseUrl.hostname)
+    || baseUrl.username
+    || baseUrl.password
+    || baseUrl.search
+    || baseUrl.hash) return null;
 
   const requestedHeader = env.QUANTT_API_AUTH_HEADER?.trim().toLowerCase();
-  const authHeader: QuanttAuthHeader = requestedHeader === 'x-api-key'
-    ? 'X-API-Key'
-    : 'Authorization';
-  const insightsPath = env.QUANTT_INSIGHTS_PATH?.trim() || '/api/v1/insights';
+  let authHeader: QuanttAuthHeader;
+  if (requestedHeader === 'x-api-key') authHeader = 'X-API-Key';
+  else if (requestedHeader === 'authorization') authHeader = 'Authorization';
+  else return null;
+
+  // The Quantt API contract has not been published. Require the owner-supplied
+  // path instead of activating against a guessed endpoint.
+  const insightsPath = env.QUANTT_INSIGHTS_PATH?.trim();
+  if (!insightsPath) return null;
   if (!insightsPath.startsWith('/') || insightsPath.startsWith('//')) return null;
 
   const requestedTimeout = Number(env.QUANTT_API_TIMEOUT_MS ?? 10_000);
