@@ -45,6 +45,32 @@ describe('Quantt integration', () => {
     expect(loadQuanttConfig({ QUANTT_API_BASE_URL: 'http://dev.quantt.at', QUANTT_API_KEY: 'key' })).toBeNull();
     expect(loadQuanttConfig({ QUANTT_API_BASE_URL: 'https://quantt.at.evil.example', QUANTT_API_KEY: 'key' })).toBeNull();
     expect(loadQuanttConfig({ QUANTT_API_BASE_URL: 'https://dev.quantt.at', QUANTT_API_KEY: 'key', QUANTT_INSIGHTS_PATH: '//evil.example' })).toBeNull();
+    expect(loadQuanttConfig({
+      QUANTT_API_BASE_URL: 'https://api.quantt.at?redirect=https://evil.example',
+      QUANTT_API_KEY: 'key',
+      QUANTT_API_AUTH_HEADER: 'authorization',
+      QUANTT_INSIGHTS_PATH: '/v1/insights',
+    })).toBeNull();
+  });
+
+  it('requires an explicit approved auth scheme and insights path', () => {
+    const base = {
+      QUANTT_API_BASE_URL: 'https://api.quantt.at',
+      QUANTT_API_KEY: 'server-secret',
+    };
+    expect(loadQuanttConfig(base)).toBeNull();
+    expect(loadQuanttConfig({ ...base, QUANTT_API_AUTH_HEADER: 'authorization' })).toBeNull();
+    expect(loadQuanttConfig({ ...base, QUANTT_INSIGHTS_PATH: '/v1/insights' })).toBeNull();
+    expect(loadQuanttConfig({
+      ...base,
+      QUANTT_API_AUTH_HEADER: 'cookie',
+      QUANTT_INSIGHTS_PATH: '/v1/insights',
+    })).toBeNull();
+    expect(loadQuanttConfig({
+      ...base,
+      QUANTT_API_AUTH_HEADER: 'authorization',
+      QUANTT_INSIGHTS_PATH: '/v1/insights',
+    })).toMatchObject({ authHeader: 'Authorization', insightsPath: '/v1/insights' });
   });
 
   it('proxies an insight without exposing credentials', async () => {
