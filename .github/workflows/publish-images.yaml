@@ -120,9 +120,85 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
-      # Explorer requires NEXT_PUBLIC_* vars baked in at build time
-      - name: Build and Push — explorer (with mainnet build args)
+      # Build locally first so the CRITICAL gate runs before anything is pushed.
+      # Explorer requires NEXT_PUBLIC_* vars baked in at build time.
+      - name: Build security candidate — explorer
         id: build_explorer
+        if: matrix.service == 'explorer' && (github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service)
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: lithosphere-${{ matrix.service }}:scan-${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://makalu.litho.ai/api
+            NEXT_PUBLIC_GRAPHQL_URL=https://makalu.litho.ai/api/graphql
+            NEXT_PUBLIC_RPC_URL=https://rpc.litho.ai
+            NEXT_PUBLIC_CHAIN_ID=700777
+            NEXT_PUBLIC_CHAIN_NAME=Lithosphere
+            NEXT_PUBLIC_SITE_URL=https://makalu.litho.ai
+            GIT_SHA=${{ github.sha }}
+            BUILD_TIME=${{ steps.build_meta.outputs.build_time }}
+            VERSION=${{ steps.build_meta.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # API, Indexer and Faucet — build metadata only
+      - name: Build security candidate — ${{ matrix.service }}
+        id: build
+        if: matrix.service != 'explorer' && (github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service)
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: lithosphere-${{ matrix.service }}:scan-${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            BUILD_TIME=${{ steps.build_meta.outputs.build_time }}
+            VERSION=${{ steps.build_meta.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Trivy scan — HIGH/CRITICAL findings uploaded to GitHub Security tab for triage (non-blocking)
+      - name: Trivy scan (visibility — HIGH + CRITICAL to SARIF)
+        if: github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: lithosphere-${{ matrix.service }}:scan-${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-${{ matrix.service }}.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+
+      - name: Upload Trivy SARIF to GitHub Security
+        if: always() && (github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service) && hashFiles(format('trivy-{0}.sarif', matrix.service)) != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-${{ matrix.service }}.sarif'
+          category: 'trivy-${{ matrix.service }}'
+
+      # Hard gate — fail the publish only on fixable CRITICAL CVEs
+      - name: Trivy gate (CRITICAL — blocks publish)
+        if: github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: lithosphere-${{ matrix.service }}:scan-${{ github.sha }}
+          format: 'table'
+          severity: 'CRITICAL'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+
+      - name: Publish — explorer
+        id: publish_explorer
         if: matrix.service == 'explorer' && (github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service)
         uses: docker/build-push-action@v5
         with:
@@ -144,9 +220,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # API, Indexer and Faucet — build metadata only
-      - name: Build and Push — ${{ matrix.service }}
-        id: build
+      - name: Publish — ${{ matrix.service }}
+        id: publish
         if: matrix.service != 'explorer' && (github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service)
         uses: docker/build-push-action@v5
         with:
@@ -162,38 +237,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Trivy scan — HIGH/CRITICAL findings uploaded to GitHub Security tab for triage (non-blocking)
-      - name: Trivy scan (visibility — HIGH + CRITICAL to SARIF)
-        if: github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service
-        uses: aquasecurity/trivy-action@0.35.0
-        with:
-          image-ref: ${{ matrix.image }}@${{ steps.build.outputs.digest || steps.build_explorer.outputs.digest }}
-          format: 'sarif'
-          output: 'trivy-${{ matrix.service }}.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-
-      - name: Upload Trivy SARIF to GitHub Security
-        if: always() && (github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service) && hashFiles(format('trivy-{0}.sarif', matrix.service)) != ''
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-${{ matrix.service }}.sarif'
-          category: 'trivy-${{ matrix.service }}'
-
-      # Hard gate — fail the publish only on fixable CRITICAL CVEs
-      - name: Trivy gate (CRITICAL — blocks publish)
-        if: github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service
-        uses: aquasecurity/trivy-action@0.35.0
-        with:
-          image-ref: ${{ matrix.image }}@${{ steps.build.outputs.digest || steps.build_explorer.outputs.digest }}
-          format: 'table'
-          severity: 'CRITICAL'
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-
       - name: Install Cosign
         if: github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service
         uses: sigstore/cosign-installer@v3
@@ -201,7 +244,7 @@ jobs:
       - name: Sign image with Cosign (keyless)
         if: github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service
         env:
-          IMAGE_DIGEST: ${{ steps.build.outputs.digest || steps.build_explorer.outputs.digest }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest || steps.publish_explorer.outputs.digest }}
         run: |
           if [ -n "$IMAGE_DIGEST" ]; then
             cosign sign --yes ${{ matrix.image }}@${IMAGE_DIGEST}
@@ -219,18 +262,18 @@ jobs:
       # Lifts the SLSA posture from "image is signed (Cosign keyless)" to
       # "image carries a verifiable build provenance" (SLSA build L2).
       - name: Generate SLSA build provenance attestation
-        if: (github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service) && (steps.build.outputs.digest || steps.build_explorer.outputs.digest)
+        if: (github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service) && (steps.publish.outputs.digest || steps.publish_explorer.outputs.digest)
         uses: actions/attest-build-provenance@v2
         with:
           subject-name: ${{ matrix.image }}
-          subject-digest: ${{ steps.build.outputs.digest || steps.build_explorer.outputs.digest }}
+          subject-digest: ${{ steps.publish.outputs.digest || steps.publish_explorer.outputs.digest }}
           push-to-registry: true
 
       - name: Generate SBOM
         if: github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ matrix.image }}@${{ steps.build.outputs.digest || steps.build_explorer.outputs.digest }}
+          image: ${{ matrix.image }}@${{ steps.publish.outputs.digest || steps.publish_explorer.outputs.digest }}
           format: spdx-json
           output-file: sbom-${{ matrix.service }}.spdx.json
         continue-on-error: true
@@ -247,7 +290,7 @@ jobs:
       - name: Output image tags
         if: github.event_name == 'push' || inputs.service == 'all' || inputs.service == matrix.service
         env:
-          IMAGE_DIGEST: ${{ steps.build.outputs.digest || steps.build_explorer.outputs.digest }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest || steps.publish_explorer.outputs.digest }}
         run: |
           echo "## Image Published: ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
