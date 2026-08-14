@@ -16,6 +16,9 @@ on:
       - 'Makalu/indexer/**'
       - 'Makalu/explorer/**'
       - 'Makalu/faucet/**'
+      - 'Makalu/scripts/vps1-ci-deploy.sh'
+      - 'Makalu/scripts/vps1-ci-rollback.sh'
+      - '.github/workflows/deploy-simple.yaml'
       - '.github/workflows/publish-images.yaml'
   workflow_dispatch:
     inputs:

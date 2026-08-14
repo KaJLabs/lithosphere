@@ -7,7 +7,7 @@
 # LONGER in the public path, so its "green" never reached the live site.
 #
 # This pipeline deploys the published GHCR images to vps1 over SSH and gates on
-# the PUBLIC URL. It deliberately only `pull`s + `up -d`s web/api/indexer/faucet and
+# the PUBLIC URL. It deliberately only `pull`s + `up -d`s web/api/indexer and
 # NEVER overwrites vps1's hand-edited docker-compose.yml / .env, which carry the
 # "§4.4" hotfix wiring (drops the DB-hiding patch-live-chain-data/validators from
 # the api command, sets EXPLORER_INTERNAL_URL=http://web:3000, FORCE_REINDEX=0,
@@ -15,22 +15,24 @@
 # Full context: litho-validator-infra repo docs/MAKALU_STATE_AND_DEPLOY_HANDOFF.md
 #
 # The protected host scripts are source-controlled at
-# Makalu/scripts/vps1-ci-{deploy,rollback}.sh. Install them atomically on vps1
-# before enabling a release that needs a newly added service.
+# Makalu/scripts/vps1-ci-{deploy,rollback}.sh and intentionally operate only on
+# the explorer, API, and indexer. Faucet releases use a separate approval path.
 # ============================================================================
 name: Deploy Makalu Explorer (vps1)
 
 on:
   # Trigger automatically on the established explorer stack only. Faucet
-  # releases remain explicitly manual because they require an approved funded
+  # releases remain separate and manual because they require an approved funded
   # key, protected-host wrapper readiness, and a dedicated public health gate.
-  # Use workflow_dispatch to deploy a faucet release after those gates pass.
   push:
     branches: [main]
     paths:
       - 'Makalu/api/**'
       - 'Makalu/indexer/**'
       - 'Makalu/explorer/**'
+      - 'Makalu/scripts/vps1-ci-deploy.sh'
+      - 'Makalu/scripts/vps1-ci-rollback.sh'
+      - '.github/workflows/deploy-simple.yaml'
   workflow_dispatch:
     inputs:
       environment:
@@ -87,8 +89,7 @@ jobs:
           for i in $(seq 1 30); do
             if docker manifest inspect "$REGISTRY/lithosphere-explorer:$TAG" >/dev/null 2>&1 \
                && docker manifest inspect "$REGISTRY/lithosphere-api:$TAG" >/dev/null 2>&1 \
-               && docker manifest inspect "$REGISTRY/lithosphere-indexer:$TAG" >/dev/null 2>&1 \
-               && docker manifest inspect "$REGISTRY/lithosphere-faucet:$TAG" >/dev/null 2>&1; then
+               && docker manifest inspect "$REGISTRY/lithosphere-indexer:$TAG" >/dev/null 2>&1; then
               echo "images for $TAG are published"; exit 0
             fi
             echo "  [$i/30] waiting for $TAG ..."; sleep 20
@@ -106,7 +107,7 @@ jobs:
       # that runs ONLY /opt/lithoscan/ci/ci-deploy.sh on the literal arg `deploy`
       # (and ci-rollback.sh on `rollback`); any other command is rejected, plus
       # `restrict` (no pty/forwarding). So we just send `deploy` — the actual
-      # pull + `up -d` web/api/indexer/faucet logic (compose/.env preserved) lives in that host
+      # pull + `up -d` web/api/indexer logic (compose/.env preserved) lives in that host
       # script. See Makalu/scripts/vps1-ci-deploy.sh and the validator-infra
       # MAKALU_STATE_AND_DEPLOY_HANDOFF.md.
       - name: Deploy to vps1 (pull + recreate, compose preserved)
@@ -125,16 +126,8 @@ jobs:
             sha=$(echo "$ver" | jq -r '.gitSha // "unknown"')
             nfts=$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 10 "$PUBLIC_URL/nfts" 2>/dev/null || echo 000)
             summary=$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 10 "$PUBLIC_URL/api/stats/summary" 2>/dev/null || echo 000)
-            faucet=$(curl -fsS --max-time 10 "$PUBLIC_URL/api/faucet/info" 2>/dev/null || echo '{}')
-            faucet_schema=$(echo "$faucet" | jq -r '
-              ((.ready | type) == "boolean") and
-              ((.unavailableAssetIds | type) == "array") and
-              ((.assets | type) == "array") and
-              (.assets | length > 0) and
-              ([.assets[] | has("available") and has("claimableAmounts") and has("minimumClaimAmount") and has("shortfall")] | all)
-            ' 2>/dev/null || echo false)
-            echo "  [$i/18] /api/version gitSha=$sha  /nfts=$nfts  /api/stats/summary=$summary  faucetSchema=$faucet_schema"
-            if [ "$sha" = "$expected" ] && [ "$nfts" = "200" ] && [ "$summary" = "200" ] && [ "$faucet_schema" = "true" ]; then ok=true; break; fi
+            echo "  [$i/18] /api/version gitSha=$sha  /nfts=$nfts  /api/stats/summary=$summary"
+            if [ "$sha" = "$expected" ] && [ "$nfts" = "200" ] && [ "$summary" = "200" ]; then ok=true; break; fi
             sleep 10
           done
           if [ "$ok" != true ]; then echo "::error::public health gate failed — makalu.litho.ai not serving $expected"; exit 1; fi
@@ -169,7 +162,7 @@ jobs:
           printf '%s\n' "${{ secrets.VPS1_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Revert web + api + indexer + faucet to :previous
+      - name: Revert web + api + indexer to :previous
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" rollback
           echo "::warning::Makalu deploy rolled back to previous images"
