@@ -1,10 +1,10 @@
 # Makalu extra works — living handoff
 
 - **Status:** Active — closing one stream at a time
-- **Last verified:** 2026-08-14 14:56 PKT (UTC+05:00)
+- **Last verified:** 2026-08-14 15:26 PKT (UTC+05:00)
 - **Repository:** `KaJLabs/Lithosphere`
 - **Default branch inspected:** `origin/main` at `5db05ad0e5fc396b0a1c532dff84d5d69f06adee`
-- **Review branch:** `feat/mx02-faucet-fail-closed` based on `origin/main`
+- **Latest merged closure:** PR #82 at `f6303f9d39f3c8075284dc73ecb65d4b3556e7eb`
 - **Network in scope:** Makalu testnet, EVM chain ID `700777`, Cosmos chain ID `lithosphere_700777-2`
 
 This is the source of truth for the seven Makalu extra-work streams. Update it whenever code is merged, a release is
@@ -46,7 +46,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
 | MX-06 | Validator cleanup and safety | Chain monitor active; encrypted backup blocked | EXTERNAL BLOCKER | Assign custodians and add the public `BACKUP_RECIPIENT`, then run backup/restore verification. |
-| MX-02 | LEP100 faucet assets | Review PR #80 open; all ten live assets underfunded | IN PROGRESS | Merge/deploy PR #80, then obtain replenishment and run live claims. |
+| MX-02 | LEP100 faucet assets | Safeguards and secured image pipeline merged; production release remains manual | EXTERNAL BLOCKER | Rotate the exposed faucet key, install the protected wrapper, fund assets, deploy, and prove live claims/alerts. |
 | MX-03 | Thanos Wallet | Merged and deployed; acceptance open | IN PROGRESS | Complete wallet-team browser and signed-transaction acceptance. |
 | MX-04 | DNNS | Merged and deployed; live-name acceptance open | EXTERNAL BLOCKER | Obtain two stable test names and DNNS interface/cache confirmation. |
 | MX-05 | Quantt | Adapter deployed but deliberately unconfigured | EXTERNAL BLOCKER | Obtain API contract/credential and repair or replace the development TLS endpoint. |
@@ -59,7 +59,7 @@ Only one repository stream is active at a time. An external blocker is recorded 
 to the next executable stream without pretending the blocked stream is complete.
 
 1. [ ] **MX-06 Validator cleanup and safety** — waiting on responder/custodian governance and public backup recipient.
-2. [ ] **MX-02 LEP100 faucet assets** — PR #80 open; deployment, funding, live claims, and alerts remain.
+2. [ ] **MX-02 LEP100 faucet assets** — safeguards and image publishing merged; key rotation, VPS wrapper activation, funding, live claims, and alerts remain.
 3. [ ] **MX-03 Thanos Wallet** — next after MX-02 repository work is verified.
 4. [ ] **MX-04 DNNS** — waiting on stable test records and team confirmation.
 5. [ ] **MX-05 Quantt** — waiting on API/TLS/product contract.
@@ -128,9 +128,14 @@ Evidence:
 
 **Current state:** The live faucet exposes native LITHO plus ten LEP100 assets. Native LITHO is funded. Every LEP100
 asset is below its minimum ten-token claim: WLITHO, LITBTC, JOT, COLLE, and FGPT have zero; LAX, IMAGE, AGII, BLDR,
-and MUSA have five. Balance-aware, fail-closed API and explorer behavior is implemented locally and passed seven
-focused tests plus a strict TypeScript build on 2026-08-14. It is not merged or deployed, and treasury replenishment
-is still required before live token claims can pass.
+and MUSA have five. Balance-aware, fail-closed API and explorer behavior passed seven focused tests plus a strict
+TypeScript build. PR #80 merged those safeguards on 2026-08-14. PR #82 then merged secured faucet image publishing,
+pre-publication vulnerability gating, immutable image waiting, a public faucet-schema gate, and source-controlled
+deploy/rollback wrappers as `f6303f9d39f3c8075284dc73ecb65d4b3556e7eb`. The merged faucet image passed Trivy,
+signing, provenance, and SBOM generation at digest
+`sha256:34391877a9029461dfc261ce1ed0704b791d19f9065c0367a297952e49be12d8`. Production was intentionally not
+deployed: faucet releases are manual pending rotation of the exposed funding key and protected-wrapper activation.
+Treasury replenishment is also required before live token claims can pass.
 
 Completed or evidenced:
 
@@ -142,12 +147,20 @@ Completed or evidenced:
 - [x] Drip rejects underfunded assets before cooldown mutation or transfer, including a fail-closed balance-read path.
 - [x] Explorer disables unavailable assets and presents their funding shortfall locally.
 - [x] Seven focused availability/route tests and the strict faucet build pass (2026-08-14).
+- [x] Faucet image passes the pre-publication CRITICAL Trivy gate and is signed, provenance-attested, and accompanied
+      by an SBOM (2026-08-14).
 
 Remaining actions:
 
-- [ ] Isolate, review, and merge `availability.ts` plus the drip/health/UI behavior that prevents impossible claims.
+- [x] Isolate, review, and merge `availability.ts` plus the drip/health/UI behavior in PR #80 (2026-08-14).
 - [x] Add focused tests for zero balance, below-minimum balance, balance-read failure, malformed balance, and a
       successful funded claim path.
+- [x] Extend the immutable GHCR publisher to build/sign/attest `lithosphere-faucet` on faucet changes (PR #82).
+- [ ] Rotate the exposed faucet funding key through the server secret-management path before deployment; do not
+      transmit the replacement key through chat or repository files.
+- [ ] Have the VPS owner update the restricted deploy and rollback wrappers to recreate/restore the faucet container.
+- [x] Extend the manual Makalu release workflow's immutable image wait and public health gate to cover the faucet
+      image and new availability fields; keep faucet releases manual until the funding/wrapper gates pass.
 - [ ] Deploy the faucet/API/explorer release and verify unavailable assets are clearly disabled.
 - [ ] Obtain approved replenishment amounts and fund every token above its operational reserve threshold.
 - [ ] Execute one live claim for every asset and retain transaction hashes.
@@ -173,6 +186,13 @@ Evidence:
 - Live probe: `https://makalu.litho.ai/api/faucet/info`
 - Isolated implementation commit: `c83910f`
 - Review PR: `https://github.com/KaJLabs/Lithosphere/pull/80`
+- Merge commit: `ef5092812cddc591836657cea6197f8aa2f46fac`
+- Image/deployment pipeline PR: `https://github.com/KaJLabs/Lithosphere/pull/82`
+- Pipeline merge commit: `f6303f9d39f3c8075284dc73ecb65d4b3556e7eb`
+- Merged image run: `https://github.com/KaJLabs/Lithosphere/actions/runs/31814888627`
+- Verified faucet image digest: `sha256:34391877a9029461dfc261ce1ed0704b791d19f9065c0367a297952e49be12d8`
+- Live post-merge probe at 2026-08-14 15:24 PKT: previous payload still active (`ready` and per-asset `available`
+  absent).
 
 ## MX-03 — Thanos Wallet integration
 
@@ -470,7 +490,10 @@ Evidence:
 | 2026-08-03 | Rust toolchain | PARTIAL | Format and Clippy passed. Tests/build could not link because `link.exe` is absent on this host. |
 | 2026-08-14 | Live Makalu config | PASS | HTTP 200; faucet and bridge enabled, swap disabled. |
 | 2026-08-14 | Live faucet inventory | BLOCKED | Ten LEP100 assets present; five at zero and five at five, below minimum claim ten. |
-| 2026-08-14 | Faucet safeguards | PASS, LOCAL ONLY | Seven tests and strict TypeScript build pass; merge/deploy/funding remain. |
+| 2026-08-14 | Faucet safeguards | MERGED | PR #80 merged as `ef509281`; seven tests and strict TypeScript build passed. |
+| 2026-08-14 | Faucet deployment | BLOCKED | No faucet image was published/deployed; live API still serves the previous payload. |
+| 2026-08-14 | Faucet image pipeline | PASS | PR #82 merged as `f6303f9`; merged image run passed build, pre-publish Trivy gate, signing, provenance, and SBOM for all four services. No production deploy triggered. |
+| 2026-08-14 | Faucet production release | BLOCKED | Rotate the exposed funding key, install the reviewed protected wrappers, replenish approved reserves, then run the manual gated release. |
 | 2026-08-14 | Thanos deployment | PARTIAL | `/signin` and `/api/auth/nonce` respond; wallet-team acceptance remains. |
 | 2026-08-14 | DNNS registry | PASS | Kamet chain ID 900523; configured registry address contains contract bytecode. |
 | 2026-08-14 | Quantt | BLOCKED | Live adapter reports `configured: false`; development hostname fails TLS validation. |
@@ -478,6 +501,30 @@ Evidence:
 | 2026-08-14 | Signing-state backup | BLOCKED | Scheduled workflow fails closed because `BACKUP_RECIPIENT` is empty. |
 
 ## Change log
+
+### 2026-08-14 — MX-02 secured image pipeline merged; production held safely
+
+- PR #82 merged to `main` as `f6303f9d39f3c8075284dc73ecb65d4b3556e7eb` after all 13 PR checks passed.
+- A faucet-only candidate exposed `CVE-2026-59873` in npm's bundled `node-tar`; runtime package managers were removed
+  and the image passed a fresh CRITICAL Trivy gate before publication.
+- Changed image publishing to build and scan locally before pushing, preventing future fixable CRITICAL findings
+  from being published by the workflow.
+- Merged image run `31814888627` completed all four services; the faucet image was signed, provenance-attested, and
+  supplied with an SBOM at digest `sha256:34391877a9029461dfc261ce1ed0704b791d19f9065c0367a297952e49be12d8`.
+- Confirmed faucet releases remain manual and no production deployment ran for the merge.
+- Production remains blocked on funding-key rotation, protected-wrapper installation, treasury replenishment, live
+  claims, and alert ownership.
+- Updated by: `bachal-mb`.
+
+### 2026-08-14 — MX-02 safeguards merged; deployment gap identified
+
+- PR #80 merged to `main` as `ef5092812cddc591836657cea6197f8aa2f46fac`; all reported PR checks/statuses passed.
+- Confirmed the live faucet still serves the prior payload after merge.
+- Confirmed `publish-images.yaml` excludes the faucet, `deploy-simple.yaml` does not trigger on faucet changes, and
+  the protected VPS deploy/rollback wrapper currently covers only web/API.
+- MX-02 advanced from merge review to an external deployment-infrastructure blocker; funding, live claims, and
+  per-token alert ownership remain open.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-14 — Sequential closure tracking and MX-02 repository safeguards
 
