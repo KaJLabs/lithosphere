@@ -1,10 +1,10 @@
 # Makalu extra works — living handoff
 
 - **Status:** Active — closing one stream at a time
-- **Last verified:** 2026-08-14 21:45 PKT (UTC+05:00)
+- **Last verified:** 2026-08-14 22:13 PKT (UTC+05:00)
 - **Repository:** `KaJLabs/Lithosphere`
-- **Default branch inspected:** `origin/main` at `6ded419ca7034f9ded110255dd1a2683d3399029`
-- **Latest merged closure:** PR #83 at `6ded419ca7034f9ded110255dd1a2683d3399029`
+- **Default branch inspected:** `origin/main` at `4fdb3ca5a4bcb0d24978189ce158028ae6247984`
+- **Latest merged closure:** PR #84 at `4fdb3ca5a4bcb0d24978189ce158028ae6247984`
 - **Network in scope:** Makalu testnet, EVM chain ID `700777`, Cosmos chain ID `lithosphere_700777-2`
 
 This is the source of truth for the seven Makalu extra-work streams. Update it whenever code is merged, a release is
@@ -47,7 +47,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | --- | --- | --- | --- | --- |
 | MX-06 | Validator cleanup and safety | Chain monitor active; encrypted backup blocked | EXTERNAL BLOCKER | Assign custodians and add the public `BACKUP_RECIPIENT`, then run backup/restore verification. |
 | MX-02 | LEP100 faucet assets | Safeguards and secured image pipeline merged; production release remains manual | EXTERNAL BLOCKER | Rotate the exposed faucet key, install the protected wrapper, fund assets, deploy, and prove live claims/alerts. |
-| MX-03 | Thanos Wallet | Repository work merged; deployment rolled back safely | IN PROGRESS | Decouple the core deploy gate from the paused faucet, redeploy, then obtain wallet-team acceptance. |
+| MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Merged and deployed; live-name acceptance open | EXTERNAL BLOCKER | Obtain two stable test names and DNNS interface/cache confirmation. |
 | MX-05 | Quantt | Adapter deployed but deliberately unconfigured | EXTERNAL BLOCKER | Obtain API contract/credential and repair or replace the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | Candidate source merged; Makalu swap disabled | IN PROGRESS | Resolve open DEX PRs, audit, deploy, seed approved liquidity, and run live acceptance. |
@@ -204,8 +204,9 @@ signature normalization, nonce verification, replay protection, bearer sessions,
 implemented. PR #83 merged the discovery hardening and acceptance record as
 `6ded419ca7034f9ded110255dd1a2683d3399029`. The published Chrome version and production secret gate are verified.
 Its first deployment was rolled back safely because the core explorer health gate incorrectly required the paused
-MX-02 faucet schema. Core-gate correction, redeployment, wallet-team browser acceptance, and a low-value signed
-transaction remain open.
+MX-02 faucet schema. PR #84 isolated the core deployment, and run `31822244365` attempt 2 deployed release
+`4fdb3ca5a4bcb0d24978189ce158028ae6247984` successfully without touching the faucet. Only wallet-team browser
+acceptance and a low-value signed transaction remain open.
 
 Completed or evidenced:
 
@@ -220,11 +221,11 @@ Completed or evidenced:
       the value was not exposed (2026-08-14).
 - [x] Automated coverage includes late EIP-6963 announcement and the official `window.thanos` fallback.
 - [x] PR #83 passed all 15 required/reporting checks and merged as `6ded419ca7034f9ded110255dd1a2683d3399029`.
+- [x] PR #84 isolated core deployment from the faucet; run `31822244365` attempt 2 passed the public gate and deployed
+      release `4fdb3ca5a4bcb0d24978189ce158028ae6247984` (2026-08-14).
 
 Remaining actions:
 
-- [ ] Correct the core deployment gate so it does not deploy or require the separately paused faucet, then redeploy
-      and verify the live release SHA.
 - [ ] Wallet team tests published extension version `0.9.33` in Chrome/Chromium and records browser/version evidence.
 - [ ] Test fresh install, late EIP-6963 announcement, user rejection, wrong chain, network switch, reconnect, sign-out,
       extension restart, and browser restart.
@@ -248,7 +249,9 @@ Evidence:
 - `Makalu/explorer/test/walletNetwork.test.ts`
 - `docs/thanos-wallet-acceptance.md`
 - `https://github.com/KaJLabs/Lithosphere/pull/83`
+- `https://github.com/KaJLabs/Lithosphere/pull/84`
 - `https://github.com/KaJLabs/Lithosphere/actions/runs/31819790372`
+- `https://github.com/KaJLabs/Lithosphere/actions/runs/31822244365`
 
 ## MX-04 — DNNS integration
 
@@ -513,6 +516,7 @@ Evidence:
 | 2026-08-14 | Thanos repository verification | PASS | API: 6 focused tests and TypeScript build passed. Explorer: all 128 tests passed; Next compilation/type validation passed before Windows denied standalone symlink creation. |
 | 2026-08-14 | Thanos merge | PASS | PR #83 passed all 15 checks and merged as `6ded419ca7034f9ded110255dd1a2683d3399029`. |
 | 2026-08-14 | Thanos deployment | ROLLED BACK | Run `31819790372` served the correct release SHA and passed core routes, but an incorrectly coupled faucet-schema condition failed; automatic rollback passed and restored the prior healthy release. |
+| 2026-08-14 | Thanos deployment retry | PASS | PR #84 merged as `4fdb3ca`; run `31822244365` attempt 2 passed the core public gate. Live version, `/signin`, `/nfts`, stats, and nonce probes passed; faucet container start time and image remained unchanged. |
 | 2026-08-14 | DNNS registry | PASS | Kamet chain ID 900523; configured registry address contains contract bytecode. |
 | 2026-08-14 | Quantt | BLOCKED | Live adapter reports `configured: false`; development hostname fails TLS validation. |
 | 2026-08-14 | Mainnet chain monitor | PASS | Three latest inspected protected runs passed. |
@@ -520,13 +524,17 @@ Evidence:
 
 ## Change log
 
-### 2026-08-14 — MX-03 merged; core deployment gate correction opened
+### 2026-08-14 — MX-03 merged and deployed; wallet acceptance remains
 
 - PR #83 passed all checks and merged as `6ded419ca7034f9ded110255dd1a2683d3399029`.
 - Deployment run `31819790372` served the new release and passed the explorer routes, but the core workflow also
   required the intentionally undeployed MX-02 faucet schema. The gate failed and automatic rollback succeeded.
 - Verified the protected host scripts deploy only explorer, API, and indexer. Updated the repository copies and CI
-  gate to match that isolation; the faucet remains untouched pending its separate approval path.
+  gate to match that isolation; PR #84 passed all checks and merged as `4fdb3ca5a4bcb0d24978189ce158028ae6247984`.
+- The first PR #84 deployment attempt hit a transient GHCR `EOF` before recreation and rolled back successfully.
+  Attempt 2 passed the public gate and deployed the expected release to explorer, API, and indexer.
+- Public probes returned 200 for `/signin`, `/nfts`, stats, and nonce issuance. The live faucet retained its prior
+  image and 2026-06-20 start time, confirming it was not part of the deployment.
 
 ### 2026-08-14 — MX-03 repository verification and wallet-team handoff
 
