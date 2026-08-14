@@ -9,10 +9,15 @@ import {
   saveStoredSession,
   validateSession,
 } from '@/lib/auth';
-import { messageOf, normalizeSignature } from '@/components/ThanosSignIn';
+import {
+  discoverThanosWallet,
+  messageOf,
+  normalizeSignature,
+} from '@/components/ThanosSignIn';
 
 afterEach(() => {
   localStorage.clear();
+  delete (window as Window & { thanos?: unknown }).thanos;
   vi.restoreAllMocks();
 });
 
@@ -26,6 +31,30 @@ describe('Thanos session helpers', () => {
   it('maps wallet cancellation to an actionable message', () => {
     expect(messageOf({ code: 4001 })).toContain('cancelled');
     expect(messageOf({ code: 'ACTION_REJECTED' })).toContain('cancelled');
+  });
+
+  it('discovers a late EIP-6963 Thanos announcement', async () => {
+    const provider = { request: vi.fn() };
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+        detail: {
+          info: { rdns: 'fi.thanos.wallet', name: 'Thanos Wallet' },
+          provider,
+        },
+      }));
+    }, 10);
+
+    await expect(discoverThanosWallet()).resolves.toMatchObject({ provider });
+  });
+
+  it('uses the official window.thanos provider fallback', async () => {
+    const provider = { isThanos: true, request: vi.fn() };
+    Object.defineProperty(window, 'thanos', {
+      configurable: true,
+      value: provider,
+    });
+
+    await expect(discoverThanosWallet()).resolves.toMatchObject({ provider });
   });
 
   it('persists sessions, emits updates, and produces bearer headers', () => {
