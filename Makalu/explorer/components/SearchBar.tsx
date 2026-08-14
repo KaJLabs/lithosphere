@@ -17,7 +17,11 @@ export default function SearchBar() {
     if (!q) return;
 
     // DNNS name (e.g. alice.litho) → resolve to an address on Kamet, then route.
-    if (isDnnsName(q)) {
+    if (q.toLowerCase().endsWith('.litho')) {
+      if (!isDnnsName(q)) {
+        setError('Invalid .litho name. Use one label of at least 3 letters, numbers, or hyphens.');
+        return;
+      }
       setResolving(true);
       try {
         const addr = await resolveName(q);
