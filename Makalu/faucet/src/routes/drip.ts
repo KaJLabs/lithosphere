@@ -1,7 +1,8 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { isAddress } from 'viem';
-import { drip } from '../services/wallet.js';
-import { checkCooldown, setCooldown } from '../services/rateLimit.js';
+import { drip as sendDrip, getAssetBalance as readAssetBalance } from '../services/wallet.js';
+import { getAssetAvailability as deriveAssetAvailability } from '../services/availability.js';
+import { checkCooldown as readCooldown, setCooldown as writeCooldown } from '../services/rateLimit.js';
 import { config, getAssetConfig, isAllowedAmount } from '../config.js';
 
 interface DripBody {
@@ -11,7 +12,39 @@ interface DripBody {
   asset?: string;
 }
 
-export async function dripRoutes(app: FastifyInstance) {
+export interface DripRouteDependencies {
+  drip: typeof sendDrip;
+  getAssetBalance: typeof readAssetBalance;
+  getAssetAvailability: typeof deriveAssetAvailability;
+  checkCooldown: typeof readCooldown;
+  setCooldown: typeof writeCooldown;
+}
+
+export interface DripRouteOptions extends FastifyPluginOptions {
+  dependencies?: DripRouteDependencies;
+}
+
+const defaultDependencies: DripRouteDependencies = {
+  drip: sendDrip,
+  getAssetBalance: readAssetBalance,
+  getAssetAvailability: deriveAssetAvailability,
+  checkCooldown: readCooldown,
+  setCooldown: writeCooldown,
+};
+
+export async function dripRoutes(
+  app: FastifyInstance,
+  options: DripRouteOptions = {},
+) {
+  const dependencies = options.dependencies ?? defaultDependencies;
+  const {
+    drip,
+    getAssetBalance,
+    getAssetAvailability,
+    checkCooldown,
+    setCooldown,
+  } = dependencies;
+
   app.post<{ Body: DripBody }>('/drip', async (request, reply) => {
     const {
       address,
@@ -53,6 +86,43 @@ export async function dripRoutes(app: FastifyInstance) {
           message: `Allowed amounts for ${asset.symbol}: ${asset.allowedAmounts.map((value) => `${value} ${asset.symbol}`).join(', ')}`,
         });
       }
+    }
+
+    let availability;
+    try {
+      availability = getAssetAvailability(asset, await getAssetBalance(asset));
+    } catch (error) {
+      request.log.error(
+        {
+          assetId: asset.id,
+          symbol: asset.symbol,
+          err: error instanceof Error ? error.message : String(error),
+        },
+        '[faucet] Failed to verify asset funding before claim',
+      );
+      availability = getAssetAvailability(asset, 'unavailable');
+    }
+
+    if (!availability.claimableAmounts.includes(dripAmount)) {
+      request.log.warn(
+        {
+          assetId: asset.id,
+          symbol: asset.symbol,
+          requestedAmount: dripAmount,
+          minimumClaimAmount: availability.minimumClaimAmount,
+          shortfall: availability.shortfall,
+        },
+        '[faucet] Rejecting claim for an underfunded asset',
+      );
+      return reply.status(503).send({
+        error: 'Asset temporarily unavailable',
+        message: `${asset.symbol} is temporarily unavailable because the faucet wallet is underfunded.`,
+        assetId: asset.id,
+        available: false,
+        claimableAmounts: availability.claimableAmounts,
+        minimumClaimAmount: availability.minimumClaimAmount,
+        shortfall: availability.shortfall,
+      });
     }
 
     const { allowed, retryAfterSeconds } = await checkCooldown(address, asset.id);
