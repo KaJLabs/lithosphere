@@ -50,7 +50,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
-| MX-01 | MultX / Lithoswap | V2 DEX merged; non-AWS signer hardening under review; swap disabled | IN PROGRESS | Merge signer fail-closed fixes, then obtain independent audit, operator, deployment, controller, and liquidity approvals. |
+| MX-01 | MultX / Lithoswap | V2 DEX and non-AWS signer hardening merged; swap disabled | IN PROGRESS | Obtain independent audit, operator, deployment, controller, and liquidity approvals. |
 | MX-07 | Developer toolchain | Expanded v0 local-only; no deployable compiler/release | IN PROGRESS, LOCAL ONLY | Review local tools, then implement compiler lowering/codegen and conformance. |
 
 ## Sequential closure queue
@@ -78,7 +78,9 @@ was closed without merge because it conflicts with the confirmed no-AWS architec
 provider-neutral VPS remote-signer/quorum implementation. PR #68 isolated,
 review-hardened, and merged the same-chain Lithoswap V2 contracts, deployment/liquidity/E2E scripts, and tests as
 `07b37969f00d97eaca17794c31a83546b60a1940`. The optional V2
-subgraph remains local-only and is not required for on-chain quotes. The live configuration reports `swap: false`; `/swap` and
+subgraph remains local-only and is not required for on-chain quotes. PR #93 hardened the provider-neutral signer,
+API quorum, and bridge validator-set invariants and merged as `60f3f7bb151e9e2be48632468212e602220f40f4`.
+No deployment, key access, funding, or feature enablement occurred. The live configuration reports `swap: false`; `/swap` and
 `/cross-swap` return HTTP 200 but render unavailable states.
 
 Completed or evidenced:
@@ -107,14 +109,17 @@ Completed or evidenced:
       quorum identities, serialized polling, configured-signer-only counts, and explicit multichain evidence gates.
 - [x] Eleven signer tests, eighteen API tests, and eighty-eight bridge-contract tests pass; all three production
       dependency audits report zero vulnerabilities locally (2026-08-16).
+- [x] PR #93 passed all repository checks and merged by `bachal-mb` as
+      `60f3f7bb151e9e2be48632468212e602220f40f4`; no deployment or key access occurred (2026-08-16).
 
 Remaining actions:
 
 - [x] Isolate, review, and merge the V2 contracts, release-gated deployment/liquidity scripts, and tests in PR #68.
 - [ ] Separately review the optional V2 subgraph only if analytics are required. It is not required for quotes or swaps.
 - [x] Close PR #78's AWS-specific signer proposal; AWS KMS/IAM is not an accepted project dependency.
-- [ ] Merge the provider-neutral signer/API review hardening, then complete independent and operator acceptance,
-      including key custody, host hardening, monitoring, failure behavior, recovery, and rollback before deployment.
+- [x] Merge the provider-neutral signer/API/bridge review hardening in PR #93.
+- [ ] Complete independent and operator acceptance, including key custody, host hardening, monitoring, failure
+      behavior, recovery, and rollback before deployment.
 - [ ] Modernize or explicitly disposition the MultX deployment/test toolchain's transitive audit findings before
       using it as a long-lived privileged runner (full local audit: 3 critical, 14 high; production-only audit: 0).
 - [ ] Obtain Backend/Bridge confirmation of the route contract, token map, relayer/claim behavior, and supported
@@ -154,6 +159,7 @@ Evidence:
 - Review PR: `https://github.com/KaJLabs/Lithosphere/pull/75`
 - Lithoswap V2 PR: `https://github.com/KaJLabs/Lithosphere/pull/68`
 - Blocked AWS proposal: `https://github.com/KaJLabs/Lithosphere/pull/78`
+- Provider-neutral signer hardening: `https://github.com/KaJLabs/Lithosphere/pull/93`
 - Live probes: `https://makalu.litho.ai/api/config`, `https://makalu.litho.ai/swap`,
   `https://makalu.litho.ai/cross-swap`
 
@@ -608,9 +614,19 @@ Evidence:
 | 2026-08-15 | MultX toolchain audit | PARTIAL | `npm audit --omit=dev` reports zero; full operational/test dependency audit reports 3 critical and 14 high transitive findings. |
 | 2026-08-16 | Lithoswap V2 repository review | MERGED | PR #68 passed every repository check and merged as `07b37969`; current-main build, 28 full Hardhat tests, 23 focused DEX/configuration tests, nine E2E checks, strict TypeScript, and Slither with zero detectors passed. No deployment or funding occurred. |
 | 2026-08-16 | Lithoswap V2 toolchain audit | PARTIAL | Contract package has no production runtime dependencies; its Hardhat/test-only dependency graph reports 1 critical, 55 high, 43 moderate, and 10 low transitive advisories. |
-| 2026-08-16 | Provider-neutral signer review | PASS, LOCAL | 11 signer, 18 API, and 88 bridge-contract tests pass; all three production dependency audits report zero. Fail-closed policy, live RPC chain-ID verification, journal, quorum, poll serialization, URL, explicit-evidence, and unique on-chain validator fixes await PR review. |
+| 2026-08-16 | Provider-neutral signer review | MERGED | PR #93 passed all checks and merged as `60f3f7bb`; 11 signer, 18 API, and 88 bridge-contract tests pass; all three production dependency audits report zero. No deployment or key access occurred. |
 
 ## Change log
+
+### 2026-08-16 — MX-01 provider-neutral signer hardening merged
+
+- Every required/reporting check on PR #93 passed, including CodeQL, contracts, Foundry invariants, signer, API
+  image, web, build, lint, typecheck, schema/ABI, and secret scanning.
+- PR #93 merged by `bachal-mb` as `60f3f7bb151e9e2be48632468212e602220f40f4`.
+- Repository hardening is complete; independent audit and operator acceptance remain required before any privileged
+  deployment, followed by explicit controller and liquidity approvals before Swap can be enabled.
+- No signer or contract was deployed, no key was accessed, no liquidity was funded, and Swap remains disabled.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-01 provider-neutral signer review hardened locally
 
