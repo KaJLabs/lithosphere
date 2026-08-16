@@ -51,7 +51,11 @@ pub fn lex(src: &str) -> Vec<Token> {
             if i < n {
                 i += 1; // closing quote
             }
-            out.push(Token { kind: TokenKind::ByteStr, lo, hi: byte_at(i) });
+            out.push(Token {
+                kind: TokenKind::ByteStr,
+                lo,
+                hi: byte_at(i),
+            });
             continue;
         }
 
@@ -68,7 +72,11 @@ pub fn lex(src: &str) -> Vec<Token> {
             if i < n {
                 i += 1; // closing quote
             }
-            out.push(Token { kind: TokenKind::Str, lo, hi: byte_at(i) });
+            out.push(Token {
+                kind: TokenKind::Str,
+                lo,
+                hi: byte_at(i),
+            });
             continue;
         }
 
@@ -110,14 +118,26 @@ pub fn lex(src: &str) -> Vec<Token> {
                     break;
                 }
             }
-            let kind = if is_float { TokenKind::Float } else { TokenKind::Int };
-            out.push(Token { kind, lo, hi: byte_at(i) });
+            let kind = if is_float {
+                TokenKind::Float
+            } else {
+                TokenKind::Int
+            };
+            out.push(Token {
+                kind,
+                lo,
+                hi: byte_at(i),
+            });
             continue;
         }
 
         // Arrow `->`.
         if c == '-' && i + 1 < n && chars[i + 1].1 == '>' {
-            out.push(Token { kind: TokenKind::Arrow, lo: off, hi: byte_at(i + 2) });
+            out.push(Token {
+                kind: TokenKind::Arrow,
+                lo: off,
+                hi: byte_at(i + 2),
+            });
             i += 2;
             continue;
         }
@@ -141,10 +161,18 @@ pub fn lex(src: &str) -> Vec<Token> {
             '=' => TokenKind::Eq,
             _ => TokenKind::Other,
         };
-        out.push(Token { kind, lo: off, hi: byte_at(i + 1) });
+        out.push(Token {
+            kind,
+            lo: off,
+            hi: byte_at(i + 1),
+        });
         i += 1;
     }
 
-    out.push(Token { kind: TokenKind::Eof, lo: src.len(), hi: src.len() });
+    out.push(Token {
+        kind: TokenKind::Eof,
+        lo: src.len(),
+        hi: src.len(),
+    });
     out
 }

@@ -1,0 +1,48 @@
+name: Lithic Toolchain CI
+
+on:
+  push:
+    paths:
+      - "toolchain/**"
+      - ".github/workflows/ci-toolchain.yaml"
+  pull_request:
+    paths:
+      - "toolchain/**"
+      - ".github/workflows/ci-toolchain.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: toolchain
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - name: Select Rust toolchain
+        run: rustup default stable
+      - name: Formatting (reviewed front-end slice)
+        run: >-
+          rustfmt --check --edition 2021
+          crates/lithic-syntax/src/lib.rs
+          crates/lithic-syntax/src/sema.rs
+          crates/lithc/src/main.rs
+          crates/lithc/tests/cli.rs
+      - name: Lints (reviewed front-end slice)
+        run: cargo clippy -p lithic-syntax -p lithc --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test --workspace
+      - name: Release build
+        run: cargo build --workspace --release
+      - name: lithc check smoke test
+        run: cargo run -p lithc -- --emit check ../Makalu/contracts/src/DOGE.lithic

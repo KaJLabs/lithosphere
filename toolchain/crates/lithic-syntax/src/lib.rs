@@ -8,12 +8,14 @@ pub mod ast;
 pub mod diagnostic;
 pub mod lexer;
 pub mod parser;
+pub mod sema;
 pub mod span;
 pub mod token;
 
 pub use ast::{Attr, ConstDecl, Contract, EventDecl, Field, FuncDecl, Item, Param, Type};
 pub use diagnostic::{Diagnostic, Severity};
 pub use parser::{parse, ParseResult};
+pub use sema::{check, Finding, Level};
 
 #[cfg(test)]
 mod tests {

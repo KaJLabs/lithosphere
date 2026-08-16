@@ -51,7 +51,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | V2 DEX and non-AWS signer hardening merged; swap disabled | IN PROGRESS | Obtain independent audit, operator, deployment, controller, and liquidity approvals. |
-| MX-07 | Developer toolchain | Expanded v0 local-only; no deployable compiler/release | IN PROGRESS, LOCAL ONLY | Review local tools, then implement compiler lowering/codegen and conformance. |
+| MX-07 | Developer toolchain | First compiler-front-end review slice isolated; no deployable compiler/release | IN PROGRESS, LOCAL ONLY | Merge conservative declaration checks and three-OS CI, then review each remaining tool separately. |
 
 ## Sequential closure queue
 
@@ -495,13 +495,16 @@ Evidence:
 **Owners:** Lithic/compiler team + Dev Infra/release owner + Security reviewer
 
 **Current state:** The workspace expands all eight public tools into functional v0 implementations and adds three-OS
-CI/release packaging. Those changes remain local-only. The tracked `main` version still describes `lithls`, `lithdev`,
-`lithtest`, `lithsec`, and `lithpkg` as spec-only stubs. Even in the local implementation, `lithc` stops after parsing,
-semantic checks, AST/ABI output; it does not parse/lower full function bodies into deployable LithoVM/EVM bytecode.
+CI/release packaging. Those changes remain local-only. Review of the first shared-syntax/`lithc` slice found that the
+local semantic pass inferred an unapproved primitive-type table, overload behavior, map-key restrictions, and return
+semantics. The isolated review candidate removes those assumptions, adds only unambiguous declaration-name checks,
+and introduces a three-OS CI gate. The tracked release still describes `lithls`, `lithdev`, `lithtest`, `lithsec`, and
+`lithpkg` as spec-only stubs. `lithc` still does not parse/lower full function bodies into deployable LithoVM/EVM
+bytecode.
 
 | Tool | Local implementation | Required before full-release acceptance |
 | --- | --- | --- |
-| `lithc` | Lexer, declarations, semantic/name/type checks, AST/ABI/check output. | Full statements/expressions, typed IR, deterministic bytecode/codegen, source maps, diagnostics, and conformance tests. |
+| `lithc` | Lexer/parser and AST/ABI output; conservative declaration-check candidate under review. | Approved type/overload/map/return semantics, full statements/expressions, typed IR, deterministic bytecode/codegen, source maps, diagnostics, and conformance tests. |
 | `lithfmt` | Parse-safe whitespace normalization and `--check`. | Decide whether v0 is accepted or implement AST-driven canonical formatting/idempotence corpus. |
 | `lithlint` | AST-driven L001–L004 rules and warning denial. | Rule/version policy, suppression/config behavior, false-positive corpus, and release documentation. |
 | `lithls` | Stdio LSP lifecycle, full sync, diagnostics, and document symbols. | Editor acceptance; decide whether incremental sync, completion, hover, and go-to-definition are release gates. |
@@ -517,10 +520,19 @@ Completed or evidenced locally:
 - [x] Local `cargo fmt --check` and Clippy with warnings denied pass (2026-08-03).
 - [x] A three-OS CI workflow and release-archive changes exist locally.
 - [x] The July readiness run recorded 29 Rust tests and a release build passing in an environment with a linker.
+- [x] Inventoried the 1,700+ line local multi-tool change and isolated shared syntax/`lithc` rather than bulk-committing
+      unrelated tools (2026-08-16).
+- [x] Removed unapproved type, overload, map-key, and return assumptions from the first review candidate; added
+      conservative duplicate const/state-field/parameter checks plus `lithc --emit check`.
+- [x] Local targeted rustfmt, workspace `cargo check`, and Clippy with warnings denied for the reviewed crates pass.
+- [x] Added a three-OS CI candidate to run scoped formatting/Clippy, full workspace tests/release build, and a real
+      `lithc` smoke check.
 
 Remaining actions:
 
-- [ ] Split and review the shared syntax/sema changes, each public tool, CI, release packaging, examples, and lockfile.
+- [ ] Merge the reviewed shared syntax/`lithc` and CI slice after its Linux/Windows/macOS gates pass.
+- [ ] Separately review `lithfmt`, `lithlint`, `lithls`, `lithdev`, `lithtest`, `lithsec`, `lithpkg`, release packaging,
+      examples, and lockfile.
 - [ ] Run the full workspace tests/release build on Linux, Windows, and macOS. The 2026-08-03 Windows audit host lacks
       `link.exe`, so it could lint/check but could not link Rust test binaries.
 - [ ] Specify full function-body grammar, semantics, ABI/bytecode compatibility target, and compiler conformance
@@ -615,8 +627,21 @@ Evidence:
 | 2026-08-16 | Lithoswap V2 repository review | MERGED | PR #68 passed every repository check and merged as `07b37969`; current-main build, 28 full Hardhat tests, 23 focused DEX/configuration tests, nine E2E checks, strict TypeScript, and Slither with zero detectors passed. No deployment or funding occurred. |
 | 2026-08-16 | Lithoswap V2 toolchain audit | PARTIAL | Contract package has no production runtime dependencies; its Hardhat/test-only dependency graph reports 1 critical, 55 high, 43 moderate, and 10 low transitive advisories. |
 | 2026-08-16 | Provider-neutral signer review | MERGED | PR #93 passed all checks and merged as `60f3f7bb`; 11 signer, 18 API, and 88 bridge-contract tests pass; all three production dependency audits report zero. No deployment or key access occurred. |
+| 2026-08-16 | Toolchain shared front-end review | PASS, LOCAL | Local multi-tool work was split; speculative language rules were rejected. Targeted rustfmt, workspace check, and reviewed-crate Clippy pass. Three-OS tests/build await PR CI. |
 
 ## Change log
+
+### 2026-08-16 — MX-07 shared front-end review isolated
+
+- Inventoried the uncommitted toolchain work without modifying the original dirty workspace and isolated the shared
+  syntax/`lithc` slice from the other tools, examples, lockfile, and release packaging.
+- Rejected the local semantic pass's unapproved primitive-type, overload, map-key, and return assumptions.
+- Added only conservative duplicate const, state-field, and parameter checks plus an honest `lithc --emit check`
+  mode that does not claim full type checking or code generation.
+- Added Linux/Windows/macOS CI for scoped format/Clippy, full workspace tests and release build, and a compiler smoke
+  test. Local targeted rustfmt, workspace check, and reviewed-crate Clippy pass; hosted linker-backed CI is pending.
+- No compiler release or deployable bytecode is claimed or published.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-01 provider-neutral signer hardening merged
 

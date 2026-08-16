@@ -29,11 +29,21 @@ pub struct Diagnostic {
 
 impl Diagnostic {
     pub fn error(message: impl Into<String>, lo: usize, hi: usize) -> Self {
-        Diagnostic { severity: Severity::Error, message: message.into(), lo, hi }
+        Diagnostic {
+            severity: Severity::Error,
+            message: message.into(),
+            lo,
+            hi,
+        }
     }
 
     pub fn warning(message: impl Into<String>, lo: usize, hi: usize) -> Self {
-        Diagnostic { severity: Severity::Warning, message: message.into(), lo, hi }
+        Diagnostic {
+            severity: Severity::Warning,
+            message: message.into(),
+            lo,
+            hi,
+        }
     }
 
     pub fn is_error(&self) -> bool {
@@ -43,6 +53,13 @@ impl Diagnostic {
     /// Render as `file:line:col: severity: message`.
     pub fn render(&self, src: &str, filename: &str) -> String {
         let (line, col) = line_col(src, self.lo);
-        format!("{}:{}:{}: {}: {}", filename, line, col, self.severity.label(), self.message)
+        format!(
+            "{}:{}:{}: {}: {}",
+            filename,
+            line,
+            col,
+            self.severity.label(),
+            self.message
+        )
     }
 }
