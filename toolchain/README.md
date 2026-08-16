@@ -47,6 +47,7 @@ cargo test            # includes golden tests against the real .lithic examples
 ## Try it
 
 ```sh
+cargo run -p lithc -- --emit check examples/hello.lithic
 cargo run -p lithc -- ../Makalu/contracts/src/DOGE.lithic
 cargo run -p lithc -- --emit abi ../Makalu/contracts/src/DOGE.lithic
 cargo run -p lithlint -- ../Makalu/contracts/src/FinesseWarriors.lithic
@@ -54,6 +55,13 @@ cargo run -p lithfmt -- --check ../Makalu/contracts/src/DOGE.lithic
 cargo run -p lithdev -- status
 cargo run -p lithdev -- check ../Makalu/contracts/src/DOGE.lithic
 ```
+
+## Boundary-preview packaging
+
+Toolchain CI assembles non-release archives for Linux x86-64, Windows x86-64,
+and macOS ARM64. The archives exercise packaging and binary startup only; see
+[`PREVIEW.md`](PREVIEW.md) for their exact capabilities and limitations. They
+are deliberately not attached to the repository's public release workflow.
 
 ### `lithlint` v0 rule boundary
 
