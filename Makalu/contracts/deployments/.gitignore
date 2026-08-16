@@ -7,3 +7,7 @@
 # default for the "localhost" network is 31337, so the above covers it.
 # Listed separately in case someone overrides hardhat.config.ts.
 1337.json
+dex-31337.json
+dex-1337.json
+dex-liquidity-31337.json
+dex-liquidity-1337.json
