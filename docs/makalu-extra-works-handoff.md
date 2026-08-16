@@ -50,7 +50,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
-| MX-01 | MultX / Lithoswap | Bridge and hardened V2 DEX source merged; AWS proposal closed; swap disabled | IN PROGRESS | Review the existing provider-neutral signer, then obtain independent audit, deployment, controller, and liquidity approvals. |
+| MX-01 | MultX / Lithoswap | V2 DEX merged; non-AWS signer hardening under review; swap disabled | IN PROGRESS | Merge signer fail-closed fixes, then obtain independent audit, operator, deployment, controller, and liquidity approvals. |
 | MX-07 | Developer toolchain | Expanded v0 local-only; no deployable compiler/release | IN PROGRESS, LOCAL ONLY | Review local tools, then implement compiler lowering/codegen and conformance. |
 
 ## Sequential closure queue
@@ -103,14 +103,18 @@ Completed or evidenced:
       `07b37969f00d97eaca17794c31a83546b60a1940`; no deployment or funding occurred (2026-08-16).
 - [x] AWS-specific PR #78 was reverified unchanged and closed as rejected architecture; no signer deployment or
       production configuration change occurred (2026-08-16).
+- [x] Local provider-neutral signer review added strict policy/RPC validation, journal-before-sign semantics, unique
+      quorum identities, serialized polling, configured-signer-only counts, and explicit multichain evidence gates.
+- [x] Eleven signer tests, eighteen API tests, and eighty-eight bridge-contract tests pass; all three production
+      dependency audits report zero vulnerabilities locally (2026-08-16).
 
 Remaining actions:
 
 - [x] Isolate, review, and merge the V2 contracts, release-gated deployment/liquidity scripts, and tests in PR #68.
 - [ ] Separately review the optional V2 subgraph only if analytics are required. It is not required for quotes or swaps.
 - [x] Close PR #78's AWS-specific signer proposal; AWS KMS/IAM is not an accepted project dependency.
-- [ ] Review and operationally accept the provider-neutral VPS signer/quorum already on `main`, including key custody,
-      host hardening, monitoring, failure behavior, and rollback before any privileged deployment.
+- [ ] Merge the provider-neutral signer/API review hardening, then complete independent and operator acceptance,
+      including key custody, host hardening, monitoring, failure behavior, recovery, and rollback before deployment.
 - [ ] Modernize or explicitly disposition the MultX deployment/test toolchain's transitive audit findings before
       using it as a long-lived privileged runner (full local audit: 3 critical, 14 high; production-only audit: 0).
 - [ ] Obtain Backend/Bridge confirmation of the route contract, token map, relayer/claim behavior, and supported
@@ -145,6 +149,8 @@ Evidence:
 - `Makalu/contracts/scripts/dex-e2e.ts`
 - `docs/dex-team-request-lithoswap.md`
 - `MultX/docs/V05_TESTNET_REDEPLOYMENT.md`
+- `MultX/docs/VPS_SIGNER_ARCHITECTURE.md`
+- `MultX/signer/OPERATOR_RUNBOOK.md`
 - Review PR: `https://github.com/KaJLabs/Lithosphere/pull/75`
 - Lithoswap V2 PR: `https://github.com/KaJLabs/Lithosphere/pull/68`
 - Blocked AWS proposal: `https://github.com/KaJLabs/Lithosphere/pull/78`
@@ -602,8 +608,26 @@ Evidence:
 | 2026-08-15 | MultX toolchain audit | PARTIAL | `npm audit --omit=dev` reports zero; full operational/test dependency audit reports 3 critical and 14 high transitive findings. |
 | 2026-08-16 | Lithoswap V2 repository review | MERGED | PR #68 passed every repository check and merged as `07b37969`; current-main build, 28 full Hardhat tests, 23 focused DEX/configuration tests, nine E2E checks, strict TypeScript, and Slither with zero detectors passed. No deployment or funding occurred. |
 | 2026-08-16 | Lithoswap V2 toolchain audit | PARTIAL | Contract package has no production runtime dependencies; its Hardhat/test-only dependency graph reports 1 critical, 55 high, 43 moderate, and 10 low transitive advisories. |
+| 2026-08-16 | Provider-neutral signer review | PASS, LOCAL | 11 signer, 18 API, and 88 bridge-contract tests pass; all three production dependency audits report zero. Fail-closed policy, live RPC chain-ID verification, journal, quorum, poll serialization, URL, explicit-evidence, and unique on-chain validator fixes await PR review. |
 
 ## Change log
+
+### 2026-08-16 — MX-01 provider-neutral signer review hardened locally
+
+- Verified the EIP-191 message domain matches both destination contracts, the API verifier, and release executor.
+- Closed malformed-policy confirmation bypasses and rejected insecure/credential-bearing RPC and signer URLs,
+  duplicate sources/routes, and zero critical addresses.
+- Removed the static-network trust shortcut so the signer verifies the RPC's reported chain ID.
+- Changed anti-equivocation handling to fsync the decision before signing; added restart and corrupt-journal tests.
+- Rejected duplicate signer identities and invalid timeouts, serialized signing polls, counted only distinct current
+  configured signer addresses, and removed implicit source-chain/release-token fallbacks.
+- Made both bridge implementations reject duplicate validator identities at deployment and during rotation.
+- Updated status/signature responses to expose the configured threshold, distinct counts, and deterministic lowercase
+  signer ordering.
+- Signer: 11 tests pass; API: 18 tests pass; bridge contracts: 88 tests pass; all three production dependency audits
+  report zero vulnerabilities.
+- No signer was deployed, no key was accessed, and no production configuration was changed.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-01 Lithoswap V2 repository slice merged
 

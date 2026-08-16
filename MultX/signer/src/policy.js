@@ -13,6 +13,81 @@ const safePositiveInteger = (value, label) => {
   return number;
 };
 
+const nonZeroAddress = (value, label) => {
+  const address = ethers.getAddress(value || '');
+  if (address === ethers.ZeroAddress) throw new Error(`${label} must be non-zero`);
+  return address;
+};
+
+const rpcUrl = (value, label) => {
+  let url;
+  try { url = new URL(value); } catch { throw new Error(`${label} must be a valid URL`); }
+  const loopback = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+    throw new Error(`${label} must use HTTPS (HTTP is allowed only for loopback rehearsal)`);
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error(`${label} must not contain credentials, query parameters, or a fragment`);
+  }
+  return url.toString();
+};
+
+export const parseSignerPolicy = (input) => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('signer policy must be an object');
+  }
+  if (!Array.isArray(input.sources) || input.sources.length === 0) {
+    throw new Error('signer policy must contain at least one source');
+  }
+
+  const chainIds = new Set();
+  const sources = input.sources.map((rawSource, sourceIndex) => {
+    const label = `sources[${sourceIndex}]`;
+    const chainId = safePositiveInteger(rawSource?.chainId, `${label}.chainId`);
+    if (chainIds.has(chainId)) throw new Error(`${label}.chainId duplicates an earlier source`);
+    chainIds.add(chainId);
+    if (!Array.isArray(rawSource.routes) || rawSource.routes.length === 0) {
+      throw new Error(`${label}.routes must contain at least one route`);
+    }
+
+    const routeKeys = new Set();
+    const routes = rawSource.routes.map((rawRoute, routeIndex) => {
+      const routeLabel = `${label}.routes[${routeIndex}]`;
+      const route = {
+        sourceToken: nonZeroAddress(rawRoute?.sourceToken, `${routeLabel}.sourceToken`),
+        targetChain: safePositiveInteger(rawRoute?.targetChain, `${routeLabel}.targetChain`),
+        releaseToken: nonZeroAddress(rawRoute?.releaseToken, `${routeLabel}.releaseToken`),
+        releaseBridge: nonZeroAddress(rawRoute?.releaseBridge, `${routeLabel}.releaseBridge`),
+      };
+      // A source lock binds only sourceToken + targetChain. That pair must map
+      // to exactly one release token/bridge or a requester could choose between
+      // multiple policy-approved release outcomes for the same lock event.
+      const key = [route.sourceToken, route.targetChain]
+        .map(String)
+        .join(':')
+        .toLowerCase();
+      if (routeKeys.has(key)) throw new Error(`${routeLabel} duplicates an earlier route`);
+      routeKeys.add(key);
+      return route;
+    });
+
+    return {
+      chainId,
+      rpcUrl: rpcUrl(rawSource.rpcUrl, `${label}.rpcUrl`),
+      bridgeAddress: nonZeroAddress(rawSource.bridgeAddress, `${label}.bridgeAddress`),
+      confirmations: safePositiveInteger(rawSource.confirmations, `${label}.confirmations`),
+      routes,
+    };
+  });
+
+  return {
+    ...(input.signerAddress
+      ? { signerAddress: nonZeroAddress(input.signerAddress, 'signerAddress') }
+      : {}),
+    sources,
+  };
+};
+
 export const validateAttestation = (input) => ({
   version: Number(input?.version),
   sourceTxHash: /^0x[0-9a-fA-F]{64}$/.test(input?.sourceTxHash || '')
@@ -21,11 +96,11 @@ export const validateAttestation = (input) => ({
   sourceChain: safePositiveInteger(input?.sourceChain, 'sourceChain'),
   sourceNonce: positiveIntegerString(input?.sourceNonce, 'sourceNonce'),
   sourceBlock: safePositiveInteger(input?.sourceBlock, 'sourceBlock'),
-  sourceBridge: ethers.getAddress(input?.sourceBridge || ''),
-  sourceToken: ethers.getAddress(input?.sourceToken || ''),
-  releaseToken: ethers.getAddress(input?.releaseToken || ''),
-  releaseBridge: ethers.getAddress(input?.releaseBridge || ''),
-  user: ethers.getAddress(input?.user || ''),
+  sourceBridge: nonZeroAddress(input?.sourceBridge, 'sourceBridge'),
+  sourceToken: nonZeroAddress(input?.sourceToken, 'sourceToken'),
+  releaseToken: nonZeroAddress(input?.releaseToken, 'releaseToken'),
+  releaseBridge: nonZeroAddress(input?.releaseBridge, 'releaseBridge'),
+  user: nonZeroAddress(input?.user, 'user'),
   amount: positiveIntegerString(input?.amount, 'amount'),
   targetChain: safePositiveInteger(input?.targetChain, 'targetChain'),
 });

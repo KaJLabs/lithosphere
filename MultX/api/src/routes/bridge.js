@@ -1,5 +1,10 @@
 import express from 'express';
+import { config } from '../config.js';
 import { pool } from '../db/pool.js';
+import {
+  getAllowedSignerAddresses,
+  getSignaturesRequired,
+} from '../services/validatorService.js';
 
 const router = express.Router();
 
@@ -16,14 +21,16 @@ const statusMapping = {
 router.get('/status/:txHash', async (req, res, next) => {
   try {
     const { txHash } = req.params;
+    const allowedSigners = config.useMockValidator ? null : getAllowedSignerAddresses();
 
     const result = await pool.query(
-      `SELECT bt.*, COUNT(bs.id)::int AS signatures_collected
+      `SELECT bt.*, COUNT(DISTINCT LOWER(bs.validator_address))::int AS signatures_collected
        FROM bridge_transactions bt
        LEFT JOIN bridge_signatures bs ON bs.tx_hash = bt.tx_hash
+        AND ($2::text[] IS NULL OR LOWER(bs.validator_address) = ANY($2::text[]))
        WHERE bt.tx_hash = $1
        GROUP BY bt.tx_hash`,
-      [txHash]
+      [txHash, allowedSigners]
     );
 
     if (result.rows.length === 0) {
@@ -37,13 +44,15 @@ router.get('/status/:txHash', async (req, res, next) => {
       tokenAddress: tx.token_address,
       releaseToken: tx.release_token,
       amount: tx.amount,
-      sourceChain: tx.source_chain ? Number(tx.source_chain) : 900523,
+      sourceChain: tx.source_chain ? Number(tx.source_chain) : null,
       targetChain: tx.target_chain ? Number(tx.target_chain) : null,
       sourceNonce: tx.source_nonce,
       status: statusMapping[tx.status] || tx.status,
       dbStatus: tx.status,
       signaturesCollected: tx.signatures_collected,
-      signaturesRequired: 2,
+      signaturesRequired: config.useMockValidator
+        ? config.mockSignaturesRequired
+        : getSignaturesRequired(),
       blockNumber: tx.block_number,
       timestamp: tx.timestamp,
       releaseTxHash: tx.release_tx_hash
@@ -57,10 +66,14 @@ router.get('/status/:txHash', async (req, res, next) => {
 router.get('/signatures/:txHash', async (req, res, next) => {
   try {
     const { txHash } = req.params;
+    const allowedSigners = config.useMockValidator ? null : getAllowedSignerAddresses();
 
     const result = await pool.query(
-      `SELECT signature FROM bridge_signatures WHERE tx_hash = $1 ORDER BY validator_address ASC`,
-      [txHash]
+      `SELECT DISTINCT ON (LOWER(validator_address)) signature FROM bridge_signatures
+       WHERE tx_hash = $1
+         AND ($2::text[] IS NULL OR LOWER(validator_address) = ANY($2::text[]))
+       ORDER BY LOWER(validator_address) ASC, id ASC`,
+      [txHash, allowedSigners]
     );
 
     res.json({

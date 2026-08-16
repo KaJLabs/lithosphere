@@ -58,6 +58,19 @@ describe("MultXBridge", function () {
     await token.mint(user.address, ethers.utils.parseEther("1000"));
   });
 
+  it("Rejects duplicate validators at deployment", async function () {
+    const MultXBridge = await ethers.getContractFactory("MultXBridge");
+    await expect(
+      MultXBridge.deploy([validator1.address, validator1.address], 2)
+    ).to.be.revertedWith("Duplicate validator address");
+  });
+
+  it("Rejects duplicate validators during rotation", async function () {
+    await expect(
+      bridge.setValidatorSet([validator1.address, validator1.address], 2)
+    ).to.be.revertedWith("Duplicate validator address");
+  });
+
   it("Should lock tokens", async function () {
     const amount = ethers.utils.parseEther("100");
     const targetChain = 1;

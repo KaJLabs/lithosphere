@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ethers } from 'ethers';
-import { releaseMessageHash, verifyReleaseSignature } from '../src/services/remoteSigner.js';
+import {
+  releaseMessageHash,
+  validateSignerUrl,
+  verifyReleaseSignature,
+} from '../src/services/remoteSigner.js';
 
 const attestation = {
   sourceTxHash: `0x${'11'.repeat(32)}`,
@@ -26,6 +30,18 @@ test('accepts a signature from the configured validator', async () => {
     verifyReleaseSignature({ attestation, signature, expectedAddress: wallet.address }),
     signature,
   );
+});
+
+test('accepts only credential-free HTTPS signer origins', () => {
+  assert.equal(validateSignerUrl('https://signer-0.internal:9443'), 'https://signer-0.internal:9443');
+  for (const url of [
+    'http://signer-0.internal:9443',
+    'https://user:pass@signer-0.internal:9443',
+    'https://signer-0.internal:9443/path',
+    'https://signer-0.internal:9443?token=secret',
+  ]) {
+    assert.throws(() => validateSignerUrl(url));
+  }
 });
 
 test('rejects a signature if any signed release field changes', async () => {

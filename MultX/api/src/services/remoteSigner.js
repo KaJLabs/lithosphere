@@ -11,6 +11,19 @@ const requiredFile = (path, label) => {
   return value;
 };
 
+export const validateSignerUrl = (value) => {
+  let url;
+  try { url = new URL(value); } catch { throw new Error('remote signer URL must be valid'); }
+  if (url.protocol !== 'https:') throw new Error('remote signer URL must use https');
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error('remote signer URL must not contain credentials, query parameters, or a fragment');
+  }
+  if (url.pathname !== '/' && url.pathname !== '') {
+    throw new Error('remote signer URL must be an origin without a path');
+  }
+  return url.origin;
+};
+
 const requestJson = ({ baseUrl, path, method, body, tls, timeoutMs }) => new Promise((resolve, reject) => {
   const url = new URL(path, baseUrl);
   if (url.protocol !== 'https:') {
@@ -102,6 +115,7 @@ export const createRemoteSigner = async ({
   timeoutMs = 8_000,
 }) => {
   const address = ethers.getAddress(expectedAddress);
+  const baseUrl = validateSignerUrl(url);
   const tls = {
     ca: requiredFile(caFile, `VALIDATOR_SIGNER_CA_FILE_${index}`),
     cert: requiredFile(certFile, `VALIDATOR_SIGNER_CERT_FILE_${index}`),
@@ -109,7 +123,7 @@ export const createRemoteSigner = async ({
   };
 
   const identity = await requestJson({
-    baseUrl: url,
+    baseUrl,
     path: '/v1/identity',
     method: 'GET',
     tls,
@@ -126,7 +140,7 @@ export const createRemoteSigner = async ({
     address,
     async signRelease(attestation) {
       const response = await requestJson({
-        baseUrl: url,
+        baseUrl,
         path: '/v1/sign-release',
         method: 'POST',
         body: { version: 1, ...attestation },

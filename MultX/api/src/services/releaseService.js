@@ -99,12 +99,16 @@ async function markCompleted(txHash, releaseTxHash) {
 }
 
 async function releaseOne(tx) {
+  if (!tx.release_token || !tx.source_chain || !tx.source_nonce) {
+    console.warn(`[ReleaseService] incomplete release evidence — skipping ${short(tx.tx_hash)}`);
+    return;
+  }
   const ctx = await getChainCtx(tx.target_chain);
   if (!ctx) {
     console.warn(`[ReleaseService] no dest bridge for chain ${tx.target_chain} — skipping ${short(tx.tx_hash)}`);
     return;
   }
-  const token = tx.release_token || tx.token_address;
+  const token = tx.release_token;
   const amount = BigInt(tx.amount);
 
   // Idempotency: already released on-chain (e.g. the user claimed via the

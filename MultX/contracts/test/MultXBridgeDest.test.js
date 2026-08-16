@@ -92,6 +92,13 @@ describe("MultXBridgeDest", function () {
         Bridge.deploy([v1.address, ethers.constants.AddressZero], 1)
       ).to.be.revertedWith("Invalid validator address");
     });
+
+    it("Reverts on duplicate validator addresses", async function () {
+      const Bridge = await ethers.getContractFactory("MultXBridgeDest");
+      await expect(
+        Bridge.deploy([v1.address, v1.address], 2)
+      ).to.be.revertedWith("Duplicate validator address");
+    });
   });
 
   describe("lockTokens (reverse direction — burn wrapped, target LITHO)", function () {
@@ -339,6 +346,12 @@ describe("MultXBridgeDest", function () {
 
     it("Rejects threshold > validator count", async function () {
       await expect(bridge.setValidatorSet([v1.address], 2)).to.be.revertedWith("Invalid signatures required");
+    });
+
+    it("Rejects duplicate validator addresses", async function () {
+      await expect(
+        bridge.setValidatorSet([v1.address, v1.address], 2)
+      ).to.be.revertedWith("Duplicate validator address");
     });
 
     it("Non-owner cannot call", async function () {
