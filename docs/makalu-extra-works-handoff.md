@@ -51,7 +51,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | V2 DEX and non-AWS signer hardening merged; swap disabled | IN PROGRESS | Obtain independent audit, operator, deployment, controller, and liquidity approvals. |
-| MX-07 | Developer toolchain | First compiler-front-end review slice isolated; no deployable compiler/release | IN PROGRESS, LOCAL ONLY | Merge conservative declaration checks and three-OS CI, then review each remaining tool separately. |
+| MX-07 | Developer toolchain | Conservative compiler-front-end slice and three-OS CI merged; no deployable compiler/release | IN PROGRESS | Review each remaining tool separately; approved language/VM semantics still block full compiler work. |
 
 ## Sequential closure queue
 
@@ -497,14 +497,14 @@ Evidence:
 **Current state:** The workspace expands all eight public tools into functional v0 implementations and adds three-OS
 CI/release packaging. Those changes remain local-only. Review of the first shared-syntax/`lithc` slice found that the
 local semantic pass inferred an unapproved primitive-type table, overload behavior, map-key restrictions, and return
-semantics. The isolated review candidate removes those assumptions, adds only unambiguous declaration-name checks,
-and introduces a three-OS CI gate. The tracked release still describes `lithls`, `lithdev`, `lithtest`, `lithsec`, and
-`lithpkg` as spec-only stubs. `lithc` still does not parse/lower full function bodies into deployable LithoVM/EVM
-bytecode.
+semantics. PR #95 removed those assumptions, added only unambiguous declaration-name checks, introduced a three-OS
+CI gate, passed every gate, and merged as `cf68f7c001cd6a847f806cac09659bf72380bda2`. The tracked release still
+describes `lithls`, `lithdev`, `lithtest`, `lithsec`, and `lithpkg` as spec-only stubs. `lithc` still does not
+parse/lower full function bodies into deployable LithoVM/EVM bytecode.
 
 | Tool | Local implementation | Required before full-release acceptance |
 | --- | --- | --- |
-| `lithc` | Lexer/parser and AST/ABI output; conservative declaration-check candidate under review. | Approved type/overload/map/return semantics, full statements/expressions, typed IR, deterministic bytecode/codegen, source maps, diagnostics, and conformance tests. |
+| `lithc` | Lexer/parser, conservative declaration-name checks, and AST/ABI/check output on `main`. | Approved type/overload/map/return semantics, full statements/expressions, typed IR, deterministic bytecode/codegen, source maps, diagnostics, and conformance tests. |
 | `lithfmt` | Parse-safe whitespace normalization and `--check`. | Decide whether v0 is accepted or implement AST-driven canonical formatting/idempotence corpus. |
 | `lithlint` | AST-driven L001–L004 rules and warning denial. | Rule/version policy, suppression/config behavior, false-positive corpus, and release documentation. |
 | `lithls` | Stdio LSP lifecycle, full sync, diagnostics, and document symbols. | Editor acceptance; decide whether incremental sync, completion, hover, and go-to-definition are release gates. |
@@ -527,10 +527,12 @@ Completed or evidenced locally:
 - [x] Local targeted rustfmt, workspace `cargo check`, and Clippy with warnings denied for the reviewed crates pass.
 - [x] Added a three-OS CI candidate to run scoped formatting/Clippy, full workspace tests/release build, and a real
       `lithc` smoke check.
+- [x] PR #95 passed Linux, Windows, and macOS formatting, Clippy, 12 Rust tests, full workspace release builds, and
+      `lithc` smoke checks, then merged as `cf68f7c001cd6a847f806cac09659bf72380bda2` (2026-08-16).
 
 Remaining actions:
 
-- [ ] Merge the reviewed shared syntax/`lithc` and CI slice after its Linux/Windows/macOS gates pass.
+- [x] Merge the reviewed shared syntax/`lithc` and CI slice after its Linux/Windows/macOS gates pass.
 - [ ] Separately review `lithfmt`, `lithlint`, `lithls`, `lithdev`, `lithtest`, `lithsec`, `lithpkg`, release packaging,
       examples, and lockfile.
 - [ ] Run the full workspace tests/release build on Linux, Windows, and macOS. The 2026-08-03 Windows audit host lacks
@@ -627,9 +629,19 @@ Evidence:
 | 2026-08-16 | Lithoswap V2 repository review | MERGED | PR #68 passed every repository check and merged as `07b37969`; current-main build, 28 full Hardhat tests, 23 focused DEX/configuration tests, nine E2E checks, strict TypeScript, and Slither with zero detectors passed. No deployment or funding occurred. |
 | 2026-08-16 | Lithoswap V2 toolchain audit | PARTIAL | Contract package has no production runtime dependencies; its Hardhat/test-only dependency graph reports 1 critical, 55 high, 43 moderate, and 10 low transitive advisories. |
 | 2026-08-16 | Provider-neutral signer review | MERGED | PR #93 passed all checks and merged as `60f3f7bb`; 11 signer, 18 API, and 88 bridge-contract tests pass; all three production dependency audits report zero. No deployment or key access occurred. |
-| 2026-08-16 | Toolchain shared front-end review | PASS, LOCAL | Local multi-tool work was split; speculative language rules were rejected. Targeted rustfmt, workspace check, and reviewed-crate Clippy pass. Three-OS tests/build await PR CI. |
+| 2026-08-16 | Toolchain shared front-end review | MERGED | PR #95 passed on Linux, Windows, and macOS with 12 Rust tests, full workspace release builds, Clippy/formatting, and `lithc` smoke checks; merged as `cf68f7c0`. |
 
 ## Change log
+
+### 2026-08-16 — MX-07 shared front-end and CI merged
+
+- PR #95 passed Linux, Windows, and macOS formatting, reviewed-crate Clippy with warnings denied, all 12 Rust tests,
+  full workspace release builds, and a real `lithc --emit check` smoke test against `DOGE.lithic`.
+- All standard repository gates also passed; PR #95 merged by `bachal-mb` as
+  `cf68f7c001cd6a847f806cac09659bf72380bda2`.
+- This closes only the first review slice. The remaining tools, compiler semantics, codegen, conformance, packaging,
+  and release acceptance remain open, and no deployable compiler artifact is claimed.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-07 shared front-end review isolated
 
