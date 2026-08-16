@@ -51,7 +51,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | V2 DEX and non-AWS signer hardening merged; swap disabled | IN PROGRESS | Obtain independent audit, operator, deployment, controller, and liquidity approvals. |
-| MX-07 | Developer toolchain | Compiler-front-end and literal-safe `lithfmt` slices merged; no deployable compiler/release | IN PROGRESS | Review `lithlint` next; approved language/VM semantics still block full compiler work. |
+| MX-07 | Developer toolchain | Compiler front-end, literal-safe `lithfmt`, and bounded `lithlint` v0 slices merged; no deployable compiler/release | IN PROGRESS | Review `lithls` next; approved language/VM semantics still block full compiler work. |
 
 ## Sequential closure queue
 
@@ -506,7 +506,7 @@ parse/lower full function bodies into deployable LithoVM/EVM bytecode.
 | --- | --- | --- |
 | `lithc` | Lexer/parser, conservative declaration-name checks, and AST/ABI/check output on `main`. | Approved type/overload/map/return semantics, full statements/expressions, typed IR, deterministic bytecode/codegen, source maps, diagnostics, and conformance tests. |
 | `lithfmt` | Parse-safe, literal-preserving whitespace normalization and `--check` on `main`. | Decide whether whitespace-only v0 is accepted or implement AST-driven canonical formatting/idempotence corpus. |
-| `lithlint` | AST-driven L001–L004 rules and warning denial. | Rule/version policy, suppression/config behavior, false-positive corpus, and release documentation. |
+| `lithlint` | Reviewed L001–L004 declaration rules, warning denial, exact single-file CLI behavior, boundary tests, and v0 limitations on `main`. | Product/release-owner acceptance of the rule/version policy and decision on suppression/configuration behavior. |
 | `lithls` | Stdio LSP lifecycle, full sync, diagnostics, and document symbols. | Editor acceptance; decide whether incremental sync, completion, hover, and go-to-definition are release gates. |
 | `lithdev` | Devnet lifecycle plus check/deploy preparation and ABI output. | Compiler bytecode, simulation, signing, broadcast, receipt verification, and safe network/account configuration. |
 | `lithtest` | Test discovery and deterministic literal assertions. | LithoVM execution, fixtures/isolation, failure traces, coverage decision, and compiler conformance suite. |
@@ -533,17 +533,21 @@ Completed or evidenced locally:
       byte-string literal contents; isolated a token-span-based preservation fix and three focused tests.
 - [x] PR #97 passed Linux, Windows, and macOS formatting, Clippy, all 15 Rust tests, full workspace release builds,
       and `lithc` smoke checks, then merged as `f8bbb2d642638158c79c9fe22235d9766ab51a2a` (2026-08-16).
+- [x] Reviewed `lithlint` without accepting the draft `0.1.0` bump; documented the exact L001–L004 declaration
+      boundary, rejected ambiguous multiple-file invocation, and added three rule-boundary plus two CLI tests.
+- [x] PR #99 passed Linux, Windows, and macOS formatting, Clippy, all 20 Rust tests, full workspace release builds,
+      and `lithc` smoke checks, then merged as `0e70108e59f3f68ccae1f90ae38c4d831bd1c389` (2026-08-16).
 
 Remaining actions:
 
 - [x] Merge the reviewed shared syntax/`lithc` and CI slice after its Linux/Windows/macOS gates pass.
-- [ ] Separately review `lithlint`, `lithls`, `lithdev`, `lithtest`, `lithsec`, `lithpkg`, release packaging,
+- [ ] Separately review `lithls`, `lithdev`, `lithtest`, `lithsec`, `lithpkg`, release packaging,
       examples, and lockfile.
 - [x] Merge the `lithfmt` literal-safety fix after three-OS tests and release builds pass.
 - [ ] Record product/release-owner acceptance of the whitespace-only v0 formatter or implement the approved
       AST-driven canonical formatter boundary.
-- [ ] Run the full workspace tests/release build on Linux, Windows, and macOS. The 2026-08-03 Windows audit host lacks
-      `link.exe`, so it could lint/check but could not link Rust test binaries.
+- [x] Run the full workspace tests/release build on Linux, Windows, and macOS. PR #99 passed both workflow trigger
+      sets on all three operating systems with all 20 Rust tests and full workspace release builds.
 - [ ] Specify full function-body grammar, semantics, ABI/bytecode compatibility target, and compiler conformance
       vectors with the LithoVM/chain team.
 - [ ] Implement typed function bodies, control flow, storage operations, calls/events/reverts, lowering, deterministic
@@ -638,8 +642,19 @@ Evidence:
 | 2026-08-16 | Provider-neutral signer review | MERGED | PR #93 passed all checks and merged as `60f3f7bb`; 11 signer, 18 API, and 88 bridge-contract tests pass; all three production dependency audits report zero. No deployment or key access occurred. |
 | 2026-08-16 | Toolchain shared front-end review | MERGED | PR #95 passed on Linux, Windows, and macOS with 12 Rust tests, full workspace release builds, Clippy/formatting, and `lithc` smoke checks; merged as `cf68f7c0`. |
 | 2026-08-16 | `lithfmt` safety review | MERGED | PR #97 fixed literal-content corruption and passed Linux, Windows, and macOS gates with all 15 Rust tests and full workspace release builds; merged as `f8bbb2d6`. |
+| 2026-08-16 | `lithlint` v0 boundary review | MERGED | PR #99 rejected ambiguous multiple-file use, added five rule/CLI tests, retained version `0.0.1`, and passed Linux, Windows, and macOS gates with all 20 Rust tests and full workspace release builds; merged as `0e70108e`. |
 
 ## Change log
+
+### 2026-08-16 — MX-07 `lithlint` v0 boundary merged
+
+- PR #99 passed both workflow trigger sets on Linux, Windows, and macOS: scoped formatting and Clippy with warnings
+  denied, all 20 Rust tests, full workspace release builds, and the `lithc` smoke check.
+- All standard repository gates passed; PR #99 merged by `bachal-mb` as
+  `0e70108e59f3f68ccae1f90ae38c4d831bd1c389`.
+- `lithlint` remains version `0.0.1`. Its exact L001–L004 declaration boundary and limitations are documented; the
+  rule/version policy and suppression/configuration decisions still require product/release-owner acceptance.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-07 `lithfmt` literal safety merged
 
