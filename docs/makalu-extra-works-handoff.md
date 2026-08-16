@@ -505,7 +505,7 @@ parse/lower full function bodies into deployable LithoVM/EVM bytecode.
 | Tool | Local implementation | Required before full-release acceptance |
 | --- | --- | --- |
 | `lithc` | Lexer/parser, conservative declaration-name checks, and AST/ABI/check output on `main`. | Approved type/overload/map/return semantics, full statements/expressions, typed IR, deterministic bytecode/codegen, source maps, diagnostics, and conformance tests. |
-| `lithfmt` | Parse-safe whitespace normalization and `--check`. | Decide whether v0 is accepted or implement AST-driven canonical formatting/idempotence corpus. |
+| `lithfmt` | Parse-safe whitespace normalization and `--check`; literal-safety fix under review. | Merge literal preservation, then decide whether v0 is accepted or implement AST-driven canonical formatting/idempotence corpus. |
 | `lithlint` | AST-driven L001–L004 rules and warning denial. | Rule/version policy, suppression/config behavior, false-positive corpus, and release documentation. |
 | `lithls` | Stdio LSP lifecycle, full sync, diagnostics, and document symbols. | Editor acceptance; decide whether incremental sync, completion, hover, and go-to-definition are release gates. |
 | `lithdev` | Devnet lifecycle plus check/deploy preparation and ABI output. | Compiler bytecode, simulation, signing, broadcast, receipt verification, and safe network/account configuration. |
@@ -529,12 +529,16 @@ Completed or evidenced locally:
       `lithc` smoke check.
 - [x] PR #95 passed Linux, Windows, and macOS formatting, Clippy, 12 Rust tests, full workspace release builds, and
       `lithc` smoke checks, then merged as `cf68f7c001cd6a847f806cac09659bf72380bda2` (2026-08-16).
+- [x] Reviewed `lithfmt` and found its claimed safe tab/trailing-space normalization also rewrote string and
+      byte-string literal contents; isolated a token-span-based preservation fix and three focused tests.
 
 Remaining actions:
 
 - [x] Merge the reviewed shared syntax/`lithc` and CI slice after its Linux/Windows/macOS gates pass.
 - [ ] Separately review `lithfmt`, `lithlint`, `lithls`, `lithdev`, `lithtest`, `lithsec`, `lithpkg`, release packaging,
       examples, and lockfile.
+- [ ] Merge the `lithfmt` literal-safety fix after three-OS tests and release builds pass; then record whether the
+      whitespace-only v0 formatter is accepted as the release boundary.
 - [ ] Run the full workspace tests/release build on Linux, Windows, and macOS. The 2026-08-03 Windows audit host lacks
       `link.exe`, so it could lint/check but could not link Rust test binaries.
 - [ ] Specify full function-body grammar, semantics, ABI/bytecode compatibility target, and compiler conformance
@@ -630,8 +634,20 @@ Evidence:
 | 2026-08-16 | Lithoswap V2 toolchain audit | PARTIAL | Contract package has no production runtime dependencies; its Hardhat/test-only dependency graph reports 1 critical, 55 high, 43 moderate, and 10 low transitive advisories. |
 | 2026-08-16 | Provider-neutral signer review | MERGED | PR #93 passed all checks and merged as `60f3f7bb`; 11 signer, 18 API, and 88 bridge-contract tests pass; all three production dependency audits report zero. No deployment or key access occurred. |
 | 2026-08-16 | Toolchain shared front-end review | MERGED | PR #95 passed on Linux, Windows, and macOS with 12 Rust tests, full workspace release builds, Clippy/formatting, and `lithc` smoke checks; merged as `cf68f7c0`. |
+| 2026-08-16 | `lithfmt` safety review | PASS, LOCAL | Found literal-content corruption in the whitespace formatter; token-span preservation and three focused regression/idempotence tests pass check/Clippy locally and await three-OS PR CI. |
 
 ## Change log
+
+### 2026-08-16 — MX-07 `lithfmt` safety fix isolated
+
+- Verified the local draft contained no formatter behavior change beyond a release version bump and mechanical
+  formatting; the version bump was not accepted without full-release approval.
+- Found that the tracked formatter expanded tabs inside string/byte-string literals and could trim trailing content
+  inside multiline literals despite describing itself as unable to corrupt a contract.
+- Added lexer-token-span protection so literal bytes remain unchanged while external whitespace is normalized, plus
+  literal, multiline, and idempotence tests.
+- Expanded the three-OS toolchain gate to format and lint `lithfmt`; hosted tests/release builds await PR CI.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-07 shared front-end and CI merged
 
