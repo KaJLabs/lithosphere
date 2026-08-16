@@ -16,11 +16,20 @@ permissions:
 
 jobs:
   test:
-    name: ${{ matrix.os }}
+    name: ${{ matrix.asset }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-14]
+        include:
+          - os: ubuntu-latest
+            asset: linux-x86_64
+            extension: ""
+          - os: windows-latest
+            asset: windows-x86_64
+            extension: .exe
+          - os: macos-14
+            asset: macos-aarch64
+            extension: ""
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -52,10 +61,114 @@ jobs:
           crates/lithpkg/src/main.rs
           crates/lithpkg/tests/cli.rs
       - name: Lints (reviewed workspace)
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
       - name: Release build
-        run: cargo build --workspace --release
+        run: cargo build --workspace --release --locked
       - name: lithc check smoke test
-        run: cargo run -p lithc -- --emit check ../Makalu/contracts/src/DOGE.lithic
+        run: cargo run -p lithc --locked -- --emit check ../Makalu/contracts/src/DOGE.lithic
+      - name: Reviewed example smoke test
+        run: cargo run -p lithc --locked -- --emit check examples/hello.lithic
+      - name: Stage boundary preview
+        id: stage
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $metadata = cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json
+          $versions = @($metadata.packages | ForEach-Object { $_.version } | Sort-Object -Unique)
+          if ($versions.Count -ne 1) {
+            throw "Preview packaging requires one workspace version; found: $($versions -join ', ')"
+          }
+
+          $version = $versions[0]
+          $archiveBase = "lithosphere-toolchain-boundary-v$version-${{ matrix.asset }}"
+          $stage = Join-Path "dist" $archiveBase
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          $tools = @("lithc", "lithfmt", "lithlint", "lithls", "lithdev", "lithtest", "lithsec", "lithpkg")
+          foreach ($tool in $tools) {
+            Copy-Item "target/release/$tool${{ matrix.extension }}" $stage
+          }
+          Copy-Item "README.md" $stage
+          Copy-Item "PREVIEW.md" $stage
+          Copy-Item "Cargo.lock" $stage
+          Copy-Item "../LICENSE" $stage
+          Copy-Item "examples" $stage -Recurse
+          Copy-Item "specs" $stage -Recurse
+
+          $manifest = [ordered]@{
+            schemaVersion = 1
+            release = $false
+            version = $version
+            commit = "${{ github.sha }}"
+            platform = "${{ matrix.asset }}"
+            tools = [ordered]@{
+              lithc = "declaration-front-end"
+              lithfmt = "literal-safe-whitespace-v0"
+              lithlint = "declaration-rules-v0"
+              lithls = "specification-only"
+              lithdev = "bounded-local-v0"
+              lithtest = "specification-only"
+              lithsec = "specification-only"
+              lithpkg = "specification-only"
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $stage "manifest.json") -Encoding utf8
+
+          "archive_base=$archiveBase" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "stage=$stage" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Verify staged command boundaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stage = "${{ steps.stage.outputs.stage }}"
+          $extension = "${{ matrix.extension }}"
+          $version = (Get-Content (Join-Path $stage "manifest.json") | ConvertFrom-Json).version
+
+          foreach ($tool in @("lithc", "lithfmt", "lithlint", "lithls", "lithdev", "lithtest", "lithsec", "lithpkg")) {
+            $output = & (Join-Path $stage "$tool$extension") --version
+            if ($LASTEXITCODE -ne 0 -or $output -notmatch [regex]::Escape($version)) {
+              throw "$tool did not report packaged version $version"
+            }
+          }
+
+          $boundaries = [ordered]@{
+            lithls = "--stdio"
+            lithtest = "--run"
+            lithsec = "--scan"
+            lithpkg = "--resolve"
+          }
+          foreach ($boundary in $boundaries.GetEnumerator()) {
+            & (Join-Path $stage "$($boundary.Key)$extension") $boundary.Value 2>$null
+            if ($LASTEXITCODE -ne 3) {
+              throw "$($boundary.Key) $($boundary.Value) must fail closed with exit code 3"
+            }
+          }
+      - name: Archive Unix boundary preview
+        if: runner.os != 'Windows'
+        shell: bash
+        working-directory: toolchain/dist
+        run: |
+          set -euo pipefail
+          base="${{ steps.stage.outputs.archive_base }}"
+          tar -czf "${base}.tar.gz" "${base}"
+          sha256sum "${base}.tar.gz" > "${base}.tar.gz.sha256"
+      - name: Archive Windows boundary preview
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: toolchain/dist
+        run: |
+          $ErrorActionPreference = "Stop"
+          $base = "${{ steps.stage.outputs.archive_base }}"
+          $archive = "$base.zip"
+          Compress-Archive -Path $base -DestinationPath $archive
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          "$hash  $archive" | Set-Content "$archive.sha256" -Encoding ascii
+      - name: Upload boundary preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.stage.outputs.archive_base }}
+          path: toolchain/dist/${{ steps.stage.outputs.archive_base }}.*
+          if-no-files-found: error
+          retention-days: 14
