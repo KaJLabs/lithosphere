@@ -49,8 +49,10 @@ jobs:
           crates/lithtest/tests/cli.rs
           crates/lithsec/src/main.rs
           crates/lithsec/tests/cli.rs
-      - name: Lints (reviewed front-end slice)
-        run: cargo clippy -p lithic-syntax -p lithc -p lithfmt -p lithlint -p lithls -p lithdev -p lithtest -p lithsec --all-targets -- -D warnings
+          crates/lithpkg/src/main.rs
+          crates/lithpkg/tests/cli.rs
+      - name: Lints (reviewed workspace)
+        run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Tests
         run: cargo test --workspace
       - name: Release build
