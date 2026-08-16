@@ -22,9 +22,17 @@ impl ParseResult {
 
 pub fn parse(src: &str) -> ParseResult {
     let toks = lex(src);
-    let mut p = Parser { src, toks, pos: 0, diags: Vec::new() };
+    let mut p = Parser {
+        src,
+        toks,
+        pos: 0,
+        diags: Vec::new(),
+    };
     let contract = p.parse_contract();
-    ParseResult { contract, diagnostics: p.diags }
+    ParseResult {
+        contract,
+        diagnostics: p.diags,
+    }
 }
 
 struct Parser<'a> {
@@ -188,7 +196,11 @@ impl<'a> Parser<'a> {
         }
         self.eat(K::Semi);
         let value_src = self.src[start..end].trim().to_string();
-        Some(ConstDecl { name, ty, value_src })
+        Some(ConstDecl {
+            name,
+            ty,
+            value_src,
+        })
     }
 
     fn parse_state(&mut self) -> Option<StateBlock> {
@@ -335,7 +347,15 @@ impl<'a> Parser<'a> {
         }
         let body_src = self.src[body_lo..body_hi].to_string();
 
-        Some(FuncDecl { attrs, is_pub, is_async, name, params, ret, body_src })
+        Some(FuncDecl {
+            attrs,
+            is_pub,
+            is_async,
+            name,
+            params,
+            ret,
+            body_src,
+        })
     }
 
     fn parse_type(&mut self) -> Option<Type> {

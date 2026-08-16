@@ -2,8 +2,9 @@
 //!
 //! This scaffold implements the compiler front-end: it lexes and parses a
 //! `.lithic` source file, reports diagnostics, and emits either a human
-//! summary, the declaration AST as JSON, or a Lithic ABI as JSON. Type
-//! checking and LithoVM bytecode codegen are the next phases (see README).
+//! summary, the declaration AST as JSON, or a Lithic ABI as JSON. It performs
+//! conservative declaration checks, while full type checking and LithoVM
+//! bytecode codegen remain future phases (see README).
 
 use std::process::exit;
 
@@ -15,15 +16,16 @@ USAGE:\n\
     lithc [OPTIONS] <FILE.lithic>\n\
 \n\
 OPTIONS:\n\
-    --emit <KIND>   Output kind: summary (default), ast, abi\n\
+    --emit <KIND>   Output kind: summary (default), ast, abi, check\n\
     -h, --help      Print this help\n\
 \n\
 EXAMPLES:\n\
     lithc Makalu/contracts/src/DOGE.lithic\n\
     lithc --emit abi DOGE.lithic\n\
-    lithc --emit ast DOGE.lithic\n\
+    lithc --emit check DOGE.lithic\n\
 \n\
-NOTE: type checking and LithoVM bytecode emission are not yet implemented.",
+NOTE: check validates parsing and unambiguous declaration-name collisions.\n\
+Full type checking and LithoVM bytecode emission are not yet implemented.",
         env!("CARGO_PKG_VERSION")
     );
 }
@@ -95,12 +97,29 @@ fn main() {
         exit(1);
     }
 
+    let findings = lithic_syntax::check(&contract);
+    for finding in &findings {
+        eprintln!("{}", finding.render(&path));
+    }
+    let declaration_errors = lithic_syntax::sema::error_count(&findings);
+    if declaration_errors > 0 {
+        eprintln!(
+            "lithc: aborting due to {} declaration error(s)",
+            declaration_errors
+        );
+        exit(1);
+    }
+
     match emit.as_str() {
+        "check" => eprintln!("{}: declaration checks clean", path),
         "summary" => print!("{}", contract.summary()),
         "ast" => println!("{}", contract.to_json()),
         "abi" => println!("{}", contract.to_abi_json()),
         other => {
-            eprintln!("lithc: error: unknown emit kind '{}' (expected summary|ast|abi)", other);
+            eprintln!(
+                "lithc: error: unknown emit kind '{}' (expected summary|ast|abi|check)",
+                other
+            );
             exit(2);
         }
     }

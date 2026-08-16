@@ -98,14 +98,26 @@ impl Contract {
     pub fn consts(&self) -> Vec<&ConstDecl> {
         self.items
             .iter()
-            .filter_map(|i| if let Item::Const(c) = i { Some(c) } else { None })
+            .filter_map(|i| {
+                if let Item::Const(c) = i {
+                    Some(c)
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 
     pub fn events(&self) -> Vec<&EventDecl> {
         self.items
             .iter()
-            .filter_map(|i| if let Item::Event(e) = i { Some(e) } else { None })
+            .filter_map(|i| {
+                if let Item::Event(e) = i {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 
@@ -124,7 +136,13 @@ impl Contract {
     pub fn state_field_count(&self) -> usize {
         self.items
             .iter()
-            .filter_map(|i| if let Item::State(s) = i { Some(s.fields.len()) } else { None })
+            .filter_map(|i| {
+                if let Item::State(s) = i {
+                    Some(s.fields.len())
+                } else {
+                    None
+                }
+            })
             .sum()
     }
 
@@ -140,16 +158,31 @@ impl Contract {
         for f in funcs {
             let vis = if f.is_pub { "pub " } else { "" };
             let asy = if f.is_async { "async " } else { "" };
-            let params: Vec<String> =
-                f.params.iter().map(|p| format!("{}: {}", p.name, p.ty.render())).collect();
-            let ret = f.ret.as_ref().map(|t| format!(" -> {}", t.render())).unwrap_or_default();
+            let params: Vec<String> = f
+                .params
+                .iter()
+                .map(|p| format!("{}: {}", p.name, p.ty.render()))
+                .collect();
+            let ret = f
+                .ret
+                .as_ref()
+                .map(|t| format!(" -> {}", t.render()))
+                .unwrap_or_default();
             let attrs = if f.attrs.is_empty() {
                 String::new()
             } else {
                 let names: Vec<String> = f.attrs.iter().map(|a| format!("@{}", a.name)).collect();
                 format!("{} ", names.join(" "))
             };
-            s.push_str(&format!("    {}{}{}fn {}({}){}\n", attrs, vis, asy, f.name, params.join(", "), ret));
+            s.push_str(&format!(
+                "    {}{}{}fn {}({}){}\n",
+                attrs,
+                vis,
+                asy,
+                f.name,
+                params.join(", "),
+                ret
+            ));
         }
         s
     }
@@ -165,7 +198,13 @@ impl Contract {
             let inputs: Vec<String> = f
                 .params
                 .iter()
-                .map(|p| format!("{{\"name\":\"{}\",\"type\":\"{}\"}}", esc(&p.name), esc(&p.ty.render())))
+                .map(|p| {
+                    format!(
+                        "{{\"name\":\"{}\",\"type\":\"{}\"}}",
+                        esc(&p.name),
+                        esc(&p.ty.render())
+                    )
+                })
                 .collect();
             let outputs = match &f.ret {
                 Some(t) => format!("[{{\"type\":\"{}\"}}]", esc(&t.render())),
@@ -183,7 +222,13 @@ impl Contract {
             let inputs: Vec<String> = e
                 .fields
                 .iter()
-                .map(|fl| format!("{{\"name\":\"{}\",\"type\":\"{}\"}}", esc(&fl.name), esc(&fl.ty.render())))
+                .map(|fl| {
+                    format!(
+                        "{{\"name\":\"{}\",\"type\":\"{}\"}}",
+                        esc(&fl.name),
+                        esc(&fl.ty.render())
+                    )
+                })
                 .collect();
             entries.push(format!(
                 "{{\"type\":\"event\",\"name\":\"{}\",\"inputs\":[{}]}}",
@@ -215,9 +260,19 @@ impl Contract {
                 let fs: Vec<String> = e
                     .fields
                     .iter()
-                    .map(|f| format!("{{\"name\":\"{}\",\"type\":\"{}\"}}", esc(&f.name), esc(&f.ty.render())))
+                    .map(|f| {
+                        format!(
+                            "{{\"name\":\"{}\",\"type\":\"{}\"}}",
+                            esc(&f.name),
+                            esc(&f.ty.render())
+                        )
+                    })
                     .collect();
-                format!("{{\"name\":\"{}\",\"fields\":[{}]}}", esc(&e.name), fs.join(","))
+                format!(
+                    "{{\"name\":\"{}\",\"fields\":[{}]}}",
+                    esc(&e.name),
+                    fs.join(",")
+                )
             })
             .collect();
         let funcs: Vec<String> = self
