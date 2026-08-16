@@ -38,8 +38,9 @@ jobs:
           crates/lithic-syntax/src/sema.rs
           crates/lithc/src/main.rs
           crates/lithc/tests/cli.rs
+          crates/lithfmt/src/main.rs
       - name: Lints (reviewed front-end slice)
-        run: cargo clippy -p lithic-syntax -p lithc --all-targets -- -D warnings
+        run: cargo clippy -p lithic-syntax -p lithc -p lithfmt --all-targets -- -D warnings
       - name: Tests
         run: cargo test --workspace
       - name: Release build

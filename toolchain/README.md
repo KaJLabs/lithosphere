@@ -13,7 +13,7 @@ the parser is tested against as golden files.
 | Tool       | Status        | What it does today |
 |------------|---------------|--------------------|
 | `lithc`    | **real (front-end)** | Lex + parse `.lithic`, reject unambiguous declaration-name collisions, and support `--emit summary\|ast\|abi\|check`. Full type checking and bytecode codegen are next. |
-| `lithfmt`  | **real (v0)** | Safe whitespace normalisation (tabs→spaces, strip trailing, single trailing newline); refuses to touch files with parse errors. `--check` for CI. |
+| `lithfmt`  | **real (v0)** | Literal-safe whitespace normalisation (tabs→spaces and trailing trim only outside string/byte-string literals, single trailing newline); refuses parse errors. `--check` for CI. |
 | `lithlint` | **real (v0)** | AST-driven lint rules L001–L004 (naming + `@ai_budget` on `pub async fn`). `--deny-warnings` for CI. |
 | `lithls`   | spec-only stub | Language server (LSP). |
 | `lithdev`  | spec-only stub | Local devnet + deploy helper. |

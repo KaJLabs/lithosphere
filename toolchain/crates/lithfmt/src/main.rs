@@ -2,8 +2,8 @@
 //!
 //! v0 performs *safe* whitespace normalisation only — it never rewrites code
 //! structure, so it cannot corrupt a contract:
-//!   * tabs are expanded to four spaces,
-//!   * trailing whitespace is stripped from every line,
+//!   * tabs outside string/byte-string literals are expanded to four spaces,
+//!   * trailing whitespace outside literals is stripped from every line,
 //!   * the file is terminated by exactly one newline.
 //!
 //! The input is parsed first; a file with parse errors is left untouched.
@@ -27,11 +27,47 @@ OPTIONS:\n\
 }
 
 fn format_source(src: &str) -> String {
+    let protected: Vec<(usize, usize)> = lithic_syntax::lexer::lex(src)
+        .into_iter()
+        .filter_map(|token| match token.kind {
+            lithic_syntax::token::TokenKind::Str | lithic_syntax::token::TokenKind::ByteStr => {
+                Some((token.lo, token.hi))
+            }
+            _ => None,
+        })
+        .collect();
+    let is_protected = |position: usize| {
+        let index = protected.partition_point(|(_, hi)| *hi <= position);
+        matches!(protected.get(index), Some((lo, hi)) if position >= *lo && position < *hi)
+    };
+
     let mut out = String::with_capacity(src.len());
-    for line in src.lines() {
-        let expanded = line.replace('\t', "    ");
-        out.push_str(expanded.trim_end());
+    let mut line_start = 0usize;
+    for segment in src.split_inclusive('\n') {
+        let line = segment.strip_suffix('\n').unwrap_or(segment);
+        let mut content_end = line.len();
+        while content_end > 0 {
+            let character = line[..content_end]
+                .chars()
+                .next_back()
+                .expect("non-empty line prefix");
+            let character_start = content_end - character.len_utf8();
+            if is_protected(line_start + character_start) || !matches!(character, ' ' | '\t' | '\r')
+            {
+                break;
+            }
+            content_end = character_start;
+        }
+
+        for (offset, character) in line[..content_end].char_indices() {
+            if character == '\t' && !is_protected(line_start + offset) {
+                out.push_str("    ");
+            } else {
+                out.push(character);
+            }
+        }
         out.push('\n');
+        line_start += segment.len();
     }
     // Collapse to exactly one trailing newline (handles empty input too).
     while out.ends_with("\n\n") {
@@ -88,7 +124,10 @@ fn main() {
         for d in &res.diagnostics {
             eprintln!("{}", d.render(&src, &path));
         }
-        eprintln!("lithfmt: error: not formatting {} due to parse errors", path);
+        eprintln!(
+            "lithfmt: error: not formatting {} due to parse errors",
+            path
+        );
         exit(1);
     }
 
@@ -108,5 +147,31 @@ fn main() {
             exit(2);
         }
         eprintln!("lithfmt: formatted {}", path);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_source;
+
+    #[test]
+    fn normalizes_only_non_literal_whitespace() {
+        let source = "contract C {\n\tconst S: string = \"a\tb  \";   \n\tconst B: bytes = b\"x\ty  \";\t\n}\n\n";
+        let expected = "contract C {\n    const S: string = \"a\tb  \";\n    const B: bytes = b\"x\ty  \";\n}\n";
+        assert_eq!(format_source(source), expected);
+    }
+
+    #[test]
+    fn preserves_multiline_literal_content() {
+        let source = "contract C {\n const S: string = \"first  \n\tsecond\";  \n}\n";
+        let expected = "contract C {\n const S: string = \"first  \n\tsecond\";\n}\n";
+        assert_eq!(format_source(source), expected);
+    }
+
+    #[test]
+    fn formatting_is_idempotent() {
+        let source = "contract C {\n    fn f() {}\n}\n";
+        let once = format_source(source);
+        assert_eq!(format_source(&once), once);
     }
 }
