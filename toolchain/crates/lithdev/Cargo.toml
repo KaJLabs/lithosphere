@@ -3,8 +3,11 @@ name = "lithdev"
 version = "0.0.1"
 edition = "2021"
 license = "Apache-2.0"
-description = "lithdev — local devnet and deployment helper (spec-only stub)."
+description = "lithdev — safe local-devnet lifecycle and deployment preflight."
 
 [[bin]]
 name = "lithdev"
 path = "src/main.rs"
+
+[dependencies]
+lithic-syntax = { path = "../lithic-syntax" }
