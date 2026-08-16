@@ -33,6 +33,7 @@ async function loadValidators(timeoutMs) {
         caFile: process.env[`VALIDATOR_SIGNER_CA_FILE_${i}`],
         certFile: process.env[`VALIDATOR_SIGNER_CERT_FILE_${i}`],
         keyFile: process.env[`VALIDATOR_SIGNER_KEY_FILE_${i}`],
+        tokenFile: process.env[`VALIDATOR_SIGNER_TOKEN_FILE_${i}`],
         timeoutMs,
       }));
     } catch (err) {
@@ -69,7 +70,7 @@ export async function startValidatorService() {
   if (validators.length === 0) {
     throw new Error(
       '[ValidatorService] No validator signers found. Production requires ' +
-      'VALIDATOR_SIGNER_URL_0..N plus address and mTLS file settings. ' +
+      'VALIDATOR_SIGNER_URL_0..N plus address and bearer-token or mTLS settings. ' +
       'Local development may use VALIDATOR_PRIVATE_KEY_FILE_0..N or MOCK_VALIDATOR=true.'
     );
   }
