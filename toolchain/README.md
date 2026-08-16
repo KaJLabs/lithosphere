@@ -16,7 +16,7 @@ the parser is tested against as golden files.
 | `lithfmt`  | **real (v0)** | Literal-safe whitespace normalisation (tabs→spaces and trailing trim only outside string/byte-string literals, single trailing newline); refuses parse errors. `--check` for CI. |
 | `lithlint` | **real (v0)** | AST-driven lint rules L001–L004 (naming + `@ai_budget` on `pub async fn`). `--deny-warnings` for CI. |
 | `lithls`   | **reviewed spec-only** | Explicitly refuses `--stdio`; the protocol, safety, span, test, and acceptance boundary is in [`specs/lithls.md`](specs/lithls.md). |
-| `lithdev`  | spec-only stub | Local devnet + deploy helper. |
+| `lithdev`  | **real (bounded v0)** | Strict local Compose lifecycle, declaration checks, read-only ABI output, and fail-closed deploy preflight. Volume deletion, signing, broadcast, and receipt claims are excluded. |
 | `lithtest` | spec-only stub | Test runner. |
 | `lithsec`  | spec-only stub | Capability + storage safety scanner. |
 | `lithpkg`  | spec-only stub | Package manager. |
@@ -51,6 +51,8 @@ cargo run -p lithc -- ../Makalu/contracts/src/DOGE.lithic
 cargo run -p lithc -- --emit abi ../Makalu/contracts/src/DOGE.lithic
 cargo run -p lithlint -- ../Makalu/contracts/src/FinesseWarriors.lithic
 cargo run -p lithfmt -- --check ../Makalu/contracts/src/DOGE.lithic
+cargo run -p lithdev -- status
+cargo run -p lithdev -- check ../Makalu/contracts/src/DOGE.lithic
 ```
 
 ### `lithlint` v0 rule boundary
