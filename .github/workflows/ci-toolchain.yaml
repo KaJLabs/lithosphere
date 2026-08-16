@@ -146,6 +146,7 @@ jobs:
               throw "$($boundary.Key) $($boundary.Value) must fail closed with exit code 3"
             }
           }
+          exit 0
       - name: Archive Unix boundary preview
         if: runner.os != 'Windows'
         shell: bash
