@@ -51,7 +51,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | V2 DEX and non-AWS signer hardening merged; swap disabled | IN PROGRESS | Obtain independent audit, operator, deployment, controller, and liquidity approvals. |
-| MX-07 | Developer toolchain | Conservative compiler-front-end slice and three-OS CI merged; no deployable compiler/release | IN PROGRESS | Review each remaining tool separately; approved language/VM semantics still block full compiler work. |
+| MX-07 | Developer toolchain | Compiler-front-end and literal-safe `lithfmt` slices merged; no deployable compiler/release | IN PROGRESS | Review `lithlint` next; approved language/VM semantics still block full compiler work. |
 
 ## Sequential closure queue
 
@@ -505,7 +505,7 @@ parse/lower full function bodies into deployable LithoVM/EVM bytecode.
 | Tool | Local implementation | Required before full-release acceptance |
 | --- | --- | --- |
 | `lithc` | Lexer/parser, conservative declaration-name checks, and AST/ABI/check output on `main`. | Approved type/overload/map/return semantics, full statements/expressions, typed IR, deterministic bytecode/codegen, source maps, diagnostics, and conformance tests. |
-| `lithfmt` | Parse-safe whitespace normalization and `--check`; literal-safety fix under review. | Merge literal preservation, then decide whether v0 is accepted or implement AST-driven canonical formatting/idempotence corpus. |
+| `lithfmt` | Parse-safe, literal-preserving whitespace normalization and `--check` on `main`. | Decide whether whitespace-only v0 is accepted or implement AST-driven canonical formatting/idempotence corpus. |
 | `lithlint` | AST-driven L001–L004 rules and warning denial. | Rule/version policy, suppression/config behavior, false-positive corpus, and release documentation. |
 | `lithls` | Stdio LSP lifecycle, full sync, diagnostics, and document symbols. | Editor acceptance; decide whether incremental sync, completion, hover, and go-to-definition are release gates. |
 | `lithdev` | Devnet lifecycle plus check/deploy preparation and ABI output. | Compiler bytecode, simulation, signing, broadcast, receipt verification, and safe network/account configuration. |
@@ -531,14 +531,17 @@ Completed or evidenced locally:
       `lithc` smoke checks, then merged as `cf68f7c001cd6a847f806cac09659bf72380bda2` (2026-08-16).
 - [x] Reviewed `lithfmt` and found its claimed safe tab/trailing-space normalization also rewrote string and
       byte-string literal contents; isolated a token-span-based preservation fix and three focused tests.
+- [x] PR #97 passed Linux, Windows, and macOS formatting, Clippy, all 15 Rust tests, full workspace release builds,
+      and `lithc` smoke checks, then merged as `f8bbb2d642638158c79c9fe22235d9766ab51a2a` (2026-08-16).
 
 Remaining actions:
 
 - [x] Merge the reviewed shared syntax/`lithc` and CI slice after its Linux/Windows/macOS gates pass.
-- [ ] Separately review `lithfmt`, `lithlint`, `lithls`, `lithdev`, `lithtest`, `lithsec`, `lithpkg`, release packaging,
+- [ ] Separately review `lithlint`, `lithls`, `lithdev`, `lithtest`, `lithsec`, `lithpkg`, release packaging,
       examples, and lockfile.
-- [ ] Merge the `lithfmt` literal-safety fix after three-OS tests and release builds pass; then record whether the
-      whitespace-only v0 formatter is accepted as the release boundary.
+- [x] Merge the `lithfmt` literal-safety fix after three-OS tests and release builds pass.
+- [ ] Record product/release-owner acceptance of the whitespace-only v0 formatter or implement the approved
+      AST-driven canonical formatter boundary.
 - [ ] Run the full workspace tests/release build on Linux, Windows, and macOS. The 2026-08-03 Windows audit host lacks
       `link.exe`, so it could lint/check but could not link Rust test binaries.
 - [ ] Specify full function-body grammar, semantics, ABI/bytecode compatibility target, and compiler conformance
@@ -634,9 +637,19 @@ Evidence:
 | 2026-08-16 | Lithoswap V2 toolchain audit | PARTIAL | Contract package has no production runtime dependencies; its Hardhat/test-only dependency graph reports 1 critical, 55 high, 43 moderate, and 10 low transitive advisories. |
 | 2026-08-16 | Provider-neutral signer review | MERGED | PR #93 passed all checks and merged as `60f3f7bb`; 11 signer, 18 API, and 88 bridge-contract tests pass; all three production dependency audits report zero. No deployment or key access occurred. |
 | 2026-08-16 | Toolchain shared front-end review | MERGED | PR #95 passed on Linux, Windows, and macOS with 12 Rust tests, full workspace release builds, Clippy/formatting, and `lithc` smoke checks; merged as `cf68f7c0`. |
-| 2026-08-16 | `lithfmt` safety review | PASS, LOCAL | Found literal-content corruption in the whitespace formatter; token-span preservation and three focused regression/idempotence tests pass check/Clippy locally and await three-OS PR CI. |
+| 2026-08-16 | `lithfmt` safety review | MERGED | PR #97 fixed literal-content corruption and passed Linux, Windows, and macOS gates with all 15 Rust tests and full workspace release builds; merged as `f8bbb2d6`. |
 
 ## Change log
+
+### 2026-08-16 — MX-07 `lithfmt` literal safety merged
+
+- PR #97 passed Linux, Windows, and macOS formatting, reviewed-crate Clippy with warnings denied, all 15 Rust tests,
+  full workspace release builds, and the `lithc` smoke check.
+- All standard repository gates passed; PR #97 merged by `bachal-mb` as
+  `f8bbb2d642638158c79c9fe22235d9766ab51a2a`.
+- `lithfmt` now preserves string and byte-string contents while normalizing external whitespace. Product/release
+  acceptance of the whitespace-only v0 boundary remains open; no 0.1.0 release was published.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-07 `lithfmt` safety fix isolated
 
