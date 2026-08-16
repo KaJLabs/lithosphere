@@ -50,7 +50,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
-| MX-01 | MultX / Lithoswap | Bridge source/gated redeploy merged; hardened V2 DEX is under PR review | IN PROGRESS | Merge reviewed PR #68, replace the AWS signer proposal, then obtain audit/deployment/liquidity approvals. |
+| MX-01 | MultX / Lithoswap | Bridge and hardened V2 DEX source merged; swap remains disabled | IN PROGRESS | Replace the AWS signer proposal, then obtain independent audit, deployment, controller, and liquidity approvals. |
 | MX-07 | Developer toolchain | Expanded v0 local-only; no deployable compiler/release | IN PROGRESS, LOCAL ONLY | Review local tools, then implement compiler lowering/codegen and conformance. |
 
 ## Sequential closure queue
@@ -74,8 +74,9 @@ to the next executable stream without pretending the blocked stream is complete.
 configuration reports the bridge enabled. PR #75 added a fail-closed, manifest-driven paused v0.5 Kamet/Makalu
 redeployment procedure and was review-hardened to enforce the exact approved UTC window before reading the key or
 signing. It merged as `5570c959c4dc746a5fdae28c859318d963b0a7ae`; no deployment occurred. PR #78 is explicitly
-blocked because its AWS KMS/IAM design conflicts with the confirmed no-AWS architecture. PR #68 now isolates and
-review-hardens the same-chain Lithoswap V2 contracts, deployment/liquidity/E2E scripts, and tests. The optional V2
+blocked because its AWS KMS/IAM design conflicts with the confirmed no-AWS architecture. PR #68 isolated,
+review-hardened, and merged the same-chain Lithoswap V2 contracts, deployment/liquidity/E2E scripts, and tests as
+`07b37969f00d97eaca17794c31a83546b60a1940`. The optional V2
 subgraph remains local-only and is not required for on-chain quotes. The live configuration reports `swap: false`; `/swap` and
 `/cross-swap` return HTTP 200 but render unavailable states.
 
@@ -97,11 +98,13 @@ Completed or evidenced:
       strict TypeScript validation, and Slither with zero detectors (2026-08-16).
 - [x] Conflicting July UI PR #69 was verified as superseded by the newer fail-closed implementation on `main` and
       closed without merge (2026-08-16).
+- [x] PR #68 passed all repository checks and merged by `bachal-mb` as
+      `07b37969f00d97eaca17794c31a83546b60a1940`; no deployment or funding occurred (2026-08-16).
 
 Remaining actions:
 
-- [ ] Merge the isolated contracts/scripts/tests in PR #68 after CI/review; separately review the optional V2
-      subgraph if analytics are required. The explorer Swap UI is already merged and fail-closed.
+- [x] Isolate, review, and merge the V2 contracts, release-gated deployment/liquidity scripts, and tests in PR #68.
+- [ ] Separately review the optional V2 subgraph only if analytics are required. It is not required for quotes or swaps.
 - [ ] Replace or close PR #78's AWS-specific signer proposal; the accepted design must use no AWS service or IAM
       assumption.
 - [ ] Modernize or explicitly disposition the MultX deployment/test toolchain's transitive audit findings before
@@ -139,6 +142,7 @@ Evidence:
 - `docs/dex-team-request-lithoswap.md`
 - `MultX/docs/V05_TESTNET_REDEPLOYMENT.md`
 - Review PR: `https://github.com/KaJLabs/Lithosphere/pull/75`
+- Lithoswap V2 PR: `https://github.com/KaJLabs/Lithosphere/pull/68`
 - Blocked AWS proposal: `https://github.com/KaJLabs/Lithosphere/pull/78`
 - Live probes: `https://makalu.litho.ai/api/config`, `https://makalu.litho.ai/swap`,
   `https://makalu.litho.ai/cross-swap`
@@ -592,12 +596,12 @@ Evidence:
 | 2026-08-15 | MultX v0.5 redeployment gates | MERGED | PR #75 passed all checks and 84 local Hardhat tests after UTC-window enforcement; merged as `5570c95` with no deployment. |
 | 2026-08-15 | MultX signer proposal | BLOCKED | PR #78 is AWS-specific and conflicts with the confirmed no-AWS architecture; provider-neutral redesign requested. |
 | 2026-08-15 | MultX toolchain audit | PARTIAL | `npm audit --omit=dev` reports zero; full operational/test dependency audit reports 3 critical and 14 high transitive findings. |
-| 2026-08-16 | Lithoswap V2 repository review | PASS, PR OPEN | Current-main build, 28 full Hardhat tests, 23 focused DEX/configuration tests, nine E2E checks, strict TypeScript, and Slither with zero detectors passed. No deployment or funding occurred. |
+| 2026-08-16 | Lithoswap V2 repository review | MERGED | PR #68 passed every repository check and merged as `07b37969`; current-main build, 28 full Hardhat tests, 23 focused DEX/configuration tests, nine E2E checks, strict TypeScript, and Slither with zero detectors passed. No deployment or funding occurred. |
 | 2026-08-16 | Lithoswap V2 toolchain audit | PARTIAL | Contract package has no production runtime dependencies; its Hardhat/test-only dependency graph reports 1 critical, 55 high, 43 moderate, and 10 low transitive advisories. |
 
 ## Change log
 
-### 2026-08-16 — MX-01 Lithoswap V2 repository slice review-hardened
+### 2026-08-16 — MX-01 Lithoswap V2 repository slice merged
 
 - Updated PR #68 to current `main` without touching the unrelated dirty workspace.
 - Added critical-address and pair-initialization contract guards plus production invariant and flash-swap reentrancy
@@ -610,6 +614,8 @@ Evidence:
   advisories are explicitly recorded; it must use a hardened ephemeral runner with trusted inputs.
 - No contract was deployed, no token approval was sent, no liquidity was funded, and Swap remains disabled.
 - Closed stale conflicting UI PR #69 as superseded by the tested, fail-closed Swap UI already on `main`.
+- All current-head PR checks passed; PR #68 merged by `bachal-mb` as
+  `07b37969f00d97eaca17794c31a83546b60a1940` without deployment or funding.
 - Updated by: `bachal-mb`.
 
 ### 2026-08-15 — MX-01 MultX redeployment gates merged; swap remains disabled

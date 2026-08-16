@@ -84,8 +84,10 @@ one shared DEX codebase across chains is a hard requirement.
 
 ## Repository review status (2026-08-16)
 
-PR #68 was rebased onto current `main` and hardened during review. The reviewed
-repository slice now has:
+PR #68 was rebased onto current `main`, hardened during review, passed every
+repository check, and merged as
+`07b37969f00d97eaca17794c31a83546b60a1940`. The reviewed repository slice now
+has:
 
 - nonzero factory fee-controller and router immutable-address checks;
 - one-time, valid-token pair initialization checks;
