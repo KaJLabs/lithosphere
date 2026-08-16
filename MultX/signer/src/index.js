@@ -7,11 +7,11 @@ import { createDynamoDecisionJournal } from './dynamoJournal.js';
 import { createDecisionJournal } from './journal.js';
 import {
   assertLockEvent,
-  parseSignerPolicy,
   releaseMessageHash,
   resolvePolicy,
   validateAttestation,
 } from './policy.js';
+import { loadSignerPolicy } from './runtimeConfig.js';
 import { createSigningKey } from './signingKey.js';
 
 const requiredFile = (envName) => {
@@ -22,15 +22,10 @@ const requiredFile = (envName) => {
   return value;
 };
 
-const policyFile = process.env.SIGNER_POLICY_FILE;
-const policyJson = process.env.SIGNER_POLICY_JSON;
-if (policyFile && policyJson) throw new Error('configure signer policy file or JSON, never both');
-if (!policyFile && !policyJson) throw new Error('SIGNER_POLICY_FILE or SIGNER_POLICY_JSON is required');
-const policy = parseSignerPolicy(JSON.parse(
-  policyFile ? requiredFile('SIGNER_POLICY_FILE').toString('utf8') : policyJson,
-));
+const signingEnabled = process.env.SIGNER_RELEASE_SIGNING_ENABLED === 'true';
+const policy = loadSignerPolicy({ signingEnabled });
 const signer = await createSigningKey();
-if (policy.signerAddress && getAddress(policy.signerAddress) !== signer.address) {
+if (policy?.signerAddress && getAddress(policy.signerAddress) !== signer.address) {
   throw new Error(`policy signer ${policy.signerAddress} does not match key ${signer.address}`);
 }
 
@@ -61,7 +56,6 @@ if (journalBackend === 'dynamodb') {
   throw new Error('production signer requires SIGNER_JOURNAL_BACKEND=dynamodb');
 }
 
-const signingEnabled = process.env.SIGNER_RELEASE_SIGNING_ENABLED === 'true';
 if (!signingEnabled) console.log('[signer] release signing is disabled');
 
 const providers = new Map();
