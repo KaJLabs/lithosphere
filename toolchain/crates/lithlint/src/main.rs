@@ -5,7 +5,7 @@
 //!   * L002 function names should be snake_case
 //!   * L003 const names should be SCREAMING_SNAKE_CASE
 //!   * L004 `pub async fn` (which can call the AI primitive) should declare an
-//!          `@ai_budget` to bound its cost
+//!     `@ai_budget` to bound its cost
 //!
 //! Findings are warnings by default; pass `--deny-warnings` to exit non-zero.
 
@@ -27,26 +27,41 @@ OPTIONS:\n\
 }
 
 fn is_upper_camel(s: &str) -> bool {
-    !s.is_empty() && s.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false) && !s.contains('_')
+    !s.is_empty()
+        && s.chars()
+            .next()
+            .map(|c| c.is_ascii_uppercase())
+            .unwrap_or(false)
+        && !s.contains('_')
 }
 
 fn is_snake(s: &str) -> bool {
-    !s.is_empty() && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
 fn is_screaming_snake(s: &str) -> bool {
-    !s.is_empty() && s.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+    !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
 }
 
 fn lint(c: &Contract) -> Vec<String> {
     let mut findings = Vec::new();
 
     if !is_upper_camel(&c.name) {
-        findings.push(format!("L001 contract `{}` should be UpperCamelCase", c.name));
+        findings.push(format!(
+            "L001 contract `{}` should be UpperCamelCase",
+            c.name
+        ));
     }
     for cst in c.consts() {
         if !is_screaming_snake(&cst.name) {
-            findings.push(format!("L003 const `{}` should be SCREAMING_SNAKE_CASE", cst.name));
+            findings.push(format!(
+                "L003 const `{}` should be SCREAMING_SNAKE_CASE",
+                cst.name
+            ));
         }
     }
     for f in c.funcs() {
@@ -77,7 +92,16 @@ fn main() {
                 print_help();
                 return;
             }
-            s if !s.starts_with('-') => path = Some(s.to_string()),
+            s if !s.starts_with('-') => {
+                if let Some(first) = &path {
+                    eprintln!(
+                        "lithlint: error: multiple input files are not supported: '{}' and '{}'",
+                        first, s
+                    );
+                    exit(2);
+                }
+                path = Some(s.to_string());
+            }
             other => {
                 eprintln!("lithlint: error: unknown option '{}'", other);
                 exit(2);
@@ -132,5 +156,71 @@ fn main() {
         if deny {
             exit(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lint;
+
+    fn lint_source(source: &str) -> Vec<String> {
+        let parsed = lithic_syntax::parse(source);
+        assert_eq!(
+            parsed.error_count(),
+            0,
+            "unexpected diagnostics: {:?}",
+            parsed.diagnostics
+        );
+        lint(&parsed.contract.expect("contract"))
+    }
+
+    #[test]
+    fn clean_contract_has_no_findings() {
+        let source = r#"
+            contract Token {
+                const MAX_SUPPLY: u256 = 1;
+                @ai_budget(max_cost = 1)
+                pub async fn guarded_transfer() {}
+            }
+        "#;
+
+        assert!(lint_source(source).is_empty());
+    }
+
+    #[test]
+    fn naming_rules_report_their_declared_targets() {
+        let source = r#"
+            contract bad_name {
+                const max_supply: u256 = 1;
+                pub fn BadFunction() {}
+            }
+        "#;
+        let findings = lint_source(source);
+
+        assert_eq!(findings.len(), 3);
+        assert!(findings.iter().any(|finding| finding.starts_with("L001 ")));
+        assert!(findings.iter().any(|finding| finding.starts_with("L002 ")));
+        assert!(findings.iter().any(|finding| finding.starts_with("L003 ")));
+    }
+
+    #[test]
+    fn ai_budget_rule_is_limited_to_public_async_functions() {
+        let source = r#"
+            contract Token {
+                pub async fn needs_budget() {}
+                @ai_budget(max_cost = 1)
+                pub async fn has_budget() {}
+                async fn private_async() {}
+                pub fn public_sync() {}
+            }
+        "#;
+        let findings = lint_source(source);
+        let budget_findings: Vec<_> = findings
+            .iter()
+            .filter(|finding| finding.starts_with("L004 "))
+            .collect();
+
+        assert_eq!(budget_findings.len(), 1);
+        assert!(budget_findings[0].contains("needs_budget"));
     }
 }
