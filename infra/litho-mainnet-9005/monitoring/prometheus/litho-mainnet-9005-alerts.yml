@@ -1,0 +1,42 @@
+groups:
+  - name: litho-mainnet-9005-consensus
+    rules:
+      - alert: LITHOMainnetMetricsMissing
+        expr: absent_over_time(tendermint_consensus_height{chain_id="lithosphere_9005-1"}[2m])
+        for: 1m
+        labels:
+          severity: critical
+          network: litho-mainnet-9005
+        annotations:
+          summary: LITHO mainnet consensus metrics are missing
+          description: No consensus-height sample has been received for more than two minutes.
+
+      - alert: LITHOMainnetNoNewBlocks
+        expr: changes(tendermint_consensus_height{chain_id="lithosphere_9005-1"}[2m]) == 0
+        for: 1m
+        labels:
+          severity: critical
+          network: litho-mainnet-9005
+        annotations:
+          summary: LITHO mainnet node has not advanced
+          description: Node {{ $labels.instance }} has committed no new block for more than two minutes.
+
+      - alert: LITHOMainnetValidatorNotSigning
+        expr: tendermint_consensus_height{chain_id="lithosphere_9005-1",role="validator"} - tendermint_consensus_validator_last_signed_height{chain_id="lithosphere_9005-1",role="validator"} > 2
+        for: 1m
+        labels:
+          severity: critical
+          network: litho-mainnet-9005
+        annotations:
+          summary: LITHO mainnet validator is behind its signed height
+          description: Validator {{ $labels.instance }} is more than two blocks behind its latest observed chain height.
+
+      - alert: LITHOMainnetPeerFloor
+        expr: tendermint_p2p_peers{chain_id="lithosphere_9005-1",role="validator"} < 2 or tendermint_p2p_peers{chain_id="lithosphere_9005-1",role="sentry"} < 1
+        for: 2m
+        labels:
+          severity: high
+          network: litho-mainnet-9005
+        annotations:
+          summary: LITHO mainnet node is below its peer floor
+          description: Node {{ $labels.instance }} has too few connected peers.

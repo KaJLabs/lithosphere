@@ -1,0 +1,12 @@
+# Watchdog: restart {{ litho_service_name }} when it is "active" but no
+# longer making block progress (wedged at memory ceiling, dead RPC).
+# Complements the leak watchdog, which only sees map/fd growth.
+# See lithod-stall-watchdog.sh.j2 for the detection logic.
+
+[Unit]
+Description={{ litho_service_name }} stall watchdog
+After=network.target {{ litho_service_name }}.service
+
+[Service]
+Type=oneshot
+ExecStart={{ lithod_stall_watchdog_script_path }}

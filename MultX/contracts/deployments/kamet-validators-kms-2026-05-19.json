@@ -1,0 +1,50 @@
+{
+  "milestone": "M4 v1 \u2014 validator KMS migration",
+  "date": "2026-05-19",
+  "chainId": 900523,
+  "bridgeContract": "0x3a896BDF3a1088287FA84aB5a43bB30e2535F263",
+  "validatorSet": {
+    "count": 7,
+    "threshold": 5,
+    "custody": "AWS KMS (ECC_SECG_P256K1, sign/verify) in us-east-1",
+    "operator": "Litho infra team (option (a) \u2014 all 7 run by us)",
+    "validators": [
+      {
+        "index": 0,
+        "address": "0xD9B30A7f4d58f1b98AaA69B82F0c8bF0816638FB",
+        "custodyReference": "protected operator inventory"
+      },
+      {
+        "index": 1,
+        "address": "0xEefB2E0c91Bc57975D117BADA6c70f3Cd6C4bC91",
+        "custodyReference": "protected operator inventory"
+      },
+      {
+        "index": 2,
+        "address": "0x4dFEd8e8359EaA711CdFFFcb5d994a66e46185Ac",
+        "custodyReference": "protected operator inventory"
+      },
+      {
+        "index": 3,
+        "address": "0x27026F8C232d723100700186c10B2aEbd82ea60C",
+        "custodyReference": "protected operator inventory"
+      },
+      {
+        "index": 4,
+        "address": "0xc8C5c89ddb70CAEC942f2C5A77F4F4001ef3B415",
+        "custodyReference": "protected operator inventory"
+      },
+      {
+        "index": 5,
+        "address": "0x4CDd6D160Bd79fe7d4Bab06a9E0607870e8108D9",
+        "custodyReference": "protected operator inventory"
+      },
+      {
+        "index": 6,
+        "address": "0xB161611185Ce2c95849134188AC9F5DbC26bfD2D",
+        "custodyReference": "protected operator inventory"
+      }
+    ]
+  },
+  "rotationNote": "Future rotations via MultXBridge.setValidatorSet(addrs, threshold). KMS keys can be rotated by alias-swapping the key the alias points to \u2014 no contract change needed unless the address changes."
+}

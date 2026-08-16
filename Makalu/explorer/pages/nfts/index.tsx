@@ -1,10 +1,13 @@
-import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useState } from 'react';
+
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
 import { formatNumber, truncateHash, timeAgo, preferLitho, truncateAddressSmart } from '@/lib/format';
+import { NETWORK } from '@/lib/network';
+
 import type { ApiNftCollection, ApiNftTransferList } from '@/lib/types';
 
 const AVATAR_COLORS = [
@@ -99,7 +102,7 @@ export default function NftsPage() {
           <p className="text-sm text-white/40 mt-1">
             {!loading && collections
               ? `A total of ${formatNumber(total)} LEP100-6 collection${total !== 1 ? 's' : ''} found`
-              : 'LEP100-6 (ERC-721) collections, items, holders, and transfers on Makalu'}
+              : `LEP100-6 (ERC-721) collections, items, holders, and transfers on ${NETWORK.shortName}`}
           </p>
         </div>
 

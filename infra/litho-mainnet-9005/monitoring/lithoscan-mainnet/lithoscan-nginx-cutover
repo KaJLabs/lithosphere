@@ -1,0 +1,363 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly PATH=/usr/sbin:/usr/bin:/sbin:/bin
+readonly LC_ALL=C
+export PATH LC_ALL
+
+readonly candidate=/etc/nginx/lithoscan-mainnet/lithoscan.ai.conf
+readonly active=/etc/nginx/sites-enabled/lithoscan.ai.conf
+readonly bootstrap=/etc/nginx/sites-enabled/lithoscan-acme-bootstrap.conf
+readonly cert=/etc/letsencrypt/live/lithoscan.ai/fullchain.pem
+readonly key=/etc/letsencrypt/live/lithoscan.ai/privkey.pem
+readonly state_dir=/var/lib/lithoscan-nginx-cutover
+readonly private_state_dir=/var/lib/lithoscan-nginx-cutover/private
+readonly certificate_dir=/etc/letsencrypt/live/lithoscan.ai
+readonly upload_dir=/opt/lithoscan-mainnet/tls-staging
+readonly staged_cert=/opt/lithoscan-mainnet/tls-staging/fullchain.pem
+readonly staged_key=/opt/lithoscan-mainnet/tls-staging/privkey.pem
+readonly deploy_user=lithoscan-deploy
+readonly certificate_hostname=lithoscan.ai
+readonly privileged_user=root
+readonly privileged_group=root
+readonly privileged_uid=0
+
+install_work=
+install_new_cert=
+install_new_key=
+install_restore_needed=0
+install_had_cert=0
+install_had_key=0
+
+die() {
+    echo "ERROR: $*" >&2
+    exit 1
+}
+
+require_root() {
+    test "$(/usr/bin/id -u)" = "$privileged_uid" \
+        || die 'must run as root through the restricted sudo command'
+}
+
+validate_certificate_bundle() {
+    local certificate_path=$1
+    local key_path=$2
+    local certificate_public_key
+    local private_public_key
+    local hostname_check
+    local not_before
+    local not_before_epoch
+    local now_epoch
+
+    /usr/bin/openssl x509 -in "$certificate_path" -noout >/dev/null
+    hostname_check=$(
+        /usr/bin/openssl x509 -in "$certificate_path" -noout \
+            -checkhost "$certificate_hostname" 2>&1
+    )
+    case "$hostname_check" in
+        *'does match certificate'*) ;;
+        *) die "certificate does not cover $certificate_hostname" ;;
+    esac
+    not_before=$(
+        /usr/bin/openssl x509 -in "$certificate_path" -noout -startdate
+    )
+    not_before_epoch=$(
+        /usr/bin/date -u -d "${not_before#notBefore=}" +%s
+    ) || die 'certificate notBefore date is invalid'
+    now_epoch=$(/usr/bin/date -u +%s)
+    test "$now_epoch" -ge "$not_before_epoch" \
+        || die 'certificate is not valid yet'
+    /usr/bin/openssl x509 -in "$certificate_path" -noout -checkend 300 >/dev/null \
+        || die 'certificate is expired or expires in less than five minutes'
+    /usr/bin/openssl pkey -in "$key_path" -noout -passin pass: >/dev/null
+
+    certificate_public_key=$(
+        /usr/bin/openssl x509 -in "$certificate_path" -pubkey -noout \
+            | /usr/bin/openssl pkey -pubin -outform DER \
+            | /usr/bin/sha256sum
+    )
+    private_public_key=$(
+        /usr/bin/openssl pkey -in "$key_path" -passin pass: \
+            -pubout -outform DER \
+            | /usr/bin/sha256sum
+    )
+    test "${certificate_public_key%% *}" = "${private_public_key%% *}" \
+        || die 'certificate and private key do not match'
+}
+
+validate_upload_path() {
+    local path=$1
+    local label=$2
+    local max_bytes=$3
+    local deploy_uid
+    local size
+
+    deploy_uid=$(/usr/bin/id -u "$deploy_user")
+    test -e "$path" || die "$label upload is missing at $path"
+    test ! -L "$path" || die "$label upload must not be a symlink"
+    test -f "$path" || die "$label upload must be a regular file"
+    test "$(/usr/bin/readlink -f "$path")" = "$path" \
+        || die "$label upload path contains a symlink"
+    test "$(/usr/bin/stat -c %u "$path")" = "$deploy_uid" \
+        || die "$label upload must be owned by $deploy_user"
+    test "$(/usr/bin/stat -c %a "$path")" = 600 \
+        || die "$label upload must have mode 0600"
+    test "$(/usr/bin/stat -c %h "$path")" = 1 \
+        || die "$label upload must have exactly one hard link"
+    size=$(/usr/bin/stat -c %s "$path")
+    test "$size" -gt 0 || die "$label upload is empty"
+    test "$size" -le "$max_bytes" || die "$label upload is unexpectedly large"
+}
+
+validate_claimed_upload() {
+    local path=$1
+    local label=$2
+    local expected_uid=$3
+    local max_bytes=$4
+    local size
+
+    test ! -L "$path" && test -f "$path" \
+        || die "claimed $label is not a regular file"
+    test "$(/usr/bin/stat -c %u "$path")" = "$expected_uid" \
+        || die "claimed $label owner changed unexpectedly"
+    test "$(/usr/bin/stat -c %a "$path")" = 600 \
+        || die "claimed $label mode changed unexpectedly"
+    test "$(/usr/bin/stat -c %h "$path")" = 1 \
+        || die "claimed $label has an unexpected hard link"
+    size=$(/usr/bin/stat -c %s "$path")
+    test "$size" -gt 0 || die "claimed $label is empty"
+    test "$size" -le "$max_bytes" || die "claimed $label is unexpectedly large"
+}
+
+restore_certificate_target() {
+    local backup=$1
+    local target=$2
+    local mode=$3
+    local restore_temp
+
+    restore_temp=$(/usr/bin/mktemp "$certificate_dir/.rollback.XXXXXX")
+    /usr/bin/install -o "$privileged_user" -g "$privileged_group" \
+        -m "$mode" "$backup" "$restore_temp"
+    /usr/bin/mv -fT "$restore_temp" "$target"
+}
+
+certificate_install_cleanup() {
+    local status=$?
+    set +e
+
+    if test "$install_restore_needed" = 1; then
+        if test "$install_had_key" = 1; then
+            restore_certificate_target \
+                "$install_work/previous-privkey.pem" "$key" 0600
+        else
+            /usr/bin/rm -f -- "$key"
+        fi
+        if test "$install_had_cert" = 1; then
+            restore_certificate_target \
+                "$install_work/previous-fullchain.pem" "$cert" 0644
+        else
+            /usr/bin/rm -f -- "$cert"
+        fi
+    fi
+
+    test -z "$install_new_cert" || /usr/bin/rm -f -- "$install_new_cert"
+    test -z "$install_new_key" || /usr/bin/rm -f -- "$install_new_key"
+    test -z "$install_work" || /usr/bin/rm -rf -- "$install_work"
+    exit "$status"
+}
+
+install_certificate() {
+    local deploy_uid
+    local upload_device
+    local work_device
+    local imported_cert
+    local imported_key
+    local destination_mode
+
+    deploy_uid=$(/usr/bin/id -u "$deploy_user")
+    test -d "$upload_dir" || die "fixed upload directory is missing: $upload_dir"
+    test ! -L "$upload_dir" || die 'fixed upload directory must not be a symlink'
+    test "$(/usr/bin/readlink -f "$upload_dir")" = "$upload_dir" \
+        || die 'fixed upload directory path contains a symlink'
+    test "$(/usr/bin/stat -c %u "$upload_dir")" = "$deploy_uid" \
+        || die "fixed upload directory must be owned by $deploy_user"
+    test "$(/usr/bin/stat -c %a "$upload_dir")" = 700 \
+        || die 'fixed upload directory must have mode 0700'
+
+    validate_upload_path "$staged_cert" certificate 1048576
+    validate_upload_path "$staged_key" private-key 65536
+
+    /usr/bin/install -d -o "$privileged_user" -g "$privileged_group" \
+        -m 0755 "$state_dir"
+    /usr/bin/install -d -o "$privileged_user" -g "$privileged_group" \
+        -m 0700 "$private_state_dir"
+    exec 9>"$state_dir/certificate-install.lock"
+    /usr/bin/flock -n 9 || die 'another certificate installation is in progress'
+
+    install_work=$(/usr/bin/mktemp -d "$private_state_dir/install.XXXXXX")
+    /usr/bin/chown "$privileged_user:$privileged_group" "$install_work"
+    /usr/bin/chmod 0700 "$install_work"
+    trap certificate_install_cleanup EXIT
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+
+    upload_device=$(/usr/bin/stat -c %d "$upload_dir")
+    work_device=$(/usr/bin/stat -c %d "$install_work")
+    test "$upload_device" = "$work_device" \
+        || die 'upload and private state directories must be on the same filesystem'
+
+    imported_cert="$install_work/fullchain.pem"
+    imported_key="$install_work/privkey.pem"
+    /usr/bin/mv -T "$staged_cert" "$imported_cert"
+    /usr/bin/mv -T "$staged_key" "$imported_key"
+
+    # Validate only after the atomic rename into the root-only directory. This
+    # closes the upload-directory replacement race before root reads the files.
+    validate_claimed_upload "$imported_cert" certificate "$deploy_uid" 1048576
+    validate_claimed_upload "$imported_key" private-key "$deploy_uid" 65536
+    /usr/bin/chown "$privileged_user:$privileged_group" \
+        "$imported_cert" "$imported_key"
+    /usr/bin/chmod 0600 "$imported_cert" "$imported_key"
+    validate_certificate_bundle "$imported_cert" "$imported_key"
+
+    /usr/bin/install -d -o "$privileged_user" -g "$privileged_group" \
+        -m 0755 /etc/letsencrypt
+    /usr/bin/install -d -o "$privileged_user" -g "$privileged_group" \
+        -m 0755 /etc/letsencrypt/live
+    /usr/bin/install -d -o "$privileged_user" -g "$privileged_group" \
+        -m 0755 "$certificate_dir"
+    test ! -L "$certificate_dir" || die 'certificate destination must not be a symlink'
+    test "$(/usr/bin/readlink -f "$certificate_dir")" = "$certificate_dir" \
+        || die 'certificate destination path contains a symlink'
+    test "$(/usr/bin/stat -c %u "$certificate_dir")" = "$privileged_uid" \
+        || die 'certificate destination must be root-owned'
+    destination_mode=$(/usr/bin/stat -c %a "$certificate_dir")
+    test "$((8#$destination_mode & 8#022))" = 0 \
+        || die 'certificate destination must not be group/world writable'
+
+    if test -e "$cert"; then
+        /usr/bin/install -o "$privileged_user" -g "$privileged_group" \
+            -m 0644 "$cert" \
+            "$install_work/previous-fullchain.pem"
+        install_had_cert=1
+    fi
+    if test -e "$key"; then
+        /usr/bin/install -o "$privileged_user" -g "$privileged_group" \
+            -m 0600 "$key" \
+            "$install_work/previous-privkey.pem"
+        install_had_key=1
+    fi
+
+    install_new_cert=$(/usr/bin/mktemp "$certificate_dir/.fullchain.pem.new.XXXXXX")
+    install_new_key=$(/usr/bin/mktemp "$certificate_dir/.privkey.pem.new.XXXXXX")
+    /usr/bin/install -o "$privileged_user" -g "$privileged_group" -m 0644 \
+        "$imported_cert" "$install_new_cert"
+    /usr/bin/install -o "$privileged_user" -g "$privileged_group" -m 0600 \
+        "$imported_key" "$install_new_key"
+    validate_certificate_bundle "$install_new_cert" "$install_new_key"
+
+    install_restore_needed=1
+    /usr/bin/mv -fT "$install_new_key" "$key"
+    install_new_key=
+    /usr/bin/mv -fT "$install_new_cert" "$cert"
+    install_new_cert=
+    validate_certificate_bundle "$cert" "$key"
+    test "$(/usr/bin/stat -c %U:%G:%a "$cert")" \
+        = "$privileged_user:$privileged_group:644" \
+        || die 'installed certificate ownership or mode is incorrect'
+    test "$(/usr/bin/stat -c %U:%G:%a "$key")" \
+        = "$privileged_user:$privileged_group:600" \
+        || die 'installed private-key ownership or mode is incorrect'
+    /usr/bin/sync -f "$certificate_dir"
+    install_restore_needed=0
+
+    /usr/bin/rm -rf -- "$install_work"
+    install_work=
+    trap - EXIT HUP INT TERM
+    echo 'Certificate and key validated and atomically installed. Run test, activate, and reload separately.'
+}
+
+require_ready() {
+    test -f "$candidate"
+    test -f "$cert"
+    test -f "$key"
+    validate_certificate_bundle "$cert" "$key"
+    /usr/bin/curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3500/ >/dev/null
+    /usr/bin/curl --fail --silent --show-error --max-time 10 http://127.0.0.1:4400/health >/dev/null
+}
+
+validate_candidate() {
+    require_ready
+    if test -L "$active" && test "$(/usr/bin/readlink -f "$active")" = "$candidate"; then
+        /usr/sbin/nginx -t
+        return
+    fi
+    test ! -e "$active"
+    /usr/bin/ln -s "$candidate" "$active"
+    trap '/usr/bin/rm -f "$active"' EXIT HUP INT TERM
+    /usr/sbin/nginx -t
+    /usr/bin/rm -f "$active"
+    trap - EXIT HUP INT TERM
+}
+
+require_root
+
+case "${1:-}" in
+    install-certificate)
+        install_certificate
+        ;;
+    status)
+        printf 'candidate=%s\n' "$(test -f "$candidate" && echo present || echo missing)"
+        printf 'certificate=%s\n' "$(test -f "$cert" && echo present || echo missing)"
+        printf 'private_key=%s\n' "$(test -f "$key" && echo present || echo missing)"
+        printf 'active=%s\n' "$(test -L "$active" && echo yes || echo no)"
+        /usr/bin/curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3500/ >/dev/null
+        /usr/bin/curl --fail --silent --show-error --max-time 10 http://127.0.0.1:4400/health >/dev/null
+        echo backends=healthy
+        ;;
+    test)
+        validate_candidate
+        ;;
+    activate)
+        validate_candidate
+        /usr/bin/install -d -o "$privileged_user" -g "$privileged_group" \
+            -m 0755 "$state_dir"
+        if test -L "$bootstrap"; then
+            /usr/bin/rm -f "$bootstrap"
+            /usr/bin/touch "$state_dir/bootstrap-was-enabled"
+        fi
+        /usr/bin/ln -s "$candidate" "$active"
+        if ! /usr/sbin/nginx -t; then
+            /usr/bin/rm -f "$active"
+            if test -f "$state_dir/bootstrap-was-enabled"; then
+                /usr/bin/ln -s /etc/nginx/sites-available/lithoscan-acme-bootstrap.conf "$bootstrap"
+                /usr/bin/rm -f "$state_dir/bootstrap-was-enabled"
+            fi
+            exit 1
+        fi
+        echo 'Production vhost staged in sites-enabled; run reload separately.'
+        ;;
+    reload)
+        test -L "$active"
+        test "$(/usr/bin/readlink -f "$active")" = "$candidate"
+        require_ready
+        /usr/sbin/nginx -t
+        /usr/bin/systemctl reload nginx
+        ;;
+    rollback)
+        /usr/bin/rm -f "$active"
+        if test -f "$state_dir/bootstrap-was-enabled"; then
+            if test ! -e "$bootstrap"; then
+                /usr/bin/ln -s /etc/nginx/sites-available/lithoscan-acme-bootstrap.conf "$bootstrap"
+            fi
+            /usr/bin/rm -f "$state_dir/bootstrap-was-enabled"
+        fi
+        /usr/sbin/nginx -t
+        /usr/bin/systemctl reload nginx
+        ;;
+    *)
+        echo 'usage: lithoscan-nginx-cutover {install-certificate|status|test|activate|reload|rollback}' >&2
+        exit 64
+        ;;
+esac

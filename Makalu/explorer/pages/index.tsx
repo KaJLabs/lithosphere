@@ -1,27 +1,21 @@
+import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
 import Head from 'next/head';
 import Link from 'next/link';
-import type { GetServerSideProps } from 'next';
+import { useState, useEffect, useRef } from 'react';
+
+import { FormattedValueElement } from '@/components/FormattedValueElement';
+import SearchBar from '@/components/SearchBar';
+import SyncStatusBanner from '@/components/SyncStatusBanner';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
 import { formatNumber, timeAgo, truncateHash, formatValue, formatSupply, formatGasPrice } from '@/lib/format';
+import { NETWORK, WALLET_CHAIN } from '@/lib/network';
 import { getPreferredTxHash } from '@/lib/tx';
+
 import type { StatsSummary, ApiBlock, ApiTxList, ApiValidator, ApiToken } from '@/lib/types';
-import SearchBar from '@/components/SearchBar';
-import SyncStatusBanner from '@/components/SyncStatusBanner';
-import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
-import { useState, useEffect, useRef } from 'react';
-import { FormattedValueElement } from '@/components/FormattedValueElement';
+import type { GetServerSideProps } from 'next';
 
 
-const MAKALU_CHAIN = {
-  chainId: '0xab169',
-  chainName: 'Lithosphere Makalu Testnet',
-  rpcUrls: ['https://rpc.litho.ai'],
-  nativeCurrency: { name: 'LITHO', symbol: 'LITHO', decimals: 18 },
-  blockExplorerUrls: ['https://makalu.litho.ai'],
-};
-
-const MAKALU_CHAIN_ID = parseInt(MAKALU_CHAIN.chainId, 16); // 700777
 const SSR_API_TIMEOUT_MS = 8_000;
 
 interface HomeProps {
@@ -52,20 +46,20 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
     const provider = walletProvider ?? (window.ethereum as { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } | undefined);
     if (!provider) return;
 
-    if (Number(chainId) === MAKALU_CHAIN_ID) return; // already on Makalu
+    if (Number(chainId) === NETWORK.evmChainId || !NETWORK.walletReady) return;
 
     setIsAddingNetwork(true);
     try {
       await provider.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: MAKALU_CHAIN.chainId }],
+        params: [{ chainId: NETWORK.chainIdHex }],
       });
     } catch (switchError: any) {
       if (switchError?.code === 4902) {
         // Chain not in wallet yet — add it
         await provider.request({
           method: 'wallet_addEthereumChain',
-          params: [MAKALU_CHAIN],
+          params: [WALLET_CHAIN],
         });
       } else if (switchError?.code !== 4001) {
         console.error('Network switch error:', switchError);
@@ -76,8 +70,8 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
   }
 
   /** Main button handler: open web3modal if not connected, then add network natively */
-  async function addOrSwitchMakalu() {
-    if (Number(chainId) === MAKALU_CHAIN_ID) return;
+  async function addOrSwitchNetwork() {
+    if (Number(chainId) === NETWORK.evmChainId || !NETWORK.walletReady) return;
 
     if (!isConnected) {
       pendingNetworkAdd.current = true;
@@ -163,25 +157,25 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
   return (
     <>
       <Head>
-        <title>{EXPLORER_TITLE} - Lithosphere Makalu Explorer</title>
+        <title>{EXPLORER_TITLE} | {NETWORK.label} Block Explorer</title>
         <meta
           name="description"
           content="Explore blocks, transactions, validators, and smart contracts on the Lithosphere blockchain."
         />
       </Head>
 
-      <div className="w-full min-w-0 text-white">
+      <div className="w-full min-w-0 text-[var(--color-text-primary)]">
 
           {/* Hero */}
           <section className="grid w-full min-w-0 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)] lg:items-center">
             <div className="min-w-0">
-              <div className="mb-3 inline-flex rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">
-                Lithosphere Makalu Testnet
+              <div className="mb-3 inline-flex rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200">
+                {NETWORK.label}
               </div>
               <h1 className="max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl md:text-5xl">
-                Explore blocks, contracts, AI activity, and LEP100 assets on Makalu.
+                Explore blocks, contracts, AI activity, and LEP100 assets on {NETWORK.shortName}.
               </h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-white/65 md:text-lg">
+              <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--color-text-secondary)] md:text-lg">
                 A unified explorer for Lithosphere&apos;s dual-layer blockchain with validator
                 intelligence, AI execution receipts, bridge activity, and real-time network
                 analytics.
@@ -190,33 +184,35 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href="/blocks"
-                  className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90 transition"
+                  className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-medium text-[#f8fafc] hover:bg-slate-800 dark:bg-white dark:text-black dark:hover:bg-white/90 transition"
                 >
                   View Latest Blocks
                 </Link>
                 <Link
                   href="/txs"
-                  className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium text-white hover:bg-white/10 transition"
+                  className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-5 py-3 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10 transition"
                 >
                   View Latest Transactions
                 </Link>
                 <button
-                  onClick={addOrSwitchMakalu}
-                  disabled={isAddingNetwork || Number(chainId) === MAKALU_CHAIN_ID}
-                  className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-3 text-sm font-medium text-emerald-300 hover:bg-emerald-400/20 transition disabled:opacity-60"
+                  onClick={addOrSwitchNetwork}
+                  disabled={!NETWORK.walletReady || isAddingNetwork || Number(chainId) === NETWORK.evmChainId}
+                  className="rounded-2xl border border-emerald-300 bg-emerald-50 px-5 py-3 text-sm font-medium text-emerald-800 hover:bg-emerald-100 transition disabled:opacity-100 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300 dark:hover:bg-emerald-400/20"
                 >
                   {isAddingNetwork
                     ? 'Adding Network...'
-                    : Number(chainId) === MAKALU_CHAIN_ID
-                      ? '✓ Makalu Connected'
-                      : isConnected
-                        ? 'Switch to Makalu'
-                        : 'Add Makalu Network'}
+                    : !NETWORK.walletReady
+                      ? 'Mainnet RPC required'
+                      : Number(chainId) === NETWORK.evmChainId
+                        ? `✓ ${NETWORK.shortName} Connected`
+                        : isConnected
+                          ? `Switch to ${NETWORK.shortName}`
+                          : `Add ${NETWORK.shortName} Network`}
                 </button>
               </div>
 
               <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl shadow-black/30">
-                <div className="mb-3 text-sm text-white/55">Global Search</div>
+                <div className="mb-3 text-sm font-medium text-[var(--color-text-secondary)]">Global Search</div>
                 <SearchBar />
               </div>
             </div>
@@ -243,12 +239,12 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
             {networkMetrics.map((item) => (
               <div
                 key={item.label}
-                className="rounded-3xl border border-violet-400/15 bg-violet-400/5 p-5"
+                className="rounded-3xl border border-violet-200 bg-violet-50 p-5 dark:border-violet-400/15 dark:bg-violet-400/5"
               >
-                <div className="text-sm text-violet-200/65">{item.label}</div>
-                <div className="mt-2 text-2xl font-semibold text-violet-100">{item.value}</div>
+                <div className="text-sm font-medium text-violet-800 dark:text-violet-200/65">{item.label}</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950 dark:text-violet-100">{item.value}</div>
                 {item.subtitle && (
-                  <div className="mt-1 text-xs text-violet-200/45">{item.subtitle}</div>
+                  <div className="mt-1 text-xs text-violet-700 dark:text-violet-200/45">{item.subtitle}</div>
                 )}
               </div>
             ))}
@@ -580,7 +576,7 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
               <div>
                 <div className="text-sm text-white/55">Developer Experience</div>
                 <h2 className="mt-1 text-3xl font-semibold">
-                  Build, verify, and explore Lithic contracts on Makalu.
+                  Build, verify, and explore Lithic contracts on {NETWORK.shortName}.
                 </h2>
                 <p className="mt-3 max-w-3xl text-base leading-7 text-white/65">
                   Connect wallet, inspect onchain activity, verify LEP100 contracts, monitor AI
@@ -593,16 +589,23 @@ function HomeContent({ initialStats, initialValidators }: HomeProps) {
                   href="https://lithiclang.ai/verifier"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90 transition"
+                  className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-black dark:hover:bg-white/90 transition"
                 >
                   Open Contract Verifier
                 </a>
-                <Link
+                {NETWORK.faucetEnabled ? <Link
                   href="/faucet"
                   className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium text-white hover:bg-white/10 transition"
                 >
                   Get Testnet LITHO
-                </Link>
+                </Link> : <a
+                  href="https://validator.litho.ai"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium text-white hover:bg-white/10 transition"
+                >
+                  View Validators
+                </a>}
               </div>
             </div>
           </section>

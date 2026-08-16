@@ -1,0 +1,111 @@
+# Application Configuration for LITHO Node
+# Managed by Ansible - {{ node_role }}
+
+minimum-gas-prices = "0.0001ulitho"
+pruning = "{{ litho_pruning }}"
+pruning-keep-recent = "{{ litho_pruning_keep_recent }}"
+pruning-interval = "{{ litho_pruning_interval }}"
+halt-height = 0
+halt-time = 0
+min-retain-blocks = 0
+inter-block-cache = true
+index-events = []
+iavl-cache-size = {{ litho_iavl_cache_size | default(781250) }}
+iavl-disable-fastnode = false
+iavl-lazy-loading = false
+app-db-backend = ""
+
+[telemetry]
+service-name = ""
+enabled = true
+enable-hostname = false
+enable-hostname-label = false
+enable-service-label = false
+prometheus-retention-time = 0
+global-labels = []
+
+[api]
+enable = true
+swagger = false
+address = "{{ api_address }}"
+max-open-connections = {{ litho_api_max_connections | default(1000) }}
+rpc-read-timeout = 10
+rpc-write-timeout = 0
+rpc-max-body-bytes = 1000000
+enabled-unsafe-cors = false
+
+[grpc]
+enable = true
+address = "{{ grpc_address }}"
+max-recv-msg-size = "10485760"
+max-send-msg-size = "2147483647"
+
+[grpc-web]
+enable = false
+address = "0.0.0.0:9091"
+enable-unsafe-cors = false
+
+[state-sync]
+{% if litho_pruning == "everything" %}
+snapshot-interval = 0
+{% else %}
+snapshot-interval = 1000
+{% endif %}
+snapshot-keep-recent = 2
+
+[store]
+streamers = []
+
+[streamers]
+[streamers.file]
+keys = ["*"]
+write_dir = ""
+prefix = ""
+output-metadata = true
+stop-node-on-error = true
+fsync = false
+
+[evm]
+tracer = ""
+max-tx-gas-wanted = 0
+
+[json-rpc]
+enable = true
+address = "{{ evm_rpc_address }}"
+ws-address = "{{ evm_ws_address }}"
+api = "eth,net,web3"
+gas-cap = {{ litho_evm_gas_cap | default(25000000) }}
+evm-timeout = "{{ litho_evm_timeout | default('5s') }}"
+txfee-cap = 1
+filter-cap = 200
+feehistory-cap = 100
+logs-cap = 10000
+block-range-cap = 10000
+http-timeout = "30s"
+http-idle-timeout = "120s"
+allow-unprotected-txs = false
+# Bound simultaneous EVM JSON-RPC connections (0 = unlimited). Left unbounded, a
+# connection storm or flood pins the node into OOM/panic; 200 is a safe backstop
+# on the sentries (real client rate-limiting is enforced at the nginx edge too).
+max-open-connections = {{ litho_jsonrpc_max_open_connections | default(200) }}
+enable-indexer = false
+metrics-address = "0.0.0.0:6065"
+
+[tls]
+certificate-path = ""
+key-path = ""
+
+###############################################################################
+###                             MemIAVL Configuration                       ###
+###############################################################################
+
+# Lithosphere nodes run the Cronos memiavl store. This block MUST be present and
+# enabled on every node — a node with memiavl disabled cannot load snapshots from
+# memiavl-enabled peers. Defaults match the live fleet; override per-host via vars.
+[memiavl]
+enable = {{ litho_memiavl_enable | default(true) | lower }}
+zero-copy = {{ litho_memiavl_zero_copy | default(false) | lower }}
+async-commit-buffer = {{ litho_memiavl_async_commit_buffer | default(0) }}
+snapshot-keep-recent = {{ litho_memiavl_snapshot_keep_recent | default(1) }}
+snapshot-interval = {{ litho_memiavl_snapshot_interval | default(1000) }}
+cache-size = {{ litho_memiavl_cache_size | default(1000) }}

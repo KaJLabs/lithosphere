@@ -1,0 +1,71 @@
+@use '../../common/mixins' as *;
+
+.tokenChart {
+  display: flex;
+  flex-direction: column;
+
+  justify-content: space-between;
+
+  height: 180px;
+
+  min-width: 286px;
+  flex: 1 1 0px;
+
+  &-changePercentage {
+    display: flex;
+    justify-content: end;
+    align-items: center;
+    color: #25a50e;
+
+    font-size: 12px;
+
+    &.red {
+      color: #FF7272;
+    }
+  }
+
+  &-title {
+    padding: 20px;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    color: var(--text-secondary);
+    font-size: 14px;
+
+    &-name {
+      display: flex;
+      align-items: center;
+
+      gap: 6px;
+    }
+
+    &-price {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+
+      gap: 7px;
+    }
+  }
+
+  &-chart {
+    min-height: 91px;
+  }
+
+  @include primaryCard;
+}
+
+.triangle {
+  width: 0;
+  height: 0;
+  border: 4px solid transparent;
+  border-top: 0;
+  border-bottom: 6px solid #25A50E;
+
+  &.unProfitable {
+    transform: rotate(180deg);
+    border-bottom-color: #FF7272;
+  }
+}

@@ -1,4 +1,8 @@
-import { EXPLORER_TITLE } from '@/lib/constants';
+import Link from 'next/link';
+
+import { NETWORK } from '@/lib/network';
+
+import BrandLogo from './BrandLogo';
 
 export default function Footer() {
   return (
@@ -6,13 +10,9 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 py-8 text-sm text-[var(--color-text-muted)]">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <img
-              src="/litho-logo.png"
-              alt="Lithosphere"
-              className="h-6 w-auto"
-            />
+            <Link href="/" aria-label={`${NETWORK.explorerTitle} home`}><BrandLogo compact /></Link>
             <span className="text-white/40 hidden sm:inline">&mdash;</span>
-            <span className="font-medium">{EXPLORER_TITLE} Makalu</span>
+            <span className="font-medium">{NETWORK.explorerTitle} {NETWORK.shortName}</span>
           </div>
           <div className="flex items-center flex-wrap justify-center gap-x-6 gap-y-4">
             <a href="https://litho.ai" target="_blank" rel="noopener noreferrer" className="hover:text-litho-400 transition-colors p-1">

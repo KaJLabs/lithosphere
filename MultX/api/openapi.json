@@ -1,0 +1,238 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "MultX Bridge API",
+    "description": "Cross-chain bridge API for the Lithosphere MultX bridge. Handles transaction status, signatures, history, faucet claims, and health.",
+    "version": "1.0.0",
+    "contact": { "url": "https://litho.ai" }
+  },
+  "servers": [
+    { "url": "https://api-3.litho.ai", "description": "Kamet testnet (production)" },
+    { "url": "http://localhost:4000",       "description": "Local development" }
+  ],
+  "tags": [
+    { "name": "bridge",  "description": "Bridge transaction status and history" },
+    { "name": "faucet",  "description": "Testnet token faucet" },
+    { "name": "tokens",  "description": "ERC20 token metadata" },
+    { "name": "chains",  "description": "Supported chain list" },
+    { "name": "health",  "description": "Service health" }
+  ],
+  "paths": {
+    "/bridge/status/{txHash}": {
+      "get": {
+        "tags": ["bridge"],
+        "summary": "Get bridge transaction status",
+        "parameters": [
+          { "name": "txHash", "in": "path", "required": true, "schema": { "type": "string" }, "example": "0xabc..." }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction status",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BridgeStatus" } } }
+          },
+          "404": { "description": "Transaction not found" }
+        }
+      }
+    },
+    "/bridge/signatures/{txHash}": {
+      "get": {
+        "tags": ["bridge"],
+        "summary": "Get collected validator signatures for a bridge transaction",
+        "parameters": [
+          { "name": "txHash", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signatures array",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Signatures" } } }
+          }
+        }
+      }
+    },
+    "/bridge/transactions/{address}": {
+      "get": {
+        "tags": ["bridge"],
+        "summary": "List bridge transactions for an address",
+        "parameters": [
+          { "name": "address", "in": "path",  "required": true, "schema": { "type": "string" }, "example": "0x1234..." },
+          { "name": "limit",   "in": "query", "required": false, "schema": { "type": "integer", "default": 25, "maximum": 100 } },
+          { "name": "cursor",  "in": "query", "required": false, "description": "ISO timestamp — return results older than this (for pagination)", "schema": { "type": "string", "format": "date-time" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated transaction list",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TransactionPage" } } }
+          }
+        }
+      }
+    },
+    "/faucet/assets": {
+      "get": {
+        "tags": ["faucet"],
+        "summary": "List available faucet assets and claim amounts",
+        "responses": {
+          "200": {
+            "description": "Asset catalog",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/FaucetAsset" } } } }
+          }
+        }
+      }
+    },
+    "/faucet/claim": {
+      "post": {
+        "tags": ["faucet"],
+        "summary": "Claim tokens from the faucet",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/FaucetClaimRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Claim successful — returns tx hash" },
+          "400": { "description": "Invalid address or token" },
+          "429": { "description": "Cooldown in effect — too soon since last claim" }
+        }
+      }
+    },
+    "/tokens/{tokenAddress}": {
+      "get": {
+        "tags": ["tokens"],
+        "summary": "Get ERC20 token metadata",
+        "parameters": [
+          { "name": "tokenAddress", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token metadata",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TokenMeta" } } }
+          }
+        }
+      }
+    },
+    "/chains": {
+      "get": {
+        "tags": ["chains"],
+        "summary": "List supported bridge chains",
+        "responses": {
+          "200": {
+            "description": "Chain list",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Chain" } } } }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["health"],
+        "summary": "Service health check",
+        "responses": {
+          "200": { "description": "Healthy" },
+          "503": { "description": "Unhealthy (DB unavailable)" }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": ["health"],
+        "summary": "Prometheus metrics",
+        "responses": {
+          "200": { "description": "Prometheus text format metrics", "content": { "text/plain": {} } }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BridgeStatus": {
+        "type": "object",
+        "properties": {
+          "txHash":              { "type": "string" },
+          "fromAddress":        { "type": "string" },
+          "tokenAddress":       { "type": "string" },
+          "amount":             { "type": "string" },
+          "targetChain":        { "type": "integer" },
+          "sourceNonce":        { "type": "string" },
+          "status":             { "type": "string", "enum": ["pending","signing","completed","failed"] },
+          "signaturesCollected":{ "type": "integer" },
+          "signaturesRequired": { "type": "integer" },
+          "blockNumber":        { "type": "integer" },
+          "timestamp":          { "type": "string", "format": "date-time" },
+          "releaseTxHash":      { "type": "string", "nullable": true }
+        }
+      },
+      "Signatures": {
+        "type": "object",
+        "properties": {
+          "txHash":     { "type": "string" },
+          "signatures": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "TransactionPage": {
+        "type": "object",
+        "properties": {
+          "transactions": { "type": "array", "items": { "$ref": "#/components/schemas/Transaction" } },
+          "nextCursor":   { "type": "string", "nullable": true, "format": "date-time" },
+          "count":        { "type": "integer" }
+        }
+      },
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "txHash":      { "type": "string" },
+          "timestamp":   { "type": "string", "format": "date-time" },
+          "fromToken":   { "type": "string" },
+          "toToken":     { "type": "string" },
+          "amount":      { "type": "string" },
+          "status":      { "type": "string" },
+          "explorerUrl": { "type": "string" }
+        }
+      },
+      "FaucetAsset": {
+        "type": "object",
+        "properties": {
+          "id":              { "type": "string" },
+          "type":            { "type": "string", "enum": ["native","lep100","nft"] },
+          "standard":        { "type": "string" },
+          "name":            { "type": "string" },
+          "symbol":          { "type": "string" },
+          "description":     { "type": "string" },
+          "contractAddress": { "type": "string" },
+          "claimMode":       { "type": "string", "enum": ["transfer","mint"] },
+          "cooldownHours":   { "type": "integer" },
+          "amountOptions":   { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "FaucetClaimRequest": {
+        "type": "object",
+        "required": ["address"],
+        "properties": {
+          "address":     { "type": "string", "description": "EVM or Bech32 address to receive tokens" },
+          "amount":      { "type": "string" },
+          "addressType": { "type": "string", "enum": ["EVM","Bech32"] }
+        }
+      },
+      "TokenMeta": {
+        "type": "object",
+        "properties": {
+          "address":     { "type": "string" },
+          "name":        { "type": "string" },
+          "symbol":      { "type": "string" },
+          "decimals":    { "type": "integer" },
+          "totalSupply": { "type": "string" }
+        }
+      },
+      "Chain": {
+        "type": "object",
+        "properties": {
+          "chainId": { "type": "integer" },
+          "name":    { "type": "string" },
+          "symbol":  { "type": "string" },
+          "bridge":  { "type": "string" }
+        }
+      }
+    }
+  }
+}

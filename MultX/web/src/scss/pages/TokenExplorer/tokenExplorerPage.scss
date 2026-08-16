@@ -1,0 +1,135 @@
+@use '../../common/mixins' as *;
+
+.tokenExplorer {
+  padding: 21px 0;
+
+  &-table {
+    margin-top: 20px;
+    padding: 20px;
+
+    overflow: auto;
+
+    &-header {
+      display: flex;
+      justify-content: space-between;
+
+      color: var(--text-secondary);
+
+      &-title {
+        font-weight: 700;
+      }
+
+      &-sort {
+        display: flex;
+        align-items: center;
+        font-size: 12px;
+
+        gap: 5px;
+      }
+    }
+
+    @include card;
+  }
+}
+
+.tokenizedBaskets {
+  padding: 17px 24px;
+  display: flex;
+  flex-direction: column;
+
+  &-title {
+    color: var(--text-secondary);
+    font-size: 16px;
+  }
+
+  &-charts {
+    display: flex;
+    flex-wrap: wrap;
+    // justify-content: space-between;
+    gap: 20px;
+
+    margin-top: 22px;
+    padding-top: 20px;
+
+    border-top: 1px solid var(--border-color);
+  }
+
+  @include card;
+}
+
+.switchExplorer {
+  margin-top: 27px;
+  padding: 5px;
+
+  width: 271px;
+
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+
+  display: flex;
+
+  &-token {
+    height: 43px;
+    flex: 1 1 0px;
+
+    color: var(--text-primary);
+    background: none;
+
+    font-weight: 700;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.2s ease;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &-pool {
+    height: 43px;
+    flex: 1 1 0px;
+
+    color: var(--text-primary);
+    background: none;
+
+    font-weight: 700;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.2s ease;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.watchlist-page {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 30px;
+
+  .switchExplorer {
+    margin-top: 16px;
+
+    @media (max-width: 642px) {
+      width: 100%;
+    }
+  }
+}
+
+.primaryColor {
+  color: var(--text-primary);
+}
+
+.sortArrow {
+  width: 14px;
+  height: 8px;
+  transform: rotate(0deg);
+
+  transition: 0.2s ease;
+
+  path {
+      stroke: none;
+      fill: var(--text-active);
+  }
+}

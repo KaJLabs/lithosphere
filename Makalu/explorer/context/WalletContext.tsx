@@ -1,21 +1,25 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { ConnectorController } from '@web3modal/core';
 import { createWeb3Modal, defaultConfig, useWeb3Modal, useWeb3ModalAccount, useDisconnect } from '@web3modal/ethers/react';
+
+import { NETWORK } from '@/lib/network';
+import { prioritizeThanosConnectors } from '@/lib/thanos';
 
 const PROJECT_ID = '4d5085c5fd29c034f63f9256013dcd09';
 
 const chains = [
   {
-    chainId: 700777,
-    name: 'Lithosphere Makalu',
+    chainId: NETWORK.evmChainId,
+    name: NETWORK.name,
     currency: 'LITHO',
-    explorerUrl: 'https://makalu.litho.ai',
-    rpcUrl: 'https://rpc.litho.ai',
+    explorerUrl: NETWORK.siteUrl,
+    rpcUrl: NETWORK.rpcUrl || 'http://127.0.0.1:8545',
   },
   // Kamet is a first-class chain for the bridge flow (lock/claim happen there
   // for Kamet-origin routes). Without it in this list, Web3Modal flags a
   // Kamet-connected wallet as "unsupported network" and nags the user to
   // switch back to Makalu on every connect/refresh.
-  {
+  ...(!NETWORK.isMainnet && NETWORK.bridgeEnabled ? [{
     chainId: 900523,
     name: 'Lithosphere Kamet',
     currency: 'LITHO',
@@ -48,14 +52,14 @@ const chains = [
     currency: 'tBNB',
     explorerUrl: 'https://testnet.bscscan.com',
     rpcUrl: 'https://bsc-testnet-rpc.publicnode.com',
-  },
+  }] : []),
 ];
 
 const metadata = {
-  name: 'Lithosphere Makalu Testnet Explorer',
-  description: 'Lithosphere Makalu Testnet Block Explorer',
-  url: 'https://makalu.litho.ai',
-  icons: ['https://makalu.litho.ai/makalu-testnet-favicon.png'],
+  name: `${NETWORK.label} Explorer`,
+  description: `${NETWORK.label} Block Explorer`,
+  url: NETWORK.siteUrl,
+  icons: [`${NETWORK.siteUrl}${NETWORK.walletIconPath}`],
 };
 
 const ethersConfig = defaultConfig({
@@ -63,8 +67,8 @@ const ethersConfig = defaultConfig({
   enableEIP6963: true,
   enableInjected: true,
   enableCoinbase: true,
-  rpcUrl: 'https://rpc.litho.ai',
-  defaultChainId: 700777,
+  rpcUrl: NETWORK.rpcUrl || 'http://127.0.0.1:8545',
+  defaultChainId: NETWORK.evmChainId,
   auth: { email: false, socials: [] },
 });
 
@@ -92,11 +96,21 @@ if (typeof window !== 'undefined') {
         '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
         'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e18e4a0eb6f0f94bd4', // Coinbase Wallet
       ],
-      themeMode: 'dark',
+      themeMode: NETWORK.defaultTheme,
       themeVariables: {
-        '--w3m-accent': '#34d399',
+        '--w3m-accent': NETWORK.isMainnet ? '#4a90d9' : '#34d399',
       },
     });
+
+    // EIP-6963 wallets are shown in announcement order by Web3Modal. Keep the
+    // Lithosphere-native Thanos wallet first without hiding any other wallet.
+    const preferThanos = (connectors: typeof ConnectorController.state.connectors) => {
+      const prioritized = prioritizeThanosConnectors(connectors);
+      if (prioritized.every((connector, index) => connector === connectors[index])) return;
+      queueMicrotask(() => ConnectorController.setConnectors(prioritized));
+    };
+    preferThanos(ConnectorController.state.connectors);
+    ConnectorController.subscribeKey('connectors', preferThanos);
   } catch (error) {
     console.log('Web3Modal init:', error instanceof Error ? error.message : 'already initialized');
   }

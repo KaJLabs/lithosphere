@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
 import { getFaucetAssetBalances, getFaucetBalance, getFaucetAddress } from '../services/wallet.js';
+import { getAssetAvailability } from '../services/availability.js';
 
 export async function healthRoutes(app: FastifyInstance) {
   app.get('/health', async (request, reply) => {
@@ -10,16 +11,9 @@ export async function healthRoutes(app: FastifyInstance) {
         getFaucetAssetBalances(),
       ]);
       const address = getFaucetAddress();
-
-      return reply.send({
-        status: 'ok',
-        service: 'lithosphere-faucet',
-        faucetAddress: address,
-        balance: `${balance} ${config.nativeAsset.symbol}`,
-        allowedAmounts: config.allowedAmounts,
-        defaultAmount: config.dripAmount,
-        defaultAssetId: config.defaultAssetId,
-        assets: config.assets.map((asset) => ({
+      const assets = config.assets.map((asset) => {
+        const assetBalance = balances[asset.id] ?? '0';
+        return {
           id: asset.id,
           name: asset.name,
           symbol: asset.symbol,
@@ -29,8 +23,25 @@ export async function healthRoutes(app: FastifyInstance) {
           allowedAmounts: asset.allowedAmounts,
           defaultAmount: asset.defaultAmount,
           contractAddress: asset.kind === 'erc20' ? asset.contractAddress : null,
-          balance: balances[asset.id] ?? '0',
-        })),
+          balance: assetBalance,
+          ...getAssetAvailability(asset, assetBalance),
+        };
+      });
+      const unavailableAssetIds = assets
+        .filter((asset) => !asset.available)
+        .map((asset) => asset.id);
+
+      return reply.send({
+        status: unavailableAssetIds.length > 0 ? 'degraded' : 'ok',
+        ready: unavailableAssetIds.length === 0,
+        service: 'lithosphere-faucet',
+        faucetAddress: address,
+        balance: `${balance} ${config.nativeAsset.symbol}`,
+        allowedAmounts: config.allowedAmounts,
+        defaultAmount: config.dripAmount,
+        defaultAssetId: config.defaultAssetId,
+        assets,
+        unavailableAssetIds,
         cooldownHours: config.cooldownHours,
         timestamp: new Date().toISOString(),
       });

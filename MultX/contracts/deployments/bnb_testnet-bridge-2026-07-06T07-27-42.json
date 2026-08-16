@@ -1,0 +1,109 @@
+{
+  "network": "bnb_testnet",
+  "chainId": 97,
+  "timestamp": "2026-07-06T07:27:42.206Z",
+  "deployer": "0x10ed4F004Fe708014ae27Bcc20c9Ed9df3f4eadF",
+  "contracts": {
+    "MultXBridgeDest": "0x93d74580a7b63a5B1FE5Aae05b7470bf9317aF9A",
+    "wrappedTokens": {
+      "wDOGE": {
+        "address": "0xeC2B25393287025dbcdDb30659E689678c478337",
+        "origin": "0x72791d72B6097D487cEC58605A62396c50C08b69",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wwLITHO": {
+        "address": "0x0292C22AFC5DF714d51273BF16F9Fc3f17d97e7E",
+        "origin": "0xC0FC628e3aB128fe387e7ed5e729bD809C017888",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wLitBTC": {
+        "address": "0xC0725568E86DCF6abE5729903bDF6FF999Ad52BD",
+        "origin": "0x3A8D5FdC6c8dA9f14C535424b6F7206eC1996016",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wLAX": {
+        "address": "0x25F70D427EB96b784ff2d0B458B6Aa5f6D251346",
+        "origin": "0xe8f504f9cE5391Fb5968b317f0b24b8A0306ACeb",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wJOT": {
+        "address": "0xdB7b1F4b735e9f8096a44657599c9F6882ba0B0D",
+        "origin": "0x6AE14CEb3962664b13c5dEF29EB172De76bd0ac9",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wCOLLE": {
+        "address": "0xDB04AD818614a329110bdDA30c7c5e8C1Be61e45",
+        "origin": "0x0573f66cb4bC34618e7AB8a941F7883DD2515dCA",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wIMAGE": {
+        "address": "0xb47B81370934Db2461759BD29796100fdD35e3E9",
+        "origin": "0x8Ba6E3A0759144245f2939eB54164e32bb78B8E0",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wAGII": {
+        "address": "0x71ce67fCf5D130473F46DBaD05f3260A8390dE73",
+        "origin": "0x17D506aF1d0Dc2f4f64f15748a5aC46FAd3f06D7",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wBLDR": {
+        "address": "0x72791d72B6097D487cEC58605A62396c50C08b69",
+        "origin": "0xF05f1F79273874E554F02ce06585E16132a3B62B",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wFGPT": {
+        "address": "0xFEC7EF3AB4D80eAe1B65744b06914afeB579e2bc",
+        "origin": "0x2F366c6350A6b211f6D6F847c3D56738C2E847ca",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wMUSA": {
+        "address": "0x39C21d6Cd2B56AdD1dBdAf71597CF1AE97E2EE59",
+        "origin": "0x17A357262097B4e70acFfe8B71bC61e8bBcc3B42",
+        "originChainId": 900523,
+        "decimals": 18
+      },
+      "wQTT": {
+        "address": "0x8B562D2946c55dC0c1D6fd21B72661814bD9E2cB",
+        "origin": "0x16EE7127C9E03e29ca5727e23dd7CB03D283cDBe",
+        "originChainId": 900523,
+        "decimals": 18
+      }
+    }
+  },
+  "bridge": {
+    "validators": [
+      "0xD9B30A7f4d58f1b98AaA69B82F0c8bF0816638FB",
+      "0xEefB2E0c91Bc57975D117BADA6c70f3Cd6C4bC91",
+      "0x4dFEd8e8359EaA711CdFFFcb5d994a66e46185Ac",
+      "0x27026F8C232d723100700186c10B2aEbd82ea60C",
+      "0xc8C5c89ddb70CAEC942f2C5A77F4F4001ef3B415",
+      "0x4CDd6D160Bd79fe7d4Bab06a9E0607870e8108D9",
+      "0xB161611185Ce2c95849134188AC9F5DbC26bfD2D"
+    ],
+    "signaturesRequired": 5,
+    "supportedTokens": [
+      "0xeC2B25393287025dbcdDb30659E689678c478337",
+      "0x0292C22AFC5DF714d51273BF16F9Fc3f17d97e7E",
+      "0xC0725568E86DCF6abE5729903bDF6FF999Ad52BD",
+      "0x25F70D427EB96b784ff2d0B458B6Aa5f6D251346",
+      "0xdB7b1F4b735e9f8096a44657599c9F6882ba0B0D",
+      "0xDB04AD818614a329110bdDA30c7c5e8C1Be61e45",
+      "0xb47B81370934Db2461759BD29796100fdD35e3E9",
+      "0x71ce67fCf5D130473F46DBaD05f3260A8390dE73",
+      "0x72791d72B6097D487cEC58605A62396c50C08b69",
+      "0xFEC7EF3AB4D80eAe1B65744b06914afeB579e2bc",
+      "0x39C21d6Cd2B56AdD1dBdAf71597CF1AE97E2EE59",
+      "0x8B562D2946c55dC0c1D6fd21B72661814bD9E2cB"
+    ]
+  }
+}

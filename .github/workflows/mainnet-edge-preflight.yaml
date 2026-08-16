@@ -1,0 +1,163 @@
+name: Lithoscan Mainnet Edge Preflight
+run-name: Edge preflight ${{ inputs.release_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Approved immutable Lithoscan release SHA
+        required: true
+        type: string
+      canary_run_id:
+        description: Successful production canary run ID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: lithoscan-mainnet-edge
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    environment: lithoscan-mainnet
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      CANARY_RUN_ID: ${{ inputs.canary_run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate approved release and canary evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "A full release SHA is required" >&2; exit 1; }
+          [[ "$CANARY_RUN_ID" =~ ^[0-9]+$ ]] || { echo "A canary run ID is required" >&2; exit 1; }
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY; do
+            [[ -n "${!name:-}" ]] || { echo "Missing protected environment value: $name" >&2; exit 1; }
+          done
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANARY_RUN_ID")"
+          [[ "$(jq -r '.path' <<<"$run_json")" == ".github/workflows/mainnet-deploy.yaml" ]] || { echo "Evidence is not the production canary workflow" >&2; exit 1; }
+          [[ "$(jq -r '.event' <<<"$run_json")" == "workflow_dispatch" ]] || { echo "Canary was not explicitly dispatched" >&2; exit 1; }
+          [[ "$(jq -r '.conclusion' <<<"$run_json")" == "success" ]] || { echo "Canary did not succeed" >&2; exit 1; }
+          [[ "$(jq -r '.head_sha' <<<"$run_json")" == "$RELEASE_SHA" ]] || { echo "Canary used another release" >&2; exit 1; }
+
+      - name: Configure protected SSH access
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Inspect public and direct-origin routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Public route:"
+          curl --silent --show-error --dump-header - --output /dev/null --max-time 20 https://lithoscan.ai/
+          echo "Direct production origin:"
+          curl --insecure --silent --show-error --dump-header - --output /dev/null --max-time 20 \
+            --resolve "lithoscan.ai:443:$DEPLOY_HOST" https://lithoscan.ai/
+
+      - name: Inspect production host edge readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "RELEASE_SHA='$RELEASE_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          deploy_dir=/opt/lithoscan-mainnet
+          [[ -r "$deploy_dir/.env" ]] || { echo "Production environment file is unreadable" >&2; exit 1; }
+
+          release_tag="sha-$RELEASE_SHA"
+          grep -qx "GIT_SHA=$RELEASE_SHA" "$deploy_dir/.env"
+          grep -qx "IMAGE_TAG=$release_tag" "$deploy_dir/.env"
+          grep -qx "EXPLORER_IMAGE_TAG=mainnet-$release_tag" "$deploy_dir/.env"
+          for feature in FAUCET_ENABLED BRIDGE_ENABLED MULTX_ENABLED SWAP_ENABLED; do
+            grep -qx "$feature=false" "$deploy_dir/.env" || { echo "$feature is not locked false" >&2; exit 1; }
+          done
+
+          echo "Container release and health:"
+          docker ps --filter name=lithoscan-mainnet --format '{{.Names}}|{{.Image}}|{{.Status}}'
+          docker inspect -f '{{.State.Health.Status}}' lithoscan-mainnet-api-1 lithoscan-mainnet-indexer-1 lithoscan-mainnet-explorer-1 | grep -vx healthy && exit 1 || true
+
+          echo "Private production config:"
+          curl --fail --silent --show-error --max-time 20 http://127.0.0.1:3500/api/config | jq '{network,features}'
+          echo "Private production synchronization:"
+          curl --fail --silent --show-error --max-time 20 http://127.0.0.1:3500/api/stats/summary | jq '{tipHeight,chainTipHeight,syncLagBlocks,isSyncing,inconsistentBlocks}'
+
+          echo "Nginx and certificate state:"
+          command -v nginx || true
+          for path in \
+            /etc/nginx/sites-enabled/lithoscan.ai.conf \
+            /etc/nginx/sites-available/lithoscan.ai.conf \
+            /etc/letsencrypt/live/lithoscan.ai/fullchain.pem \
+            /etc/letsencrypt/live/lithoscan.ai/privkey.pem; do
+            if [[ -e "$path" ]]; then stat --format='%A %U:%G %n' "$path"; else echo "MISSING $path"; fi
+          done
+          grep -R -n -E 'server_name .*lithoscan\.ai|return 30[1278].*makalu|proxy_pass http://127\.0\.0\.1:(3500|4400)' \
+            /etc/nginx/sites-enabled /etc/nginx/sites-available /etc/nginx/conf.d 2>/dev/null || true
+
+          echo "Restricted sudo capabilities:"
+          sudo -n -l || true
+          echo "Prepared edge wrapper candidates:"
+          find /usr/local/sbin /usr/local/bin /opt/lithoscan-mainnet -maxdepth 3 -type f -executable \
+            \( -iname '*lithoscan*' -o -iname '*nginx*' -o -iname '*edge*' \) \
+            -printf '%M %u:%g %p\n' 2>/dev/null | sort || true
+          echo "Staged edge control files:"
+          while IFS= read -r staged_file; do
+            stat --format='%A %U:%G %s %n' "$staged_file"
+            sha256sum "$staged_file"
+          done < <(
+            find "$HOME" /opt/lithoscan-mainnet -maxdepth 5 -type f \
+              \( -iname '*lithoscan*nginx*' -o -iname '*sudoers*' -o -iname '*cutover*' -o -iname '*install*certificate*' \) \
+              ! -path '/opt/lithoscan-mainnet/infra/mainnet/nginx/*' -print 2>/dev/null | sort -u
+          )
+          find /etc/sudoers.d -maxdepth 1 -type f -iname '*lithoscan*' \
+            -printf '%M %u:%g %p\n' 2>/dev/null | sort || true
+          echo "Certificate installation permissions:"
+          for path in /etc/letsencrypt /etc/letsencrypt/live; do
+            if [[ -e "$path" ]]; then
+              stat --format='%A %U:%G %n' "$path"
+              [[ -w "$path" ]] && echo "writable=yes path=$path" || echo "writable=no path=$path"
+            else
+              echo "MISSING $path"
+            fi
+          done
+          if sudo -n /usr/bin/install --version >/dev/null 2>&1; then
+            echo "ROOT_INSTALL_COMMAND_ALLOWED=true"
+          else
+            echo "ROOT_INSTALL_COMMAND_ALLOWED=false"
+          fi
+          if [[ -r /usr/local/sbin/lithoscan-nginx-cutover ]]; then
+            echo "Prepared wrapper interface:"
+            sed -n '1,260p' /usr/local/sbin/lithoscan-nginx-cutover
+            if sudo -n /usr/local/sbin/lithoscan-nginx-cutover status; then
+              echo "LITHOSCAN_WRAPPER_STATUS_ALLOWED=true"
+            else
+              echo "LITHOSCAN_WRAPPER_STATUS_ALLOWED=false"
+            fi
+          fi
+          if sudo -n nginx -t; then echo "NGINX_TEST_ALLOWED=true"; else echo "NGINX_TEST_ALLOWED=false"; fi
+          if sudo -n systemctl reload nginx --dry-run 2>/dev/null; then echo "NGINX_RELOAD_ALLOWED=true"; else echo "NGINX_RELOAD_ALLOWED=false"; fi
+          REMOTE
+
+      - name: Publish preflight summary
+        if: success()
+        shell: bash
+        run: |
+          echo "## Lithoscan mainnet edge preflight" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Approved release: \`$RELEASE_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Canary evidence: run \`$CANARY_RUN_ID\`, passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production stack identity, health, synchronization and feature locks: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- This workflow is read-only and performed no cutover" >> "$GITHUB_STEP_SUMMARY"

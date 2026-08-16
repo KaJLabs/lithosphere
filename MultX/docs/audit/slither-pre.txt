@@ -1,0 +1,60 @@
+================================================================================
+MultX Bridge - Slither pre-audit static analysis
+================================================================================
+Tool      : Slither 0.11.5 (crytic)
+Compiler  : solc 0.8.24 (optimizer runs=200)
+Generated : 2026-08-09
+Candidate : multx-audit-candidate-v0.5.0-20260809
+Scope     : contracts/MultXBridge.sol
+            contracts/MultXBridgeDest.sol
+            contracts/WrappedLEP100.sol
+Command   : slither . --compile-force-framework hardhat
+            --filter-paths "node_modules|contracts/(LEP100Token|MockERC20|governance)"
+            --exclude-dependencies
+
+Slither analyzed 34 compiled contracts with 101 detectors and emitted 13
+results in the in-scope files. It exited nonzero because findings exist. No
+finding is hidden or represented as independently cleared; the audit firm must
+confirm or revise the engineering triage below.
+
+--------------------------------------------------------------------------------
+Engineering triage
+--------------------------------------------------------------------------------
+
+1. missing-zero-check (2)
+   - MultXBridge.setPauseGuardian(address)
+   - MultXBridgeDest.setPauseGuardian(address)
+   Intentional: address(0) is the owner-controlled operation for clearing the
+   fast pause guardian. The owner retains pause authority.
+
+2. reentrancy-benign / reentrancy-events (2)
+   - MultXBridgeDest.lockTokens calls the allowlisted wrapped token burnFrom
+     before incrementing nonce and emitting TokensLocked.
+   - The entry point is protected by OpenZeppelin nonReentrant. The remaining
+     post-call write is the monotonic event nonce. Audit confirmation required.
+
+3. timestamp (4 locations)
+   - Daily-cap reset comparisons in lockTokens and getDailyRemaining on both
+     bridge implementations use block.timestamp against a 24-hour window.
+   - Small proposer timestamp drift does not bypass the configured volume cap,
+     but boundary semantics remain an explicit audit question.
+
+4. missing-inheritance (1)
+   - Slither suggests WrappedLEP100 inherit the local IWrappedLEP100 interface.
+   - The interface is used by MultXBridgeDest for the bridgeMint/burnFrom call
+     surface; explicit inheritance is not required for selector compatibility.
+     Audit confirmation requested.
+
+5. naming-convention (4)
+   - _validators and _signaturesRequired constructor/update parameters on both
+     bridges use leading underscores. Cosmetic only.
+
+WrappedLEP100 produced no additional security detector result beyond the
+missing-inheritance suggestion above.
+
+The earlier custom assembly recovery result is closed in this candidate:
+both bridges now use OpenZeppelin ECDSA recovery, which rejects non-canonical
+high-s signatures. Both bridge test suites include a high-s rejection test.
+
+This pre-scan is not a security audit and does not authorize deployment.
+================================================================================

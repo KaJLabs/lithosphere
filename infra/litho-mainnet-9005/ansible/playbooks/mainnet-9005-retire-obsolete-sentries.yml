@@ -1,0 +1,99 @@
+---
+# Retire only the two obsolete lithosphere_700777-1 sentry slots whose ports
+# are reserved for LITHO mainnet 9005. Other Makalu/Kamet services are outside
+# this playbook and must remain untouched.
+
+- name: Back up and retire obsolete 700777-1 sentry slots
+  hosts: sentries
+  gather_facts: false
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  vars:
+    obsolete_service: lithod-makalu-sentry
+    obsolete_home: /var/lib/litho-makalu-sentry
+    cutover_backup_dir: /var/backups/litho-mainnet-9005-cutover/20260728T0400Z
+    cutover_backup_file: "{{ cutover_backup_dir }}/{{ inventory_hostname }}-lithosphere_700777-1-config.tar.gz"
+  tasks:
+    - name: Read obsolete genesis chain ID
+      ansible.builtin.command:
+        argv:
+          - jq
+          - -r
+          - .chain_id
+          - "{{ obsolete_home }}/config/genesis.json"
+      register: obsolete_chain_id
+      changed_when: false
+
+    - name: Require the exact obsolete chain and an inactive mainnet service
+      ansible.builtin.shell: |
+        set -euo pipefail
+        test "{{ obsolete_chain_id.stdout }}" = "lithosphere_700777-1"
+        test "$(systemctl is-active {{ litho_service_name }} 2>/dev/null || true)" != "active"
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Create protected cutover backup directory
+      ansible.builtin.file:
+        path: "{{ cutover_backup_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Back up obsolete sentry configuration
+      ansible.builtin.command:
+        argv:
+          - tar
+          - -C
+          - "{{ obsolete_home }}"
+          - -czf
+          - "{{ cutover_backup_file }}"
+          - config
+      args:
+        creates: "{{ cutover_backup_file }}"
+
+    - name: Verify backup archive is readable
+      ansible.builtin.command:
+        argv:
+          - tar
+          - -tzf
+          - "{{ cutover_backup_file }}"
+      changed_when: false
+
+    - name: Record backup SHA-256
+      ansible.builtin.command:
+        argv:
+          - sha256sum
+          - "{{ cutover_backup_file }}"
+      register: obsolete_backup_sha256
+      changed_when: false
+
+    - name: Stop and disable only the obsolete sentry service
+      ansible.builtin.systemd:
+        name: "{{ obsolete_service }}"
+        state: stopped
+        enabled: false
+
+    - name: Confirm obsolete service stopped and reserved ports are free
+      ansible.builtin.shell: |
+        set -euo pipefail
+        test "$(systemctl is-active {{ obsolete_service }} 2>/dev/null || true)" != "active"
+        for port in 27056 27057 27060; do
+          if ss -ltn "sport = :${port}" | tail -n +2 | grep -q .; then
+            echo "reserved port still active: ${port}" >&2
+            exit 1
+          fi
+        done
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Report recoverable cutover backup
+      ansible.builtin.debug:
+        msg:
+          - "Retired service: {{ obsolete_service }}"
+          - "Preserved home: {{ obsolete_home }}"
+          - "Backup: {{ cutover_backup_file }}"
+          - "SHA-256: {{ obsolete_backup_sha256.stdout.split()[0] }}"

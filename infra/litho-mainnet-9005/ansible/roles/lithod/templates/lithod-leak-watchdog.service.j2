@@ -1,0 +1,11 @@
+# Watchdog: restart {{ litho_service_name }} when memiavl leak passes a
+# safety threshold. See lithod-leak-watchdog.sh.j2 for thresholds and
+# the rationale (load-spike protection between scheduled 4h restarts).
+
+[Unit]
+Description={{ litho_service_name }} memiavl leak watchdog
+After=network.target {{ litho_service_name }}.service
+
+[Service]
+Type=oneshot
+ExecStart={{ lithod_leak_watchdog_script_path }}

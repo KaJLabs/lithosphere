@@ -1,0 +1,135 @@
+# Tendermint Configuration for LITHO Node
+# Managed by Ansible - {{ node_role }}
+
+proxy_app = "tcp://127.0.0.1:26658"
+moniker = "{{ inventory_hostname }}"
+db_backend = "goleveldb"
+db_dir = "data"
+log_level = "info"
+log_format = "json"
+genesis_file = "config/genesis.json"
+priv_validator_key_file = "config/priv_validator_key.json"
+priv_validator_state_file = "data/priv_validator_state.json"
+{% if tmkms_enabled | default(false) and node_role == "validator" %}
+{% if tmkms_protocol | default("unix") == "unix" %}
+# TMKMS remote signer via Unix socket
+priv_validator_laddr = "unix://{{ tmkms_socket_path | default('/opt/litho/privval.sock') }}"
+{% else %}
+# TMKMS remote signer via TCP (mTLS)
+priv_validator_laddr = "tcp://{{ tmkms_tcp_address | default('127.0.0.1') }}:{{ tmkms_tcp_port | default(26659) }}"
+{% endif %}
+{% else %}
+# Local signing (no remote signer)
+priv_validator_laddr = ""
+{% endif %}
+node_key_file = "config/node_key.json"
+abci = "socket"
+filter_peers = false
+
+[rpc]
+{% if rpc_laddr %}
+laddr = "{{ rpc_laddr }}"
+{% elif node_role == "validator" %}
+laddr = "tcp://127.0.0.1:{{ litho_rpc_port }}"
+{% else %}
+laddr = "tcp://0.0.0.0:{{ litho_rpc_port }}"
+{% endif %}
+cors_allowed_origins = []
+cors_allowed_methods = ["HEAD", "GET", "POST"]
+cors_allowed_headers = ["Origin", "Accept", "Content-Type", "X-Requested-With", "X-Server-Time"]
+grpc_laddr = ""
+grpc_max_open_connections = 900
+unsafe = false
+max_open_connections = 900
+max_subscription_clients = 100
+max_subscriptions_per_client = 5
+experimental_subscription_buffer_size = 200
+experimental_websocket_write_buffer_size = 200
+experimental_close_on_slow_client = false
+timeout_broadcast_tx_commit = "10s"
+max_body_bytes = 1000000
+max_header_bytes = 1048576
+tls_cert_file = ""
+tls_key_file = ""
+pprof_laddr = ""
+
+[p2p]
+laddr = "tcp://0.0.0.0:{{ litho_p2p_port }}"
+{% if litho_p2p_external %}
+external_address = "{{ ansible_host }}:{{ litho_p2p_port }}"
+{% else %}
+external_address = ""
+{% endif %}
+seeds = "{{ p2p_seeds | default('') }}"
+persistent_peers = "{{ p2p_persistent_peers | default('') }}"
+addr_book_file = "config/addrbook.json"
+addr_book_strict = true
+max_num_inbound_peers = {{ litho_p2p_max_num_inbound_peers | default(40) }}
+max_num_outbound_peers = {{ litho_p2p_max_num_outbound_peers | default(10) }}
+unconditional_peer_ids = "{{ litho_unconditional_peer_ids | default('') }}"
+persistent_peers_max_dial_period = "0s"
+flush_throttle_timeout = "100ms"
+max_packet_msg_payload_size = 1024
+send_rate = {{ litho_p2p_send_rate | default(5120000) }}
+recv_rate = {{ litho_p2p_recv_rate | default(5120000) }}
+pex = {{ litho_p2p_pex | default(node_role != 'validator') | lower }}
+seed_mode = false
+private_peer_ids = "{{ p2p_private_peer_ids | default('') }}"
+allow_duplicate_ip = {{ litho_allow_duplicate_ip | default(false) | lower }}
+handshake_timeout = "20s"
+dial_timeout = "3s"
+
+[mempool]
+version = "v1"
+recheck = true
+broadcast = true
+wal_dir = ""
+size = {{ litho_mempool_size | default(5000) }}
+max_txs_bytes = {{ litho_mempool_max_txs_bytes | default(1073741824) }}
+cache_size = {{ litho_mempool_cache_size | default(10000) }}
+keep-invalid-txs-in-cache = false
+max_tx_bytes = 1048576
+max_batch_bytes = 0
+
+[statesync]
+enable = {{ litho_state_sync_enabled | lower }}
+rpc_servers = ""
+trust_height = 0
+trust_hash = ""
+trust_period = "168h0m0s"
+discovery_time = "15s"
+temp_dir = ""
+chunk_request_timeout = "10s"
+chunk_fetchers = "4"
+
+[blocksync]
+version = "v0"
+
+[consensus]
+wal_file = "data/cs.wal/wal"
+timeout_propose = "{{ litho_consensus_timeout_propose | default('3s') }}"
+timeout_propose_delta = "{{ litho_consensus_timeout_propose_delta | default('500ms') }}"
+timeout_prevote = "{{ litho_consensus_timeout_prevote | default('1s') }}"
+timeout_prevote_delta = "{{ litho_consensus_timeout_prevote_delta | default('500ms') }}"
+timeout_precommit = "{{ litho_consensus_timeout_precommit | default('1s') }}"
+timeout_precommit_delta = "{{ litho_consensus_timeout_precommit_delta | default('500ms') }}"
+timeout_commit = "{{ consensus_timeout_commit | default('5s') }}"
+double_sign_check_height = {{ litho_double_sign_check_height | default(0) }}
+skip_timeout_commit = false
+create_empty_blocks = {{ consensus_create_empty_blocks | default(true) | bool | lower }}
+create_empty_blocks_interval = "{{ consensus_create_empty_blocks_interval | default('0s') }}"
+peer_gossip_sleep_duration = "{{ litho_consensus_peer_gossip_sleep | default('100ms') }}"
+peer_query_maj23_sleep_duration = "2s"
+
+[storage]
+discard_abci_responses = false
+
+[tx_index]
+indexer = "kv"
+psql-conn = ""
+
+[instrumentation]
+prometheus = true
+prometheus_listen_addr = "{{ prometheus_listen_addr if prometheus_listen_addr else ':' ~ litho_metrics_port }}"
+max_open_connections = 3
+namespace = "tendermint"

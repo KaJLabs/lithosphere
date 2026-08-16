@@ -1,0 +1,75 @@
+#!/bin/bash
+# lithod memiavl leak watchdog.
+#
+# The cronos memiavl leak rate is highly load-driven: the same lithod
+# binary leaks ~826 mmaps/hour on a low-traffic VPS but >1M/hour on the
+# public-DNS AWS sentry under explorer/REST traffic. The scheduled
+# 4-hour restart timer covers steady-state hygiene; this watchdog is
+# the load-spike safety net.
+#
+# Trigger: restart {{ litho_service_name }} when process maps or process file
+# descriptors exceed their thresholds. Both are well below the kernel hard
+# ceilings, but near the point where lithod RPC was observed to lag or stop
+# responding (kamet-sentry-02 degraded at ~520k maps and >6k fds on
+# 2026-05-09). Restarting at lower thresholds keeps public RPC from falling
+# behind during load spikes.
+#
+# Exit codes: 0 = no action needed or restart succeeded; non-zero = error.
+
+set -u
+
+SERVICE="{{ litho_service_name }}"
+MAPS_THRESHOLD={{ lithod_leak_watchdog_maps_threshold }}
+FD_THRESHOLD={{ lithod_leak_watchdog_fd_threshold }}
+LOG_TAG="lithod-leak-watchdog"
+STATE_FILE="{{ litho_home }}/{{ litho_service_name }}-leak-watchdog.last-restart"
+MIN_INTERVAL_SEC={{ lithod_leak_watchdog_min_interval_sec }}
+
+log() { logger -t "$LOG_TAG" -- "$*"; }
+
+PID="$(systemctl show -p MainPID --value "$SERVICE" 2>/dev/null)"
+if [ -z "$PID" ] || [ "$PID" = "0" ]; then
+    log "service $SERVICE has no MainPID; nothing to watch"
+    exit 0
+fi
+
+if [ ! -r "/proc/$PID/maps" ]; then
+    log "cannot read /proc/$PID/maps (PID may have just exited); skipping"
+    exit 0
+fi
+
+MAPS_COUNT="$(wc -l < "/proc/$PID/maps" 2>/dev/null || echo 0)"
+FD_COUNT="$(find "/proc/$PID/fd" -maxdepth 1 -type l 2>/dev/null | wc -l || echo 0)"
+
+REASON=""
+if [ "$MAPS_COUNT" -ge "$MAPS_THRESHOLD" ]; then
+    REASON="maps=$MAPS_COUNT >= $MAPS_THRESHOLD"
+fi
+if [ "$FD_COUNT" -ge "$FD_THRESHOLD" ]; then
+    if [ -n "$REASON" ]; then
+        REASON="$REASON; fds=$FD_COUNT >= $FD_THRESHOLD"
+    else
+        REASON="fds=$FD_COUNT >= $FD_THRESHOLD"
+    fi
+fi
+
+if [ -z "$REASON" ]; then
+    exit 0
+fi
+
+NOW="$(date +%s)"
+if [ -f "$STATE_FILE" ]; then
+    LAST="$(cat "$STATE_FILE" 2>/dev/null || echo 0)"
+    SINCE="$((NOW - LAST))"
+    if [ "$SINCE" -lt "$MIN_INTERVAL_SEC" ]; then
+        log "threshold exceeded ($REASON) but last restart was ${SINCE}s ago < ${MIN_INTERVAL_SEC}s; skipping"
+        exit 0
+    fi
+fi
+
+log "RESTARTING $SERVICE: $REASON"
+echo "$NOW" > "$STATE_FILE"
+systemctl restart "$SERVICE"
+RC=$?
+log "restart exit=$RC"
+exit "$RC"

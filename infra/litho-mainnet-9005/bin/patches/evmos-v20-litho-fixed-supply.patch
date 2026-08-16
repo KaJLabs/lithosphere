@@ -1,0 +1,398 @@
+diff --git a/app/app.go b/app/app.go
+index 80bb3f1..04b31d8 100644
+--- a/app/app.go
++++ b/app/app.go
+@@ -463,7 +463,7 @@ func NewEvmos(
+ 	// Evmos Keeper
+ 	app.InflationKeeper = inflationkeeper.NewKeeper(
+ 		keys[inflationtypes.StoreKey], appCodec, authtypes.NewModuleAddress(govtypes.ModuleName),
+-		app.AccountKeeper, app.BankKeeper, app.DistrKeeper, stakingKeeper,
++		app.AccountKeeper, app.BankKeeper.WithMintCoinsRestriction(rejectInflationMinting), app.DistrKeeper, stakingKeeper,
+ 		authtypes.FeeCollectorName,
+ 	)
+ 
+@@ -876,6 +876,8 @@ func (app *Evmos) setPostHandler() {
+ 	options := post.HandlerOptions{
+ 		FeeCollectorName: authtypes.FeeCollectorName,
+ 		BankKeeper:       app.BankKeeper,
++		SupplyCapDenom:   utils.BaseDenom,
++		SupplyCapAmount:  lithoMaximumSupply,
+ 	}
+ 
+ 	if err := options.Validate(); err != nil {
+@@ -921,6 +923,10 @@ func (app *Evmos) InitChainer(ctx sdk.Context, req *abci.RequestInitChain) (*abc
+ 		panic(err)
+ 	}
+ 
++	if err := validateLITHOGenesisSupply(app.appCodec, genesisState); err != nil {
++		return nil, err
++	}
++
+ 	if err := app.UpgradeKeeper.SetModuleVersionMap(ctx, app.mm.GetVersionMap()); err != nil {
+ 		panic(err)
+ 	}
+diff --git a/app/litho_supply.go b/app/litho_supply.go
+new file mode 100644
+index 0000000..6253113
+--- /dev/null
++++ b/app/litho_supply.go
+@@ -0,0 +1,48 @@
++// Copyright Tharsis Labs Ltd.(Evmos)
++// SPDX-License-Identifier:ENCL-1.0(https://github.com/evmos/evmos/blob/main/LICENSE)
++
++package app
++
++import (
++	"context"
++	"fmt"
++
++	"cosmossdk.io/math"
++	"github.com/cosmos/cosmos-sdk/codec"
++	sdk "github.com/cosmos/cosmos-sdk/types"
++	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
++
++	evmostypes "github.com/evmos/evmos/v20/types"
++	"github.com/evmos/evmos/v20/utils"
++)
++
++var lithoMaximumSupply = math.NewInt(1_000_000_000).Mul(evmostypes.PowerReduction)
++
++func rejectInflationMinting(_ context.Context, coins sdk.Coins) error {
++	if coins.Empty() {
++		return nil
++	}
++
++	return fmt.Errorf("LITHO inflation minting is permanently disabled: %s", coins)
++}
++
++func validateLITHOGenesisSupply(cdc codec.JSONCodec, genesisState evmostypes.GenesisState) error {
++	bankGenesis := banktypes.GetGenesisStateFromAppState(cdc, genesisState)
++	totalSupply := sdk.NewCoins()
++	for _, balance := range bankGenesis.Balances {
++		totalSupply = totalSupply.Add(balance.Coins...)
++	}
++
++	lithoSupply := totalSupply.AmountOf(utils.BaseDenom)
++	if !lithoSupply.Equal(lithoMaximumSupply) {
++		return fmt.Errorf(
++			"invalid LITHO genesis supply: expected exactly %s%s, got %s%s",
++			lithoMaximumSupply,
++			utils.BaseDenom,
++			lithoSupply,
++			utils.BaseDenom,
++		)
++	}
++
++	return nil
++}
+diff --git a/app/litho_supply_test.go b/app/litho_supply_test.go
+new file mode 100644
+index 0000000..16e2868
+--- /dev/null
++++ b/app/litho_supply_test.go
+@@ -0,0 +1,61 @@
++// Copyright Tharsis Labs Ltd.(Evmos)
++// SPDX-License-Identifier:ENCL-1.0(https://github.com/evmos/evmos/blob/main/LICENSE)
++
++package app
++
++import (
++	"testing"
++
++	sdk "github.com/cosmos/cosmos-sdk/types"
++	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
++	"github.com/stretchr/testify/require"
++
++	"github.com/evmos/evmos/v20/encoding"
++	evmostypes "github.com/evmos/evmos/v20/types"
++	"github.com/evmos/evmos/v20/utils"
++)
++
++func TestValidateLITHOGenesisSupply(t *testing.T) {
++	encodingConfig := encoding.MakeConfig()
++	testCases := []struct {
++		name      string
++		supply    sdk.Coin
++		expectErr bool
++	}{
++		{
++			name:   "exact fixed supply",
++			supply: sdk.NewCoin(utils.BaseDenom, lithoMaximumSupply),
++		},
++		{
++			name:      "below fixed genesis supply",
++			supply:    sdk.NewCoin(utils.BaseDenom, lithoMaximumSupply.SubRaw(1)),
++			expectErr: true,
++		},
++		{
++			name:      "above maximum supply",
++			supply:    sdk.NewCoin(utils.BaseDenom, lithoMaximumSupply.AddRaw(1)),
++			expectErr: true,
++		},
++	}
++
++	for _, tc := range testCases {
++		t.Run(tc.name, func(t *testing.T) {
++			bankGenesis := banktypes.DefaultGenesisState()
++			bankGenesis.Balances = []banktypes.Balance{{
++				Address: "litho1genesisallocation",
++				Coins:   sdk.NewCoins(tc.supply),
++			}}
++			bankGenesis.Supply = sdk.NewCoins(tc.supply)
++
++			genesisState := evmostypes.GenesisState{
++				banktypes.ModuleName: encodingConfig.Codec.MustMarshalJSON(bankGenesis),
++			}
++			err := validateLITHOGenesisSupply(encodingConfig.Codec, genesisState)
++			if tc.expectErr {
++				require.ErrorContains(t, err, "invalid LITHO genesis supply")
++			} else {
++				require.NoError(t, err)
++			}
++		})
++	}
++}
+diff --git a/app/post/post.go b/app/post/post.go
+index 302f095..9afa4b0 100644
+--- a/app/post/post.go
++++ b/app/post/post.go
+@@ -6,6 +6,7 @@ package post
+ import (
+ 	"errors"
+ 
++	"cosmossdk.io/math"
+ 	sdk "github.com/cosmos/cosmos-sdk/types"
+ 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
+ )
+@@ -14,6 +15,8 @@ import (
+ type HandlerOptions struct {
+ 	FeeCollectorName string
+ 	BankKeeper       bankkeeper.Keeper
++	SupplyCapDenom   string
++	SupplyCapAmount  math.Int
+ }
+ 
+ func (h HandlerOptions) Validate() error {
+@@ -25,6 +28,14 @@ func (h HandlerOptions) Validate() error {
+ 		return errors.New("bank keeper cannot be nil")
+ 	}
+ 
++	if h.SupplyCapDenom == "" && !h.SupplyCapAmount.IsNil() {
++		return errors.New("supply cap denom cannot be empty when an amount is configured")
++	}
++
++	if h.SupplyCapDenom != "" && (h.SupplyCapAmount.IsNil() || !h.SupplyCapAmount.IsPositive()) {
++		return errors.New("supply cap amount must be positive when a denom is configured")
++	}
++
+ 	return nil
+ }
+ 
+@@ -33,6 +44,12 @@ func NewPostHandler(ho HandlerOptions) sdk.PostHandler {
+ 	postDecorators := []sdk.PostDecorator{
+ 		NewBurnDecorator(ho.FeeCollectorName, ho.BankKeeper),
+ 	}
++	if ho.SupplyCapDenom != "" {
++		postDecorators = append(
++			postDecorators,
++			NewSupplyCapDecorator(ho.BankKeeper, ho.SupplyCapDenom, ho.SupplyCapAmount),
++		)
++	}
+ 
+ 	return sdk.ChainPostDecorators(postDecorators...)
+ }
+diff --git a/app/post/supply_cap.go b/app/post/supply_cap.go
+new file mode 100644
+index 0000000..1bd18df
+--- /dev/null
++++ b/app/post/supply_cap.go
+@@ -0,0 +1,57 @@
++// Copyright Tharsis Labs Ltd.(Evmos)
++// SPDX-License-Identifier:ENCL-1.0(https://github.com/evmos/evmos/blob/main/LICENSE)
++
++package post
++
++import (
++	"context"
++	"fmt"
++
++	"cosmossdk.io/math"
++	sdk "github.com/cosmos/cosmos-sdk/types"
++)
++
++type supplyKeeper interface {
++	GetSupply(ctx context.Context, denom string) sdk.Coin
++}
++
++// SupplyCapDecorator rejects a transaction whose completed state would place
++// the configured native denomination above its permanent maximum supply.
++type SupplyCapDecorator struct {
++	bankKeeper supplyKeeper
++	denom      string
++	maxSupply  math.Int
++}
++
++func NewSupplyCapDecorator(bankKeeper supplyKeeper, denom string, maxSupply math.Int) sdk.PostDecorator {
++	return SupplyCapDecorator{
++		bankKeeper: bankKeeper,
++		denom:      denom,
++		maxSupply:  maxSupply,
++	}
++}
++
++func (d SupplyCapDecorator) PostHandle(
++	ctx sdk.Context,
++	tx sdk.Tx,
++	simulate,
++	success bool,
++	next sdk.PostHandler,
++) (sdk.Context, error) {
++	newCtx, err := next(ctx, tx, simulate, success)
++	if err != nil {
++		return newCtx, err
++	}
++
++	supply := d.bankKeeper.GetSupply(newCtx, d.denom)
++	if supply.Amount.GT(d.maxSupply) {
++		return newCtx, fmt.Errorf(
++			"permanent supply cap exceeded for %s: maximum %s, got %s",
++			d.denom,
++			d.maxSupply,
++			supply.Amount,
++		)
++	}
++
++	return newCtx, nil
++}
+diff --git a/app/post/supply_cap_test.go b/app/post/supply_cap_test.go
+new file mode 100644
+index 0000000..fa1161f
+--- /dev/null
++++ b/app/post/supply_cap_test.go
+@@ -0,0 +1,59 @@
++// Copyright Tharsis Labs Ltd.(Evmos)
++// SPDX-License-Identifier:ENCL-1.0(https://github.com/evmos/evmos/blob/main/LICENSE)
++
++package post
++
++import (
++	"context"
++	"testing"
++
++	"cosmossdk.io/math"
++	sdk "github.com/cosmos/cosmos-sdk/types"
++	"github.com/stretchr/testify/require"
++)
++
++type fixedSupplyKeeper struct {
++	supply sdk.Coin
++}
++
++func (k fixedSupplyKeeper) GetSupply(_ context.Context, _ string) sdk.Coin {
++	return k.supply
++}
++
++func TestSupplyCapDecorator(t *testing.T) {
++	const denom = "ulitho"
++	maxSupply := math.NewInt(1_000)
++	testCases := []struct {
++		name      string
++		supply    math.Int
++		expectErr bool
++	}{
++		{name: "below cap", supply: math.NewInt(999)},
++		{name: "at cap", supply: math.NewInt(1_000)},
++		{name: "above cap", supply: math.NewInt(1_001), expectErr: true},
++	}
++
++	for _, tc := range testCases {
++		t.Run(tc.name, func(t *testing.T) {
++			decorator := NewSupplyCapDecorator(
++				fixedSupplyKeeper{supply: sdk.NewCoin(denom, tc.supply)},
++				denom,
++				maxSupply,
++			)
++			_, err := decorator.PostHandle(
++				sdk.Context{},
++				nil,
++				false,
++				true,
++				func(ctx sdk.Context, _ sdk.Tx, _, _ bool) (sdk.Context, error) {
++					return ctx, nil
++				},
++			)
++			if tc.expectErr {
++				require.ErrorContains(t, err, "permanent supply cap exceeded")
++			} else {
++				require.NoError(t, err)
++			}
++		})
++	}
++}
+diff --git a/x/inflation/v1/keeper/params.go b/x/inflation/v1/keeper/params.go
+index 2720004..aa7e24c 100644
+--- a/x/inflation/v1/keeper/params.go
++++ b/x/inflation/v1/keeper/params.go
+@@ -22,6 +22,10 @@ func (k Keeper) GetParams(ctx sdk.Context) (params types.Params) {
+ 
+ // SetParams sets the inflation params in a single key
+ func (k Keeper) SetParams(ctx sdk.Context, params types.Params) error {
++	if err := params.Validate(); err != nil {
++		return err
++	}
++
+ 	store := ctx.KVStore(k.storeKey)
+ 	bz, err := k.cdc.Marshal(&params)
+ 	if err != nil {
+diff --git a/x/inflation/v1/types/litho_params_test.go b/x/inflation/v1/types/litho_params_test.go
+new file mode 100644
+index 0000000..0b9a8c0
+--- /dev/null
++++ b/x/inflation/v1/types/litho_params_test.go
+@@ -0,0 +1,19 @@
++// Copyright Tharsis Labs Ltd.(Evmos)
++// SPDX-License-Identifier:ENCL-1.0(https://github.com/evmos/evmos/blob/main/LICENSE)
++
++package types
++
++import (
++	"testing"
++
++	"github.com/stretchr/testify/require"
++)
++
++func TestLITHOInflationPermanentlyDisabled(t *testing.T) {
++	params := DefaultParams()
++	require.False(t, params.EnableInflation)
++	require.NoError(t, params.Validate())
++
++	params.EnableInflation = true
++	require.ErrorContains(t, params.Validate(), "permanently disabled")
++}
+diff --git a/x/inflation/v1/types/params.go b/x/inflation/v1/types/params.go
+index 032bc9e..adfa9de 100644
+--- a/x/inflation/v1/types/params.go
++++ b/x/inflation/v1/types/params.go
+@@ -17,7 +17,7 @@ var ParamsKey = []byte("Params")
+ 
+ var (
+ 	DefaultInflationDenom         = evm.DefaultEVMDenom
+-	DefaultInflation              = true
++	DefaultInflation              = false
+ 	DefaultExponentialCalculation = ExponentialCalculation{
+ 		A:             math.LegacyNewDec(int64(300_000_000)),
+ 		R:             math.LegacyNewDecWithPrec(50, 2), // 50%
+@@ -157,5 +157,12 @@ func (p Params) Validate() error {
+ 		return err
+ 	}
+ 
+-	return validateBool(p.EnableInflation)
++	if err := validateBool(p.EnableInflation); err != nil {
++		return err
++	}
++	if p.EnableInflation {
++		return errors.New("LITHO inflation is permanently disabled")
++	}
++
++	return nil
+ }

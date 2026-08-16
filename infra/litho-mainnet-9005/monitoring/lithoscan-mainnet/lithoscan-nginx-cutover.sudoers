@@ -1,0 +1,2 @@
+Cmnd_Alias LITHOSCAN_NGINX_CUTOVER = /usr/local/sbin/lithoscan-nginx-cutover install-certificate, /usr/local/sbin/lithoscan-nginx-cutover status, /usr/local/sbin/lithoscan-nginx-cutover test, /usr/local/sbin/lithoscan-nginx-cutover activate, /usr/local/sbin/lithoscan-nginx-cutover reload, /usr/local/sbin/lithoscan-nginx-cutover rollback
+lithoscan-deploy ALL=(root) NOPASSWD: LITHOSCAN_NGINX_CUTOVER

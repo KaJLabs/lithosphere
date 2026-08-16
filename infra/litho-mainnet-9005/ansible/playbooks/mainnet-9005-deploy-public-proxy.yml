@@ -1,0 +1,276 @@
+---
+- name: Deploy the DNS and TLS gated LITHO mainnet public proxy
+  hosts: "{{ mainnet_proxy_target | default('mainnet-sentry-01') }}"
+  become: true
+  gather_facts: true
+  serial: 1
+
+  vars:
+    mainnet_proxy_confirm: false
+    mainnet_proxy_enable_rpc_api: true
+    mainnet_proxy_enable_grpc: false
+    # Defaults to the node running Nginx. During a sentry catch-up or
+    # maintenance window this may be set to the other validated mainnet
+    # sentry without moving DNS or TLS termination.
+    mainnet_proxy_upstream_host: "127.0.0.1"
+    # Production Lithoscan/indexer origin. Its replay traffic is trusted and
+    # bypasses only Nginx request/connection accounting; all RPC route and
+    # method restrictions remain enforced.
+    mainnet_proxy_trusted_indexer_ip: ""
+    mainnet_proxy_tls_certificate: ""
+    mainnet_proxy_tls_certificate_key: ""
+    mainnet_proxy_config_path: /etc/nginx/conf.d/litho-mainnet-9005.conf
+    mainnet_proxy_candidate_path: /etc/nginx/litho-mainnet-9005.conf.candidate
+    mainnet_proxy_validation_path: /etc/nginx/litho-mainnet-9005-validation.conf
+    mainnet_proxy_genesis_source: "{{ playbook_dir }}/../../docs/workstreams/litho-mainnet-9005/genesis.json"
+    mainnet_proxy_genesis_dir: /var/www/litho-mainnet
+    mainnet_proxy_genesis_path: /var/www/litho-mainnet/genesis.json
+    mainnet_proxy_genesis_sha256: 13e4875b4a9dddc63bdfbd4968c7265f9bbc49218b59c5b49231a56fa313046f
+
+  pre_tasks:
+    - name: Require explicit publication approval and certificate paths
+      ansible.builtin.assert:
+        that:
+          - mainnet_proxy_confirm | bool
+          - mainnet_proxy_enable_rpc_api | bool or mainnet_proxy_enable_grpc | bool
+          - mainnet_proxy_trusted_indexer_ip | length > 0
+          - not mainnet_proxy_trusted_indexer_ip.startswith('REPLACE_')
+          - mainnet_proxy_tls_certificate | length > 0
+          - mainnet_proxy_tls_certificate_key | length > 0
+        fail_msg: >-
+          Publication is gated. Pass mainnet_proxy_confirm=true, the private
+          indexer origin address, and existing TLS certificate/key paths only
+          after DNS is configured.
+
+    - name: Verify the local mainnet Cosmos identity before proxy deployment
+      ansible.builtin.uri:
+        url: "http://{{ mainnet_proxy_upstream_host }}:27057/status"
+        return_content: true
+      register: mainnet_cosmos_status
+      changed_when: false
+
+    - name: Verify the local mainnet EVM identity before proxy deployment
+      ansible.builtin.uri:
+        url: "http://{{ mainnet_proxy_upstream_host }}:8945"
+        method: POST
+        body_format: json
+        body:
+          jsonrpc: "2.0"
+          method: eth_chainId
+          params: []
+          id: 1
+        return_content: true
+      register: mainnet_evm_status
+      changed_when: false
+
+    - name: Reject a proxy target connected to the wrong chain
+      ansible.builtin.assert:
+        that:
+          - mainnet_cosmos_status.json.result.node_info.network == 'lithosphere_9005-1'
+          - mainnet_evm_status.json.result | lower == '0x232d'
+        fail_msg: The selected proxy host is not serving LITHO mainnet 9005.
+
+    - name: Check the supplied TLS files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        follow: true
+      loop:
+        - "{{ mainnet_proxy_tls_certificate }}"
+        - "{{ mainnet_proxy_tls_certificate_key }}"
+      register: mainnet_proxy_tls_files
+
+    - name: Require both TLS files to exist and be regular files
+      ansible.builtin.assert:
+        that:
+          - mainnet_proxy_tls_files.results | map(attribute='stat.exists') | min
+          - mainnet_proxy_tls_files.results | map(attribute='stat.isreg') | min
+        fail_msg: The supplied TLS certificate or key is missing.
+
+  tasks:
+    - name: Install Nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: false
+
+    - name: Ensure the ACME webroot exists
+      ansible.builtin.file:
+        path: /var/www/letsencrypt
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Ensure the public mainnet artifact directory exists
+      ansible.builtin.file:
+        path: "{{ mainnet_proxy_genesis_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: mainnet_proxy_enable_rpc_api | bool
+
+    - name: Publish the checksum-pinned final genesis
+      ansible.builtin.copy:
+        src: "{{ mainnet_proxy_genesis_source }}"
+        dest: "{{ mainnet_proxy_genesis_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+      when: mainnet_proxy_enable_rpc_api | bool
+
+    - name: Calculate the published genesis SHA-256
+      ansible.builtin.stat:
+        path: "{{ mainnet_proxy_genesis_path }}"
+        checksum_algorithm: sha256
+      register: mainnet_proxy_published_genesis
+      when: mainnet_proxy_enable_rpc_api | bool
+
+    - name: Reject a genesis artifact with the wrong checksum
+      ansible.builtin.assert:
+        that:
+          - mainnet_proxy_published_genesis.stat.checksum == mainnet_proxy_genesis_sha256
+        fail_msg: The published genesis does not match the approved SHA-256.
+      when: mainnet_proxy_enable_rpc_api | bool
+
+    - name: Render the dedicated mainnet proxy candidate
+      ansible.builtin.template:
+        src: ../../monitoring/sentry-nginx/litho-mainnet-9005.conf.j2
+        dest: "{{ mainnet_proxy_candidate_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Create an isolated Nginx validation wrapper
+      ansible.builtin.copy:
+        dest: "{{ mainnet_proxy_validation_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          user www-data;
+          pid /run/nginx-mainnet-9005-validation.pid;
+          error_log stderr;
+          events { worker_connections 64; }
+          http {
+            include /etc/nginx/mime.types;
+            include {{ mainnet_proxy_candidate_path }};
+          }
+
+    - name: Validate the candidate without changing the running configuration
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/nginx
+          - -t
+          - -c
+          - "{{ mainnet_proxy_validation_path }}"
+      changed_when: false
+
+    - name: Promote the validated mainnet proxy configuration
+      ansible.builtin.copy:
+        src: "{{ mainnet_proxy_candidate_path }}"
+        dest: "{{ mainnet_proxy_config_path }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload Nginx
+
+    - name: Enable and start Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        enabled: true
+        state: started
+
+    - name: Apply the validated proxy configuration
+      ansible.builtin.meta: flush_handlers
+
+    - name: Validate the complete running Nginx configuration
+      ansible.builtin.command: /usr/sbin/nginx -t
+      changed_when: false
+
+    - name: Reload Nginx even when the candidate was already promoted
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+
+    - name: Verify EVM chain ID through the local TLS virtual host
+      ansible.builtin.uri:
+        url: https://127.0.0.1/
+        method: POST
+        headers:
+          Host: rpc-mainnet.litho.ai
+        body_format: json
+        body:
+          jsonrpc: "2.0"
+          method: eth_chainId
+          params: []
+          id: 1
+        validate_certs: false
+        return_content: true
+      register: mainnet_proxy_evm_status
+      changed_when: false
+      when: mainnet_proxy_enable_rpc_api | bool
+
+    - name: Require chain ID 9005 through the proxy
+      ansible.builtin.assert:
+        that:
+          - mainnet_proxy_evm_status.json.result | lower == '0x232d'
+      when: mainnet_proxy_enable_rpc_api | bool
+
+    - name: Verify the CometBFT identity through the read-only HTTPS route
+      ansible.builtin.uri:
+        url: https://127.0.0.1/status
+        method: GET
+        headers:
+          Host: rpc-mainnet.litho.ai
+        validate_certs: false
+        return_content: true
+      register: mainnet_proxy_comet_status
+      changed_when: false
+      when: mainnet_proxy_enable_rpc_api | bool
+
+    - name: Require the mainnet Cosmos identity through the proxy
+      ansible.builtin.assert:
+        that:
+          - mainnet_proxy_comet_status.json.result.node_info.network == 'lithosphere_9005-1'
+      when: mainnet_proxy_enable_rpc_api | bool
+
+    - name: Verify the published genesis checksum through HTTPS
+      ansible.builtin.shell: >-
+        set -o pipefail &&
+        curl --fail --silent --show-error --resolve rpc-mainnet.litho.ai:443:127.0.0.1
+        https://rpc-mainnet.litho.ai/genesis.json |
+        sha256sum |
+        grep -q '^{{ mainnet_proxy_genesis_sha256 }}  -$'
+      args:
+        executable: /bin/bash
+      changed_when: false
+      when: mainnet_proxy_enable_rpc_api | bool
+
+    - name: Verify gRPC TLS negotiation on the public port
+      ansible.builtin.shell: >-
+        set -o pipefail &&
+        printf '' | openssl s_client
+        -connect 127.0.0.1:9090
+        -servername grpc-mainnet.litho.ai
+        -alpn h2 2>/dev/null |
+        grep -q 'ALPN protocol: h2'
+      args:
+        executable: /bin/bash
+      changed_when: false
+      when: mainnet_proxy_enable_grpc | bool
+
+    - name: Remove proxy validation artifacts
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ mainnet_proxy_candidate_path }}"
+        - "{{ mainnet_proxy_validation_path }}"
+
+  handlers:
+    - name: Reload Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded

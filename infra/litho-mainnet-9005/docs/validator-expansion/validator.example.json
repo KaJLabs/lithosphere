@@ -1,0 +1,15 @@
+{
+  "pubkey": {
+    "@type": "/cosmos.crypto.ed25519.PubKey",
+    "key": "REPLACE_WITH_OPERATOR_CONSENSUS_PUBLIC_KEY"
+  },
+  "amount": "REPLACE_WITH_APPROVED_SELF_DELEGATION_ULITHOulitho",
+  "moniker": "REPLACE_WITH_APPROVED_MONIKER",
+  "website": "REPLACE_WITH_OPERATOR_WEBSITE",
+  "security": "REPLACE_WITH_SECURITY_CONTACT",
+  "details": "LITHO mainnet independent validator",
+  "commission-rate": "0.10",
+  "commission-max-rate": "0.20",
+  "commission-max-change-rate": "0.01",
+  "min-self-delegation": "1"
+}

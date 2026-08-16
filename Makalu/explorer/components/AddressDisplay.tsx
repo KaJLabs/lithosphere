@@ -1,5 +1,7 @@
 import Link from 'next/link';
+
 import { truncateAddress } from '@/lib/format';
+
 import CopyButton from './CopyButton';
 
 export default function AddressDisplay({

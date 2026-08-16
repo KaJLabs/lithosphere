@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">LITHO coin</title>
+  <desc id="desc">LITHO angular mark on a black coin</desc>
+  <circle cx="64" cy="64" r="62" fill="#05070a"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#20252d" stroke-width="2"/>
+  <path fill="#fff" d="M33 27h17l45 45v24H78L33 51zm0 39 17 17v18H33zm31-39h31v31L78 41H64z"/>
+</svg>

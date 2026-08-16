@@ -1,0 +1,24 @@
+# DO NOT enable this file until mainnet-validate.sh and mainnet-smoke-test.sh
+# pass, the indexer is synchronized, backups/rollback are verified, and the
+# client explicitly approves removing the Makalu redirect.
+server {
+    listen 443 ssl http2;
+    server_name lithoscan.ai;
+
+    ssl_certificate /etc/letsencrypt/live/lithoscan.ai/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/lithoscan.ai/privkey.pem;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:4400;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3500;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}

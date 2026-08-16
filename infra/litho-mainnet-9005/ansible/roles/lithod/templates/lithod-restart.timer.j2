@@ -1,0 +1,26 @@
+# Lithosphere periodic restart timer.
+#
+# Every 4 hours. The cronos memiavl leak is highly load-driven: bare-metal
+# kamet-sentry-02 leaks ~826 mmaps/hour in steady state, but the public-DNS
+# kamet-sentry-01 (AWS) was measured at ~1.18M mmaps/hour during a
+# post-reboot REST-traffic spike on 2026-05-02. The lithod process
+# becomes RPC-unresponsive well before the kernel ceiling is hit
+# (RPC stopped answering at ~3M maps, and kamet-sentry-02 lagged at
+# ~520k maps; ceiling is 16M), so this timer covers steady-state leaks
+# and the leak-watchdog handles load spikes.
+# Daily was originally tried (2026-05-02 morning) but the same day a
+# load spike exhausted RPC well inside the 24h window. RandomizedDelaySec
+# spreads restarts across the fleet so the public-facing sentries do not
+# all bounce simultaneously. Persistent=true catches up missed runs.
+
+[Unit]
+Description=Periodic {{ litho_service_name }} restart (memiavl mmap+fd leak workaround)
+After=network.target
+
+[Timer]
+OnCalendar={{ lithod_restart_timer_calendar }}
+RandomizedDelaySec={{ lithod_restart_randomized_delay_sec }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

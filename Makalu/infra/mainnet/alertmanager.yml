@@ -1,0 +1,14 @@
+route:
+  receiver: operations-placeholder
+  group_by: [alertname, network]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 2h
+
+# Replace this URL during secret injection. Keeping the invalid local receiver
+# makes missing notification configuration visible without leaking a webhook.
+receivers:
+  - name: operations-placeholder
+    webhook_configs:
+      - url: http://127.0.0.1:65535/INJECT_MAINNET_ALERT_WEBHOOK
+        send_resolved: true

@@ -1,0 +1,14 @@
+# Run the leak watchdog every 5 minutes. Cheap (one wc -l, one awk) and
+# catches load-driven leak spikes well inside the 4-hour scheduled
+# restart window.
+
+[Unit]
+Description=Run {{ litho_service_name }} memiavl leak watchdog
+
+[Timer]
+OnBootSec={{ lithod_leak_watchdog_on_boot_sec }}
+OnUnitActiveSec={{ lithod_leak_watchdog_interval }}
+AccuracySec={{ lithod_leak_watchdog_accuracy_sec }}
+
+[Install]
+WantedBy=timers.target

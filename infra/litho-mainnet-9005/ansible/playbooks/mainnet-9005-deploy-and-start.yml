@@ -1,0 +1,219 @@
+---
+# Minimal VPS-only deployment for LITHO mainnet. This deliberately avoids the
+# legacy AWS/KMS, governance, shared watchdog, and unrelated fleet tasks.
+
+- name: Configure dedicated LITHO mainnet nodes without starting them
+  hosts: mainnet_nodes
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  tasks:
+    - name: Install launch-time JSON and network utilities
+      ansible.builtin.package:
+        name:
+          - jq
+          - curl
+          - iputils-ping
+        state: present
+
+    - name: Confirm sealed genesis and reviewed binary
+      ansible.builtin.stat:
+        path: "{{ item.path }}"
+        checksum_algorithm: sha256
+      loop:
+        - { name: genesis, path: "{{ litho_home }}/config/genesis.json" }
+        - { name: binary, path: "{{ litho_binary_path }}" }
+      register: launch_artifacts
+
+    - name: Require exact launch artifact checksums
+      ansible.builtin.assert:
+        that:
+          - launch_artifacts.results[0].stat.exists
+          - launch_artifacts.results[0].stat.checksum == genesis_checksum_expected
+          - launch_artifacts.results[1].stat.exists
+          - launch_artifacts.results[1].stat.checksum == litho_binary_sha256_expected
+
+    - name: Require node identity and validator signing state
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: >-
+        {{
+          [litho_home ~ '/config/node_key.json']
+          + (
+            [
+              litho_home ~ '/config/priv_validator_key.json',
+              litho_home ~ '/data/priv_validator_state.json'
+            ]
+            if node_role == 'validator'
+            else []
+          )
+        }}
+      register: launch_identity_files
+
+    - name: Require all identity files
+      ansible.builtin.assert:
+        that:
+          - launch_identity_files.results | map(attribute='stat.exists') | min
+
+    - name: Render CometBFT and application configuration without handlers
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/lithod/templates/{{ item.src }}"
+        dest: "{{ litho_home }}/config/{{ item.dest }}"
+        owner: "{{ litho_user }}"
+        group: "{{ litho_group }}"
+        mode: "0640"
+      loop:
+        - { src: config.toml.j2, dest: config.toml }
+        - { src: app.toml.j2, dest: app.toml }
+        - { src: client.toml.j2, dest: client.toml }
+
+    - name: Ensure isolated scripts directory exists
+      ansible.builtin.file:
+        path: "{{ litho_home }}/scripts"
+        state: directory
+        owner: "{{ litho_user }}"
+        group: "{{ litho_group }}"
+        mode: "0700"
+
+    - name: Deploy node preflight script
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/lithod/templates/preflight-check.sh.j2"
+        dest: "{{ litho_home }}/scripts/preflight-check.sh"
+        owner: "{{ litho_user }}"
+        group: "{{ litho_group }}"
+        mode: "0700"
+
+    - name: Deploy dedicated mainnet service unit
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/lithod/templates/lithod.service.j2"
+        dest: "/etc/systemd/system/{{ litho_service_name }}.service"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Reload systemd without starting mainnet
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Run node preflight as the service user
+      ansible.builtin.command:
+        argv:
+          - "{{ litho_home }}/scripts/preflight-check.sh"
+      become_user: "{{ litho_user }}"
+      changed_when: false
+
+    - name: Confirm no dedicated mainnet service started during configuration
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - "{{ litho_service_name }}"
+      register: configured_service_state
+      failed_when: false
+      changed_when: false
+
+    - name: Require configured service to remain inactive
+      ansible.builtin.assert:
+        that:
+          - configured_service_state.stdout | trim != 'active'
+
+- name: Start mainnet sentries first
+  hosts: sentries
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  tasks:
+    - name: Enable and start mainnet sentry
+      ansible.builtin.systemd:
+        name: "{{ litho_service_name }}"
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Wait for sentry Comet RPC
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ litho_rpc_port }}"
+        timeout: 45
+
+- name: Start the sole mainnet validator
+  hosts: validators
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  tasks:
+    - name: Require both sentry WireGuard addresses
+      ansible.builtin.command:
+        argv:
+          - ping
+          - -c
+          - "2"
+          - -W
+          - "2"
+          - "{{ item }}"
+      loop:
+        - "{{ mainnet_sentry1_wg_ip }}"
+        - "{{ mainnet_sentry2_wg_ip }}"
+      changed_when: false
+
+    - name: Enable and start sole mainnet validator
+      ansible.builtin.systemd:
+        name: "{{ litho_service_name }}"
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Wait for validator Comet RPC
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ litho_rpc_port }}"
+        timeout: 45
+
+- name: Verify local chain identity and block production
+  hosts: mainnet_nodes
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  tasks:
+    - name: Wait for a positive block height
+      ansible.builtin.shell: |
+        set -euo pipefail
+        for attempt in $(seq 1 30); do
+          height=$(curl -fsS http://127.0.0.1:{{ litho_rpc_port }}/status | jq -r '.result.sync_info.latest_block_height // "0"')
+          if [ "${height}" -gt 0 ]; then
+            printf '%s\n' "${height}"
+            exit 0
+          fi
+          sleep 2
+        done
+        exit 1
+      args:
+        executable: /bin/bash
+      register: observed_height
+      changed_when: false
+
+    - name: Read Cosmos and EVM chain IDs
+      ansible.builtin.shell: |
+        set -euo pipefail
+        cosmos=$(curl -fsS http://127.0.0.1:{{ litho_rpc_port }}/status | jq -r '.result.node_info.network')
+        evm=$(curl -fsS -H 'Content-Type: application/json' \
+          --data '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' \
+          http://127.0.0.1:{{ litho_evm_rpc_port }} | jq -r '.result')
+        printf '%s %s\n' "${cosmos}" "${evm}"
+      args:
+        executable: /bin/bash
+      register: observed_chain_ids
+      changed_when: false
+
+    - name: Require exact chain identities
+      ansible.builtin.assert:
+        that:
+          - observed_chain_ids.stdout.split()[0] == litho_chain_id_cosmos
+          - observed_chain_ids.stdout.split()[1] | lower == '0x232d'
+
+    - name: Report verified launch state
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "Height: {{ observed_height.stdout }}"
+          - "Cosmos/EVM: {{ observed_chain_ids.stdout }}"

@@ -1,0 +1,197 @@
+# LITHO mainnet public endpoint proxy.
+# Managed by ansible/playbooks/mainnet-9005-deploy-public-proxy.yml.
+
+# The isolated explorer/indexer origin must be able to replay historical
+# blocks faster than the public anonymous rate limit. An empty key bypasses
+# limit accounting only for that explicitly configured production origin.
+map $remote_addr $litho_mainnet_limit_key {
+    default $binary_remote_addr;
+{% if mainnet_proxy_trusted_indexer_ip | default('') | length > 0 %}
+    {{ mainnet_proxy_trusted_indexer_ip }} "";
+{% endif %}
+}
+
+limit_req_zone $litho_mainnet_limit_key zone=litho_mainnet_rpc:10m rate=25r/s;
+limit_req_zone $litho_mainnet_limit_key zone=litho_mainnet_api:10m rate=30r/s;
+limit_conn_zone $litho_mainnet_limit_key zone=litho_mainnet_conn:10m;
+
+{% if mainnet_proxy_enable_rpc_api | bool %}
+upstream litho_mainnet_evm_rpc {
+    server {{ mainnet_proxy_upstream_host | default('127.0.0.1') }}:8945;
+    keepalive 32;
+}
+
+upstream litho_mainnet_evm_ws {
+    server {{ mainnet_proxy_upstream_host | default('127.0.0.1') }}:8946;
+    keepalive 16;
+}
+
+upstream litho_mainnet_comet_rpc {
+    server {{ mainnet_proxy_upstream_host | default('127.0.0.1') }}:27057;
+    keepalive 16;
+}
+
+upstream litho_mainnet_rest {
+    server {{ mainnet_proxy_upstream_host | default('127.0.0.1') }}:1717;
+    keepalive 16;
+}
+{% endif %}
+
+{% if mainnet_proxy_enable_grpc | bool %}
+upstream litho_mainnet_grpc {
+    server {{ mainnet_proxy_upstream_host | default('127.0.0.1') }}:9490;
+    keepalive 16;
+}
+{% endif %}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name{% if mainnet_proxy_enable_rpc_api | bool %} rpc-mainnet.litho.ai api-mainnet.litho.ai{% endif %}{% if mainnet_proxy_enable_grpc | bool %} grpc-mainnet.litho.ai{% endif %};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+{% if mainnet_proxy_enable_rpc_api | bool %}
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name rpc-mainnet.litho.ai;
+
+    ssl_certificate {{ mainnet_proxy_tls_certificate }};
+    ssl_certificate_key {{ mainnet_proxy_tls_certificate_key }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:LITHOMainnetTLS:10m;
+    ssl_session_timeout 1d;
+
+    client_max_body_size 2m;
+    limit_conn litho_mainnet_conn 30;
+
+    location = /genesis.json {
+        alias {{ mainnet_proxy_genesis_path }};
+        default_type application/json;
+        add_header X-Genesis-SHA256 "{{ mainnet_proxy_genesis_sha256 }}" always;
+        add_header Access-Control-Allow-Origin "*" always;
+    }
+
+    location = /health {
+        limit_except GET { deny all; }
+        limit_req zone=litho_mainnet_rpc burst=50 nodelay;
+        proxy_pass http://litho_mainnet_comet_rpc;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 30s;
+        add_header Access-Control-Allow-Origin "*" always;
+    }
+
+    # Expose only CometBFT read/query routes. EVM JSON-RPC remains on POST /,
+    # and unsafe/broadcast/admin CometBFT methods are intentionally absent.
+    location ~ ^/(status|block|block_by_hash|block_results|blockchain|commit|validators|tx|tx_search|net_info|consensus_params|genesis|genesis_chunked|abci_info|abci_query|num_unconfirmed_txs|unconfirmed_txs)$ {
+        limit_except GET { deny all; }
+        limit_req zone=litho_mainnet_rpc burst=50 nodelay;
+        proxy_pass http://litho_mainnet_comet_rpc;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 30s;
+        add_header Access-Control-Allow-Origin "*" always;
+    }
+
+    location = /websocket {
+        # The public endpoint is /websocket, while the Evmos WS listener
+        # accepts its upgrade at /. The trailing slash performs that rewrite.
+        proxy_pass http://litho_mainnet_evm_ws/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    location / {
+        if ($request_method = OPTIONS) {
+            add_header Access-Control-Allow-Origin "*" always;
+            add_header Access-Control-Allow-Methods "POST, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Content-Type, Authorization" always;
+            add_header Content-Length 0;
+            return 204;
+        }
+
+        limit_except POST { deny all; }
+        limit_req zone=litho_mainnet_rpc burst=50 nodelay;
+        proxy_pass http://litho_mainnet_evm_rpc;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 30s;
+        add_header Access-Control-Allow-Origin "*" always;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name api-mainnet.litho.ai;
+
+    ssl_certificate {{ mainnet_proxy_tls_certificate }};
+    ssl_certificate_key {{ mainnet_proxy_tls_certificate_key }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:LITHOMainnetTLS:10m;
+    ssl_session_timeout 1d;
+
+    client_max_body_size 2m;
+    limit_conn litho_mainnet_conn 30;
+    limit_req zone=litho_mainnet_api burst=60 nodelay;
+
+    location / {
+        proxy_pass http://litho_mainnet_rest;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 30s;
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, POST, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Content-Type, Authorization" always;
+    }
+}
+{% endif %}
+
+{% if mainnet_proxy_enable_grpc | bool %}
+server {
+    listen 9090 ssl;
+    listen [::]:9090 ssl;
+    http2 on;
+    server_name grpc-mainnet.litho.ai;
+
+    ssl_certificate {{ mainnet_proxy_tls_certificate }};
+    ssl_certificate_key {{ mainnet_proxy_tls_certificate_key }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:LITHOMainnetTLS:10m;
+    ssl_session_timeout 1d;
+
+    location / {
+        grpc_pass grpc://litho_mainnet_grpc;
+        grpc_connect_timeout 3s;
+        grpc_read_timeout 60s;
+        grpc_send_timeout 60s;
+    }
+}
+{% endif %}

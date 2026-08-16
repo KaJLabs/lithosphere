@@ -1,0 +1,1030 @@
+# Lithod Role - Node Deployment
+# =============================================================================
+#
+# Execution order (each phase completes before the next begins):
+#
+#   1. BINARY INSTALL      - Build from source or download pre-built lithod
+#   2. KEY INJECTION        - Fetch keys from Secrets Manager (or legacy in-place)
+#   3. GENESIS DISTRIBUTION - Copy from control machine or download from S3
+#   4. CONFIG TEMPLATES     - Render config.toml, app.toml, client.toml
+#   5. SCRIPTS              - Deploy preflight, decrypt, wipe scripts
+#   6. SYSTEMD              - Deploy unit file (preflight → decrypt → start → wipe)
+#   7. READINESS GATE       - Assert ALL files in place before starting
+#   8. SERVICE START        - Enable and start lithod
+#
+# The systemd unit enforces the same ordering at runtime:
+#   ExecStartPre=preflight-check.sh  (blocks start if files are missing)
+#   ExecStartPre=decrypt_validator_key.sh  (validator only)
+#   ExecStart=lithod start
+#   ExecStopPost=wipe_validator_key.sh  (validator only)
+#
+# =============================================================================
+---
+
+# #############################################################################
+# 1. BINARY INSTALL
+# #############################################################################
+
+- name: Install build dependencies
+  package:
+    name: "{{ litho_build_dependencies }}"
+    state: present
+  when: litho_build_method == "source"
+  tags: [dependencies, build]
+
+- name: Check if Go is installed
+  command: go version
+  register: go_check
+  failed_when: false
+  changed_when: false
+  when: litho_build_method == "source"
+  tags: [golang, build]
+
+- name: Download Go
+  get_url:
+    url: "https://go.dev/dl/go{{ litho_go_version }}.linux-amd64.tar.gz"
+    dest: "/tmp/go{{ litho_go_version }}.linux-amd64.tar.gz"
+    mode: '0644'
+  when:
+    - litho_build_method == "source"
+    - go_check.rc != 0
+  tags: [golang, build]
+
+- name: Remove old Go installation
+  file:
+    path: /usr/local/go
+    state: absent
+  when:
+    - litho_build_method == "source"
+    - go_check.rc != 0
+  tags: [golang, build]
+
+- name: Extract Go
+  unarchive:
+    src: "/tmp/go{{ litho_go_version }}.linux-amd64.tar.gz"
+    dest: /usr/local
+    remote_src: yes
+  when:
+    - litho_build_method == "source"
+    - go_check.rc != 0
+  tags: [golang, build]
+
+- name: Set Go environment variables
+  lineinfile:
+    path: /etc/profile.d/go.sh
+    line: "{{ item }}"
+    create: yes
+    mode: '0644'
+  loop:
+    - 'export PATH=$PATH:/usr/local/go/bin'
+    - 'export GOPATH=$HOME/go'
+    - 'export PATH=$PATH:$GOPATH/bin'
+  when: litho_build_method == "source"
+  tags: [golang, build]
+
+- name: Clone lithosphere repository
+  git:
+    repo: "{{ litho_git_repo }}"
+    dest: "/tmp/lithosphere"
+    version: "{{ litho_git_branch | default(litho_git_version) }}"
+    force: yes
+  when: litho_build_method == "source"
+  tags: build
+
+- name: Build lithod binary
+  shell: |
+    export PATH=$PATH:/usr/local/go/bin
+    export GOPATH=$HOME/go
+    export PATH=$PATH:$GOPATH/bin
+    cd /tmp/lithosphere
+    make install
+  args:
+    creates: "$HOME/go/bin/lithod"
+  when: litho_build_method == "source"
+  tags: build
+
+- name: Copy lithod binary to system path
+  copy:
+    src: "{{ ansible_env.HOME }}/go/bin/lithod"
+    dest: "{{ litho_binary_path }}"
+    mode: "0755"
+    remote_src: yes
+  when: litho_build_method == "source"
+  tags: build
+
+- name: Download lithod binary
+  get_url:
+    url: "{{ litho_binary_url }}"
+    dest: "{{ litho_binary_path }}"
+    mode: "0755"
+    checksum: "{{ litho_binary_checksum }}"
+  when:
+    - litho_build_method == "binary"
+    - litho_binary_url is defined
+  tags: binary
+
+# --- Upload method: copy pre-built binary from control machine ---
+- name: Upload lithod binary from control machine
+  copy:
+    src: "{{ litho_binary_local_path }}"
+    dest: "{{ litho_binary_path }}"
+    mode: "0755"
+    owner: root
+    group: root
+  when:
+    - litho_build_method == "upload"
+  tags: [binary, upload]
+
+- name: Check if lithod binary exists
+  stat:
+    path: "{{ litho_binary_path }}"
+  register: lithod_binary_stat
+  tags: [binary, build, upload]
+
+- name: Verify binary
+  command: "{{ litho_binary_path }} version"
+  register: lithod_version
+  changed_when: false
+  when: lithod_binary_stat.stat.exists
+  tags: [binary, build, upload]
+
+- name: Display version
+  debug:
+    msg: "lithod version: {{ lithod_version.stdout }}"
+  when: lithod_binary_stat.stat.exists
+  tags: [binary, build, upload]
+
+- name: Warn if lithod binary is missing
+  debug:
+    msg: |
+      WARNING: lithod binary not found at {{ litho_binary_path }}
+      The binary must be provided before the node can start.
+      Place the linux-amd64 binary at bin/lithod on the control machine
+      and re-run with litho_build_method=upload.
+  when: not lithod_binary_stat.stat.exists
+  tags: [binary, build, upload]
+
+# #############################################################################
+# 2. KEY INJECTION
+# #############################################################################
+
+- name: Create scripts directory
+  file:
+    path: "{{ litho_home }}/scripts"
+    state: directory
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: "0700"
+  tags: [security, keys]
+
+- name: Create config directory
+  file:
+    path: "{{ litho_home }}/config"
+    state: directory
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: "0700"
+  tags: [security, keys, genesis]
+
+- name: Create data directory
+  file:
+    path: "{{ litho_home }}/data"
+    state: directory
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: "0700"
+  tags: [security, keys]
+
+- name: Create logs directory
+  file:
+    path: "{{ litho_home }}/logs"
+    state: directory
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: "0750"
+  tags: [security, keys]
+
+# --- Primary path: Fetch keys from Secrets Manager ---
+- name: Fetch encrypted keys from Secrets Manager
+  include_tasks: fetch-keys-from-secrets.yml
+  when: fetch_keys_from_secrets | default(true) | bool
+  tags: [security, keys]
+
+# --- Check state after SM fetch ---
+- name: Check if encrypted validator key exists (after SM fetch)
+  stat:
+    path: "{{ litho_home }}/config/priv_validator_key.json.enc"
+  register: encrypted_validator_key_stat
+  when: node_role == "validator"
+  tags: [security, keys]
+
+# --- Legacy fallback: Encrypt-in-place for manually placed keys ---
+# Only runs if: (a) plaintext key exists AND (b) no encrypted key exists
+- name: Check if priv_validator_key.json exists (plaintext, legacy path)
+  stat:
+    path: "{{ litho_home }}/config/priv_validator_key.json"
+  register: priv_validator_key_stat
+  when:
+    - node_role == "validator"
+    - not (encrypted_validator_key_stat.stat.exists | default(false))
+  tags: security
+
+- name: Encrypt priv_validator_key.json with KMS envelope encryption (legacy in-place)
+  block:
+    - name: Read plaintext validator key
+      slurp:
+        src: "{{ litho_home }}/config/priv_validator_key.json"
+      register: validator_key_plaintext
+      no_log: true
+
+    - name: Get EBS volume KMS key ID
+      shell: |
+        TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+        INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+        REGION=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
+        VOLUME_ID=$(aws ec2 describe-volumes --region $REGION --filters "Name=attachment.instance-id,Values=$INSTANCE_ID" "Name=attachment.device,Values=/dev/xvda" --query 'Volumes[0].VolumeId' --output text)
+        aws ec2 describe-volumes --region $REGION --volume-ids $VOLUME_ID --query 'Volumes[0].KmsKeyId' --output text
+      register: kms_key_id
+      changed_when: false
+      environment:
+        AWS_DEFAULT_REGION: "{{ aws_region }}"
+
+    - name: Generate data key and encrypt validator key
+      shell: |
+        set -e
+
+        # Generate data key from KMS
+        aws kms generate-data-key \
+          --key-id {{ kms_key_id.stdout }} \
+          --key-spec AES_256 \
+          --region {{ aws_region }} \
+          --output json > /tmp/data_key.json
+
+        # Extract plaintext and encrypted data keys
+        PLAINTEXT_KEY=$(jq -r '.Plaintext' /tmp/data_key.json)
+        ENCRYPTED_KEY=$(jq -r '.CiphertextBlob' /tmp/data_key.json)
+
+        # Decode plaintext key to binary for OpenSSL
+        echo $PLAINTEXT_KEY | base64 -d > /tmp/plaintext_key.bin
+
+        # Encrypt the validator key with AES-256-CBC using the data key
+        openssl enc -aes-256-cbc -salt -pbkdf2 \
+          -in {{ litho_home }}/config/priv_validator_key.json \
+          -out {{ litho_home }}/config/priv_validator_key.json.enc \
+          -pass file:/tmp/plaintext_key.bin
+
+        # Save the encrypted data key (this is safe to store)
+        echo $ENCRYPTED_KEY > {{ litho_home }}/config/priv_validator_key.kms
+
+        # Securely delete temporary files
+        shred -vfz -n 10 /tmp/plaintext_key.bin /tmp/data_key.json 2>/dev/null || rm -f /tmp/plaintext_key.bin /tmp/data_key.json
+
+        # Securely delete the plaintext validator key
+        shred -vfz -n 10 {{ litho_home }}/config/priv_validator_key.json
+
+        echo "Envelope encryption completed successfully"
+      args:
+        executable: /bin/bash
+      no_log: true
+      when: priv_validator_key_stat.stat.exists | default(false)
+      environment:
+        AWS_DEFAULT_REGION: "{{ aws_region }}"
+
+    - name: Set permissions on encrypted files
+      file:
+        path: "{{ item }}"
+        owner: "{{ litho_user }}"
+        group: "{{ litho_group }}"
+        mode: "0600"
+      loop:
+        - "{{ litho_home }}/config/priv_validator_key.json.enc"
+        - "{{ litho_home }}/config/priv_validator_key.kms"
+      when: priv_validator_key_stat.stat.exists | default(false)
+
+  when:
+    - node_role == "validator"
+    - validator_key_backend | default('aws_kms') == 'aws_kms'
+    - priv_validator_key_stat.stat.exists | default(false)
+    - not (encrypted_validator_key_stat.stat.exists | default(false))
+  tags: security
+
+# #############################################################################
+# 3. GENESIS DISTRIBUTION
+# #############################################################################
+
+- name: Check if genesis.json already exists
+  stat:
+    path: "{{ litho_home }}/config/genesis.json"
+  register: existing_genesis
+  tags: genesis
+
+- name: Get existing genesis checksum (if exists)
+  shell: sha256sum {{ litho_home }}/config/genesis.json | awk '{print $1}'
+  register: existing_genesis_checksum
+  changed_when: false
+  failed_when: false
+  when: existing_genesis.stat.exists
+  tags: genesis
+
+- name: Determine if genesis needs deployment
+  set_fact:
+    genesis_needs_deploy: >-
+      {{
+        genesis_source != "none"
+        and (
+          not existing_genesis.stat.exists
+          or genesis_force_update
+          or (
+            genesis_verify_checksum | bool
+            and existing_genesis.stat.exists
+            and existing_genesis_checksum.stdout | default('') != genesis_checksum_expected
+          )
+        )
+      }}
+  tags: genesis
+
+- name: Fail if genesis_source is none and genesis.json is missing
+  fail:
+    msg: |
+      genesis_source is "none", so Ansible will not deploy genesis.json.
+      Expected existing file at {{ litho_home }}/config/genesis.json.
+  when:
+    - genesis_source == "none"
+    - not existing_genesis.stat.exists
+  tags: genesis
+
+- name: Display genesis status
+  debug:
+    msg: |
+      Genesis file status:
+      - Exists: {{ existing_genesis.stat.exists }}
+      - Current checksum: {{ existing_genesis_checksum.stdout | default('N/A') }}
+      - Expected checksum: {{ genesis_checksum_expected | default('N/A') }}
+      - Verify checksum: {{ genesis_verify_checksum }}
+      - Force update: {{ genesis_force_update }}
+      - Source: {{ genesis_source }}
+      - Needs deploy: {{ genesis_needs_deploy }}
+  tags: genesis
+
+# --- Source: local file from control machine ---
+- name: Copy genesis.json from control machine
+  copy:
+    src: "{{ genesis_file_local }}"
+    dest: "{{ litho_home }}/config/genesis.json"
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: "0644"
+    backup: yes
+  when:
+    - genesis_needs_deploy | bool
+    - genesis_source == "local"
+  register: genesis_deployed_local
+  tags: genesis
+
+# --- Source: S3 bucket ---
+- name: Download genesis.json from S3
+  shell: |
+    aws s3 cp "{{ genesis_s3_uri }}" "{{ litho_home }}/config/genesis.json" \
+      --region "{{ genesis_s3_region }}"
+  args:
+    executable: /bin/bash
+  environment:
+    AWS_DEFAULT_REGION: "{{ genesis_s3_region }}"
+  when:
+    - genesis_needs_deploy | bool
+    - genesis_source == "s3"
+    - genesis_s3_uri | length > 0
+  register: genesis_deployed_s3
+  tags: genesis
+
+- name: Set genesis.json ownership and permissions (after S3 download)
+  file:
+    path: "{{ litho_home }}/config/genesis.json"
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: "0644"
+  when:
+    - genesis_deployed_s3 is defined
+    - genesis_deployed_s3.changed | default(false)
+  tags: genesis
+
+# --- Checksum verification (CRITICAL - fails deployment on mismatch) ---
+- name: Verify genesis.json SHA256 checksum
+  shell: sha256sum {{ litho_home }}/config/genesis.json | awk '{print $1}'
+  register: genesis_checksum_actual
+  changed_when: false
+  tags: genesis
+
+- name: Fail if genesis checksum does not match
+  fail:
+    msg: |
+      ======================================================================
+       CRITICAL: GENESIS CHECKSUM MISMATCH
+      ======================================================================
+
+      Expected: {{ genesis_checksum_expected }}
+      Actual:   {{ genesis_checksum_actual.stdout }}
+
+      This is a CRITICAL security issue. All validators MUST use identical
+      genesis files to participate in the same blockchain network.
+
+      Using a mismatched genesis file will result in:
+      - Fork from the official chain
+      - Inability to sync blocks
+      - Potential slashing due to double-signing
+      - Network instability
+
+      DEPLOYMENT ABORTED.
+
+      Required Actions:
+      1. Verify genesis.json source file is correct
+      2. Check for file corruption during transfer
+      3. Update genesis_checksum_expected if using a new genesis
+      4. Re-run deployment after verification
+  when:
+    - genesis_verify_checksum | bool
+    - genesis_checksum_expected | default('') | length > 0
+    - genesis_checksum_actual.stdout != genesis_checksum_expected
+  tags: genesis
+
+- name: Display genesis deployment info
+  debug:
+    msg: |
+      Genesis file verified
+      - Path:       {{ litho_home }}/config/genesis.json
+      - Checksum:   {{ genesis_checksum_actual.stdout }}
+      - Chain ID:   {{ litho_chain_id }}
+      - Source:     {{ genesis_source }}
+  tags: genesis
+
+- name: Set genesis file immutable (prevents accidental modification)
+  file:
+    path: "{{ litho_home }}/config/genesis.json"
+    attr: +i
+  when: ansible_facts['os_family'] == "RedHat" or ansible_facts['os_family'] == "Debian"
+  ignore_errors: yes
+  tags: genesis
+
+# #############################################################################
+# 4. CONFIG TEMPLATES
+# #############################################################################
+
+- name: Deploy config.toml
+  template:
+    src: config.toml.j2
+    dest: "{{ litho_home }}/config/config.toml"
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: "0640"
+  notify: restart lithod
+  tags: config
+
+- name: Deploy app.toml
+  template:
+    src: app.toml.j2
+    dest: "{{ litho_home }}/config/app.toml"
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: "0640"
+  notify: restart lithod
+  tags: config
+
+- name: Deploy client.toml
+  template:
+    src: client.toml.j2
+    dest: "{{ litho_home }}/config/client.toml"
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: "0640"
+  notify: restart lithod
+  tags: config
+
+- name: Remove stale .lithod hidden directory
+  file:
+    path: "{{ litho_home }}/.lithod"
+    state: absent
+  tags: config
+
+# #############################################################################
+# 5. SCRIPTS
+# #############################################################################
+
+- name: Deploy preflight check script
+  template:
+    src: preflight-check.sh.j2
+    dest: "{{ litho_home }}/scripts/preflight-check.sh"
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: "0700"
+  tags: [security, scripts]
+
+- name: Deploy validator key decryption script
+  template:
+    src: decrypt_validator_key.sh.j2
+    dest: "{{ litho_home }}/scripts/decrypt_validator_key.sh"
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: "0700"
+  when:
+    - node_role == "validator"
+    - validator_key_backend | default('aws_kms') == 'aws_kms'
+  tags: [security, scripts]
+
+- name: Deploy validator key wipe script
+  template:
+    src: wipe_validator_key.sh.j2
+    dest: "{{ litho_home }}/scripts/wipe_validator_key.sh"
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: "0700"
+  when:
+    - node_role == "validator"
+    - validator_key_backend | default('aws_kms') == 'aws_kms'
+  tags: [security, scripts]
+
+- name: Fix SELinux context on scripts (RHEL/AL2023)
+  ansible.builtin.command:
+    cmd: chcon -t bin_t {{ litho_home }}/scripts/{{ item }}
+  loop:
+    - preflight-check.sh
+    - decrypt_validator_key.sh
+    - wipe_validator_key.sh
+  when: ansible_os_family == "RedHat"
+  failed_when: false
+  changed_when: false
+  tags: [security, scripts]
+
+# #############################################################################
+# 6. SYSTEMD
+# #############################################################################
+
+- name: Deploy systemd service
+  template:
+    src: lithod.service.j2
+    dest: "/etc/systemd/system/{{ litho_service_name }}.service"
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart lithod
+  tags: systemd
+
+# #############################################################################
+# 7. READINESS GATE
+# #############################################################################
+# Assert every file the preflight script checks is in place BEFORE Ansible
+# tries to start the service. This catches deployment bugs at Ansible time
+# rather than deferring them to a systemd ExecStartPre failure.
+# #############################################################################
+
+- name: Readiness gate - verify all critical files
+  block:
+    - name: Stat genesis.json
+      stat:
+        path: "{{ litho_home }}/config/genesis.json"
+      register: gate_genesis
+
+    - name: Stat node_key.json
+      stat:
+        path: "{{ litho_home }}/config/node_key.json"
+      register: gate_node_key
+
+    - name: Stat config.toml
+      stat:
+        path: "{{ litho_home }}/config/config.toml"
+      register: gate_config
+
+    - name: Stat app.toml
+      stat:
+        path: "{{ litho_home }}/config/app.toml"
+      register: gate_app
+
+    - name: Stat client.toml
+      stat:
+        path: "{{ litho_home }}/config/client.toml"
+      register: gate_client
+
+    - name: Assert common files are present
+      assert:
+        that:
+          - gate_genesis.stat.exists
+          - gate_node_key.stat.exists
+          - gate_config.stat.exists
+          - gate_app.stat.exists
+          - gate_client.stat.exists
+        fail_msg: |
+          READINESS GATE FAILED - missing critical files:
+            genesis.json:  {{ gate_genesis.stat.exists }}
+            node_key.json: {{ gate_node_key.stat.exists }}
+            config.toml:   {{ gate_config.stat.exists }}
+            app.toml:      {{ gate_app.stat.exists }}
+            client.toml:   {{ gate_client.stat.exists }}
+          lithod will NOT be started. Fix the issues above and re-run.
+
+    - name: Stat validator encrypted key files (validator only)
+      stat:
+        path: "{{ item }}"
+      register: gate_validator_files
+      loop:
+        - "{{ litho_home }}/config/priv_validator_key.json.enc"
+        - "{{ litho_home }}/config/priv_validator_key.kms"
+        - "{{ litho_home }}/data/priv_validator_state.json"
+      when: node_role == "validator"
+
+    - name: Assert validator key files are present
+      assert:
+        that:
+          - gate_validator_files.results[0].stat.exists
+          - gate_validator_files.results[1].stat.exists
+          - gate_validator_files.results[2].stat.exists
+        fail_msg: |
+          READINESS GATE FAILED - missing validator key files:
+            priv_validator_key.json.enc:   {{ gate_validator_files.results[0].stat.exists }}
+            priv_validator_key.kms:        {{ gate_validator_files.results[1].stat.exists }}
+            priv_validator_state.json:     {{ gate_validator_files.results[2].stat.exists }}
+          Run scripts/key-ceremony.sh and re-deploy, or place keys manually.
+      when:
+        - node_role == "validator"
+        - fetch_keys_from_secrets | default(true) | bool
+
+    - name: Warn about missing validator keys (key ceremony pending)
+      debug:
+        msg: "NOTICE: Validator key files not present. Key ceremony required before this node can validate."
+      when:
+        - node_role == "validator"
+        - not (fetch_keys_from_secrets | default(true) | bool)
+
+    - name: Display readiness gate result
+      debug:
+        msg: |
+          READINESS GATE PASSED - All files verified
+          Node role: {{ node_role }}
+          Home:      {{ litho_home }}
+          Ready to start lithod service.
+  tags: [readiness, service]
+
+# #############################################################################
+# 8. SERVICE START
+# #############################################################################
+
+- name: Enable and start lithod
+  systemd:
+    name: "{{ litho_service_name }}"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  tags: service
+
+# #############################################################################
+# 8b. PERIODIC RESTART (memiavl mmap leak workaround)
+# #############################################################################
+# Cronos memiavl never munmap()s old snapshot files when they are rewritten.
+# The leaked mappings persist as "(deleted)" entries and count against
+# vm.max_map_count. Public sentries need automated restarts/watchdogs to keep
+# RPC healthy. Validators opt out by default to avoid downtime jailing.
+
+- name: Deploy lithod periodic-restart systemd service
+  template:
+    src: lithod-restart.service.j2
+    dest: "/etc/systemd/system/{{ litho_service_name }}-restart.service"
+    owner: root
+    group: root
+    mode: '0644'
+  when: lithod_restart_timer_enabled | bool
+  tags: [service, mmap-leak]
+
+- name: Deploy lithod periodic-restart systemd timer
+  template:
+    src: lithod-restart.timer.j2
+    dest: "/etc/systemd/system/{{ litho_service_name }}-restart.timer"
+    owner: root
+    group: root
+    mode: '0644'
+  when: lithod_restart_timer_enabled | bool
+  tags: [service, mmap-leak]
+
+- name: Enable and start lithod periodic-restart timer
+  systemd:
+    name: "{{ litho_service_name }}-restart.timer"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: lithod_restart_timer_enabled | bool
+  tags: [service, mmap-leak]
+
+- name: Disable lithod periodic-restart timer when disabled
+  systemd:
+    name: "{{ litho_service_name }}-restart.timer"
+    state: stopped
+    enabled: no
+    daemon_reload: yes
+  failed_when: false
+  when: not (lithod_restart_timer_enabled | bool)
+  tags: [service, mmap-leak]
+
+- name: Remove lithod periodic-restart units when disabled
+  file:
+    path: "/etc/systemd/system/{{ litho_service_name }}-restart.{{ item }}"
+    state: absent
+  loop:
+    - service
+    - timer
+  notify: reload systemd
+  when: not (lithod_restart_timer_enabled | bool)
+  tags: [service, mmap-leak]
+
+# --- Load-driven leak watchdog: restart when maps/file-nr cross a
+# --- safety threshold between scheduled restarts. See script for rationale.
+
+- name: Deploy lithod leak watchdog script
+  template:
+    src: lithod-leak-watchdog.sh.j2
+    dest: "{{ lithod_leak_watchdog_script_path }}"
+    owner: root
+    group: root
+    mode: '0755'
+  when: lithod_leak_watchdog_enabled | bool
+  tags: [service, mmap-leak]
+
+- name: Deploy lithod leak watchdog systemd service
+  template:
+    src: lithod-leak-watchdog.service.j2
+    dest: "/etc/systemd/system/{{ litho_service_name }}-leak-watchdog.service"
+    owner: root
+    group: root
+    mode: '0644'
+  when: lithod_leak_watchdog_enabled | bool
+  tags: [service, mmap-leak]
+
+- name: Deploy lithod leak watchdog systemd timer
+  template:
+    src: lithod-leak-watchdog.timer.j2
+    dest: "/etc/systemd/system/{{ litho_service_name }}-leak-watchdog.timer"
+    owner: root
+    group: root
+    mode: '0644'
+  when: lithod_leak_watchdog_enabled | bool
+  tags: [service, mmap-leak]
+
+- name: Enable and start lithod leak watchdog timer
+  systemd:
+    name: "{{ litho_service_name }}-leak-watchdog.timer"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: lithod_leak_watchdog_enabled | bool
+  tags: [service, mmap-leak]
+
+- name: Disable lithod leak watchdog timer when disabled
+  systemd:
+    name: "{{ litho_service_name }}-leak-watchdog.timer"
+    state: stopped
+    enabled: no
+    daemon_reload: yes
+  failed_when: false
+  when: not (lithod_leak_watchdog_enabled | bool)
+  tags: [service, mmap-leak]
+
+- name: Remove lithod leak watchdog units when disabled
+  file:
+    path: "/etc/systemd/system/{{ litho_service_name }}-leak-watchdog.{{ item }}"
+    state: absent
+  loop:
+    - service
+    - timer
+  notify: reload systemd
+  when: not (lithod_leak_watchdog_enabled | bool)
+  tags: [service, mmap-leak]
+
+- name: Remove legacy shared lithod leak watchdog script
+  file:
+    path: /usr/local/bin/lithod-leak-watchdog.sh
+    state: absent
+  tags: [service, mmap-leak]
+
+# --- stall watchdog: restart lithod when "active" but height stopped advancing
+# --- (wedged at memory ceiling, dead RPC). See script header for rationale.
+
+- name: Deploy lithod stall watchdog script
+  template:
+    src: lithod-stall-watchdog.sh.j2
+    dest: "{{ lithod_stall_watchdog_script_path }}"
+    owner: root
+    group: root
+    mode: '0755'
+  when: lithod_stall_watchdog_enabled | bool
+  tags: [service, stall-watchdog]
+
+- name: Deploy lithod stall watchdog systemd service
+  template:
+    src: lithod-stall-watchdog.service.j2
+    dest: "/etc/systemd/system/{{ litho_service_name }}-stall-watchdog.service"
+    owner: root
+    group: root
+    mode: '0644'
+  when: lithod_stall_watchdog_enabled | bool
+  tags: [service, stall-watchdog]
+
+- name: Deploy lithod stall watchdog systemd timer
+  template:
+    src: lithod-stall-watchdog.timer.j2
+    dest: "/etc/systemd/system/{{ litho_service_name }}-stall-watchdog.timer"
+    owner: root
+    group: root
+    mode: '0644'
+  when: lithod_stall_watchdog_enabled | bool
+  tags: [service, stall-watchdog]
+
+- name: Enable and start lithod stall watchdog timer
+  systemd:
+    name: "{{ litho_service_name }}-stall-watchdog.timer"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: lithod_stall_watchdog_enabled | bool
+  tags: [service, stall-watchdog]
+
+- name: Disable lithod stall watchdog timer when disabled
+  systemd:
+    name: "{{ litho_service_name }}-stall-watchdog.timer"
+    state: stopped
+    enabled: no
+    daemon_reload: yes
+  failed_when: false
+  when: not (lithod_stall_watchdog_enabled | bool)
+  tags: [service, stall-watchdog]
+
+- name: Remove lithod stall watchdog units when disabled
+  file:
+    path: "/etc/systemd/system/{{ litho_service_name }}-stall-watchdog.{{ item }}"
+    state: absent
+  loop:
+    - service
+    - timer
+  notify: reload systemd
+  when: not (lithod_stall_watchdog_enabled | bool)
+  tags: [service, stall-watchdog]
+
+# --- memiavl AppHash auto-heal: state-sync rebootstrap a sentry that crash-loops
+# --- or silently freezes on AppHash corruption. Sentry-only. See script header.
+
+- name: Deploy lithod apphash auto-heal script
+  template:
+    src: lithod-apphash-autoheal.sh.j2
+    dest: "{{ lithod_apphash_autoheal_script_path }}"
+    owner: root
+    group: root
+    mode: '0755'
+  when: lithod_apphash_autoheal_enabled | bool
+  tags: [service, apphash-autoheal]
+
+- name: Deploy lithod apphash auto-heal systemd service
+  template:
+    src: lithod-apphash-autoheal.service.j2
+    dest: "/etc/systemd/system/{{ litho_service_name }}-apphash-autoheal.service"
+    owner: root
+    group: root
+    mode: '0644'
+  when: lithod_apphash_autoheal_enabled | bool
+  tags: [service, apphash-autoheal]
+
+- name: Deploy lithod apphash auto-heal systemd timer
+  template:
+    src: lithod-apphash-autoheal.timer.j2
+    dest: "/etc/systemd/system/{{ litho_service_name }}-apphash-autoheal.timer"
+    owner: root
+    group: root
+    mode: '0644'
+  when: lithod_apphash_autoheal_enabled | bool
+  tags: [service, apphash-autoheal]
+
+- name: Enable and start lithod apphash auto-heal timer
+  systemd:
+    name: "{{ litho_service_name }}-apphash-autoheal.timer"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: lithod_apphash_autoheal_enabled | bool
+  tags: [service, apphash-autoheal]
+
+- name: Disable lithod apphash auto-heal timer when disabled
+  systemd:
+    name: "{{ litho_service_name }}-apphash-autoheal.timer"
+    state: stopped
+    enabled: no
+    daemon_reload: yes
+  failed_when: false
+  when: not (lithod_apphash_autoheal_enabled | bool)
+  tags: [service, apphash-autoheal]
+
+- name: Remove lithod apphash auto-heal units when disabled
+  file:
+    path: "/etc/systemd/system/{{ litho_service_name }}-apphash-autoheal.{{ item }}"
+    state: absent
+  loop:
+    - service
+    - timer
+  notify: reload systemd
+  when: not (lithod_apphash_autoheal_enabled | bool)
+  tags: [service, apphash-autoheal]
+
+- name: Stop legacy hand-installed shared apphash auto-heal timer
+  systemd:
+    name: lithod-apphash-autoheal.timer
+    state: stopped
+    enabled: no
+    daemon_reload: yes
+  failed_when: false
+  tags: [service, apphash-autoheal]
+
+- name: Remove legacy hand-installed shared apphash auto-heal units + script
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/lithod-apphash-autoheal.service
+    - /etc/systemd/system/lithod-apphash-autoheal.timer
+    - /usr/local/bin/lithod-apphash-autoheal.sh
+  notify: reload systemd
+  tags: [service, apphash-autoheal]
+
+# #############################################################################
+# 9. GOVERNANCE WATCHER (Calendar Hooks + Telegram Notifications)
+# #############################################################################
+
+- name: Create governance state directory
+  file:
+    path: /var/lib/litho/governance
+    state: directory
+    owner: "{{ litho_user }}"
+    group: "{{ litho_group }}"
+    mode: '0750'
+  tags: [governance, monitoring]
+
+- name: Create governance environment file
+  copy:
+    dest: /etc/litho/governance.env
+    owner: root
+    group: "{{ litho_group }}"
+    mode: '0640'
+    content: |
+      # Governance Watcher Configuration
+      # Managed by Ansible — do not edit manually
+      TELEGRAM_BOT_TOKEN={{ governance_telegram_bot_token | default('PLACEHOLDER_BOT_TOKEN') }}
+      TELEGRAM_CHAT_ID={{ governance_telegram_chat_id | default('PLACEHOLDER_CHAT_ID') }}
+      GOVERNANCE_API={{ governance_api_endpoint | default('https://api.litho.ai') }}
+      VALIDATOR_OPER={{ governance_validator_oper | default('lithovaloper1jvp5v362quy9mwhg0zsghjky8xt2y8vtlekc4w') }}
+      GOVERNANCE_STATE=/var/lib/litho/governance/watcher_state.json
+  tags: [governance, monitoring]
+
+- name: Deploy governance-watcher.sh
+  copy:
+    src: "{{ playbook_dir }}/../../scripts/governance-watcher.sh"
+    dest: /usr/local/bin/governance-watcher.sh
+    owner: root
+    group: root
+    mode: '0755'
+  tags: [governance, monitoring]
+
+- name: Deploy governance-vote.sh
+  copy:
+    src: "{{ playbook_dir }}/../../scripts/governance-vote.sh"
+    dest: /usr/local/bin/governance-vote.sh
+    owner: root
+    group: root
+    mode: '0755'
+  tags: [governance, monitoring]
+
+- name: Deploy governance-watcher systemd service
+  template:
+    src: governance-watcher.service.j2
+    dest: /etc/systemd/system/governance-watcher.service
+    owner: root
+    group: root
+    mode: '0644'
+  tags: [governance, monitoring]
+
+- name: Deploy governance-watcher systemd timer
+  template:
+    src: governance-watcher.timer.j2
+    dest: /etc/systemd/system/governance-watcher.timer
+    owner: root
+    group: root
+    mode: '0644'
+  tags: [governance, monitoring]
+
+- name: Enable and start governance-watcher timer
+  systemd:
+    name: governance-watcher.timer
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  tags: [governance, monitoring]
+
+- name: Run initial governance watcher check
+  command: /usr/local/bin/governance-watcher.sh --verbose
+  become: yes
+  become_user: "{{ litho_user }}"
+  register: initial_watcher_run
+  failed_when: false
+  changed_when: false
+  tags: [governance, monitoring]

@@ -1,0 +1,16 @@
+# Lithosphere Governance Watcher — Systemd Timer
+# Triggers governance-watcher.service every 5 minutes to poll for
+# governance proposals and send Telegram notifications
+
+[Unit]
+Description=Governance watcher poll timer (every 5 min)
+Documentation=https://github.com/BrewCodeDev/lithosphere-dev-infra
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

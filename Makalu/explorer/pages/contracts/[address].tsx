@@ -1,5 +1,6 @@
 import Head from 'next/head';
 import Link from 'next/link';
+
 import { EXPLORER_TITLE } from '@/lib/constants';
 
 export default function ContractDetailPage() {

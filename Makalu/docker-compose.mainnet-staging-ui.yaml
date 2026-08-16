@@ -1,0 +1,68 @@
+name: ${COMPOSE_PROJECT_NAME:-lithoscan-mainnet-staging}
+
+# API/explorer overlay for the already-running isolated mainnet indexer stack.
+# It joins the existing project network but does not own or recreate the
+# PostgreSQL, Redis or indexer containers and exposes only loopback ports.
+services:
+  api:
+    image: ${API_IMAGE:-ghcr.io/kajlabs/lithoscan-api}:${API_IMAGE_TAG:?Set an immutable staging API tag}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${API_PORT:-4401}:4000"
+    environment:
+      NODE_ENV: production
+      API_PORT: "4000"
+      API_HOST: 0.0.0.0
+      DATABASE_URL: ${DATABASE_URL:?Inject the isolated staging database URL}
+      REDIS_URL: ${REDIS_URL:?Inject the isolated staging Redis URL}
+      LITHO_RPC_URL: ${LITHO_RPC_URL:?Set the verified temporary Cosmos RPC}
+      LITHO_CHAIN_ID: "9005"
+      CHAIN_ID: lithosphere_9005-1
+      COSMOS_CHAIN_ID: lithosphere_9005-1
+      AUTH_ALLOWED_CHAIN_ID: "9005"
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:?Inject a staging session secret}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set the tunneled staging origins}
+      GRAPHQL_PLAYGROUND: "false"
+      PROMETHEUS_ENABLED: "true"
+      METRICS_PORT: "9090"
+      FAUCET_ENABLED: "false"
+      BRIDGE_ENABLED: "false"
+      MULTX_ENABLED: "false"
+      SWAP_ENABLED: "false"
+      SWAP_ROUTER_ADDRESS: ""
+      QUANTT_API_BASE_URL: ""
+      QUANTT_API_KEY: ""
+      GIT_SHA: ${GIT_SHA:?Set the exact release SHA}
+      VERSION: ${VERSION:?Set the immutable release version}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [mainnet-internal]
+
+  explorer:
+    image: ${EXPLORER_IMAGE:-ghcr.io/kajlabs/lithoscan-explorer}:${EXPLORER_IMAGE_TAG:?Set an immutable staging explorer tag}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${EXPLORER_PORT:-3501}:3000"
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://api:4000
+      GIT_SHA: ${GIT_SHA:?Set the exact release SHA}
+      VERSION: ${VERSION:?Set the immutable release version}
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [mainnet-internal]
+
+networks:
+  mainnet-internal:
+    external: true
+    name: ${INDEXER_NETWORK_NAME:-lithoscan-mainnet-staging_mainnet-internal}

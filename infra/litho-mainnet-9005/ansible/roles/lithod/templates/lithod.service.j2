@@ -1,0 +1,63 @@
+[Unit]
+Description=Lithosphere Node — {{ litho_service_name }} ({{ node_role }})
+Documentation=https://github.com/KaJLabs/lithosphere
+After=network-online.target
+Wants=network-online.target
+{% if node_role == "validator" %}
+# Validator must wait for WireGuard tunnel to sentries before starting
+After=wg-quick@{{ wireguard_interface | default('wg0') }}.service
+Wants=wg-quick@{{ wireguard_interface | default('wg0') }}.service
+{% endif %}
+
+[Service]
+Type=simple
+User={{ litho_user }}
+Group={{ litho_group }}
+
+# ---------------------------------------------------------------
+# PRE-START: Validate files → Decrypt keys (validator only)
+# ---------------------------------------------------------------
+# 1. Preflight: assert genesis, node_key, config, and signing key files exist
+ExecStartPre={{ litho_home }}/scripts/preflight-check.sh
+
+{% if node_role == "validator" and validator_key_backend | default('aws_kms') == 'aws_kms' %}
+# 2. Decrypt validator signing key from KMS envelope encryption
+ExecStartPre={{ litho_home }}/scripts/decrypt_validator_key.sh
+{% endif %}
+
+# ---------------------------------------------------------------
+# MAIN PROCESS
+# ---------------------------------------------------------------
+ExecStart={{ litho_binary_path }} start --home {{ litho_home }}
+
+# ---------------------------------------------------------------
+# POST-STOP: Wipe plaintext signing key (validator only)
+# ---------------------------------------------------------------
+{% if node_role == "validator" and validator_key_backend | default('aws_kms') == 'aws_kms' %}
+ExecStopPost={{ litho_home }}/scripts/wipe_validator_key.sh
+{% endif %}
+
+Restart=always
+RestartSec=5
+LimitNOFILE={{ system_limits.nofile }}
+LimitNPROC={{ system_limits.nproc }}
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths={{ litho_home }}
+
+# Resource limits
+MemoryMax={{ lithod_memory_limit }}
+CPUQuota={{ lithod_cpu_quota }}
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier={{ litho_service_name }}
+
+[Install]
+WantedBy=multi-user.target

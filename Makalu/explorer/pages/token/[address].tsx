@@ -1,12 +1,15 @@
-import { useState, useCallback, useEffect } from 'react';
 import { useWeb3ModalProvider } from '@web3modal/ethers/react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useState, useCallback, useEffect } from 'react';
+
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
-import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, formatValue, evmToCosmos, preferLitho, truncateAddressSmart } from '@/lib/format';
+import { formatNumber, formatSupply, truncateHash, timeAgo, formatTimestamp, evmToCosmos, preferLitho, truncateAddressSmart } from '@/lib/format';
+import { NETWORK } from '@/lib/network';
 import { isValidTransactionHash } from '@/lib/tx';
+
 import type {
   ApiTokenDetail,
   ApiTokenTransferList,
@@ -373,7 +376,7 @@ function TransfersTab({ address, decimals, symbol, isNft }: { address: string; d
 
 /* ── Holders Tab ──────────────────────────────────────────────────────── */
 
-function HoldersTab({ address, decimals, symbol, totalSupply }: { address: string; decimals: number; symbol: string; totalSupply?: string }) {
+function HoldersTab({ address, decimals, symbol, totalSupply: _totalSupply }: { address: string; decimals: number; symbol: string; totalSupply?: string }) {
   const [page, setPage] = useState(0);
   const offset = page * PER_PAGE;
   const { data, loading } = useApi<ApiTokenHolderList>(
@@ -707,8 +710,8 @@ function InfoTab({ token }: { token: ApiTokenDetail }) {
           <InfoRow label="Type" value={getAssetTypeLabel(token)} />
           <InfoRow label="Standard" value={getAssetStandard(token)} />
           {isNative && <InfoRow label="Denom" value="ulitho" mono />}
-          <InfoRow label="Chain" value="lithosphere_700777-2" mono />
-          <InfoRow label="Chain ID" value="700777" mono />
+          <InfoRow label="Chain" value={NETWORK.cosmosChainId} mono />
+          <InfoRow label="Chain ID" value={String(NETWORK.evmChainId)} mono />
           <InfoRow
             label="Total Supply"
             value={token.totalSupply ? `${formatSupply(token.totalSupply, token.decimals)} ${token.symbol}` : '--'}
@@ -827,7 +830,7 @@ export default function TokenDetailPage() {
     <>
       <Head>
         <title>{token.symbol} ({token.name}) | {EXPLORER_TITLE}</title>
-        <meta name="description" content={`View info, holders, and transfers for ${token.name} (${token.symbol}) on the Lithosphere Makalu network.`} />
+        <meta name="description" content={`View info, holders, and transfers for ${token.name} (${token.symbol}) on ${NETWORK.label}.`} />
       </Head>
 
       <div className="text-white space-y-6">

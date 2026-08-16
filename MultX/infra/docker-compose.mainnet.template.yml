@@ -1,0 +1,105 @@
+# Non-runnable production template. Every REPLACE_WITH value is a deliberate
+# deployment blocker and must come from the approved audit/release record.
+services:
+  database:
+    image: postgres:16-alpine@sha256:REPLACE_WITH_APPROVED_POSTGRES_DIGEST
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: multx_mainnet
+      POSTGRES_USER: multx
+      POSTGRES_PASSWORD_FILE: /run/secrets/db-password
+    volumes:
+      - multx-mainnet-db:/var/lib/postgresql/data
+      - ${MULTX_DB_PASSWORD_PATH}:/run/secrets/db-password:ro
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U multx -d multx_mainnet"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    image: ghcr.io/kajlabs/lithosphere/multx-api@sha256:REPLACE_WITH_APPROVED_API_DIGEST
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      CORS_ORIGINS: REPLACE_WITH_APPROVED_HTTPS_ORIGINS
+      DB_HOST: database
+      DB_PORT: "5432"
+      DB_USER: multx
+      DB_NAME: multx_mainnet
+      DB_PASSWORD_FILE: /run/secrets/db-password
+      MULTX_NETWORK_CONFIG_FILE: /run/config/network.json
+      MOCK_VALIDATOR: "false"
+      SIGNATURES_REQUIRED: "5"
+      VALIDATOR_SIGNER_TIMEOUT_MS: "8000"
+      VALIDATOR_SIGNER_URL_0: https://REPLACE_WITH_SIGNER_0:9443
+      VALIDATOR_SIGNER_ADDRESS_0: REPLACE_WITH_SIGNER_0_ADDRESS
+      VALIDATOR_SIGNER_CA_FILE_0: /run/tls/signers/signer-0-ca.crt
+      VALIDATOR_SIGNER_CERT_FILE_0: /run/tls/coordinator/client.crt
+      VALIDATOR_SIGNER_KEY_FILE_0: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_URL_1: https://REPLACE_WITH_SIGNER_1:9443
+      VALIDATOR_SIGNER_ADDRESS_1: REPLACE_WITH_SIGNER_1_ADDRESS
+      VALIDATOR_SIGNER_CA_FILE_1: /run/tls/signers/signer-1-ca.crt
+      VALIDATOR_SIGNER_CERT_FILE_1: /run/tls/coordinator/client.crt
+      VALIDATOR_SIGNER_KEY_FILE_1: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_URL_2: https://REPLACE_WITH_SIGNER_2:9443
+      VALIDATOR_SIGNER_ADDRESS_2: REPLACE_WITH_SIGNER_2_ADDRESS
+      VALIDATOR_SIGNER_CA_FILE_2: /run/tls/signers/signer-2-ca.crt
+      VALIDATOR_SIGNER_CERT_FILE_2: /run/tls/coordinator/client.crt
+      VALIDATOR_SIGNER_KEY_FILE_2: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_URL_3: https://REPLACE_WITH_SIGNER_3:9443
+      VALIDATOR_SIGNER_ADDRESS_3: REPLACE_WITH_SIGNER_3_ADDRESS
+      VALIDATOR_SIGNER_CA_FILE_3: /run/tls/signers/signer-3-ca.crt
+      VALIDATOR_SIGNER_CERT_FILE_3: /run/tls/coordinator/client.crt
+      VALIDATOR_SIGNER_KEY_FILE_3: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_URL_4: https://REPLACE_WITH_SIGNER_4:9443
+      VALIDATOR_SIGNER_ADDRESS_4: REPLACE_WITH_SIGNER_4_ADDRESS
+      VALIDATOR_SIGNER_CA_FILE_4: /run/tls/signers/signer-4-ca.crt
+      VALIDATOR_SIGNER_CERT_FILE_4: /run/tls/coordinator/client.crt
+      VALIDATOR_SIGNER_KEY_FILE_4: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_URL_5: https://REPLACE_WITH_SIGNER_5:9443
+      VALIDATOR_SIGNER_ADDRESS_5: REPLACE_WITH_SIGNER_5_ADDRESS
+      VALIDATOR_SIGNER_CA_FILE_5: /run/tls/signers/signer-5-ca.crt
+      VALIDATOR_SIGNER_CERT_FILE_5: /run/tls/coordinator/client.crt
+      VALIDATOR_SIGNER_KEY_FILE_5: /run/tls/coordinator/client.key
+      VALIDATOR_SIGNER_URL_6: https://REPLACE_WITH_SIGNER_6:9443
+      VALIDATOR_SIGNER_ADDRESS_6: REPLACE_WITH_SIGNER_6_ADDRESS
+      VALIDATOR_SIGNER_CA_FILE_6: /run/tls/signers/signer-6-ca.crt
+      VALIDATOR_SIGNER_CERT_FILE_6: /run/tls/coordinator/client.crt
+      VALIDATOR_SIGNER_KEY_FILE_6: /run/tls/coordinator/client.key
+    ports:
+      - "127.0.0.1:4000:4000"
+    volumes:
+      - ${MULTX_DB_PASSWORD_PATH}:/run/secrets/db-password:ro
+      - ${MULTX_NETWORK_CONFIG_PATH}:/run/config/network.json:ro
+      - ${MULTX_SIGNER_CA_DIR}:/run/tls/signers:ro
+      - ${MULTX_COORDINATOR_TLS_DIR}:/run/tls/coordinator:ro
+    networks:
+      - backend
+      - egress
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 2.0
+
+networks:
+  backend:
+    internal: true
+  egress:
+
+volumes:
+  multx-mainnet-db:

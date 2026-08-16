@@ -1,0 +1,149 @@
+name: MultX source gates
+
+on:
+  pull_request:
+    paths:
+      - "MultX/**"
+      - ".github/workflows/ci-multx.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "MultX/**"
+      - ".github/workflows/ci-multx.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: MultX/contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: MultX/contracts/package-lock.json
+      - run: npm ci
+      - name: Reject production high or critical dependency findings
+        run: npm audit --omit=dev --audit-level=high
+      - run: npm test
+      - run: npm run compile
+      - run: npm run audit:bytecode-hashes
+
+  foundry-invariants:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: MultX/contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: MultX/contracts/package-lock.json
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+      - name: Install pinned Foundry test library
+        run: forge install --no-git foundry-rs/forge-std@v1.16.1
+      - name: Run bridge invariant suites
+        run: forge test --match-path "test/foundry/*.t.sol" -vv
+
+  sdk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: MultX/sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: MultX/sdk/package-lock.json
+      - run: npm ci
+      - name: Reject high or critical dependency findings
+        run: npm audit --audit-level=high
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: MultX/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: MultX/web/package-lock.json
+      - name: Build local MultX SDK dependency
+        working-directory: MultX/sdk
+        run: npm ci && npm run build
+      - run: npm ci
+      - name: Reject high or critical dependency findings
+        run: npm audit --audit-level=high
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm run build
+
+  api-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: MultX/api/package-lock.json
+      - name: Test VPS secret and remote-signer client paths
+        working-directory: MultX/api
+        run: npm ci && npm audit --audit-level=high && npm test
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: MultX/api
+          push: false
+          tags: multx-api:ci
+
+  signer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: MultX/signer/package-lock.json
+      - name: Test independent signer policy gates
+        working-directory: MultX/signer
+        run: npm ci && npm audit --audit-level=high && npm test
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: MultX/signer
+          push: false
+          tags: multx-signer:ci
+
+  web-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: MultX
+          file: MultX/web/Dockerfile
+          build-args: |
+            VITE_GRPC_URL=grpc.invalid:9090
+          push: false
+          tags: multx-web:ci

@@ -1,11 +1,13 @@
-import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import { useState } from 'react';
+
+import SyncStatusBanner from '@/components/SyncStatusBanner';
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE, POLL_INTERVAL } from '@/lib/constants';
 import { formatNumber, truncateHash, timeAgo } from '@/lib/format';
+
 import type { ApiBlock, StatsSummary } from '@/lib/types';
-import SyncStatusBanner from '@/components/SyncStatusBanner';
 
 const ROWS_PER_PAGE = 25;
 

@@ -2,19 +2,20 @@
 # =============================================================================
 # deploy-indexer-ec2.sh
 # Deploy the Lithosphere Explorer & Indexer stack on the production Indexer-EC2
-# node (10.0.10.16) via Bastion SSH to resolve the 522 Timeout error.
+# node selected from protected inventory via Bastion SSH.
 #
 # Usage:
 #   chmod +x deploy-indexer-ec2.sh
 #   ./deploy-indexer-ec2.sh \
 #     --bastion <bastion-public-ip-or-hostname> \
+#     --target   <indexer-private-host> \
 #     --key     <path-to-ssh-private-key>
 #
 # Optional flags:
 #   --bastion-user  <user>   SSH user for bastion  (default: ec2-user)
 #   --target-user   <user>   SSH user for indexer  (default: ec2-user)
 #   --sg-id         <id>     AWS Security Group ID to open port 3000
-#                            (e.g. sg-0abc123456def789a)
+#                            (from protected cloud inventory)
 #   --dry-run                Print commands without executing remote steps
 #
 # Prerequisites (local machine):
@@ -38,7 +39,7 @@ step()    { echo -e "\n${BOLD}══ $* ${RESET}"; }
 # ── Defaults ──────────────────────────────────────────────────────────────────
 BASTION_HOST=""
 BASTION_USER="ec2-user"
-TARGET_IP="10.0.10.16"
+TARGET_IP="${INDEXER_HOST:-}"
 TARGET_USER="ec2-user"
 SSH_KEY=""
 SG_ID=""
@@ -52,10 +53,10 @@ ENV_FILE="${ENV_DIR}/.env"
 CHAIN_ID="lithosphere_777777-1"
 CHAIN_NAME="Lithosphere"
 RPC_URL="https://rpc.litho.ai"
-EVM_RPC_URL="http://litho-mainnet-rpc-nlb-90cbce98dabd2453.elb.us-east-1.amazonaws.com:8545"
-GRPC_URL="54.163.248.63:9090"
-RPC_ENDPOINTS="https://rpc.litho.ai,http://52.41.98.79:26657"
-GRPC_ENDPOINTS="54.163.248.63:9090,52.41.98.79:9090"
+EVM_RPC_URL="${LITHO_EVM_RPC_URL:-https://rpc.litho.ai}"
+GRPC_URL="${LITHO_GRPC_URL:-}"
+RPC_ENDPOINTS="${LITHO_RPC_ENDPOINTS:-https://rpc.litho.ai}"
+GRPC_ENDPOINTS="${LITHO_GRPC_ENDPOINTS:-}"
 NEXT_PUBLIC_SITE_URL="https://makalu.litho.ai"
 NEXT_PUBLIC_API_URL="https://api.litho.ai"
 NEXT_PUBLIC_RPC_URL="https://rpc.litho.ai"
@@ -64,6 +65,7 @@ NEXT_PUBLIC_RPC_URL="https://rpc.litho.ai"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --bastion)       BASTION_HOST="$2";  shift 2 ;;
+    --target)        TARGET_IP="$2";     shift 2 ;;
     --bastion-user)  BASTION_USER="$2";  shift 2 ;;
     --target-user)   TARGET_USER="$2";   shift 2 ;;
     --key)           SSH_KEY="$2";       shift 2 ;;
@@ -74,6 +76,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -z "$BASTION_HOST" ]] && error "--bastion <host> is required."
+[[ -z "$TARGET_IP" ]] && error "--target <indexer-host> or INDEXER_HOST is required."
+[[ -z "$GRPC_URL" ]] && error "LITHO_GRPC_URL is required."
+[[ -z "$GRPC_ENDPOINTS" ]] && error "LITHO_GRPC_ENDPOINTS is required."
 
 # ── SSH helper ────────────────────────────────────────────────────────────────
 SSH_OPTS="-o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=15"
@@ -350,6 +355,6 @@ echo ""
 echo -e "  ${YELLOW}Next steps if 522 persists:${RESET}"
 echo    "  1. Confirm the Load Balancer target group health check points to :3000/."
 echo    "  2. Confirm Cloudflare origin rule points to the Load Balancer DNS, not the EC2 IP directly."
-echo    "  3. Verify the Sentry nodes (54.163.248.63, 52.41.98.79) accept connections"
-echo    "     on :26657 and that the NLB endpoint is reachable on :8545."
+echo    "  3. Verify the protected sentry endpoints accept connections and the"
+echo    "     configured EVM endpoint is reachable."
 echo ""

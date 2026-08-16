@@ -1,0 +1,140 @@
+---
+# WireGuard VPN Role - LITHO Validator Infrastructure
+# Phase 1: Zero-Trust Networking Between Nodes
+
+- name: Install WireGuard packages (RedHat)
+  dnf:
+    name:
+      - wireguard-tools
+      - iptables-services
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Install WireGuard packages (Debian)
+  apt:
+    name:
+      - wireguard
+      - wireguard-tools
+      - iptables
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Ensure WireGuard directory exists
+  file:
+    path: /etc/wireguard
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Check if private key exists
+  stat:
+    path: "{{ wireguard_private_key_path | default('/etc/wireguard/private.key') }}"
+  register: wg_private_key
+
+- name: Generate WireGuard private key
+  shell: "wg genkey > {{ wireguard_private_key_path | default('/etc/wireguard/private.key') }}"
+  args:
+    creates: "{{ wireguard_private_key_path | default('/etc/wireguard/private.key') }}"
+  when: not wg_private_key.stat.exists
+
+- name: Set private key permissions
+  file:
+    path: "{{ wireguard_private_key_path | default('/etc/wireguard/private.key') }}"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Generate WireGuard public key
+  shell: >-
+    wg pubkey < {{ wireguard_private_key_path | default('/etc/wireguard/private.key') }}
+    > {{ wireguard_public_key_path | default('/etc/wireguard/public.key') }}
+  args:
+    creates: "{{ wireguard_public_key_path | default('/etc/wireguard/public.key') }}"
+
+- name: Read private key
+  slurp:
+    src: "{{ wireguard_private_key_path | default('/etc/wireguard/private.key') }}"
+  register: wg_private_key_content
+  no_log: true
+
+- name: Read public key
+  slurp:
+    src: "{{ wireguard_public_key_path | default('/etc/wireguard/public.key') }}"
+  register: wg_public_key_content
+
+- name: Set WireGuard key facts
+  set_fact:
+    wireguard_private_key: "{{ wg_private_key_content.content | b64decode | trim }}"
+    wireguard_public_key: "{{ wg_public_key_content.content | b64decode | trim }}"
+  no_log: true
+
+- name: Display public key (for peer configuration)
+  debug:
+    msg: "WireGuard Public Key for {{ inventory_hostname }}: {{ wireguard_public_key }}"
+  when: wireguard_show_pubkey | default(true)
+
+- name: Generate WireGuard configuration
+  template:
+    src: wg0.conf.j2
+    dest: "/etc/wireguard/{{ wireguard_interface }}.conf"
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: restart wireguard
+
+- name: Enable IP forwarding for WireGuard
+  sysctl:
+    name: "{{ item }}"
+    value: '1'
+    sysctl_file: /etc/sysctl.d/99-wireguard.conf
+    state: present
+    reload: yes
+  loop:
+    - net.ipv4.ip_forward
+  when: wireguard_enable_forwarding | default(false)
+
+- name: Enable WireGuard interface at boot
+  systemd:
+    name: "wg-quick@{{ wireguard_interface }}"
+    enabled: yes
+    state: started
+
+# Firewalld assigns each interface to a zone the moment it appears. After
+# a reboot wg0 comes up before any explicit assignment, so unless we have
+# a permanent zone binding, the interface lands in the public zone where
+# the lockdown rules drop all WG payload traffic — this halted the kamet
+# sentry on 2026-05-02 after an EC2 reboot. Pin wg0 to the trusted zone
+# permanently so it survives every reboot. firewalld is only present on
+# AL2023 hosts; skip silently otherwise.
+- name: Detect firewalld
+  command: systemctl is-active firewalld
+  register: firewalld_active
+  failed_when: false
+  changed_when: false
+  check_mode: no
+
+- name: Pin WireGuard interface to firewalld trusted zone
+  command: "firewall-cmd --permanent --zone=trusted --change-interface={{ wireguard_interface }}"
+  register: fwd_zone_change
+  changed_when: "'success' in fwd_zone_change.stdout"
+  when: firewalld_active.stdout == 'active'
+
+- name: Reload firewalld to apply zone binding
+  command: firewall-cmd --reload
+  when:
+    - firewalld_active.stdout == 'active'
+    - fwd_zone_change is changed
+
+- name: Verify WireGuard interface is up
+  command: "wg show {{ wireguard_interface }}"
+  register: wg_status
+  changed_when: false
+  failed_when: wg_status.rc != 0
+
+- name: Display WireGuard status
+  debug:
+    var: wg_status.stdout_lines
+  when: wireguard_show_status | default(true)

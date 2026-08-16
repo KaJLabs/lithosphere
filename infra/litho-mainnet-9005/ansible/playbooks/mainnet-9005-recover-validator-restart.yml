@@ -1,0 +1,95 @@
+---
+- name: Recover LITHO mainnet validator after restart-guard false positive
+  hosts: validators
+  become: true
+  gather_facts: false
+  serial: 1
+
+  vars:
+    recovery_halt_height: 16748
+    recovery_backup_dir: /var/backups/litho-mainnet-9005-incident/20260728T0750Z
+
+  pre_tasks:
+    - name: Require the incident backup files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ recovery_backup_dir }}/config.toml.before"
+        - "{{ recovery_backup_dir }}/priv_validator_state.json.before"
+        - "{{ recovery_backup_dir }}/SHA256SUMS"
+      register: recovery_backup_files
+
+    - name: Refuse recovery without complete backups
+      ansible.builtin.assert:
+        that:
+          - recovery_backup_files.results | map(attribute='stat.exists') | min
+          - recovery_backup_files.results | map(attribute='stat.isreg') | min
+
+    - name: Read the preserved validator signing state
+      ansible.builtin.slurp:
+        src: "{{ recovery_backup_dir }}/priv_validator_state.json.before"
+      register: recovery_signing_state_raw
+      no_log: true
+
+    - name: Verify the signing state matches the observed halt height
+      ansible.builtin.assert:
+        that:
+          - (recovery_signing_state_raw.content | b64decode | from_json).height | int == recovery_halt_height
+
+    - name: Confirm the validator is contained before editing configuration
+      ansible.builtin.command: systemctl is-active {{ litho_service_name }}
+      register: recovery_service_before
+      changed_when: false
+      failed_when: recovery_service_before.stdout | trim != 'inactive'
+
+  tasks:
+    - name: Disable the incompatible recent-signature startup lookback
+      ansible.builtin.replace:
+        path: "{{ litho_home }}/config/config.toml"
+        regexp: '^double_sign_check_height = 10$'
+        replace: 'double_sign_check_height = 0'
+        backup: true
+      register: recovery_guard_change
+
+    - name: Require exactly one controlled configuration change
+      ansible.builtin.assert:
+        that:
+          - recovery_guard_change.changed
+          - recovery_guard_change.msg is search('1 replacement')
+
+    - name: Start the validator exactly once
+      ansible.builtin.systemd:
+        name: "{{ litho_service_name }}"
+        state: started
+
+    - name: Wait for the local validator RPC
+      ansible.builtin.uri:
+        url: http://127.0.0.1:26657/status
+        return_content: true
+      register: recovery_status_first
+      retries: 20
+      delay: 2
+      until:
+        - recovery_status_first.status == 200
+        - recovery_status_first.json.result.node_info.network == 'lithosphere_9005-1'
+
+    - name: Allow multiple post-recovery blocks to commit
+      ansible.builtin.pause:
+        seconds: 8
+
+    - name: Read the validator height again
+      ansible.builtin.uri:
+        url: http://127.0.0.1:26657/status
+        return_content: true
+      register: recovery_status_second
+
+    - name: Require post-recovery block production
+      ansible.builtin.assert:
+        that:
+          - recovery_status_first.json.result.sync_info.latest_block_height | int > recovery_halt_height
+          - recovery_status_second.json.result.sync_info.latest_block_height | int > recovery_status_first.json.result.sync_info.latest_block_height | int
+          - not (recovery_status_second.json.result.sync_info.catching_up | bool)
+        success_msg: >-
+          Validator recovered and advanced from
+          {{ recovery_status_first.json.result.sync_info.latest_block_height }} to
+          {{ recovery_status_second.json.result.sync_info.latest_block_height }}.

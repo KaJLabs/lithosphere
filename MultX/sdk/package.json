@@ -1,0 +1,55 @@
+{
+  "name": "@litho/multx-sdk",
+  "version": "0.3.0",
+  "private": true,
+  "description": "TypeScript SDK for the Lithosphere MultX cross-chain bridge. Framework-agnostic core (MultXClient) plus optional React adapter (useMultX).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./react": {
+      "import": "./dist/react/index.js",
+      "types": "./dist/react/index.d.ts"
+    },
+    "./presets": {
+      "import": "./dist/presets/index.js",
+      "types": "./dist/presets/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "echo \"(lint not configured)\" && exit 0",
+    "typecheck": "tsc --noEmit -p .",
+    "clean": "rimraf dist"
+  },
+  "peerDependencies": {
+    "ethers": "^6.17.0",
+    "react": "^18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "ethers": "6.17.0",
+    "react": "^18.2.0",
+    "rimraf": "^6.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.10"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

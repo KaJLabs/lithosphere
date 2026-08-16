@@ -1,10 +1,12 @@
-import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useState } from 'react';
+
 import { useApi } from '@/lib/api';
 import { EXPLORER_TITLE } from '@/lib/constants';
 import { formatNumber, formatSupply, preferLitho, truncateAddressSmart } from '@/lib/format';
+
 import type { ApiToken } from '@/lib/types';
 
 const AVATAR_COLORS = [

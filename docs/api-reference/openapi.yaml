@@ -37,6 +37,7 @@ tags:
   - name: Validators
   - name: Stats
   - name: Faucet
+  - name: Quantt
   - name: Meta
   - name: Litho (demo)
 
@@ -395,6 +396,38 @@ paths:
         '429': { description: Cooldown active for this address / IP. }
 
   # ───── MultX Bridge (same-origin proxy to bridge.litho.ai) ────
+  /quantt/status:
+    get:
+      tags: [Quantt]
+      summary: Report whether the server-side Quantt integration is configured.
+      responses:
+        '200':
+          description: Quantt configuration status and public resource URLs.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+  /quantt/insights:
+    get:
+      tags: [Quantt]
+      summary: Fetch server-proxied Quantt research insights for an asset symbol.
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 20
+            pattern: '^[a-zA-Z0-9._-]+$'
+      responses:
+        '200':
+          description: Quantt research payload.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+        '400': { description: Invalid asset symbol. }
+        '503': { description: Quantt integration is not configured. }
+
   /bridge/config:
     get:
       tags: [Bridge]

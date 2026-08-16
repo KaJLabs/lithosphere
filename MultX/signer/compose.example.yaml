@@ -1,0 +1,31 @@
+services:
+  signer:
+    image: ghcr.io/kajlabs/lithosphere/multx-signer@sha256:REPLACE_WITH_APPROVED_DIGEST
+    restart: unless-stopped
+    env_file:
+      - signer.env
+    ports:
+      - "9443:9443"
+    volumes:
+      - "${SIGNER_PRIVATE_KEY_PATH}:/run/secrets/validator-key:ro"
+      - "${SIGNER_POLICY_PATH}:/run/config/policy.json:ro"
+      - "${SIGNER_TLS_CERT_PATH}:/run/tls/server.crt:ro"
+      - "${SIGNER_TLS_KEY_PATH}:/run/tls/server.key:ro"
+      - "${SIGNER_CLIENT_CA_PATH}:/run/tls/client-ca.crt:ro"
+      - "${SIGNER_STATE_PATH}:/var/lib/multx-signer"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+

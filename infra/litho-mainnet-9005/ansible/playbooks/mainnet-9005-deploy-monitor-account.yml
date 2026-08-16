@@ -1,0 +1,70 @@
+---
+- name: Install restricted LITHO mainnet monitoring identity
+  hosts: mainnet_nodes
+  become: true
+  serial: 1
+  vars:
+    monitor_ssh_user: lithomonitor
+    monitor_ssh_public_key: ""
+
+  pre_tasks:
+    - name: Require an explicitly supplied Ed25519 monitoring public key
+      ansible.builtin.assert:
+        that:
+          - monitor_ssh_public_key is string
+          - monitor_ssh_public_key is match('^ssh-ed25519 [A-Za-z0-9+/=]+(?: .*)?$')
+          - "'REPLACE' not in monitor_ssh_public_key"
+        fail_msg: Supply only the dedicated monitoring public key through protected extra vars.
+
+    - name: Locate required read-only command dependencies
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /usr/bin/systemctl
+        - /usr/bin/curl
+      register: monitor_command_dependencies
+
+    - name: Require every monitoring dependency
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.executable
+          - item.stat.pw_name == 'root'
+        fail_msg: "Required root-owned monitoring dependency is unavailable: {{ item.item }}"
+      loop: "{{ monitor_command_dependencies.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+  tasks:
+    - name: Create locked monitoring-only account
+      ansible.builtin.user:
+        name: "{{ monitor_ssh_user }}"
+        shell: /bin/sh
+        create_home: true
+        password: "!"
+        update_password: on_create
+
+    - name: Create monitoring SSH directory
+      ansible.builtin.file:
+        path: "/home/{{ monitor_ssh_user }}/.ssh"
+        state: directory
+        owner: "{{ monitor_ssh_user }}"
+        group: "{{ monitor_ssh_user }}"
+        mode: "0700"
+
+    - name: Install root-owned monitoring command allowlist
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../scripts/litho-mainnet-monitor-command"
+        dest: /usr/local/sbin/litho-mainnet-monitor-command
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Pin the forced monitoring command to the supplied key
+      ansible.builtin.copy:
+        dest: "/home/{{ monitor_ssh_user }}/.ssh/authorized_keys"
+        owner: "{{ monitor_ssh_user }}"
+        group: "{{ monitor_ssh_user }}"
+        mode: "0600"
+        content: >-
+          command="/usr/local/sbin/litho-mainnet-monitor-command",no-agent-forwarding,no-port-forwarding,no-pty,no-user-rc,no-X11-forwarding {{ monitor_ssh_public_key }}

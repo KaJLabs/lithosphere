@@ -1,4 +1,5 @@
 import Link from 'next/link';
+
 import { isBech32Address, isEvmAddress } from '@/lib/format';
 
 interface FormattedValueElementProps {

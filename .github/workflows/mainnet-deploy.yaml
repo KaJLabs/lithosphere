@@ -1,0 +1,238 @@
+name: Lithoscan Mainnet Canary
+run-name: Mainnet canary ${{ inputs.commit_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Full commit SHA whose immutable images will be deployed
+        required: true
+        type: string
+      staging_smoke_run_id:
+        description: Successful Lithoscan mainnet staging smoke run for this commit
+        required: true
+        type: string
+      max_indexer_lag:
+        description: Maximum allowed blocks behind chain tip
+        required: true
+        default: '5'
+        type: string
+
+concurrency:
+  group: lithoscan-mainnet-canary
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read
+  actions: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    environment: lithoscan-mainnet
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      GENESIS_URL: ${{ secrets.GENESIS_URL }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+      AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
+      GHCR_USER: ${{ github.actor }}
+      GHCR_TOKEN: ${{ github.token }}
+      DEPLOY_COMMIT_SHA: ${{ inputs.commit_sha }}
+      STAGING_SMOKE_RUN_ID: ${{ inputs.staging_smoke_run_id }}
+      MAX_INDEXER_LAG: ${{ inputs.max_indexer_lag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate protected canary request
+        shell: bash
+        run: |
+          [[ "$DEPLOY_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "A full release commit SHA is required"; exit 1; }
+          [[ "$STAGING_SMOKE_RUN_ID" =~ ^[0-9]+$ ]] || { echo "A staging smoke run ID is required"; exit 1; }
+          [[ "$MAX_INDEXER_LAG" =~ ^[0-9]+$ ]] || { echo "max_indexer_lag must be a non-negative integer"; exit 1; }
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY GENESIS_URL POSTGRES_PASSWORD REDIS_PASSWORD AUTH_SESSION_SECRET GHCR_USER GHCR_TOKEN; do
+            [[ -n "${!name:-}" ]] || { echo "Missing protected environment value: $name"; exit 1; }
+          done
+          [[ "$POSTGRES_PASSWORD" =~ ^[A-Za-z0-9._~-]{32,}$ ]] || { echo "POSTGRES_PASSWORD must be URL-safe and at least 32 characters"; exit 1; }
+          [[ "$REDIS_PASSWORD" =~ ^[A-Za-z0-9._~-]{32,}$ ]] || { echo "REDIS_PASSWORD must be URL-safe and at least 32 characters"; exit 1; }
+          [[ "$AUTH_SESSION_SECRET" =~ ^[A-Za-z0-9._~-]{32,}$ ]] || { echo "AUTH_SESSION_SECRET must be URL-safe and at least 32 characters"; exit 1; }
+          python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+          for name in ('GENESIS_URL',):
+              value = os.environ[name]
+              parsed = urlparse(value)
+              if parsed.scheme != 'https' or not parsed.netloc or any(c in value for c in '\r\n"\''):
+                  raise SystemExit(f'{name} must be a safe HTTPS URL')
+          PY
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Verify successful staging evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_SMOKE_RUN_ID")"
+          [[ "$(jq -r '.path' <<<"$run_json")" == ".github/workflows/mainnet-staging-smoke.yaml" ]] || { echo "Evidence is not the mainnet staging workflow"; exit 1; }
+          [[ "$(jq -r '.event' <<<"$run_json")" == "workflow_dispatch" ]] || { echo "Staging evidence was not explicitly dispatched"; exit 1; }
+          [[ "$(jq -r '.conclusion' <<<"$run_json")" == "success" ]] || { echo "Staging evidence did not succeed"; exit 1; }
+          [[ "$(jq -r '.head_sha' <<<"$run_json")" == "$DEPLOY_COMMIT_SHA" ]] || { echo "Staging evidence used another commit"; exit 1; }
+          echo "Validated staging smoke run $STAGING_SMOKE_RUN_ID"
+
+      - name: Validate mainnet identity and final genesis from the deployment VPS
+        shell: bash
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "GENESIS_URL='$GENESIS_URL' RPC_URL='https://rpc-mainnet.litho.ai' EVM_RPC_URL='https://rpc-mainnet.litho.ai' EVM_WS_URL='wss://rpc-mainnet.litho.ai/websocket' LITHO_LCD_URL='https://api-mainnet.litho.ai' GRPC_URL='grpc-mainnet.litho.ai:9090' bash -s" \
+            < Makalu/scripts/mainnet-validate.sh
+
+      - name: Verify immutable images exist
+        shell: bash
+        run: |
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          release_tag="sha-$DEPLOY_COMMIT_SHA"
+          docker manifest inspect "ghcr.io/kajlabs/lithoscan-api:$release_tag" >/dev/null
+          docker manifest inspect "ghcr.io/kajlabs/lithoscan-indexer:$release_tag" >/dev/null
+          docker manifest inspect "ghcr.io/kajlabs/lithoscan-explorer:mainnet-$release_tag" >/dev/null
+
+      - name: Prepare isolated production canary package
+        shell: bash
+        run: |
+          release_tag="sha-$DEPLOY_COMMIT_SHA"
+          mkdir -p deploy-package/scripts deploy-package/infra/mainnet deploy-package/infra/grafana deploy-package/infra/postgres
+          cp Makalu/docker-compose.mainnet.yaml deploy-package/
+          cp Makalu/scripts/mainnet-{deploy,rollback,backup,seed-from-staging}.sh deploy-package/scripts/
+          cp -R Makalu/infra/mainnet/. deploy-package/infra/mainnet/
+          cp -R Makalu/infra/grafana/provisioning deploy-package/infra/grafana/
+          cp -R Makalu/infra/grafana/dashboards deploy-package/infra/grafana/
+          cp Makalu/infra/postgres/init.sql deploy-package/infra/postgres/
+          umask 077
+          cat > deploy-package/.env <<EOF
+          COMPOSE_PROJECT_NAME=lithoscan-mainnet
+          IMAGE_TAG=$release_tag
+          EXPLORER_IMAGE_TAG=mainnet-$release_tag
+          API_IMAGE=ghcr.io/kajlabs/lithoscan-api
+          INDEXER_IMAGE=ghcr.io/kajlabs/lithoscan-indexer
+          EXPLORER_IMAGE=ghcr.io/kajlabs/lithoscan-explorer
+          CHAIN_ID=lithosphere_9005-1
+          LITHO_CHAIN_ID=9005
+          RPC_URL=https://rpc-mainnet.litho.ai
+          LITHO_RPC_URL=https://rpc-mainnet.litho.ai
+          EVM_RPC_URL=https://rpc-mainnet.litho.ai
+          EVM_WS_URL=wss://rpc-mainnet.litho.ai/websocket
+          LITHO_LCD_URL=https://api-mainnet.litho.ai
+          GRPC_URL=grpc-mainnet.litho.ai:9090
+          NEXT_PUBLIC_RPC_URL=https://rpc-mainnet.litho.ai
+          NEXT_PUBLIC_SITE_URL=https://lithoscan.ai
+          CORS_ORIGINS=https://lithoscan.ai,http://127.0.0.1:13500
+          POSTGRES_DB=lithoscan_mainnet
+          POSTGRES_USER=lithoscan_mainnet
+          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+          DATABASE_URL=postgresql://lithoscan_mainnet:$POSTGRES_PASSWORD@postgres:5432/lithoscan_mainnet?sslmode=disable
+          REDIS_PASSWORD=$REDIS_PASSWORD
+          REDIS_URL=redis://:$REDIS_PASSWORD@redis:6379
+          AUTH_SESSION_SECRET=$AUTH_SESSION_SECRET
+          API_PORT=4400
+          EXPLORER_PORT=3500
+          FAUCET_ENABLED=false
+          BRIDGE_ENABLED=false
+          MULTX_ENABLED=false
+          SWAP_ENABLED=false
+          SWAP_ROUTER_ADDRESS=
+          DNS_CUTOVER_ENABLED=false
+          MONITORING_ENABLED=false
+          GRAFANA_PASSWORD=MONITORING_DISABLED_FOR_CANARY
+          GIT_SHA=$DEPLOY_COMMIT_SHA
+          VERSION=$release_tag
+          EOF
+
+      - name: Upload and deploy isolated production canary
+        id: deploy
+        shell: bash
+        run: |
+          echo "started=true" >> "$GITHUB_OUTPUT"
+          deploy_path=/opt/lithoscan-mainnet
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          remote_docker_config="/tmp/lithoscan-mainnet-ghcr-$GITHUB_RUN_ID"
+          cleanup_remote() {
+            ssh "$target" "rm -rf '$remote_docker_config'" || true
+          }
+          trap cleanup_remote EXIT
+          ssh "$target" "test -d '$deploy_path' && test -w '$deploy_path' && docker compose version && umask 077 && mkdir -p '$remote_docker_config'"
+          printf '%s' "$GHCR_TOKEN" | ssh "$target" "docker --config '$remote_docker_config' login ghcr.io --username '$GHCR_USER' --password-stdin"
+          scp -r deploy-package/. "$target:$deploy_path/"
+          ssh "$target" "chmod 700 '$deploy_path/scripts/'*.sh && DOCKER_CONFIG='$remote_docker_config' DEPLOY_DIR='$deploy_path' bash '$deploy_path/scripts/mainnet-deploy.sh'"
+
+      - name: Seed the separate production database from verified mainnet staging data
+        shell: bash
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_DIR=/opt/lithoscan-mainnet bash /opt/lithoscan-mainnet/scripts/mainnet-seed-from-staging.sh"
+
+      - name: Wait for synchronization and smoke through a private SSH tunnel
+        shell: bash
+        run: |
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          ssh -N -o ExitOnForwardFailure=yes -L 13500:127.0.0.1:3500 "$target" &
+          tunnel_pid=$!
+          trap 'kill "$tunnel_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..20}; do
+            curl --fail --silent --max-time 5 http://127.0.0.1:13500/ >/dev/null && break
+            [[ "$attempt" == "20" ]] && { echo "Private production canary tunnel did not become ready"; exit 1; }
+            sleep 3
+          done
+          base_url=http://127.0.0.1:13500
+          for attempt in {1..240}; do
+            stats="$(curl --fail --silent --show-error --max-time 20 "$base_url/api/stats/summary" || true)"
+            chain_tip="$(jq -r '.chainTipHeight // 0' <<<"$stats" 2>/dev/null || echo 0)"
+            indexed_tip="$(jq -r '.tipHeight // 0' <<<"$stats" 2>/dev/null || echo 0)"
+            lag="$(jq -r '.syncLagBlocks // 999999999' <<<"$stats" 2>/dev/null || echo 999999999)"
+            syncing="$(jq -r 'if .isSyncing == null then true else .isSyncing end' <<<"$stats" 2>/dev/null || echo true)"
+            echo "[$attempt/240] chain=$chain_tip indexed=$indexed_tip lag=$lag syncing=$syncing"
+            if (( chain_tip > 0 && indexed_tip > 0 && lag <= MAX_INDEXER_LAG )) && [[ "$syncing" == "false" ]]; then
+              break
+            fi
+            sleep 30
+          done
+          if (( chain_tip == 0 || indexed_tip == 0 || lag > MAX_INDEXER_LAG )) || [[ "$syncing" != "false" ]]; then
+            echo "Indexer did not synchronize within the two-hour canary window" >&2
+            exit 1
+          fi
+          BASE_URL="$base_url" bash Makalu/scripts/mainnet-smoke-test.sh
+
+      - name: Roll back failed canary
+        if: failure() && steps.deploy.outputs.started == 'true'
+        shell: bash
+        run: |
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          remote_docker_config="/tmp/lithoscan-mainnet-rollback-ghcr-$GITHUB_RUN_ID"
+          cleanup_remote() {
+            ssh "$target" "rm -rf '$remote_docker_config'" || true
+          }
+          trap cleanup_remote EXIT
+          ssh "$target" "umask 077 && mkdir -p '$remote_docker_config'"
+          printf '%s' "$GHCR_TOKEN" | ssh "$target" "docker --config '$remote_docker_config' login ghcr.io --username '$GHCR_USER' --password-stdin"
+          ssh "$target" "DOCKER_CONFIG='$remote_docker_config' DEPLOY_DIR=/opt/lithoscan-mainnet bash /opt/lithoscan-mainnet/scripts/mainnet-rollback.sh"
+
+      - name: Canary approval evidence
+        if: success()
+        shell: bash
+        run: |
+          echo "## Lithoscan mainnet canary ready for explicit approval" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Chain: EVM 9005 / Cosmos lithosphere_9005-1" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`$DEPLOY_COMMIT_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Genesis checksum and endpoint identity: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Isolated database synchronization and smoke tests: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Bridge, Swap, Faucet and MultX: disabled" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production DNS changed: **no**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Next action: obtain explicit cutover approval" >> "$GITHUB_STEP_SUMMARY"

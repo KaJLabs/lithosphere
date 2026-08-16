@@ -1,13 +1,12 @@
-import { createPortal } from 'react-dom';
-import { useState, useEffect, useCallback } from 'react';
 import {
   useWeb3ModalAccount,
   useWeb3ModalProvider,
   useDisconnect,
 } from '@web3modal/ethers/react';
+import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
-const MAKALU_CHAIN_ID = 700777;
-const MAKALU_CHAIN_HEX = '0xab169';
+import { NETWORK, WALLET_CHAIN } from '@/lib/network';
 
 // Chains the app legitimately operates on. Makalu is the primary chain, but the
 // cross-chain bridge lets a connected wallet sit on Kamet (the other source
@@ -16,20 +15,9 @@ const MAKALU_CHAIN_HEX = '0xab169';
 // when the wallet is on a chain outside this set — otherwise every bridge user
 // gets a "switch to Makalu" popover the moment they change networks.
 const SUPPORTED_CHAIN_IDS = new Set<number>([
-  MAKALU_CHAIN_ID, // Lithosphere Makalu
-  900523, // Lithosphere Kamet
-  11155111, // Ethereum Sepolia
-  84532, // Base Sepolia
-  97, // BNB Smart Chain Testnet
+  NETWORK.evmChainId,
+  ...(NETWORK.bridgeEnabled ? [900523, 11155111, 84532, 97] : []),
 ]);
-
-const MAKALU_CHAIN_FOR_WALLET = {
-  chainId: MAKALU_CHAIN_HEX,
-  chainName: 'Lithosphere Makalu Testnet',
-  rpcUrls: ['https://rpc.litho.ai'],
-  nativeCurrency: { name: 'LITHO', symbol: 'LITHO', decimals: 18 },
-  blockExplorerUrls: ['https://makalu.litho.ai'],
-};
 
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -86,7 +74,7 @@ function NetworkSwitchModalContent() {
     try {
       await provider.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: MAKALU_CHAIN_HEX }],
+        params: [{ chainId: NETWORK.chainIdHex }],
       });
     } catch (err: unknown) {
       const code =
@@ -102,7 +90,7 @@ function NetworkSwitchModalContent() {
         try {
           await provider.request({
             method: 'wallet_addEthereumChain',
-            params: [MAKALU_CHAIN_FOR_WALLET],
+            params: [WALLET_CHAIN],
           });
         } catch (addErr: unknown) {
           const addCode =
@@ -112,11 +100,11 @@ function NetworkSwitchModalContent() {
               ? Number((addErr as { code?: number | string }).code)
               : undefined;
           if (addCode !== 4001) {
-            console.error('Failed to add Makalu network:', addErr);
+            console.error(`Failed to add ${NETWORK.label}:`, addErr);
           }
         }
       } else if (code !== 4001) {
-        console.error('Failed to switch to Makalu network:', err);
+        console.error(`Failed to switch to ${NETWORK.label}:`, err);
       }
     } finally {
       setSwitching(false);
@@ -139,7 +127,7 @@ function NetworkSwitchModalContent() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="network-switch-title"
-        className="w-full max-w-[420px] overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0f16] shadow-2xl shadow-black/80"
+        className="w-full max-w-[420px] overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-2xl shadow-black/20"
         style={{ animation: 'networkModalIn 200ms ease-out' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -147,7 +135,7 @@ function NetworkSwitchModalContent() {
         <div className="flex items-center justify-between px-6 pt-6 pb-1">
           <h2
             id="network-switch-title"
-            className="text-[17px] font-bold tracking-tight text-white"
+            className="text-[17px] font-bold tracking-tight text-[var(--color-text-primary)]"
           >
             Switch Network
           </h2>
@@ -189,7 +177,7 @@ function NetworkSwitchModalContent() {
             className="mt-6 flex w-full items-center gap-4 rounded-2xl bg-white/[0.05] px-4 py-3.5 text-left transition hover:bg-white/[0.10] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {/* Network icon */}
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#1a2030]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--color-bg-tertiary)]">
               <svg
                 className="h-5 w-5 text-white/80"
                 viewBox="0 0 24 24"
@@ -209,8 +197,8 @@ function NetworkSwitchModalContent() {
               </svg>
             </span>
 
-            <span className="flex-1 font-semibold text-[15px] text-white">
-              Lithosphere Makalu Testnet
+            <span className="flex-1 font-semibold text-[15px] text-[var(--color-text-primary)]">
+              {NETWORK.label}
             </span>
 
             {switching ? (
@@ -247,7 +235,7 @@ function NetworkSwitchModalContent() {
             onClick={handleDisconnect}
             className="flex w-full items-center gap-4 rounded-2xl bg-white/[0.03] px-4 py-3.5 text-left transition hover:bg-white/[0.07] active:scale-[0.99]"
           >
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#1a2030]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--color-bg-tertiary)]">
               <svg
                 className="h-5 w-5 text-white/55"
                 viewBox="0 0 24 24"

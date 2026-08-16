@@ -11,8 +11,8 @@ Navigate to: **Settings** → **Secrets and variables** → **Actions** → **Ne
 | Secret Name | Description | Example |
 |------------|-------------|---------|
 | `SSH_PRIVATE_KEY` | SSH private key for server access | `-----BEGIN OPENSSH PRIVATE KEY-----`<br>Your private key content<br>`-----END OPENSSH PRIVATE KEY-----` |
-| `SERVER_IP` | VPS/Server IP address | `72.60.177.106` |
-| `SERVER_USER` | SSH username | `root` |
+| `SERVER_IP` | VPS/Server address | `<DEPLOY_HOST>` |
+| `SERVER_USER` | Restricted SSH username | `<DEPLOY_USER>` |
 
 ### 2. Application Configuration Secrets (Optional)
 
@@ -33,7 +33,7 @@ If you don't have an SSH key pair, generate one:
 ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/lithosphere_deploy
 
 # Copy public key to server
-ssh-copy-id -i ~/.ssh/lithosphere_deploy.pub root@72.60.177.106
+ssh-copy-id -i ~/.ssh/lithosphere_deploy.pub <DEPLOY_USER>@<DEPLOY_HOST>
 
 # Copy private key content for GitHub Secret
 cat ~/.ssh/lithosphere_deploy
@@ -117,7 +117,7 @@ docker compose build failed
 If automated deployment fails, deploy manually:
 
 ```bash
-ssh root@72.60.177.106
+ssh <DEPLOY_USER>@<DEPLOY_HOST>
 
 cd /opt/lithosphere
 git clone https://github.com/KaJLabs/lithosphere.git temp

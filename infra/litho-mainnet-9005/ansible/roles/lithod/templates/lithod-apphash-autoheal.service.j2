@@ -1,0 +1,11 @@
+# Auto-heal {{ litho_service_name }} from memiavl AppHash corruption via a
+# state-sync rebootstrap. SENTRY ONLY — never touches a validator.
+# See lithod-apphash-autoheal.sh.j2 for the detection logic and safety rails.
+
+[Unit]
+Description={{ litho_service_name }} memiavl AppHash auto-heal (state-sync rebootstrap)
+After=network-online.target {{ litho_service_name }}.service
+
+[Service]
+Type=oneshot
+ExecStart={{ lithod_apphash_autoheal_script_path }}

@@ -32,10 +32,10 @@ The canonical [Security Baselines & Governance](../governance/security-baselines
 | Layer | Control | Implementation |
 |-------|---------|----------------|
 | GitHub repo | CODEOWNERS | `.github/CODEOWNERS` — PR reviews required |
-| AWS credentials | OIDC federation | `aws-actions/configure-aws-credentials@v4` — no static keys |
-| EC2 access | SSH via bastion | Bastion (44.218.142.100) + private key, no direct SSH to indexer |
+| Legacy AWS credentials | OIDC federation | Historical deployment only; no static keys |
+| Legacy EC2 access | SSH via protected bastion | Bastion host + private key from protected inventory; no direct SSH to indexer |
 | Secrets in CI | GitHub Secrets | Encrypted at rest, scoped to repo |
-| Database | RDS IAM auth | Via AWS Secrets Manager (injected by OIDC in deploy pipeline) |
+| Legacy database | RDS IAM auth | Historical deployment only; identifiers remain in protected inventory |
 
 **No Vault, no K8s RBAC, no service mesh mTLS** — these are aspirational (see parent doc).
 

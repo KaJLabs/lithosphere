@@ -1,0 +1,13 @@
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/*.p12
+**/node_modules/
+**/dist/
+**/artifacts/
+**/cache/
+**/coverage/
+**/__pycache__/
+**/*.pyc

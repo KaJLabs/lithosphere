@@ -1,4 +1,6 @@
 import { formatNumber, formatTimestamp } from '@/lib/format';
+import { NETWORK } from '@/lib/network';
+
 import type { StatsSummary } from '@/lib/types';
 
 interface SyncStatusBannerProps {
@@ -28,8 +30,8 @@ export default function SyncStatusBanner({ stats, className = '' }: SyncStatusBa
           </div>
           <h2 className="mt-2 text-xl font-semibold">
             {stats.inconsistentBlocks > 0
-              ? 'Makalu explorer is repairing and catching up.'
-              : 'Makalu explorer is still indexing the chain.'}
+              ? `${NETWORK.shortName} explorer is repairing and catching up.`
+              : `${NETWORK.shortName} explorer is still indexing the chain.`}
           </h2>
           <p className="mt-2 text-sm leading-6 text-white/70">
             Indexed block #{formatNumber(stats.tipHeight)} of chain #{formatNumber(stats.chainTipHeight)}.

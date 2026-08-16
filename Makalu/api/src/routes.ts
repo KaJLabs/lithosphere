@@ -18,6 +18,13 @@ import {
   pickValidTxHash,
   sanitizeUpstreamMessage,
 } from './tx-utils.js';
+import {
+  buildQuanttInsightsUrl,
+  loadQuanttConfig,
+  quanttAuthHeaders,
+  QUANTT_DEVELOPER_URL,
+  QUANTT_RESEARCH_URL,
+} from './quantt.js';
 
 /**
  * Strip control characters from a value before interpolating into a log line.
@@ -1483,6 +1490,24 @@ function mapValidator(r: ValidatorRow) {
 export function explorerRouter(): Router {
   const r = Router();
 
+  // Mainnet launches with all value-moving integrations disabled. Defaults
+  // remain enabled for the existing Makalu deployment, while an explicit false
+  // fails closed before any proxy/config route can expose testnet services.
+  r.use('/faucet', (_req, res, next) => {
+    if (process.env.FAUCET_ENABLED === 'false') {
+      res.status(404).json({ ok: false, message: 'Faucet is not enabled on this network.' });
+      return;
+    }
+    next();
+  });
+  r.use('/bridge', (_req, res, next) => {
+    if (process.env.BRIDGE_ENABLED === 'false' || process.env.MULTX_ENABLED === 'false') {
+      res.status(404).json({ ok: false, message: 'Bridge is not enabled on this network.' });
+      return;
+    }
+    next();
+  });
+
   // ── Stats summary (homepage) ────────────────────────────────────────────
 
   r.get('/stats/summary', async (_req: Request, res: Response) => {
@@ -1500,6 +1525,15 @@ export function explorerRouter(): Router {
     res.json({
       token: { symbol: 'LITHO', decimals: 18 },
       fiat: { symbol: 'USD', price: null, fetchedAt: null },
+      network: {
+        evmChainId: Number(process.env.LITHO_CHAIN_ID || '700777'),
+        cosmosChainId: process.env.COSMOS_CHAIN_ID || process.env.CHAIN_ID || 'lithosphere_700777-2',
+      },
+      features: {
+        faucet: process.env.FAUCET_ENABLED !== 'false',
+        bridge: process.env.BRIDGE_ENABLED !== 'false' && process.env.MULTX_ENABLED !== 'false',
+        swap: process.env.SWAP_ENABLED !== 'false' && Boolean(process.env.SWAP_ROUTER_ADDRESS?.trim()),
+      },
     });
   });
 
@@ -3080,6 +3114,62 @@ export function explorerRouter(): Router {
     }
   });
 
+  // ── Quantt research integration ──────────────────────────────────────────
+  // Credentials are held only by this API. The browser receives provider data,
+  // never the upstream URL's credentials or authentication headers.
+  const quanttConfig = loadQuanttConfig();
+
+  r.get('/quantt/status', (_req: Request, res: Response) => {
+    res.json({
+      ok: true,
+      configured: quanttConfig !== null,
+      researchUrl: QUANTT_RESEARCH_URL,
+      developerUrl: QUANTT_DEVELOPER_URL,
+      apiOrigin: quanttConfig?.baseUrl.origin ?? null,
+    });
+  });
+
+  r.get('/quantt/insights', async (req: Request, res: Response) => {
+    const rawSymbol = typeof req.query.symbol === 'string' ? req.query.symbol.trim() : '';
+    if (!/^[a-zA-Z0-9._-]{2,20}$/.test(rawSymbol)) {
+      res.status(400).json({ ok: false, message: 'Provide a valid asset symbol.' });
+      return;
+    }
+    if (!quanttConfig) {
+      res.status(503).json({
+        ok: false,
+        message: 'Quantt insights are not configured. Add the approved Quantt API endpoint and credentials.',
+      });
+      return;
+    }
+
+    const symbol = rawSymbol.toUpperCase();
+    try {
+      const upstream = await fetch(buildQuanttInsightsUrl(quanttConfig, symbol), {
+        headers: quanttAuthHeaders(quanttConfig),
+        signal: AbortSignal.timeout(quanttConfig.timeoutMs),
+      });
+      const body = await upstream.text();
+      let data: unknown = null;
+      try { data = JSON.parse(body); } catch { /* handled below */ }
+
+      if (!upstream.ok || data === null) {
+        logger.warn({ status: upstream.status, symbol }, '[api] Quantt upstream request failed');
+        res.status(upstream.ok ? 502 : upstream.status).json({
+          ok: false,
+          message: 'Quantt insights are temporarily unavailable.',
+        });
+        return;
+      }
+
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      res.json({ ok: true, provider: 'quantt', symbol, data });
+    } catch (err) {
+      logger.error({ err: err instanceof Error ? err.message : String(err), symbol }, '[api] Quantt proxy error');
+      res.status(502).json({ ok: false, message: 'Quantt insights are temporarily unavailable.' });
+    }
+  });
+
   // ── MultX bridge proxy (forwards to bridge-api, serves static route config) ──
   //
   // The bridge backend (bridge.litho.ai) is shared across chains and is not
@@ -3176,12 +3266,21 @@ export function explorerRouter(): Router {
   // exact default paths (GET /auth/nonce?address=…, POST /auth/verify).
   const AUTH_SESSION_TTL_SEC = 24 * 60 * 60; // 24h session
   const AUTH_NONCE_TTL_MS = 10 * 60 * 1000; // 10 min nonce
-  const AUTH_ALLOWED_CHAIN = 700777;
+  const configuredAuthChain = Number(process.env.AUTH_ALLOWED_CHAIN_ID || process.env.LITHO_CHAIN_ID || '700777');
+  if (!Number.isSafeInteger(configuredAuthChain) || configuredAuthChain <= 0) {
+    throw new Error('AUTH_ALLOWED_CHAIN_ID/LITHO_CHAIN_ID must be a positive integer');
+  }
+  const AUTH_ALLOWED_CHAIN = configuredAuthChain;
 
   // A stable secret keeps sessions valid across restarts; without one we fall
   // back to an ephemeral per-process secret (sessions reset on restart).
-  const sessionSecret = process.env.AUTH_SESSION_SECRET || randomBytes(32).toString('hex');
-  if (!process.env.AUTH_SESSION_SECRET) {
+  const configuredSessionSecret = process.env.AUTH_SESSION_SECRET?.trim();
+  if (process.env.NODE_ENV === 'production'
+    && (!configuredSessionSecret || configuredSessionSecret.length < 32 || configuredSessionSecret.startsWith('<'))) {
+    throw new Error('AUTH_SESSION_SECRET must be injected with at least 32 characters in production');
+  }
+  const sessionSecret = configuredSessionSecret || randomBytes(32).toString('hex');
+  if (!configuredSessionSecret) {
     logger.warn('[api] AUTH_SESSION_SECRET not set — using an ephemeral secret; Thanos sessions reset on restart');
   }
 

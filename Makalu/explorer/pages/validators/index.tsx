@@ -1,9 +1,11 @@
 import Head from 'next/head';
-import { useApi } from '@/lib/api';
-import { EXPLORER_TITLE } from '@/lib/constants';
-import type { ApiValidator } from '@/lib/types';
+
 import DataTable, { type Column } from '@/components/DataTable';
 import ErrorState from '@/components/ErrorState';
+import { useApi } from '@/lib/api';
+import { EXPLORER_TITLE } from '@/lib/constants';
+
+import type { ApiValidator } from '@/lib/types';
 
 type IndexedValidator = ApiValidator & { _rank: number };
 

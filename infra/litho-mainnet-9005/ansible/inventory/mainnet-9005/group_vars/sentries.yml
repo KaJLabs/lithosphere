@@ -1,0 +1,29 @@
+---
+node_role: "sentry"
+litho_p2p_external: true
+litho_p2p_pex: true
+litho_p2p_max_num_inbound_peers: 50
+litho_p2p_max_num_outbound_peers: 25
+
+# Each sentry connects to the private validator and the other public sentry.
+p2p_persistent_peers: >-
+  {{ mainnet_validator_node_id }}@{{ mainnet_validator_wg_ip }}:26656,{{ (inventory_hostname == 'mainnet-sentry-01') | ternary(mainnet_sentry2_node_id ~ '@' ~ hostvars['mainnet-sentry-02'].ansible_host ~ ':27056', mainnet_sentry1_node_id ~ '@' ~ hostvars['mainnet-sentry-01'].ansible_host ~ ':27056') }}
+p2p_private_peer_ids: "{{ mainnet_validator_node_id }}"
+litho_unconditional_peer_ids: "{{ mainnet_validator_node_id }}"
+p2p_seeds: ""
+
+litho_pruning: "everything"
+litho_pruning_keep_recent: "10"
+litho_pruning_interval: "10"
+litho_state_sync_enabled: false
+
+lithod_memory_limit: "8G"
+lithod_cpu_quota: "300%"
+lithod_restart_timer_enabled: true
+lithod_leak_watchdog_enabled: true
+lithod_stall_watchdog_enabled: true
+# Mainnet shares these VPSs with other networks. Its CometBFT RPC is shifted
+# away from the legacy 26657 listener, so the watchdog must sample 27057 or it
+# would monitor the wrong chain and miss a mainnet-only stall.
+lithod_stall_watchdog_rpc: "http://127.0.0.1:27057"
+lithod_apphash_autoheal_enabled: false

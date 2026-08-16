@@ -1,0 +1,103 @@
+{
+  "environment": "litho-mainnet",
+  "sourceChainId": 9005,
+  "lithoTokenAddress": "REPLACE_WITH_AUDITED_LITHO_SIDE_TOKEN",
+  "supportedChains": [
+    {
+      "chainId": 9005,
+      "name": "LITHO Mainnet",
+      "symbol": "LITHO",
+      "bridge": "REPLACE_WITH_AUDITED_LITHO_BRIDGE"
+    },
+    {
+      "chainId": 1,
+      "name": "Ethereum Mainnet",
+      "symbol": "ETH",
+      "bridge": "REPLACE_WITH_AUDITED_ETHEREUM_BRIDGE"
+    },
+    {
+      "chainId": 56,
+      "name": "BNB Smart Chain Mainnet",
+      "symbol": "BNB",
+      "bridge": "REPLACE_WITH_AUDITED_BNB_BRIDGE"
+    },
+    {
+      "chainId": 8453,
+      "name": "Base Mainnet",
+      "symbol": "ETH",
+      "bridge": "REPLACE_WITH_AUDITED_BASE_BRIDGE"
+    }
+  ],
+  "chainsToWatch": [
+    {
+      "name": "litho-mainnet",
+      "chainId": 9005,
+      "rpc": "https://rpc-mainnet.litho.ai",
+      "ws": "wss://rpc-mainnet.litho.ai/websocket",
+      "bridge": "REPLACE_WITH_AUDITED_LITHO_BRIDGE",
+      "pollMs": 2000
+    },
+    {
+      "name": "ethereum-mainnet",
+      "chainId": 1,
+      "rpc": "REPLACE_WITH_APPROVED_ETHEREUM_HTTPS_RPC",
+      "ws": "REPLACE_WITH_APPROVED_ETHEREUM_WSS_RPC",
+      "bridge": "REPLACE_WITH_AUDITED_ETHEREUM_BRIDGE",
+      "pollMs": 4000
+    },
+    {
+      "name": "bnb-mainnet",
+      "chainId": 56,
+      "rpc": "REPLACE_WITH_APPROVED_BNB_HTTPS_RPC",
+      "ws": "REPLACE_WITH_APPROVED_BNB_WSS_RPC",
+      "bridge": "REPLACE_WITH_AUDITED_BNB_BRIDGE",
+      "pollMs": 4000
+    },
+    {
+      "name": "base-mainnet",
+      "chainId": 8453,
+      "rpc": "REPLACE_WITH_APPROVED_BASE_HTTPS_RPC",
+      "ws": "REPLACE_WITH_APPROVED_BASE_WSS_RPC",
+      "bridge": "REPLACE_WITH_AUDITED_BASE_BRIDGE",
+      "pollMs": 4000
+    }
+  ],
+  "tokenPairs": [
+    {
+      "sourceChain": 9005,
+      "sourceToken": "REPLACE_WITH_AUDITED_LITHO_SIDE_TOKEN",
+      "targetChain": 1,
+      "releaseToken": "REPLACE_WITH_AUDITED_ETHEREUM_WRAPPED_TOKEN"
+    },
+    {
+      "sourceChain": 1,
+      "sourceToken": "REPLACE_WITH_AUDITED_ETHEREUM_WRAPPED_TOKEN",
+      "targetChain": 9005,
+      "releaseToken": "REPLACE_WITH_AUDITED_LITHO_SIDE_TOKEN"
+    },
+    {
+      "sourceChain": 9005,
+      "sourceToken": "REPLACE_WITH_AUDITED_LITHO_SIDE_TOKEN",
+      "targetChain": 56,
+      "releaseToken": "REPLACE_WITH_AUDITED_BNB_WRAPPED_TOKEN"
+    },
+    {
+      "sourceChain": 56,
+      "sourceToken": "REPLACE_WITH_AUDITED_BNB_WRAPPED_TOKEN",
+      "targetChain": 9005,
+      "releaseToken": "REPLACE_WITH_AUDITED_LITHO_SIDE_TOKEN"
+    },
+    {
+      "sourceChain": 9005,
+      "sourceToken": "REPLACE_WITH_AUDITED_LITHO_SIDE_TOKEN",
+      "targetChain": 8453,
+      "releaseToken": "REPLACE_WITH_AUDITED_BASE_WRAPPED_TOKEN"
+    },
+    {
+      "sourceChain": 8453,
+      "sourceToken": "REPLACE_WITH_AUDITED_BASE_WRAPPED_TOKEN",
+      "targetChain": 9005,
+      "releaseToken": "REPLACE_WITH_AUDITED_LITHO_SIDE_TOKEN"
+    }
+  ]
+}
