@@ -487,8 +487,10 @@ Evidence:
 - `.github/workflows/mainnet-signing-state-backup.yaml`
 - `infra/litho-mainnet-9005/ansible/playbooks/mainnet-9005-deploy-monitor-account.yml`
 - `infra/litho-mainnet-9005/ansible/playbooks/mainnet-9005-deploy-backup-export.yml`
-- Latest passing monitor run: `https://github.com/KaJLabs/Lithosphere/actions/runs/31785149957`
-- Latest failed backup run: `https://github.com/KaJLabs/Lithosphere/actions/runs/31782037857` (`BACKUP_RECIPIENT` empty)
+- Latest passing monitor run: `https://github.com/KaJLabs/Lithosphere/actions/runs/31945720631`
+- Latest failed backup run: `https://github.com/KaJLabs/Lithosphere/actions/runs/31933222228` (`BACKUP_RECIPIENT` empty;
+  validation stopped before SSH/export/encryption)
+- Deduplicated open incident: `https://github.com/KaJLabs/Lithosphere/issues/74`
 
 ## MX-07 — Developer infrastructure toolchain full release
 
@@ -683,8 +685,21 @@ Evidence:
 | 2026-08-16 | `lithsec` specification review | MERGED | PR #107 retained the requested spec-only scope, made scanning fail closed, excluded the unapproved SEC001–SEC005 text heuristics, and passed Linux, Windows, and macOS gates with all 37 Rust tests and full workspace release builds; merged as `efca15c3`. |
 | 2026-08-16 | `lithpkg` specification review | MERGED | PR #109 retained the requested spec-only scope, made resolution fail closed, excluded the incomplete manifest/resolver and weak-integrity draft, and passed Linux, Windows, and macOS gates with all 40 Rust tests and full workspace release builds; merged as `729f9e2a`. |
 | 2026-08-16 | Toolchain preview packaging review | MERGED | PR #111 committed the lockfile and reviewed example, excluded the misleading public-release draft, and passed both three-OS trigger sets with locked builds, 40 tests, staged-command/fail-closed checks, SHA-256 generation, and artifact uploads; merged as `c942d275`. |
+| 2026-08-16 | Mainnet monitor live recheck | PASS | The latest inspected scheduled chain-monitor run `31945720631` passed. |
+| 2026-08-16 | Signing-state backup live recheck | EXTERNAL BLOCKER | Run `31933222228` failed configuration validation because `BACKUP_RECIPIENT` is empty; SSH/export/encryption steps were skipped and deduplicated incident #74 remains open. |
 
 ## Change log
+
+### 2026-08-16 — MX-06 live backup gate reconfirmed
+
+- Scheduled chain-monitor run `31945720631` passed; monitoring remains active.
+- Scheduled signing-state backup run `31933222228` failed closed at protected-configuration validation because
+  `BACKUP_RECIPIENT` is empty. It did not connect to the validator or export signing state.
+- Incident #74 is already open and deduplicated. No redundant manual run was triggered.
+- The required next action remains owner-controlled: KaJ Labs assigns two independent recovery custodians, they
+  complete the offline ceremony, and an authorized environment administrator stores only the resulting public
+  recipient JSON in `litho-mainnet-backup`.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-07 boundary-preview packaging merged
 
