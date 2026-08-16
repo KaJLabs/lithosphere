@@ -51,7 +51,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | V2 DEX and non-AWS signer hardening merged; swap disabled | IN PROGRESS | Obtain independent audit, operator, deployment, controller, and liquidity approvals. |
-| MX-07 | Developer toolchain | Front-end, formatter, linter, and `lithls` spec-only slices merged; no deployable compiler/release | IN PROGRESS | Review `lithdev` next; approved language/VM semantics still block full compiler work. |
+| MX-07 | Developer toolchain | Front-end, formatter, linter, `lithls` spec, and safe `lithdev` v0 slices merged; no deployable compiler/release | IN PROGRESS | Review `lithtest` next; approved language/VM semantics still block full compiler work. |
 
 ## Sequential closure queue
 
@@ -499,7 +499,7 @@ CI/release packaging. Those changes remain local-only. Review of the first share
 local semantic pass inferred an unapproved primitive-type table, overload behavior, map-key restrictions, and return
 semantics. PR #95 removed those assumptions, added only unambiguous declaration-name checks, introduced a three-OS
 CI gate, passed every gate, and merged as `cf68f7c001cd6a847f806cac09659bf72380bda2`. The tracked release still
-describes `lithls`, `lithdev`, `lithtest`, `lithsec`, and `lithpkg` as spec-only stubs. `lithc` still does not
+describes `lithtest`, `lithsec`, and `lithpkg` as spec-only stubs. `lithc` still does not
 parse/lower full function bodies into deployable LithoVM/EVM bytecode.
 
 | Tool | Local implementation | Required before full-release acceptance |
@@ -508,7 +508,7 @@ parse/lower full function bodies into deployable LithoVM/EVM bytecode.
 | `lithfmt` | Parse-safe, literal-preserving whitespace normalization and `--check` on `main`. | Decide whether whitespace-only v0 is accepted or implement AST-driven canonical formatting/idempotence corpus. |
 | `lithlint` | Reviewed L001–L004 declaration rules, warning denial, exact single-file CLI behavior, boundary tests, and v0 limitations on `main`. | Product/release-owner acceptance of the rule/version policy and decision on suppression/configuration behavior. |
 | `lithls` | Reviewed specification-only boundary on `main`; packaged stub explicitly refuses `--stdio` and does not advertise LSP support. | Product/release-owner acceptance of spec-only scope; any future server must meet the documented LSP 3.17/JSON-RPC conformance, real-span, three-OS, and editor gates. |
-| `lithdev` | Devnet lifecycle plus check/deploy preparation and ABI output. | Compiler bytecode, simulation, signing, broadcast, receipt verification, and safe network/account configuration. |
+| `lithdev` | Strict local Compose lifecycle, conservative declaration checks, read-only ABI output, and fail-closed deploy preflight on `main`. Destructive volume deletion is excluded. | Operator acceptance with a running local Docker engine; compiler bytecode, simulation, signing, broadcast, receipt verification, and safe account/network policy before real deploy support. |
 | `lithtest` | Test discovery and deterministic literal assertions. | LithoVM execution, fixtures/isolation, failure traces, coverage decision, and compiler conformance suite. |
 | `lithsec` | SEC001–SEC005 capability/storage checks. | Threat-model review, fixtures, severity/suppression policy, and false-positive/negative acceptance. |
 | `lithpkg` | Local manifests, local dependencies, and deterministic locks. | Decide whether local-only v0 is accepted; otherwise specify and implement a signed registry and trust policy. |
@@ -542,11 +542,15 @@ Completed or evidenced locally:
 - [x] PR #101 kept `lithls` at `0.0.1`, made `--stdio` fail closed, added the reviewed LSP 3.17/JSON-RPC 2.0
       implementation specification and three CLI tests, then passed all 23 Rust tests and full release builds on
       Linux, Windows, and macOS and merged as `9b8f304aaa257031b0675e2a6e9e2eff4fb8358a` (2026-08-16).
+- [x] Reworked the unreviewed `lithdev` draft to reject volume deletion, extra/irrelevant arguments, file overwrite,
+      fake type-check/deploy claims, and any RPC mutation while retaining strict local Compose lifecycle commands.
+- [x] PR #103 added eight parser/CLI safety tests, passed all 31 Rust tests and full workspace release builds on
+      Linux, Windows, and macOS, and merged as `d6d1a26b41aecce6ed17c7213b56528ef6fce90e` (2026-08-16).
 
 Remaining actions:
 
 - [x] Merge the reviewed shared syntax/`lithc` and CI slice after its Linux/Windows/macOS gates pass.
-- [ ] Separately review `lithdev`, `lithtest`, `lithsec`, `lithpkg`, release packaging,
+- [ ] Separately review `lithtest`, `lithsec`, `lithpkg`, release packaging,
       examples, and lockfile.
 - [x] Merge the `lithfmt` literal-safety fix after three-OS tests and release builds pass.
 - [ ] Record product/release-owner acceptance of the whitespace-only v0 formatter or implement the approved
@@ -649,8 +653,20 @@ Evidence:
 | 2026-08-16 | `lithfmt` safety review | MERGED | PR #97 fixed literal-content corruption and passed Linux, Windows, and macOS gates with all 15 Rust tests and full workspace release builds; merged as `f8bbb2d6`. |
 | 2026-08-16 | `lithlint` v0 boundary review | MERGED | PR #99 rejected ambiguous multiple-file use, added five rule/CLI tests, retained version `0.0.1`, and passed Linux, Windows, and macOS gates with all 20 Rust tests and full workspace release builds; merged as `0e70108e`. |
 | 2026-08-16 | `lithls` specification review | MERGED | PR #101 retained the requested spec-only scope, made `--stdio` fail closed, excluded the non-conformant local server draft, and passed Linux, Windows, and macOS gates with all 23 Rust tests and full workspace release builds; merged as `9b8f304a`. |
+| 2026-08-16 | `lithdev` safe-v0 review | MERGED | PR #103 added bounded local Compose lifecycle, read-only declaration/ABI commands, and fail-closed deploy preflight; eight safety tests reject destructive or misleading behavior. All three OS gates passed with 31 Rust tests and full release builds; merged as `d6d1a26b`. |
 
 ## Change log
+
+### 2026-08-16 — MX-07 safe `lithdev` v0 merged
+
+- PR #103 passed both workflow trigger sets on Linux, Windows, and macOS: scoped formatting and Clippy with warnings
+  denied, all 31 Rust tests, full workspace release builds, and the `lithc` smoke check.
+- All standard repository gates passed; PR #103 merged by `bachal-mb` as
+  `d6d1a26b41aecce6ed17c7213b56528ef6fce90e`.
+- `lithdev` now strictly parses local Compose lifecycle commands, preserves volumes on `down`, emits ABI only to
+  stdout, and fails `deploy` closed before writes or RPC access. It does not claim full type checking or deployment.
+- No Docker command, key access, signing, RPC mutation, volume deletion, or deployment occurred in this review.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-07 `lithls` specification boundary merged
 
