@@ -95,6 +95,8 @@ Completed or evidenced:
       bytecode, manifest, preflight, and value-moving confirmation gates were added (2026-08-16).
 - [x] The reviewed DEX slice passed 28 full Hardhat tests, 23 focused DEX/configuration tests, nine E2E checks,
       strict TypeScript validation, and Slither with zero detectors (2026-08-16).
+- [x] Conflicting July UI PR #69 was verified as superseded by the newer fail-closed implementation on `main` and
+      closed without merge (2026-08-16).
 
 Remaining actions:
 
@@ -607,6 +609,7 @@ Evidence:
 - Full/focused tests, E2E, strict TypeScript, and Slither passed. The test/deployment toolchain's transitive
   advisories are explicitly recorded; it must use a hardened ephemeral runner with trusted inputs.
 - No contract was deployed, no token approval was sent, no liquidity was funded, and Swap remains disabled.
+- Closed stale conflicting UI PR #69 as superseded by the tested, fail-closed Swap UI already on `main`.
 - Updated by: `bachal-mb`.
 
 ### 2026-08-15 — MX-01 MultX redeployment gates merged; swap remains disabled

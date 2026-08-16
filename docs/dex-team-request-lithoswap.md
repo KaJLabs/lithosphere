@@ -10,8 +10,9 @@ still open.
 ## Context
 
 We're adding a **native token swap on Makalu** (the DEX leg of the cross-chain
-"MultX Swap"). We've built and verified a **Uniswap-V2** DEX ("Lithoswap") that
-deploys to Makalu (PR #68) plus the `/swap` UI (PR #69). The Kamet DEX, by
+"MultX Swap"). We've built and verified a **Uniswap-V2** DEX ("Lithoswap") in
+PR #68. The `/swap` UI is already on `main`; stale conflicting PR #69 was closed
+as superseded on 2026-08-16. The Kamet DEX, by
 contrast, is a **Uniswap V3 fork** — so "parity with Kamet" would mean switching
 Makalu to v3, not shipping what we already have.
 
