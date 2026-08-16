@@ -11,6 +11,34 @@ const requiredFile = (path, label) => {
   return value;
 };
 
+const bearerToken = (path, label) => {
+  const token = requiredFile(path, label).toString('utf8').trim();
+  if (token.length < 32 || token.length > 512 || /[\r\n]/.test(token)) {
+    throw new Error(`${label} must contain 32 to 512 characters`);
+  }
+  return token;
+};
+
+export const resolveRemoteSignerAuth = ({ index, caFile, certFile, keyFile, tokenFile }) => {
+  if (tokenFile) {
+    if (certFile || keyFile) throw new Error(`remote signer ${index} must use bearer or mTLS client credentials, not both`);
+    return {
+      mode: 'bearer',
+      token: bearerToken(tokenFile, `VALIDATOR_SIGNER_TOKEN_FILE_${index}`),
+      tls: { ...(caFile ? { ca: requiredFile(caFile, `VALIDATOR_SIGNER_CA_FILE_${index}`) } : {}) },
+    };
+  }
+  return {
+    mode: 'mtls',
+    token: null,
+    tls: {
+      ca: requiredFile(caFile, `VALIDATOR_SIGNER_CA_FILE_${index}`),
+      cert: requiredFile(certFile, `VALIDATOR_SIGNER_CERT_FILE_${index}`),
+      key: requiredFile(keyFile, `VALIDATOR_SIGNER_KEY_FILE_${index}`),
+    },
+  };
+};
+
 export const validateSignerUrl = (value) => {
   let url;
   try { url = new URL(value); } catch { throw new Error('remote signer URL must be valid'); }
@@ -24,7 +52,7 @@ export const validateSignerUrl = (value) => {
   return url.origin;
 };
 
-const requestJson = ({ baseUrl, path, method, body, tls, timeoutMs }) => new Promise((resolve, reject) => {
+const requestJson = ({ baseUrl, path, method, body, tls, token, timeoutMs }) => new Promise((resolve, reject) => {
   const url = new URL(path, baseUrl);
   if (url.protocol !== 'https:') {
     reject(new Error(`remote signer URL must use https (got ${url.protocol})`));
@@ -46,6 +74,7 @@ const requestJson = ({ baseUrl, path, method, body, tls, timeoutMs }) => new Pro
     timeout: timeoutMs,
     headers: {
       accept: 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(payload ? {
         'content-type': 'application/json',
         'content-length': String(payload.length),
@@ -112,21 +141,19 @@ export const createRemoteSigner = async ({
   caFile,
   certFile,
   keyFile,
+  tokenFile,
   timeoutMs = 8_000,
 }) => {
   const address = ethers.getAddress(expectedAddress);
   const baseUrl = validateSignerUrl(url);
-  const tls = {
-    ca: requiredFile(caFile, `VALIDATOR_SIGNER_CA_FILE_${index}`),
-    cert: requiredFile(certFile, `VALIDATOR_SIGNER_CERT_FILE_${index}`),
-    key: requiredFile(keyFile, `VALIDATOR_SIGNER_KEY_FILE_${index}`),
-  };
+  const auth = resolveRemoteSignerAuth({ index, caFile, certFile, keyFile, tokenFile });
 
   const identity = await requestJson({
     baseUrl,
     path: '/v1/identity',
     method: 'GET',
-    tls,
+    tls: auth.tls,
+    token: auth.token,
     timeoutMs,
   });
   const reported = ethers.getAddress(identity.address || '');
@@ -144,7 +171,8 @@ export const createRemoteSigner = async ({
         path: '/v1/sign-release',
         method: 'POST',
         body: { version: 1, ...attestation },
-        tls,
+        tls: auth.tls,
+        token: auth.token,
         timeoutMs,
       });
       if (typeof response.signature !== 'string') {

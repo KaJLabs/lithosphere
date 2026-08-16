@@ -1,8 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { ethers } from 'ethers';
 import {
   releaseMessageHash,
+  resolveRemoteSignerAuth,
   validateSignerUrl,
   verifyReleaseSignature,
 } from '../src/services/remoteSigner.js';
@@ -41,6 +45,21 @@ test('accepts only credential-free HTTPS signer origins', () => {
     'https://signer-0.internal:9443?token=secret',
   ]) {
     assert.throws(() => validateSignerUrl(url));
+  }
+});
+
+test('loads a bearer token from a file without requiring client key material', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'multx-remote-auth-'));
+  const tokenFile = path.join(directory, 'token');
+  fs.writeFileSync(tokenFile, 'a-secure-test-token-that-is-at-least-32-characters');
+  try {
+    const auth = resolveRemoteSignerAuth({ index: 0, tokenFile });
+    assert.equal(auth.mode, 'bearer');
+    assert.match(auth.token, /^a-secure-test-token/);
+    assert.deepEqual(auth.tls, {});
+    assert.throws(() => resolveRemoteSignerAuth({ index: 0, tokenFile, certFile: tokenFile }), /not both/);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
 });
 
