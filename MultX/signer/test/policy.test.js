@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ethers } from 'ethers';
-import { releaseMessageHash, resolvePolicy, validateAttestation } from '../src/policy.js';
+import {
+  parseSignerPolicy,
+  releaseMessageHash,
+  resolvePolicy,
+  validateAttestation,
+} from '../src/policy.js';
 
 const input = {
   version: 1,
@@ -21,7 +26,9 @@ const input = {
 const policy = {
   sources: [{
     chainId: 9005,
+    rpcUrl: 'https://rpc-mainnet.litho.ai',
     bridgeAddress: input.sourceBridge,
+    confirmations: 12,
     routes: [{
       sourceToken: input.sourceToken,
       targetChain: 1,
@@ -33,8 +40,66 @@ const policy = {
 
 test('accepts an allowlisted source bridge and token route', () => {
   const attestation = validateAttestation(input);
-  assert.equal(resolvePolicy(policy, attestation).source.chainId, 9005);
+  const parsed = parseSignerPolicy(policy);
+  assert.equal(resolvePolicy(parsed, attestation).source.chainId, 9005);
   assert.match(releaseMessageHash(attestation), /^0x[0-9a-f]{64}$/);
+});
+
+test('rejects missing, malformed, and zero confirmation policy', () => {
+  const source = policy.sources[0];
+  assert.throws(
+    () => parseSignerPolicy({ ...policy, sources: [{ ...source, confirmations: undefined }] }),
+    /confirmations must be a positive integer/,
+  );
+  assert.throws(
+    () => parseSignerPolicy({ ...policy, sources: [{ ...source, confirmations: 'not-a-number' }] }),
+    /confirmations must be a positive integer/,
+  );
+  assert.throws(
+    () => parseSignerPolicy({ ...policy, sources: [{ ...source, confirmations: 0 }] }),
+    /confirmations must be a positive integer/,
+  );
+});
+
+test('rejects unsafe RPC URLs, duplicate sources, and duplicate routes', () => {
+  const source = policy.sources[0];
+  assert.throws(
+    () => parseSignerPolicy({ ...policy, sources: [{ ...source, rpcUrl: 'http://rpc.example.test' }] }),
+    /must use HTTPS/,
+  );
+  assert.throws(
+    () => parseSignerPolicy({ ...policy, sources: [source, source] }),
+    /duplicates an earlier source/,
+  );
+  assert.throws(
+    () => parseSignerPolicy({ ...policy, sources: [{ ...source, routes: [source.routes[0], source.routes[0]] }] }),
+    /duplicates an earlier route/,
+  );
+  assert.throws(
+    () => parseSignerPolicy({
+      ...policy,
+      sources: [{
+        ...source,
+        routes: [source.routes[0], {
+          ...source.routes[0],
+          releaseToken: ethers.Wallet.createRandom().address,
+        }],
+      }],
+    }),
+    /duplicates an earlier route/,
+  );
+});
+
+test('rejects zero critical addresses in policy and attestations', () => {
+  const source = policy.sources[0];
+  assert.throws(
+    () => parseSignerPolicy({ ...policy, sources: [{ ...source, bridgeAddress: ethers.ZeroAddress }] }),
+    /must be non-zero/,
+  );
+  assert.throws(
+    () => validateAttestation({ ...input, user: ethers.ZeroAddress }),
+    /must be non-zero/,
+  );
 });
 
 test('rejects a release token not in signer policy', () => {

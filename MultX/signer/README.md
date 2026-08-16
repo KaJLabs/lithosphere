@@ -12,12 +12,14 @@ Deployment templates and operator acceptance steps are in
 The signer does not blindly sign an API-provided digest. For every request it:
 
 1. validates the configured source chain, bridge, token route and destination;
-2. queries its own source-chain RPC;
-3. requires the configured confirmation depth;
+2. rejects duplicate routes, zero addresses, missing confirmation depth, and
+   non-HTTPS source RPCs (except loopback rehearsal);
+3. queries its own source-chain RPC, verifies its reported chain ID, and requires
+   the explicit confirmation depth;
 4. verifies the exact `TokensLocked` event at the supplied block;
 5. recomputes the release hash locally;
-6. records an fsync-backed `(sourceChain, sourceNonce) -> hash` decision and
-   rejects equivocation; and
+6. records an fsync-backed `(sourceChain, sourceNonce) -> hash` decision before
+   signing and rejects equivocation, including after restart; and
 7. returns an EIP-191 signature only after those checks pass.
 
 ## Required mounted files
@@ -34,6 +36,10 @@ The host should use full-disk encryption, SSH-key-only administration, a
 default-deny firewall allowing port 9443 only from the MultX API VPS, offline
 encrypted key backup, log shipping and uptime alerts. Validator operators must
 not share VPS accounts, private keys or TLS server keys.
+
+Each policy source must set an explicit positive `confirmations` value and a
+credential-free HTTPS `rpcUrl`. Every source chain and route must be unique.
+The signer fails startup on malformed policy or journal data.
 
 No production policy or key material is included. Bridge contracts and routes
 must be populated only after audit approval and mainnet deployment.

@@ -3,9 +3,13 @@ import { ethers } from 'ethers';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
 import { createRemoteSigner } from './remoteSigner.js';
+import { positiveSafeInteger, validateValidatorSet } from './validatorPolicy.js';
 
 let validators = [];
+let allowedSignerAddresses = [];
+let signaturesRequired = null;
 let signingIntervalId = null;
+let signingRunning = false;
 
 /**
  * Production uses one independently operated HTTPS signer per validator,
@@ -15,7 +19,7 @@ let signingIntervalId = null;
  * File-backed keys exist only for local development and tests. Production
  * rejects them so a single API VPS cannot silently hold the whole quorum.
  */
-async function loadValidators() {
+async function loadValidators(timeoutMs) {
   const loaded = [];
 
   for (let i = 0; i < 10; i++) {
@@ -29,7 +33,7 @@ async function loadValidators() {
         caFile: process.env[`VALIDATOR_SIGNER_CA_FILE_${i}`],
         certFile: process.env[`VALIDATOR_SIGNER_CERT_FILE_${i}`],
         keyFile: process.env[`VALIDATOR_SIGNER_KEY_FILE_${i}`],
-        timeoutMs: parseInt(process.env.VALIDATOR_SIGNER_TIMEOUT_MS || '8000', 10),
+        timeoutMs,
       }));
     } catch (err) {
       throw new Error(`[ValidatorService] remote signer ${i} initialization failed: ${err.message}`);
@@ -56,10 +60,11 @@ export async function startValidatorService() {
   if (process.env.NODE_ENV === 'production' && !process.env.SIGNATURES_REQUIRED) {
     throw new Error('[ValidatorService] SIGNATURES_REQUIRED must be explicit in production');
   }
-  if (!Number.isSafeInteger(config.signaturesRequired) || config.signaturesRequired < 1) {
-    throw new Error('[ValidatorService] SIGNATURES_REQUIRED must be a positive safe integer');
-  }
-  validators = await loadValidators();
+  const timeoutMs = positiveSafeInteger(
+    process.env.VALIDATOR_SIGNER_TIMEOUT_MS || '8000',
+    'VALIDATOR_SIGNER_TIMEOUT_MS',
+  );
+  validators = await loadValidators(timeoutMs);
 
   if (validators.length === 0) {
     throw new Error(
@@ -68,12 +73,12 @@ export async function startValidatorService() {
       'Local development may use VALIDATOR_PRIVATE_KEY_FILE_0..N or MOCK_VALIDATOR=true.'
     );
   }
-  if (validators.length < config.signaturesRequired) {
-    throw new Error(
-      `[ValidatorService] Loaded ${validators.length} signer(s), below configured threshold ` +
-      `${config.signaturesRequired}. Refusing to start.`
-    );
-  }
+  const validated = validateValidatorSet(
+    validators,
+    process.env.SIGNATURES_REQUIRED || String(config.signaturesRequired),
+  );
+  allowedSignerAddresses = validated.addresses;
+  signaturesRequired = validated.required;
 
   const remoteCount = validators.filter((v) => v.kind === 'remote').length;
   const fileCount = validators.filter((v) => v.kind === 'filekey').length;
@@ -108,6 +113,8 @@ async function signWith(validator, attestation) {
 }
 
 async function processSignings() {
+  if (signingRunning) return;
+  signingRunning = true;
   try {
     const result = await pool.query(
       `SELECT tx_hash, from_address, token_address, release_token, amount,
@@ -118,11 +125,15 @@ async function processSignings() {
     if (result.rows.length === 0) return;
 
     for (const tx of result.rows) {
-      const releaseToken = tx.release_token || tx.token_address;
-      const sourceChain = tx.source_chain || 900523;
+      if (!tx.release_token || !tx.source_chain || !tx.source_nonce || !tx.block_number) {
+        console.error(`[ValidatorService] Refusing ${tx.tx_hash}: incomplete multichain lock evidence`);
+        continue;
+      }
+      const releaseToken = tx.release_token;
+      const sourceChain = tx.source_chain;
       const sourceSpec = config.chainsToWatch.find((c) => Number(c.chainId) === Number(sourceChain));
       const targetSpec = config.chainsToWatch.find((c) => Number(c.chainId) === Number(tx.target_chain));
-      if (!sourceSpec?.bridge || !targetSpec?.bridge || !tx.block_number) {
+      if (!sourceSpec?.bridge || !targetSpec?.bridge) {
         console.error(`[ValidatorService] Refusing ${tx.tx_hash}: missing source/target bridge or block evidence`);
         continue;
       }
@@ -163,11 +174,13 @@ async function processSignings() {
           );
 
           const sigResult = await pool.query(
-            `SELECT COUNT(*)::int AS sig_count FROM bridge_signatures WHERE tx_hash = $1`,
-            [tx.tx_hash]
+            `SELECT COUNT(DISTINCT LOWER(validator_address))::int AS sig_count
+             FROM bridge_signatures
+             WHERE tx_hash = $1 AND LOWER(validator_address) = ANY($2::text[])`,
+            [tx.tx_hash, allowedSignerAddresses]
           );
 
-          if (sigResult.rows[0].sig_count >= config.signaturesRequired) {
+          if (sigResult.rows[0].sig_count >= signaturesRequired) {
             await pool.query(
               `UPDATE bridge_transactions SET status = 'signed' WHERE tx_hash = $1`,
               [tx.tx_hash]
@@ -181,6 +194,8 @@ async function processSignings() {
     }
   } catch (err) {
     console.error('[ValidatorService] processSignings error:', err.message);
+  } finally {
+    signingRunning = false;
   }
 }
 
@@ -189,4 +204,12 @@ export function stopValidatorService() {
     clearInterval(signingIntervalId);
     console.log('[ValidatorService] Signing loop stopped');
   }
+}
+
+export function getSignaturesRequired() {
+  return signaturesRequired ?? config.signaturesRequired;
+}
+
+export function getAllowedSignerAddresses() {
+  return [...allowedSignerAddresses];
 }

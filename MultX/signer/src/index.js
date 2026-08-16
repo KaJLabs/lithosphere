@@ -1,8 +1,14 @@
 import fs from 'fs';
 import https from 'https';
-import path from 'path';
 import { ethers } from 'ethers';
-import { assertLockEvent, releaseMessageHash, resolvePolicy, validateAttestation } from './policy.js';
+import { createDecisionJournal } from './journal.js';
+import {
+  assertLockEvent,
+  parseSignerPolicy,
+  releaseMessageHash,
+  resolvePolicy,
+  validateAttestation,
+} from './policy.js';
 
 const requiredFile = (envName) => {
   const file = process.env[envName];
@@ -12,7 +18,7 @@ const requiredFile = (envName) => {
   return value;
 };
 
-const policy = JSON.parse(requiredFile('SIGNER_POLICY_FILE').toString('utf8'));
+const policy = parseSignerPolicy(JSON.parse(requiredFile('SIGNER_POLICY_FILE').toString('utf8')));
 const privateKey = requiredFile('SIGNER_PRIVATE_KEY_FILE').toString('utf8').trim();
 const wallet = new ethers.Wallet(privateKey);
 if (policy.signerAddress && ethers.getAddress(policy.signerAddress) !== wallet.address) {
@@ -23,7 +29,9 @@ const providers = new Map();
 const sourceContract = (source) => {
   const key = Number(source.chainId);
   if (!providers.has(key)) {
-    const provider = new ethers.JsonRpcProvider(source.rpcUrl, key, { staticNetwork: true });
+    // Do not pin a static network here: getNetwork() must query the endpoint so
+    // a policy URL that is accidentally pointed at another chain fails closed.
+    const provider = new ethers.JsonRpcProvider(source.rpcUrl);
     const contract = new ethers.Contract(source.bridgeAddress, [
       'event TokensLocked(bytes32 indexed txHash,address indexed token,address indexed user,uint256 amount,uint256 targetChain,uint256 nonce)',
     ], provider);
@@ -33,27 +41,7 @@ const sourceContract = (source) => {
 };
 
 const stateFile = process.env.SIGNER_STATE_FILE || '/var/lib/multx-signer/signed-releases.jsonl';
-fs.mkdirSync(path.dirname(stateFile), { recursive: true, mode: 0o700 });
-const signed = new Map();
-if (fs.existsSync(stateFile)) {
-  for (const line of fs.readFileSync(stateFile, 'utf8').split('\n').filter(Boolean)) {
-    const record = JSON.parse(line);
-    const prior = signed.get(record.key);
-    if (prior && prior !== record.hash) throw new Error(`equivocation detected in state for ${record.key}`);
-    signed.set(record.key, record.hash);
-  }
-}
-
-const persistDecision = (key, hash) => {
-  const fd = fs.openSync(stateFile, 'a', 0o600);
-  try {
-    fs.writeSync(fd, `${JSON.stringify({ key, hash, at: new Date().toISOString() })}\n`);
-    fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
-  }
-  signed.set(key, hash);
-};
+const journal = createDecisionJournal(stateFile);
 
 let signingQueue = Promise.resolve();
 const serializeSigning = (fn) => {
@@ -71,7 +59,7 @@ const verifyAndSign = async (input) => {
   if (Number(network.chainId) !== attestation.sourceChain) throw new Error('source RPC chain ID mismatch');
   const tip = await provider.getBlockNumber();
   const confirmations = tip - attestation.sourceBlock + 1;
-  if (confirmations < Number(source.confirmations || 1)) {
+  if (confirmations < source.confirmations) {
     throw new Error(`source lock has ${confirmations} confirmations`);
   }
 
@@ -88,11 +76,10 @@ const verifyAndSign = async (input) => {
   const hash = releaseMessageHash(attestation);
   const key = `${attestation.sourceChain}:${attestation.sourceNonce}`;
   return serializeSigning(async () => {
-    const prior = signed.get(key);
-    if (prior && prior !== hash) throw new Error(`refusing equivocation for ${key}`);
-    const signature = await wallet.signMessage(ethers.getBytes(hash));
-    if (!prior) persistDecision(key, hash);
-    return signature;
+    // Persist the decision before producing a signature. A crash can therefore
+    // withhold a signature, but can never erase the anti-equivocation decision.
+    journal.record(key, hash);
+    return wallet.signMessage(ethers.getBytes(hash));
   });
 };
 
@@ -143,7 +130,15 @@ const server = https.createServer({
   }
 });
 
+server.headersTimeout = 10_000;
+server.requestTimeout = 15_000;
+server.keepAliveTimeout = 5_000;
+server.maxRequestsPerSocket = 100;
+
 const port = Number(process.env.SIGNER_PORT || 9443);
+if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
+  throw new Error('SIGNER_PORT must be an integer between 1 and 65535');
+}
 server.listen(port, '0.0.0.0', () => {
   console.log(`[signer] listening on ${port}; address=${wallet.address}`);
 });

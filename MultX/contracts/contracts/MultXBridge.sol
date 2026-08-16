@@ -78,7 +78,7 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
     event PauseGuardianUpdated(address indexed previousGuardian, address indexed newGuardian);
 
     /// @notice Deploy the bridge with an initial validator set and quorum threshold.
-    /// @param _validators Initial validator addresses (must be non-empty, no zero address).
+    /// @param _validators Initial validator addresses (must be non-empty, unique, and non-zero).
     /// @param _signaturesRequired Quorum size; must be in [1, _validators.length].
     constructor(address[] memory _validators, uint256 _signaturesRequired) Ownable(msg.sender) {
         require(_validators.length > 0, "At least one validator required");
@@ -86,6 +86,7 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
 
         for (uint256 i = 0; i < _validators.length; i++) {
             require(_validators[i] != address(0), "Invalid validator address");
+            require(!isValidator[_validators[i]], "Duplicate validator address");
             isValidator[_validators[i]] = true;
             validators.push(_validators[i]);
         }
@@ -132,7 +133,7 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
     // ── Admin: validator set rotation ───────────────────────────────────────────
 
     /// @notice Replace the entire validator set and quorum threshold atomically. Owner-only.
-    /// @param _validators New validator addresses (non-empty, no zero address).
+    /// @param _validators New validator addresses (non-empty, unique, and non-zero).
     /// @param _signaturesRequired New quorum size; must be in [1, _validators.length].
     function setValidatorSet(address[] calldata _validators, uint256 _signaturesRequired) external onlyOwner {
         require(_validators.length > 0, "At least one validator required");
@@ -149,6 +150,7 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
         uint256 newLen = _validators.length;
         for (uint256 i = 0; i < newLen; i++) {
             require(_validators[i] != address(0), "Invalid validator address");
+            require(!isValidator[_validators[i]], "Duplicate validator address");
             isValidator[_validators[i]] = true;
             validators.push(_validators[i]);
         }

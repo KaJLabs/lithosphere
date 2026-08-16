@@ -44,10 +44,19 @@ chat, email, source control or CI variables.
 - An unauthenticated TLS client is rejected.
 - A wrong source chain, bridge, token route, event, or insufficient-confirmation
   request is rejected without writing a signing decision.
+- A policy RPC pointed at the wrong chain ID is rejected.
+- Missing/malformed confirmation depth, an insecure remote RPC, duplicate
+  source/route, zero critical address, or corrupt journal prevents startup.
 - Repeating the same approved request returns the same signer identity and a
   valid signature; attempting equivocation for a signed source nonce is rejected.
 - Restarting the container preserves the journal and the equivocation decision.
 - Restore the encrypted backup onto a clean VPS and repeat the checks.
+- Configure duplicate signer identities and verify the coordinator refuses to
+  start; stale/unconfigured database signatures must not satisfy quorum.
+- Verify both bridge implementations reject duplicate validator identities at
+  deployment and during rotation.
+- Confirm a slow signing cycle cannot overlap the next coordinator poll and
+  incomplete multichain evidence is rejected rather than defaulted.
 
 ## Incident response
 

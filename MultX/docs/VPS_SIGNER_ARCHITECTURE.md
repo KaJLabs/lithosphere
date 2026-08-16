@@ -24,6 +24,16 @@ policy, then recomputes the same EIP-191 release hash enforced by
 `MultXBridge.releaseTokens`. The API independently recovers the returned
 signature and rejects any address other than the configured validator.
 
+Startup rejects duplicate signer identities, thresholds above the unique
+configured set, malformed timeouts, and non-origin signer URLs. Signing polls
+are serialized. Only distinct signatures from the current configured signer set
+advance the database threshold, and rows missing explicit source-chain,
+source-nonce, block, or release-token evidence fail closed.
+
+Each signer queries the actual source RPC chain ID rather than trusting a static
+provider hint. Both bridge contracts also reject duplicate validator identities
+at deployment and during validator-set rotation.
+
 The audit candidate binds every signature to the destination chain ID and
 destination bridge address in addition to the source event and release fields.
 Both bridge implementations, the API, independent signer and relayer recompute
