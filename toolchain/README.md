@@ -17,7 +17,7 @@ the parser is tested against as golden files.
 | `lithlint` | **real (v0)** | AST-driven lint rules L001–L004 (naming + `@ai_budget` on `pub async fn`). `--deny-warnings` for CI. |
 | `lithls`   | **reviewed spec-only** | Explicitly refuses `--stdio`; the protocol, safety, span, test, and acceptance boundary is in [`specs/lithls.md`](specs/lithls.md). |
 | `lithdev`  | **real (bounded v0)** | Strict local Compose lifecycle, declaration checks, read-only ABI output, and fail-closed deploy preflight. Volume deletion, signing, broadcast, and receipt claims are excluded. |
-| `lithtest` | spec-only stub | Test runner. |
+| `lithtest` | **reviewed spec-only** | Explicitly refuses `--run`; the syntax-owner, compiler/VM, isolation, failure, conformance, and acceptance boundary is in [`specs/lithtest.md`](specs/lithtest.md). |
 | `lithsec`  | spec-only stub | Capability + storage safety scanner. |
 | `lithpkg`  | spec-only stub | Package manager. |
 
