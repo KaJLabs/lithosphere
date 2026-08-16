@@ -51,7 +51,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | V2 DEX and non-AWS signer hardening merged; swap disabled | IN PROGRESS | Obtain independent audit, operator, deployment, controller, and liquidity approvals. |
-| MX-07 | Developer toolchain | Front-end, formatter, linter, three spec-only tools, and safe `lithdev` v0 merged; no deployable compiler/release | IN PROGRESS | Review `lithpkg` next; approved language/VM semantics still block full compiler work. |
+| MX-07 | Developer toolchain | All eight public tool boundaries reviewed; four remain explicitly specification-only and there is no deployable compiler/release | IN PROGRESS | Review release packaging, examples, and lockfile next; approved language/VM semantics still block full compiler work. |
 
 ## Sequential closure queue
 
@@ -494,12 +494,14 @@ Evidence:
 
 **Owners:** Lithic/compiler team + Dev Infra/release owner + Security reviewer
 
-**Current state:** The workspace expands all eight public tools into functional v0 implementations and adds three-OS
-CI/release packaging. Those changes remain local-only. Review of the first shared-syntax/`lithc` slice found that the
+**Current state:** All eight public binary boundaries have now been reviewed and merged with three-OS CI coverage.
+Four are deliberately specification-only because their required semantics have not been approved; the remaining
+local release-packaging, example, and lockfile changes have not yet been accepted. Review of the first
+shared-syntax/`lithc` slice found that the
 local semantic pass inferred an unapproved primitive-type table, overload behavior, map-key restrictions, and return
 semantics. PR #95 removed those assumptions, added only unambiguous declaration-name checks, introduced a three-OS
 CI gate, passed every gate, and merged as `cf68f7c001cd6a847f806cac09659bf72380bda2`. The tracked release still
-describes `lithpkg` as a spec-only stub. `lithc` still does not
+keeps `lithls`, `lithtest`, `lithsec`, and `lithpkg` at honest specification-only boundaries. `lithc` still does not
 parse/lower full function bodies into deployable LithoVM/EVM bytecode.
 
 | Tool | Local implementation | Required before full-release acceptance |
@@ -511,7 +513,7 @@ parse/lower full function bodies into deployable LithoVM/EVM bytecode.
 | `lithdev` | Strict local Compose lifecycle, conservative declaration checks, read-only ABI output, and fail-closed deploy preflight on `main`. Destructive volume deletion is excluded. | Operator acceptance with a running local Docker engine; compiler bytecode, simulation, signing, broadcast, receipt verification, and safe account/network policy before real deploy support. |
 | `lithtest` | Reviewed specification-only boundary on `main`; packaged stub explicitly refuses `--run` and source paths, so raw body text cannot be reported as executed tests. | Approved test syntax plus typed compiler/LithoVM execution, fixtures/isolation, failure traces, gas/coverage decisions, conformance suite, and release-owner acceptance. |
 | `lithsec` | Reviewed specification-only boundary on `main`; packaged stub explicitly refuses `--scan` and source paths, so heuristics cannot be presented as security results. | Approved threat model, typed-IR analysis, rule/version/severity/suppression policy, positive/negative corpus, false-result measurements, and independent compiler/security acceptance. |
-| `lithpkg` | Local manifests, local dependencies, and deterministic locks. | Decide whether local-only v0 is accepted; otherwise specify and implement a signed registry and trust policy. |
+| `lithpkg` | Reviewed specification-only boundary on `main`; packaged stub explicitly refuses `--resolve` and manifest paths, so an incomplete resolver or weak lock integrity cannot be presented as package management. | Approve manifest/lock schemas, full dependency resolution, path/symlink safety, cryptographic integrity and trust policy, atomic writes, compiler integration, and conformance criteria. |
 
 Completed or evidenced locally:
 
@@ -556,12 +558,16 @@ Completed or evidenced locally:
 - [x] PR #107 kept `lithsec` at `0.0.1`, made scanning fail closed, documented the threat-model/typed-analysis and
       false-result acceptance gates, passed all 37 Rust tests and full release builds on Linux, Windows, and macOS,
       and merged as `efca15c3d9f3b3c0dc3d0dd1241f7f02cb90c371` (2026-08-16).
+- [x] Rejected the uncommitted `lithpkg` `0.1.0` draft because its hand-rolled manifest parser, incomplete resolver,
+      direct path handling, FNV-1a checksum, and non-atomic lock writes did not satisfy an approved package boundary.
+- [x] PR #109 kept `lithpkg` at `0.0.1`, made resolution fail closed, documented the schema/resolution/path/trust and
+      compiler-integration gates, passed all 40 Rust tests and full release builds on Linux, Windows, and macOS, and
+      merged as `729f9e2a2ec6908bc4bf583618162896e38d7c62` (2026-08-16).
 
 Remaining actions:
 
 - [x] Merge the reviewed shared syntax/`lithc` and CI slice after its Linux/Windows/macOS gates pass.
-- [ ] Separately review `lithpkg`, release packaging,
-      examples, and lockfile.
+- [ ] Separately review release packaging, examples, and lockfile.
 - [x] Merge the `lithfmt` literal-safety fix after three-OS tests and release builds pass.
 - [ ] Record product/release-owner acceptance of the whitespace-only v0 formatter or implement the approved
       AST-driven canonical formatter boundary.
@@ -666,8 +672,22 @@ Evidence:
 | 2026-08-16 | `lithdev` safe-v0 review | MERGED | PR #103 added bounded local Compose lifecycle, read-only declaration/ABI commands, and fail-closed deploy preflight; eight safety tests reject destructive or misleading behavior. All three OS gates passed with 31 Rust tests and full release builds; merged as `d6d1a26b`. |
 | 2026-08-16 | `lithtest` specification review | MERGED | PR #105 retained the requested spec-only scope, made execution fail closed, excluded the raw-body assertion scanner, and passed Linux, Windows, and macOS gates with all 34 Rust tests and full workspace release builds; merged as `b0e5372a`. |
 | 2026-08-16 | `lithsec` specification review | MERGED | PR #107 retained the requested spec-only scope, made scanning fail closed, excluded the unapproved SEC001–SEC005 text heuristics, and passed Linux, Windows, and macOS gates with all 37 Rust tests and full workspace release builds; merged as `efca15c3`. |
+| 2026-08-16 | `lithpkg` specification review | MERGED | PR #109 retained the requested spec-only scope, made resolution fail closed, excluded the incomplete manifest/resolver and weak-integrity draft, and passed Linux, Windows, and macOS gates with all 40 Rust tests and full workspace release builds; merged as `729f9e2a`. |
 
 ## Change log
+
+### 2026-08-16 — MX-07 `lithpkg` specification boundary merged
+
+- PR #109 passed both workflow trigger sets on Linux, Windows, and macOS: scoped formatting and workspace-wide
+  Clippy with warnings denied, all 40 Rust tests, full workspace release builds, and the `lithc` smoke check.
+- All standard repository gates passed; PR #109 merged by `bachal-mb` as
+  `729f9e2a2ec6908bc4bf583618162896e38d7c62`.
+- The crate remains `0.0.1` and specification-only as requested. It refuses `--resolve` and manifest paths until
+  schemas, resolution, path safety, cryptographic trust, atomic writes, compiler integration, and conformance rules
+  are approved.
+- The local hand-rolled parser/resolver and FNV-1a lock checksum draft were excluded; no dependency graph was
+  resolved and no lockfile was presented as trustworthy.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-07 `lithsec` specification boundary merged
 
