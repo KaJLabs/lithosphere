@@ -1,213 +1,150 @@
-# Faucet Setup Instructions — Validator Team
+# Makalu faucet rotation and release runbook
 
-**Priority:** Required for Makalu testnet faucet to function  
-**Component:** `litho-faucet` Docker container on EC2 indexer  
-**Status:** Faucet UI is live at https://makalu.litho.ai/faucet but claims fail with "Could not send tokens" because no faucet wallet is configured.
+**Scope:** Makalu testnet native LITHO and LEP100 faucet assets
 
----
+**Owners:** Faucet deploy owner + VPS owner + token treasury/contract owners
 
-## Problem
+**Status:** Blocked pending wallet rotation, protected deployment access, and approved funding amounts
 
-The faucet service (`litho-faucet`) needs a funded EVM wallet to send test LITHO to users. The `FAUCET_PRIVATE_KEY` environment variable is currently empty, so all faucet claims fail with a 500 error.
+This runbook is the safe handoff for rotating and releasing the Makalu faucet.
+It does not authorize a wallet drain, transfer, deployment, or server change.
 
----
+## Current verified state
 
-## Step-by-Step Setup
+Public probe: `https://makalu.litho.ai/api/faucet/info`
 
-### 1. Generate a new faucet wallet
+Verified on 2026-08-16:
 
-On any machine with `cast` (Foundry) or `node`:
+- The live faucet still derives address
+  `0x43593dC799d432CB6382ae20186Ba5356AC7D271`.
+- Native LITHO is funded.
+- All ten LEP100 assets are below their minimum ten-token claim.
+- WLITHO, LITBTC, JOT, COLLE, and FGPT report zero.
+- LAX, IMAGE, AGII, BLDR, and MUSA report five.
+- The public response is still the pre-safeguard schema: per-asset `available`,
+  `claimableAmounts`, `minimumClaimAmount`, and `shortfall` are absent.
+- The secured faucet image exists at digest
+  `sha256:34391877a9029461dfc261ce1ed0704b791d19f9065c0367a297952e49be12d8`,
+  but it has not been deployed.
 
-**Option A — Using Foundry (`cast`):**
-```bash
-cast wallet new
-```
-This outputs an address and private key. Save both.
+## Required approvals and inputs
 
-**Option B — Using Node.js:**
-```bash
-node -e "const w = require('ethers').Wallet.createRandom(); console.log('Address:', w.address); console.log('Private Key:', w.privateKey);"
-```
+Before any mutation, record all of the following in the approved change record:
 
-**Option C — Using any EVM wallet (MetaMask, etc.):**  
-Create a new account and export the private key.
+- Explicit authorization to drain the old faucet address into the new faucet
+  address. Approval must name both public addresses.
+- Approved native LITHO funding amount and operational reserve threshold.
+- Approved funding amount and reserve threshold for every supported LEP100
+  asset: WLITHO, LITBTC, LAX, JOT, COLLE, IMAGE, AGII, BLDR, FGPT, and MUSA.
+- Named treasury operator, faucet deploy operator, VPS owner, rollback owner,
+  and observation window.
+- Authorized access to the faucet deployment environment and secret manager.
+- Installed and validated restricted deploy, rollback, and status wrappers.
 
-> **Save the output — you need both:**
-> - **Address**: `0x...` (the faucet's public address)
-> - **Private Key**: `0x...` (64 hex chars after `0x`)
+Do not infer amounts from earlier examples or current balances.
 
----
+## Secret-handling boundary
 
-### 2. Fund the faucet wallet
+- Generate the replacement wallet directly through the approved secret manager
+  or an approved offline ceremony.
+- Never put a private key in chat, an issue, a pull request, a workflow input,
+  an artifact, a shell transcript, or a repository file.
+- Share only the new public address for approval and funding records.
+- Store the private key only under the faucet deployment environment's
+  protected secret path.
+- Do not reuse validator, explorer, indexer, bridge, or operator keys.
+- Revoke the old faucet key only after the approved drain and post-deployment
+  verification are complete.
 
-Send LITHO to the faucet address from a funded account (e.g., a genesis account or validator account).
+## Protected VPS boundary
 
-**Recommended initial funding:** 100,000 LITHO (enough for 10,000 claims at 10 LITHO each)
+The deployment identity must be restricted to root-owned, source-reviewed
+wrappers. The wrappers may expose only these literal operations:
 
-**Using `litho` CLI (Cosmos SDK):**
-```bash
-lithod tx bank send <funded-account> <faucet-0x-address> 100000000000000000000000ulitho \
-  --chain-id lithosphere_700777-2 \
-  --gas auto --gas-adjustment 1.5 \
-  --fees 1000ulitho \
-  --node https://rpc.litho.ai:26657
-```
+- `status`: read faucet container/image/health state.
+- `deploy`: pull the approved immutable faucet image and recreate only the
+  faucet service while preserving protected environment data.
+- `rollback`: restore only the previously recorded faucet image.
 
-**Or using cast (EVM):**
-```bash
-cast send <faucet-address> --value 100000ether \
-  --private-key <funded-wallet-private-key> \
-  --rpc-url http://localhost:8545
-```
+The deployment key must not provide an interactive shell, generic Docker or
+Compose access, arbitrary `sudo`, port forwarding, or file-write access outside
+the dedicated faucet deployment boundary. The VPS owner must provide wrapper
+and policy SHA-256 values plus validation evidence before workflow activation.
 
-> Note: `100000ether` = 100,000 LITHO (both use 18 decimals)
+## Rotation and funding sequence
 
----
+1. Treasury and deploy owners approve the public old/new addresses, exact asset
+   amounts, reserves, operator, window, and rollback owner.
+2. The authorized operator generates the replacement key in the approved secret
+   manager and records only its public address.
+3. The VPS owner installs and validates the restricted wrappers and deployment
+   key; unrestricted access remains denied.
+4. The authorized treasury operator transfers the approved native LITHO and
+   each LEP100 amount to the new address. If an old-wallet drain is approved,
+   execute it exactly as approved and retain every transaction hash.
+5. Verify the new address and every on-chain balance independently before any
+   deployment.
+6. Configure the protected faucet secret and confirmed Makalu RPC/chain values
+   through the deployment environment, without printing their values.
+7. Run the separate manual faucet release workflow against the immutable image
+   digest. The workflow must call only the restricted wrapper.
+8. Run the smoke and observation gates below. Roll back on any failed gate.
+9. After the observation window passes, revoke the old key and close the change
+   record with transaction, deployment, and monitoring evidence.
 
-### 3. Configure the environment variable
+## Required release workflow gates
 
-SSH to the EC2 indexer via bastion:
-```bash
-ssh -o ProxyJump="<DEPLOY_USER>@<BASTION_HOST>" <DEPLOY_USER>@<INDEXER_HOST>
-```
+The manual faucet workflow must remain absent or disabled until the approval,
+secret, wrapper, and funding gates above are complete. Before it can deploy, it
+must:
 
-Edit the `.env` file in the Makalu directory:
-```bash
-cd /opt/lithosphere/Makalu
-sudo nano .env
-```
+- Require an approval-protected Makalu faucet environment.
+- Accept or resolve an immutable image digest, never a mutable deployment tag.
+- Verify the image signature, provenance, SBOM, and zero-CRITICAL vulnerability
+  gate before contacting the VPS.
+- Record the current image for rollback.
+- Call only the restricted `status`, `deploy`, and `rollback` operations.
+- Verify the public schema and new public faucet address.
+- Roll back automatically if deployment or public health validation fails.
 
-Add or update these lines:
-```env
-# Faucet wallet (REQUIRED - private key of the funded wallet from Step 1)
-FAUCET_PRIVATE_KEY=0x<your-64-char-hex-private-key>
+## Post-deployment smoke tests
 
-# EVM JSON-RPC endpoint the faucet uses to send transactions
-# Use localhost if the Ethermint node runs on this machine, otherwise use the NLB
-FAUCET_RPC_URL=http://localhost:8545
+All checks must use the public Makalu endpoint and the approved new address:
 
-# Optional overrides (defaults are fine)
-# FAUCET_DRIP_AMOUNT=10        # Default LITHO per claim when amount is omitted
-# FAUCET_COOLDOWN_HOURS=24     # Hours between claims per address (default: 24)
-# FAUCET_CHAIN_ID=700777       # EVM chain ID (default: 700777)
-```
+- `/api/faucet/info` returns HTTP 200 and the new `faucetAddress`.
+- The response contains `ready`, `unavailableAssetIds`, and per-asset
+  `available`, `claimableAmounts`, `minimumClaimAmount`, and `shortfall`.
+- Every funded asset reports at least one approved claimable amount.
+- An underfunded or unreadable asset fails closed without mutating cooldown.
+- One approved live claim per asset succeeds and its transaction is verified.
+- Post-claim balances match the expected debit.
+- Cooldown and invalid-address rejection work.
+- Low-balance alert delivery and acknowledgement are proven before reserves
+  fall below one minimum claim.
 
-The public faucet supports claims of **10 / 25 / 50 LITHO**. If no amount is supplied, the faucet defaults to **10 LITHO**.
+## Rollback conditions
 
----
+Roll back only the faucet image if any of these occurs during the observation
+window:
 
-### 4. Restart the faucet container
+- Public health or schema validation fails.
+- The running address differs from the approved new public address.
+- A funded asset is incorrectly reported unavailable, or an underfunded asset
+  is reported available.
+- Claim accounting, cooldown behavior, or transaction verification fails.
+- Error rate, restart count, or alerting crosses the approved threshold.
 
-```bash
-cd /opt/lithosphere/Makalu
-sudo docker compose up -d faucet
-```
+Rollback does not reverse treasury transfers or restore an old private key.
+Those require a separate explicit treasury/security decision.
 
----
+## Closure evidence
 
-### 5. Verify it's working
+MX-02 can close only when the record contains:
 
-**Check the container is running:**
-```bash
-sudo docker ps | grep faucet
-```
-
-**Check the faucet logs for startup confirmation:**
-```bash
-sudo docker logs litho-faucet --tail 20
-```
-
-You should see:
-```
-[faucet] Listening on http://0.0.0.0:8081
-[faucet] RPC: http://localhost:8545 | Chain: 700777
-[faucet] Drip: 10 LITHO | Cooldown: 24h
-```
-
-**Check the health endpoint:**
-```bash
-curl http://localhost:8081/health
-```
-
-**Test a drip manually:**
-```bash
-curl -X POST http://localhost:8081/drip \
-  -H "Content-Type: application/json" \
-  -d '{"address": "0xba2b6fA3758296c5237235b2aF3Ba2a96D36A860", "amount": "10"}'
-```
-
-Expected success response:
-```json
-{
-  "success": true,
-  "txHash": "0x...",
-  "amount": "10 LITHO",
-  "recipient": "0xba2b6fA3758296c5237235b2aF3Ba2a96D36A860",
-  "cooldownHours": 24
-}
-```
-
-**Test from the public API:**
-```bash
-curl -X POST https://makalu.litho.ai/api/faucet/claim \
-  -H "Content-Type: application/json" \
-  -d '{"address": "0xba2b6fA3758296c5237235b2aF3Ba2a96D36A860", "walletType": "WEB3", "amount": "10 LITHO"}'
-```
-
----
-
-### 6. Verify via the UI
-
-1. Open https://makalu.litho.ai/faucet
-2. Connect a wallet (MetaMask / WalletConnect)
-3. Click "Add Makalu Network" if prompted
-4. Enter an address or use the connected wallet address
-5. Select amount and click "Claim Testnet LITHO"
-6. Should see a success message with a transaction hash
-
----
-
-## Troubleshooting
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| `FAUCET_PRIVATE_KEY not set` in logs | Missing env var | Add to `.env` and restart |
-| `insufficient funds` in logs | Faucet wallet has no LITHO | Fund the address from Step 2 |
-| `connection refused` or timeout | Wrong RPC URL | Check `FAUCET_RPC_URL` — try `http://localhost:8545` or the NLB URL |
-| `chain ID mismatch` | Wrong chain ID | Ensure `FAUCET_CHAIN_ID=700777` |
-| Container not starting | Redis not running | Check `sudo docker ps \| grep redis` — faucet depends on Redis for rate limiting |
-| 502 from API | Faucet container not reachable | Check container is on `litho-network` Docker network |
-
----
-
-## Security Notes
-
-- The faucet private key should **only** exist in the `.env` file on the server — never commit it to git
-- The faucet wallet should **only** hold test tokens — never use a wallet that holds real assets
-- Rate limiting is enforced: 1 claim per address per 24 hours (configurable via `FAUCET_COOLDOWN_HOURS`)
-- The faucet only accepts EVM (`0x...`) addresses
-
----
-
-## Architecture Reference
-
-```
-User Browser
-    |
-    | POST /api/faucet/claim
-    v
-litho-api (Express, port 3010)
-    |
-    | POST /drip (internal Docker network)
-    v
-litho-faucet (Fastify, port 8081)
-    |
-    | sendTransaction via viem
-    v
-Lithosphere EVM (port 8545)
-```
-
-**Docker service name:** `faucet` (aliased as `litho-faucet`)  
-**Internal URL used by API:** `http://faucet:8081`  
-**Env file location:** `/opt/lithosphere/Makalu/.env`  
-**Docker compose file:** `/opt/lithosphere/Makalu/docker-compose.yaml`
+- Approval for both public addresses and all funding amounts.
+- Restricted-wrapper checksums and installation validation.
+- Immutable image digest and successful manual workflow run.
+- Funding/drain transaction hashes and verified balances.
+- One verified claim transaction per supported asset.
+- Alert delivery/acknowledgement evidence.
+- Named deploy, treasury, replenishment, monitoring, and rollback owners.

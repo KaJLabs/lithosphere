@@ -176,7 +176,9 @@ pre-publication vulnerability gating, immutable image waiting, and source-contro
 signing, provenance, and SBOM generation at digest
 `sha256:34391877a9029461dfc261ce1ed0704b791d19f9065c0367a297952e49be12d8`. Production was intentionally not
 deployed: faucet releases are manual pending rotation of the exposed funding key and protected-wrapper activation.
-Treasury replenishment is also required before live token claims can pass.
+Treasury replenishment is also required before live token claims can pass. The former setup guide was removed because
+it referenced a retired hosting path, assumed an unapproved funding amount, and instructed direct privileged edits;
+the replacement runbook is VPS-only, wrapper-bound, and requires explicit old/new address and per-asset approvals.
 
 Completed or evidenced:
 
@@ -190,6 +192,8 @@ Completed or evidenced:
 - [x] Seven focused availability/route tests and the strict faucet build pass (2026-08-14).
 - [x] Faucet image passes the pre-publication CRITICAL Trivy gate and is signed, provenance-attested, and accompanied
       by an SBOM (2026-08-14).
+- [x] Replaced the obsolete direct-access faucet setup instructions with an approval-gated wallet-rotation,
+      restricted-wrapper, immutable-image, smoke-test, alert, and rollback runbook (2026-08-16).
 
 Remaining actions:
 
@@ -687,8 +691,21 @@ Evidence:
 | 2026-08-16 | Toolchain preview packaging review | MERGED | PR #111 committed the lockfile and reviewed example, excluded the misleading public-release draft, and passed both three-OS trigger sets with locked builds, 40 tests, staged-command/fail-closed checks, SHA-256 generation, and artifact uploads; merged as `c942d275`. |
 | 2026-08-16 | Mainnet monitor live recheck | PASS | The latest inspected scheduled chain-monitor run `31945720631` passed. |
 | 2026-08-16 | Signing-state backup live recheck | EXTERNAL BLOCKER | Run `31933222228` failed configuration validation because `BACKUP_RECIPIENT` is empty; SSH/export/encryption steps were skipped and deduplicated incident #74 remains open. |
+| 2026-08-16 | Faucet runbook safety review | READY | Removed obsolete hosting/direct-sudo instructions and assumed funding amounts; replacement requires explicit drain/funding approvals, secret-manager custody, restricted VPS wrappers, immutable images, public smoke tests, alert evidence, and rollback ownership. |
 
 ## Change log
+
+### 2026-08-16 — MX-02 protected faucet runbook prepared
+
+- Replaced the obsolete faucet setup guide that referenced a retired hosting path, direct privileged file/container
+  changes, and an unapproved example funding amount.
+- The new runbook records the verified live old address and underfunded balances, but authorizes no drain, funding,
+  deployment, key handling, or server change.
+- Rotation now requires explicit old/new public-address approval, exact native and per-LEP100 amounts, separate
+  treasury/deploy/VPS/rollback owners, secret-manager custody, and restricted root-owned wrapper checksums.
+- Release closure requires an immutable signed image, fail-closed public schema, one verified claim per asset,
+  post-claim balances, low-balance alert acknowledgement, and rollback evidence.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-06 live backup gate reconfirmed
 
