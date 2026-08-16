@@ -53,6 +53,21 @@ cargo run -p lithlint -- ../Makalu/contracts/src/FinesseWarriors.lithic
 cargo run -p lithfmt -- --check ../Makalu/contracts/src/DOGE.lithic
 ```
 
+### `lithlint` v0 rule boundary
+
+`lithlint` currently accepts exactly one input file. Findings are warnings unless
+`--deny-warnings` is supplied. The reviewed v0 rule set is deliberately small:
+
+- `L001`: contract names start with an ASCII uppercase letter and contain no underscore.
+- `L002`: function names contain only ASCII lowercase letters, digits, and underscores.
+- `L003`: constant names contain only ASCII uppercase letters, digits, and underscores.
+- `L004`: every `pub async fn` declares an `@ai_budget` attribute.
+
+There is no suppression file, project configuration, or configurable severity in
+v0. L004 checks the declaration boundary only because function bodies are still
+stored as raw source; it does not claim to trace AI calls. Expanding these rules
+or promoting the crate beyond `0.0.1` requires an approved rule/version policy.
+
 ## Roadmap (next phases)
 
 1. `lithc`: specify and implement name resolution + type checking over the declaration AST. The current conservative pass intentionally does not infer unapproved type, overload, map-key, or return rules.
