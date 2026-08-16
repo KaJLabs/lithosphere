@@ -1,73 +1,159 @@
 /**
- * Deploy the Lithoswap V2 DEX (Factory + Router02) and write a manifest.
+ * Deploy Lithoswap V2 Factory + Router02 and write an evidence-rich manifest.
  *
- *   DEPLOYER_PRIVATE_KEY=0x… pnpm hardhat run scripts/deploy-dex.ts --network makalu
+ * No production defaults are accepted. A deployment must explicitly name the
+ * chain, WLITHO contract, final fee-controller, and confirmation phrase:
  *
- * The Router is bound to WLITHO (the wrapped-native LEP-100 ERC-20) as the
- * canonical routing base. WLITHO defaults to the live Makalu address and can be
- * overridden with WLITHO_ADDRESS. The manifest at deployments/dex-<chainId>.json
- * is what the seed script and the explorer's lib/swap.ts read for addresses.
+ *   EXPECTED_CHAIN_ID=700777
+ *   WLITHO_ADDRESS=0x...
+ *   DEX_FEE_TO_SETTER_ADDRESS=0x...
+ *   DEX_DEPLOY_CONFIRMATIONS=<approved count>
+ *   DEX_DEPLOY_CONFIRM=DEPLOY_LITHOSWAP_700777
+ *   DEPLOYER_PRIVATE_KEY=<secret reference injected by the runner>
+ *   pnpm hardhat run scripts/deploy-dex.ts --network makalu
+ *
+ * The script refuses a dirty worktree. `ALLOW_DIRTY_DEX_DEPLOY=true` is honored
+ * only on disposable local chain IDs 31337 and 1337.
  */
 import { ethers } from "hardhat";
-import { writeFileSync, mkdirSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-// Live Makalu WLITHO (same address the bridge uses as wLITHO base).
-const DEFAULT_WLITHO = "0x599a7E135f1790ae117b4EdDc0422D24Bc766161";
+import {
+  address,
+  positiveInteger,
+  requiredConfirmation,
+  type DexDeploymentManifest,
+} from "./lib/dex-config";
 
-function currentCommit(): string {
+function git(...args: string[]): string {
+  return execFileSync("git", args, { encoding: "utf8" }).trim();
+}
+
+function repositoryState(): { commit: string; dirty: boolean } {
   try {
-    return execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
-  } catch {
-    return "unknown";
+    return {
+      commit: git("rev-parse", "HEAD"),
+      dirty: git("status", "--porcelain").length > 0,
+    };
+  } catch (error) {
+    throw new Error(`Cannot determine repository state: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
-async function main() {
-  const [deployer] = await ethers.getSigners();
+function requiredChainId(value: string | undefined): number {
+  const parsed = Number(value);
+  return positiveInteger(parsed, "EXPECTED_CHAIN_ID");
+}
+
+async function main(): Promise<void> {
+  const expectedChainId = requiredChainId(process.env.EXPECTED_CHAIN_ID);
+  const wlitho = address(process.env.WLITHO_ADDRESS, "WLITHO_ADDRESS");
+  const feeToSetter = address(process.env.DEX_FEE_TO_SETTER_ADDRESS, "DEX_FEE_TO_SETTER_ADDRESS");
+  const confirmations = positiveInteger(
+    Number(process.env.DEX_DEPLOY_CONFIRMATIONS),
+    "DEX_DEPLOY_CONFIRMATIONS",
+    100,
+  );
+
   const network = await ethers.provider.getNetwork();
   const chainId = Number(network.chainId);
-  const wlitho = process.env.WLITHO_ADDRESS ?? DEFAULT_WLITHO;
+  if (chainId !== expectedChainId) {
+    throw new Error(`Connected chain ${chainId} does not match EXPECTED_CHAIN_ID ${expectedChainId}`);
+  }
+  requiredConfirmation(process.env.DEX_DEPLOY_CONFIRM, "DEPLOY_LITHOSWAP", chainId);
 
-  console.log(`[deploy-dex] chainId=${chainId} deployer=${deployer.address} WLITHO=${wlitho}`);
+  const source = repositoryState();
+  const localDirtyOverride = process.env.ALLOW_DIRTY_DEX_DEPLOY === "true" && [31337, 1337].includes(chainId);
+  if (source.dirty && !localDirtyOverride) {
+    throw new Error("Refusing to deploy from a dirty worktree. Commit/review the release or use a disposable rehearsal.");
+  }
 
-  const factory = await (await ethers.getContractFactory("LithoswapV2Factory")).deploy(deployer.address);
-  await factory.waitForDeployment();
-  console.log(`[deploy-dex] Factory → ${await factory.getAddress()}`);
+  const wlithoCode = await ethers.provider.getCode(wlitho);
+  if (wlithoCode === "0x") throw new Error(`WLITHO_ADDRESS has no contract code on chain ${chainId}`);
 
-  const router = await (await ethers.getContractFactory("LithoswapV2Router02")).deploy(
-    await factory.getAddress(),
+  const [deployer] = await ethers.getSigners();
+  if (!deployer) throw new Error("No deployment signer is configured");
+  console.log(`[deploy-dex] chainId=${chainId} deployer=${deployer.address}`);
+  console.log(`[deploy-dex] feeToSetter=${feeToSetter} WLITHO=${wlitho} confirmations=${confirmations}`);
+
+  const factory = await (await ethers.getContractFactory("LithoswapV2Factory", deployer)).deploy(feeToSetter);
+  const factoryTx = factory.deploymentTransaction();
+  if (!factoryTx) throw new Error("Factory deployment transaction is unavailable");
+  const factoryReceipt = await factoryTx.wait(confirmations);
+  if (!factoryReceipt || factoryReceipt.status !== 1) throw new Error("Factory deployment failed");
+  const factoryAddress = await factory.getAddress();
+
+  const router = await (await ethers.getContractFactory("LithoswapV2Router02", deployer)).deploy(
+    factoryAddress,
     wlitho,
   );
-  await router.waitForDeployment();
-  console.log(`[deploy-dex] Router02 → ${await router.getAddress()}`);
+  const routerTx = router.deploymentTransaction();
+  if (!routerTx) throw new Error("Router deployment transaction is unavailable");
+  const routerReceipt = await routerTx.wait(confirmations);
+  if (!routerReceipt || routerReceipt.status !== 1) throw new Error("Router deployment failed");
+  const routerAddress = await router.getAddress();
 
-  const manifest = {
+  const [actualFeeSetter, actualFeeTo, actualFactory, actualWlitho] = await Promise.all([
+    factory.feeToSetter(),
+    factory.feeTo(),
+    router.factory(),
+    router.WLITHO(),
+  ]);
+  if (actualFeeSetter !== feeToSetter) throw new Error("Factory fee-controller verification failed");
+  if (actualFactory !== factoryAddress) throw new Error("Router factory verification failed");
+  if (actualWlitho !== wlitho) throw new Error("Router WLITHO verification failed");
+
+  const [factoryCode, routerCode] = await Promise.all([
+    ethers.provider.getCode(factoryAddress),
+    ethers.provider.getCode(routerAddress),
+  ]);
+  if (factoryCode === "0x" || routerCode === "0x") throw new Error("Runtime bytecode verification failed");
+
+  const manifest: DexDeploymentManifest = {
+    schemaVersion: 1,
     chainId,
     network: network.name,
     deployer: deployer.address,
-    commit: currentCommit(),
+    feeToSetter,
+    feeTo: actualFeeTo,
+    commit: source.commit,
+    dirty: source.dirty,
     deployedAt: new Date().toISOString(),
+    confirmations,
     wlitho,
     contracts: {
-      LithoswapV2Factory: await factory.getAddress(),
-      LithoswapV2Router02: await router.getAddress(),
+      LithoswapV2Factory: factoryAddress,
+      LithoswapV2Router02: routerAddress,
+    },
+    transactions: {
+      LithoswapV2Factory: factoryTx.hash,
+      LithoswapV2Router02: routerTx.hash,
+    },
+    deploymentBlocks: {
+      LithoswapV2Factory: factoryReceipt.blockNumber,
+      LithoswapV2Router02: routerReceipt.blockNumber,
+    },
+    runtimeCodeHashes: {
+      LithoswapV2Factory: ethers.keccak256(factoryCode),
+      LithoswapV2Router02: ethers.keccak256(routerCode),
     },
   };
 
   const out = resolve(__dirname, "..", "deployments", `dex-${chainId}.json`);
+  const temporary = `${out}.tmp`;
   mkdirSync(dirname(out), { recursive: true });
-  writeFileSync(out, JSON.stringify(manifest, null, 2) + "\n", "utf8");
+  writeFileSync(temporary, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  renameSync(temporary, out);
 
-  console.log(`\n[deploy-dex] manifest → ${out}`);
-  console.log("Next: seed liquidity —");
-  console.log(`  DEPLOYER_PRIVATE_KEY=0x… pnpm hardhat run scripts/seed-dex-liquidity.ts --network ${network.name}`);
+  console.log(`[deploy-dex] Factory  ${factoryAddress} tx=${factoryTx.hash}`);
+  console.log(`[deploy-dex] Router02 ${routerAddress} tx=${routerTx.hash}`);
+  console.log(`[deploy-dex] manifest ${out}`);
+  console.log("[deploy-dex] Next: review the manifest, verify it independently, then prepare an approved liquidity plan.");
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});

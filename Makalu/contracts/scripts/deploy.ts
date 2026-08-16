@@ -34,7 +34,10 @@ interface DeploymentManifest {
 
 async function recordDeployment(
   name: string,
-  contract: { getAddress(): Promise<string>; deploymentTransaction(): { hash: string } | null },
+  contract: {
+    getAddress(): Promise<string>;
+    deploymentTransaction(): { hash: string; wait?(): Promise<{ blockNumber: number } | null> } | null;
+  },
 ): Promise<DeployedContract> {
   const address = await contract.getAddress();
   const tx = contract.deploymentTransaction();

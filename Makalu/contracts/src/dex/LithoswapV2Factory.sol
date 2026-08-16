@@ -17,6 +17,7 @@ contract LithoswapV2Factory {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
 
     constructor(address _feeToSetter) {
+        require(_feeToSetter != address(0), "Lithoswap: ZERO_FEE_SETTER");
         feeToSetter = _feeToSetter;
     }
 
@@ -51,6 +52,7 @@ contract LithoswapV2Factory {
 
     function setFeeToSetter(address _feeToSetter) external {
         require(msg.sender == feeToSetter, "Lithoswap: FORBIDDEN");
+        require(_feeToSetter != address(0), "Lithoswap: ZERO_FEE_SETTER");
         feeToSetter = _feeToSetter;
     }
 }

@@ -70,16 +70,51 @@ Two paths:
   it replaces our verified v2 and requires deploying v3 core+periphery to 700777,
   porting quoting to the Quoter, LP to the position manager, and rewriting the
   swap UI. The v3 source would also need to be brought into this repo.
-- **(b) Ship our V2** — done, verified (9/9 e2e), deployable now. The
-  liquidity-seeding script already exists (`scripts/seed-dex-liquidity.ts`, PR
-  #68). The swap quotes on-chain via `getAmountsOut`, so it needs **no** subgraph
-  to function; a v2-adapted subgraph is optional (analytics only).
+- **(b) Ship our V2** — repository candidate implemented and locally verified,
+  but not deployed or funded. The liquidity-seeding script exists
+  (`scripts/seed-dex-liquidity.ts`, PR #68). The swap quotes on-chain via
+  `getAmountsOut`, so it needs **no** subgraph to function; a v2-adapted
+  subgraph is optional (analytics only).
 
 **Recommendation: (b).** Kamet's existing v3 liquidity does not carry to Makalu —
 a Makalu-native swap needs fresh Makalu pools regardless of codebase — so v3 buys
 no faster path to a live swap, only cross-chain codebase parity. Pick (a) only if
 one shared DEX codebase across chains is a hard requirement.
 
-**Remaining for (b):** the §4 liquidity call (LP decision), then
-`deploy-dex.ts` → seed → set `NEXT_PUBLIC_SWAP_ROUTER`. Optional: fork the
-subgraph to v2 for explorer pool/volume analytics.
+## Repository review status (2026-08-16)
+
+PR #68 was rebased onto current `main` and hardened during review. The reviewed
+repository slice now has:
+
+- nonzero factory fee-controller and router immutable-address checks;
+- one-time, valid-token pair initialization checks;
+- a versioned deployment manifest with transaction, block, commit, controller,
+  and runtime-code-hash evidence;
+- an explicit expected-chain and chain-bound confirmation gate with no default
+  WLITHO address;
+- read-only-first liquidity preflight, exact approved initial ratios, contract
+  code/metadata checks, and separate execution confirmation;
+- a read-only post-deployment verifier;
+- 28 passing Hardhat tests, including 23 DEX/configuration tests, plus all nine
+  independent DEX E2E checks;
+- strict TypeScript validation and Slither analysis with zero reported
+  detectors.
+
+The package has no production runtime dependencies. Its local Hardhat/testing
+toolchain does have known transitive advisories (109 advisories in the
+2026-08-16 workspace audit: 1 critical, 55 high, 43 moderate, 10 low). Those
+tools must run only in a hardened, ephemeral CI/deployment runner with trusted
+inputs until the toolchain is modernized; they are not part of deployed DEX
+bytecode. This internal review is not a substitute for an independent contract
+audit.
+
+The V2 router supports standard ERC-20/LEP100 behavior only. Fee-on-transfer,
+rebasing, callback-bearing, or otherwise nonstandard assets are not approved
+without separate testing and review.
+
+**Remaining for (b):** independent contract-owner/auditor acceptance, the §4
+liquidity decision, named fee controller and LP recipient, an approved deployment
+window, then deploy → independently verify → seed → perform bounded live tests
+→ set `NEXT_PUBLIC_SWAP_ROUTER` through the controlled promotion flow. Swap
+must remain disabled until every live acceptance gate passes. Optional: fork the
+subgraph to V2 for explorer pool/volume analytics.

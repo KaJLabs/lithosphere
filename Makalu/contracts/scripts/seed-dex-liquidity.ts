@@ -1,122 +1,246 @@
 /**
- * Seed Lithoswap pools with initial liquidity from the deployer wallet.
+ * Validate or execute an approved, first-liquidity plan for Lithoswap.
  *
- *   DEPLOYER_PRIVATE_KEY=0x… pnpm hardhat run scripts/seed-dex-liquidity.ts --network makalu
+ * The default mode is read-only preflight. Execution additionally requires:
  *
- * Reads the DEX manifest (deployments/dex-<chainId>.json) for the router, and a
- * pairs file (deployments/dex-pairs.<chainId>.json, or scripts/dex-pairs.json)
- * describing which pools to seed and with how much. The deployer must already
- * hold the tokens (on Makalu that is 0x10ed…, which holds the LEP-100 supply).
+ *   DEX_SEED_EXECUTE=true
+ *   DEX_SEED_CONFIRM=SEED_LITHOSWAP_<chainId>
  *
- * For each pair it approves the router and calls addLiquidity; pools that
- * already hold reserves are skipped, so the script is safe to re-run.
- *
- * Pairs file schema (amounts are human units, decimals default to 18):
- *   [{ "tokenA":"0x…","tokenB":"0x…","amountA":"1000","amountB":"5000",
- *      "decimalsA":18,"decimalsB":18 }]
+ * The plan must explicitly bind chain, router, liquidity provider, LP
+ * recipient, token addresses, decimals, and human amounts. Existing non-empty pools abort the whole run;
+ * this prevents an initial price from silently changing after a front-run or
+ * partial earlier seed.
  */
 import { ethers } from "hardhat";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
-interface PairSpec {
-  tokenA: string;
-  tokenB: string;
-  amountA: string;
-  amountB: string;
-  decimalsA?: number;
-  decimalsB?: number;
-}
+import {
+  readDeploymentManifest,
+  readLiquidityPlan,
+  requiredConfirmation,
+} from "./lib/dex-config";
 
 const ERC20_ABI = [
   "function approve(address,uint256) returns (bool)",
   "function allowance(address,address) view returns (uint256)",
   "function balanceOf(address) view returns (uint256)",
+  "function decimals() view returns (uint8)",
   "function symbol() view returns (string)",
 ];
 
-function loadJson<T>(path: string): T {
-  return JSON.parse(readFileSync(path, "utf8")) as T;
+function dirtyWorktree(): boolean {
+  try {
+    return execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim().length > 0;
+  } catch (error) {
+    throw new Error(`Cannot determine repository state: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
-async function main() {
-  const [deployer] = await ethers.getSigners();
-  const chainId = Number((await ethers.provider.getNetwork()).chainId);
-
+async function main(): Promise<void> {
+  const network = await ethers.provider.getNetwork();
+  const chainId = Number(network.chainId);
   const manifestPath = resolve(__dirname, "..", "deployments", `dex-${chainId}.json`);
-  if (!existsSync(manifestPath)) {
-    throw new Error(`No DEX manifest at ${manifestPath}. Run deploy-dex.ts first.`);
-  }
-  const manifest = loadJson<{ contracts: { LithoswapV2Router02: string } }>(manifestPath);
-  const routerAddr = manifest.contracts.LithoswapV2Router02;
+  const planPath = resolve(
+    process.env.DEX_LIQUIDITY_PLAN ?? resolve(__dirname, "..", "deployments", `dex-pairs.${chainId}.json`),
+  );
+  const manifest = readDeploymentManifest(manifestPath);
+  const plan = readLiquidityPlan(planPath);
+  const execute = process.env.DEX_SEED_EXECUTE === "true";
 
-  const pairsPath = [
-    resolve(__dirname, "..", "deployments", `dex-pairs.${chainId}.json`),
-    resolve(__dirname, "dex-pairs.json"),
-  ].find(existsSync);
-  if (!pairsPath) {
-    throw new Error(
-      "No pairs file found. Create deployments/dex-pairs." + chainId + ".json " +
-        "(see scripts/dex-pairs.example.json).",
+  if (manifest.chainId !== chainId || plan.chainId !== chainId) {
+    throw new Error(`Manifest/plan chain does not match connected chain ${chainId}`);
+  }
+  if (manifest.dirty) throw new Error("Refusing liquidity for a deployment produced from a dirty worktree");
+  if (plan.router !== manifest.contracts.LithoswapV2Router02) {
+    throw new Error("Liquidity plan router does not match the deployment manifest");
+  }
+  let signer: Awaited<ReturnType<typeof ethers.getSigners>>[number] | undefined;
+  if (execute) {
+    requiredConfirmation(process.env.DEX_SEED_CONFIRM, "SEED_LITHOSWAP", chainId);
+    const localDirtyOverride = process.env.ALLOW_DIRTY_DEX_SEED === "true" && [31337, 1337].includes(chainId);
+    if (dirtyWorktree() && !localDirtyOverride) {
+      throw new Error("Refusing to seed from a dirty worktree");
+    }
+    [signer] = await ethers.getSigners();
+    if (!signer) throw new Error("No liquidity signer is configured");
+    if ((await signer.getAddress()) !== plan.liquidityProvider) {
+      throw new Error("Configured signer does not match the approved liquidityProvider");
+    }
+  }
+
+  const runner = signer ?? ethers.provider;
+  const routerAddress = manifest.contracts.LithoswapV2Router02;
+  const factoryAddress = manifest.contracts.LithoswapV2Factory;
+  const router = await ethers.getContractAt("LithoswapV2Router02", routerAddress, runner);
+  const factory = await ethers.getContractAt("LithoswapV2Factory", factoryAddress, runner);
+
+  const [routerCode, factoryCode, actualFactory, actualWlitho] = await Promise.all([
+    ethers.provider.getCode(routerAddress),
+    ethers.provider.getCode(factoryAddress),
+    router.factory(),
+    router.WLITHO(),
+  ]);
+  if (routerCode === "0x" || factoryCode === "0x") throw new Error("DEX deployment code is missing");
+  if (ethers.keccak256(routerCode) !== manifest.runtimeCodeHashes.LithoswapV2Router02) {
+    throw new Error("Router runtime bytecode hash differs from the deployment manifest");
+  }
+  if (ethers.keccak256(factoryCode) !== manifest.runtimeCodeHashes.LithoswapV2Factory) {
+    throw new Error("Factory runtime bytecode hash differs from the deployment manifest");
+  }
+  if (actualFactory !== factoryAddress || actualWlitho !== manifest.wlitho) {
+    throw new Error("Router immutable configuration differs from the deployment manifest");
+  }
+
+  const prepared: Array<{
+    tokenA: string;
+    tokenB: string;
+    symbolA: string;
+    symbolB: string;
+    amountA: bigint;
+    amountB: bigint;
+  }> = [];
+
+  for (const [index, spec] of plan.pairs.entries()) {
+    const [codeA, codeB] = await Promise.all([
+      ethers.provider.getCode(spec.tokenA),
+      ethers.provider.getCode(spec.tokenB),
+    ]);
+    if (codeA === "0x" || codeB === "0x") throw new Error(`Pair ${index} contains a token without contract code`);
+
+    const tokenA = await ethers.getContractAt(ERC20_ABI, spec.tokenA, runner);
+    const tokenB = await ethers.getContractAt(ERC20_ABI, spec.tokenB, runner);
+    const [decimalsA, decimalsB, symbolA, symbolB] = await Promise.all([
+      tokenA.decimals(),
+      tokenB.decimals(),
+      tokenA.symbol(),
+      tokenB.symbol(),
+    ]);
+    if (Number(decimalsA) !== spec.decimalsA || Number(decimalsB) !== spec.decimalsB) {
+      throw new Error(`Pair ${index} decimals do not match the on-chain token metadata`);
+    }
+    const amountA = ethers.parseUnits(spec.amountA, spec.decimalsA);
+    const amountB = ethers.parseUnits(spec.amountB, spec.decimalsB);
+    const pairAddress = await factory.getPair(spec.tokenA, spec.tokenB);
+    if (pairAddress !== ethers.ZeroAddress) {
+      const pair = await ethers.getContractAt("LithoswapV2Pair", pairAddress);
+      const [reserve0, reserve1] = await pair.getReserves();
+      if (reserve0 !== 0n || reserve1 !== 0n) {
+        throw new Error(`Approved initial pool ${symbolA}/${symbolB} is already non-empty at ${pairAddress}`);
+      }
+    }
+    const [balanceA, balanceB] = await Promise.all([
+      tokenA.balanceOf(plan.liquidityProvider),
+      tokenB.balanceOf(plan.liquidityProvider),
+    ]);
+    if (balanceA < amountA || balanceB < amountB) {
+      throw new Error(`Liquidity signer lacks the approved ${symbolA}/${symbolB} amounts`);
+    }
+    prepared.push({ tokenA: spec.tokenA, tokenB: spec.tokenB, symbolA, symbolB, amountA, amountB });
+  }
+
+  console.log(`[seed-dex] ${execute ? "EXECUTE" : "READ-ONLY PREFLIGHT"} chain=${chainId}`);
+  console.log(`[seed-dex] liquidity provider=${plan.liquidityProvider} LP recipient=${plan.lpRecipient}`);
+  for (const pair of prepared) {
+    console.log(
+      `[seed-dex] ${pair.symbolA}/${pair.symbolB}: ${pair.amountA.toString()} raw + ${pair.amountB.toString()} raw`,
     );
   }
-  const pairs = loadJson<PairSpec[]>(pairsPath);
-  console.log(`[seed] chainId=${chainId} router=${routerAddr} pairs=${pairs.length} from ${pairsPath}`);
+  if (!execute) {
+    console.log(`[seed-dex] Preflight passed. To execute, set DEX_SEED_EXECUTE=true and DEX_SEED_CONFIRM=SEED_LITHOSWAP_${chainId}.`);
+    return;
+  }
+  if (!signer) throw new Error("Execution signer is unavailable");
+  const signerAddress = await signer.getAddress();
 
-  const router = await ethers.getContractAt("LithoswapV2Router02", routerAddr);
-  const factoryAddr = await router.factory();
-  const factory = await ethers.getContractAt("LithoswapV2Factory", factoryAddr);
-  const deadline = (await ethers.provider.getBlock("latest"))!.timestamp + 1800;
-
-  for (const p of pairs) {
-    const a = await ethers.getContractAt(ERC20_ABI, p.tokenA);
-    const b = await ethers.getContractAt(ERC20_ABI, p.tokenB);
-    const [symA, symB] = [await a.symbol().catch(() => p.tokenA), await b.symbol().catch(() => p.tokenB)];
-    const amountA = ethers.parseUnits(p.amountA, p.decimalsA ?? 18);
-    const amountB = ethers.parseUnits(p.amountB, p.decimalsB ?? 18);
-
-    // Skip pools that already have reserves.
-    const existing = await factory.getPair(p.tokenA, p.tokenB);
-    if (existing !== ethers.ZeroAddress) {
-      const pair = await ethers.getContractAt("LithoswapV2Pair", existing);
-      const [r0, r1] = await pair.getReserves();
-      if (r0 > 0n || r1 > 0n) {
-        console.log(`[seed] ${symA}/${symB} already seeded (${existing}) — skip`);
-        continue;
-      }
+  const receipts: Array<Record<string, unknown>> = [];
+  for (const pair of prepared) {
+    const tokenA = await ethers.getContractAt(ERC20_ABI, pair.tokenA, signer);
+    const tokenB = await ethers.getContractAt(ERC20_ABI, pair.tokenB, signer);
+    for (const [token, amount, symbol] of [
+      [tokenA, pair.amountA, pair.symbolA],
+      [tokenB, pair.amountB, pair.symbolB],
+    ] as const) {
+      const current: bigint = await token.allowance(signerAddress, routerAddress);
+      if (current !== 0n) await (await token.approve(routerAddress, 0n)).wait();
+      const approval = await token.approve(routerAddress, amount);
+      const approvalReceipt = await approval.wait();
+      if (!approvalReceipt || approvalReceipt.status !== 1) throw new Error(`${symbol} approval failed`);
     }
 
-    for (const [tok, sym, amt] of [[a, symA, amountA], [b, symB, amountB]] as const) {
-      const bal: bigint = await tok.balanceOf(deployer.address);
-      if (bal < amt) throw new Error(`Insufficient ${sym}: have ${bal}, need ${amt}`);
-      const allowance: bigint = await tok.allowance(deployer.address, routerAddr);
-      if (allowance < amt) {
-        console.log(`[seed] approving ${sym}…`);
-        await (await tok.approve(routerAddr, ethers.MaxUint256)).wait();
-      }
-    }
-
-    console.log(`[seed] addLiquidity ${p.amountA} ${symA} + ${p.amountB} ${symB}…`);
-    const tx = await router.addLiquidity(
-      p.tokenA,
-      p.tokenB,
-      amountA,
-      amountB,
-      (amountA * 99n) / 100n, // 1% min tolerance for a fresh pool
-      (amountB * 99n) / 100n,
-      deployer.address,
+    const latest = await ethers.provider.getBlock("latest");
+    if (!latest) throw new Error("Cannot read the latest block for a deadline");
+    const deadline = latest.timestamp + 1800;
+    const preview = await router.addLiquidity.staticCall(
+      pair.tokenA,
+      pair.tokenB,
+      pair.amountA,
+      pair.amountB,
+      pair.amountA,
+      pair.amountB,
+      plan.lpRecipient,
       deadline,
     );
-    const rc = await tx.wait();
-    console.log(`[seed]   ✓ ${symA}/${symB} seeded (tx ${rc?.hash})`);
+    if (preview[0] !== pair.amountA || preview[1] !== pair.amountB || preview[2] <= 0n) {
+      throw new Error(`Unexpected ${pair.symbolA}/${pair.symbolB} liquidity preview`);
+    }
+
+    const transaction = await router.addLiquidity(
+      pair.tokenA,
+      pair.tokenB,
+      pair.amountA,
+      pair.amountB,
+      pair.amountA,
+      pair.amountB,
+      plan.lpRecipient,
+      deadline,
+    );
+    const receipt = await transaction.wait();
+    if (!receipt || receipt.status !== 1) throw new Error(`${pair.symbolA}/${pair.symbolB} liquidity transaction failed`);
+    const pairAddress = await factory.getPair(pair.tokenA, pair.tokenB);
+    const pairContract = await ethers.getContractAt("LithoswapV2Pair", pairAddress, signer);
+    const [reserves, lpBalance] = await Promise.all([
+      pairContract.getReserves(),
+      pairContract.balanceOf(plan.lpRecipient),
+    ]);
+    if (reserves[0] === 0n || reserves[1] === 0n || lpBalance === 0n) {
+      throw new Error(`${pair.symbolA}/${pair.symbolB} post-transaction verification failed`);
+    }
+    receipts.push({
+      pair: pairAddress,
+      tokenA: pair.tokenA,
+      tokenB: pair.tokenB,
+      symbolA: pair.symbolA,
+      symbolB: pair.symbolB,
+      amountA: pair.amountA.toString(),
+      amountB: pair.amountB.toString(),
+      transactionHash: transaction.hash,
+      blockNumber: receipt.blockNumber,
+      lpRecipient: plan.lpRecipient,
+      lpBalance: lpBalance.toString(),
+    });
   }
 
-  console.log("\n[seed] done.");
+  const evidence = {
+    schemaVersion: 1,
+    chainId,
+    router: routerAddress,
+    factory: factoryAddress,
+    signer: signerAddress,
+    executedAt: new Date().toISOString(),
+    planHash: ethers.keccak256(ethers.toUtf8Bytes(JSON.stringify(plan))),
+    pairs: receipts,
+  };
+  const out = resolve(__dirname, "..", "deployments", `dex-liquidity-${chainId}.json`);
+  const temporary = `${out}.tmp`;
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(temporary, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  renameSync(temporary, out);
+  console.log(`[seed-dex] Completed ${receipts.length} approved pair(s); evidence written to ${out}`);
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});

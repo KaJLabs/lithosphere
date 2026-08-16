@@ -70,6 +70,8 @@ contract LithoswapV2Pair is LithoswapV2ERC20 {
     // Called once by the factory at deploy time.
     function initialize(address _token0, address _token1) external {
         require(msg.sender == factory, "Lithoswap: FORBIDDEN");
+        require(token0 == address(0) && token1 == address(0), "Lithoswap: ALREADY_INITIALIZED");
+        require(_token0 != address(0) && _token1 != address(0) && _token0 != _token1, "Lithoswap: INVALID_TOKENS");
         token0 = _token0;
         token1 = _token1;
     }

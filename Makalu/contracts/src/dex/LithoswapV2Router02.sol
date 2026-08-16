@@ -23,6 +23,8 @@ contract LithoswapV2Router02 is ILithoswapV2Router {
     }
 
     constructor(address _factory, address _wlitho) {
+        require(_factory != address(0), "LithoswapRouter: ZERO_FACTORY");
+        require(_wlitho != address(0), "LithoswapRouter: ZERO_WLITHO");
         factory = _factory;
         WLITHO = _wlitho;
     }

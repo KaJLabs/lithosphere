@@ -6,17 +6,24 @@
     "build": "node -e \"process.env.CI && console.log('Skipping contract compilation in CI') || process.exit(1)\" || pnpm compile",
     "compile": "hardhat compile",
     "test": "hardhat test",
+    "test:dex": "hardhat test test/Lithoswap.test.ts test/Lithoswap.production.test.ts test/DexConfig.test.ts",
+    "test:dex:e2e": "hardhat run scripts/dex-e2e.ts",
     "test:coverage": "hardhat coverage",
     "clean": "hardhat clean",
     "node": "hardhat node",
     "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+    "deploy:dex": "hardhat run scripts/deploy-dex.ts",
+    "verify:dex": "hardhat run scripts/verify-dex-deployment.ts",
+    "seed:dex": "hardhat run scripts/seed-dex-liquidity.ts",
     "sync-abis": "node scripts/sync-abis.mjs",
     "verify-abis-in-sync": "node scripts/sync-abis.mjs && git diff --exit-code -- ../packages/blockchain-core/src/abis/",
     "forge-test": "forge test -vv",
     "forge-test:ci": "FOUNDRY_PROFILE=ci forge test -vv"
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "ethers": "^6.13.0",
     "hardhat": "^2.19.2",
     "typescript": "^5.3.2"
   }
