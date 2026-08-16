@@ -51,7 +51,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
 | MX-01 | MultX / Lithoswap | V2 DEX and non-AWS signer hardening merged; swap disabled | IN PROGRESS | Obtain independent audit, operator, deployment, controller, and liquidity approvals. |
-| MX-07 | Developer toolchain | All eight public tool boundaries reviewed; four remain explicitly specification-only and there is no deployable compiler/release | IN PROGRESS | Review release packaging, examples, and lockfile next; approved language/VM semantics still block full compiler work. |
+| MX-07 | Developer toolchain | All eight tool boundaries plus locked, checksummed three-OS preview packaging reviewed; four tools remain specification-only and there is no deployable compiler/public release | IN PROGRESS | Obtain approved language/VM semantics and product/release/security acceptance before compiler or public-release work. |
 
 ## Sequential closure queue
 
@@ -495,8 +495,10 @@ Evidence:
 **Owners:** Lithic/compiler team + Dev Infra/release owner + Security reviewer
 
 **Current state:** All eight public binary boundaries have now been reviewed and merged with three-OS CI coverage.
-Four are deliberately specification-only because their required semantics have not been approved; the remaining
-local release-packaging, example, and lockfile changes have not yet been accepted. Review of the first
+Four are deliberately specification-only because their required semantics have not been approved. PR #111 committed
+the workspace lockfile, added one declaration-front-end example, and merged checksummed, 14-day, non-release preview
+archives with explicit capability manifests and packaged-command checks on Linux, Windows, and macOS. The local draft
+that would have attached all eight binaries to arbitrary `v*` public releases was excluded. Review of the first
 shared-syntax/`lithc` slice found that the
 local semantic pass inferred an unapproved primitive-type table, overload behavior, map-key restrictions, and return
 semantics. PR #95 removed those assumptions, added only unambiguous declaration-name checks, introduced a three-OS
@@ -520,7 +522,7 @@ Completed or evidenced locally:
 - [x] All eight binaries have versioned local v0 command implementations.
 - [x] Shared parser/semantic front-end is used across applicable tools.
 - [x] Local `cargo fmt --check` and Clippy with warnings denied pass (2026-08-03).
-- [x] A three-OS CI workflow and release-archive changes exist locally.
+- [x] Three-OS CI and honest, non-release boundary-preview archives are merged on `main`.
 - [x] The July readiness run recorded 29 Rust tests and a release build passing in an environment with a linker.
 - [x] Inventoried the 1,700+ line local multi-tool change and isolated shared syntax/`lithc` rather than bulk-committing
       unrelated tools (2026-08-16).
@@ -563,11 +565,17 @@ Completed or evidenced locally:
 - [x] PR #109 kept `lithpkg` at `0.0.1`, made resolution fail closed, documented the schema/resolution/path/trust and
       compiler-integration gates, passed all 40 Rust tests and full release builds on Linux, Windows, and macOS, and
       merged as `729f9e2a2ec6908bc4bf583618162896e38d7c62` (2026-08-16).
+- [x] Rejected the local public-release draft because it would relabel `0.0.1` crates with arbitrary release tags and
+      publish four specification-only tools as if the full toolchain were available.
+- [x] PR #111 committed the Cargo lockfile, added a reviewed declaration-only example, assembled capability-marked
+      checksummed preview archives, verified every packaged command and fail-closed mode, passed both CI trigger sets
+      on Linux, Windows, and macOS with all 40 Rust tests, and merged as
+      `c942d275a38e3cd173752313b9921dd7fb801bb6` (2026-08-16).
 
 Remaining actions:
 
 - [x] Merge the reviewed shared syntax/`lithc` and CI slice after its Linux/Windows/macOS gates pass.
-- [ ] Separately review release packaging, examples, and lockfile.
+- [x] Separately review release packaging, examples, and lockfile; merge only non-release boundary-preview artifacts.
 - [x] Merge the `lithfmt` literal-safety fix after three-OS tests and release builds pass.
 - [ ] Record product/release-owner acceptance of the whitespace-only v0 formatter or implement the approved
       AST-driven canonical formatter boundary.
@@ -581,7 +589,8 @@ Remaining actions:
       against approved conformance vectors.
 - [ ] Complete `lithdev deploy` simulation, signing, broadcast, receipt, and verification only after codegen is trusted.
 - [ ] Decide and document the v0 acceptance boundary for formatter, LSP, test runner, scanner, and package registry.
-- [ ] Publish signed/checksummed archives for all supported platforms and run install/smoke tests from the artifacts.
+- [ ] After compiler/tool acceptance, publish signed/checksummed public-release archives for all supported platforms
+      and run clean-environment install/smoke tests; current archives are CI-only boundary previews.
 - [ ] Obtain independent compiler/security and release-owner acceptance.
 
 Acceptance criteria:
@@ -673,8 +682,22 @@ Evidence:
 | 2026-08-16 | `lithtest` specification review | MERGED | PR #105 retained the requested spec-only scope, made execution fail closed, excluded the raw-body assertion scanner, and passed Linux, Windows, and macOS gates with all 34 Rust tests and full workspace release builds; merged as `b0e5372a`. |
 | 2026-08-16 | `lithsec` specification review | MERGED | PR #107 retained the requested spec-only scope, made scanning fail closed, excluded the unapproved SEC001–SEC005 text heuristics, and passed Linux, Windows, and macOS gates with all 37 Rust tests and full workspace release builds; merged as `efca15c3`. |
 | 2026-08-16 | `lithpkg` specification review | MERGED | PR #109 retained the requested spec-only scope, made resolution fail closed, excluded the incomplete manifest/resolver and weak-integrity draft, and passed Linux, Windows, and macOS gates with all 40 Rust tests and full workspace release builds; merged as `729f9e2a`. |
+| 2026-08-16 | Toolchain preview packaging review | MERGED | PR #111 committed the lockfile and reviewed example, excluded the misleading public-release draft, and passed both three-OS trigger sets with locked builds, 40 tests, staged-command/fail-closed checks, SHA-256 generation, and artifact uploads; merged as `c942d275`. |
 
 ## Change log
+
+### 2026-08-16 — MX-07 boundary-preview packaging merged
+
+- PR #111 passed both toolchain workflow trigger sets on Linux, Windows, and macOS with locked Clippy/tests/release
+  builds, all 40 Rust tests, both `lithc` examples, packaged-command startup, and the four fail-closed boundaries.
+- Each platform created and uploaded a 14-day archive with a SHA-256 file and manifest recording `release: false`,
+  version `0.0.1`, source commit, platform, and exact capability labels.
+- All standard repository gates passed; PR #111 merged by `bachal-mb` as
+  `c942d275a38e3cd173752313b9921dd7fb801bb6`.
+- The draft public release workflow and `0.1.0` relabeling were excluded. No GitHub release was published, and no
+  compiler bytecode, deployment, signing, broadcast, package resolution, test execution, LSP, or security scan was
+  claimed.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-07 `lithpkg` specification boundary merged
 
