@@ -1,0 +1,13 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deployer": "0x67317166f2CAC192FA3485856FFe4BB0B17a713C",
+  "timestamp": "2026-05-17T15:16:27.086Z",
+  "contracts": {
+    "lithoCCIPResolver": "0x90d852D4D3a83618e731CBC1e0505Ded849A50F1"
+  },
+  "config": {
+    "gatewayUrl": "https://kamet.litho.ai/dnns-gateway/resolve/{sender}/{data}",
+    "gatewaySigner": "0xF75d44Cb1668E55E109145018704C4cefDb21e1B"
+  }
+}

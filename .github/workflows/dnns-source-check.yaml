@@ -1,0 +1,46 @@
+name: DNNS source check
+
+on:
+  pull_request:
+    paths:
+      - "DNNS/**"
+      - ".github/workflows/dnns-source-check.yaml"
+  push:
+    branches:
+      - main
+    paths:
+      - "DNNS/**"
+      - ".github/workflows/dnns-source-check.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: DNNS
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: DNNS/package-lock.json
+      - name: Install the pinned build toolchain
+        run: npm ci
+      - name: Verify dependency and public-release boundaries
+        run: |
+          npm run verify:dependencies
+          npm run verify:public-boundary
+      - name: Compile the published Solidity source
+        run: npm run compile
+      - name: Confirm DNSSEC contracts are outside the compiled scope
+        run: |
+          if grep -R -E 'DNSSECImpl|DNSRegistrar|RSASHA256Algorithm|RSASHA1Algorithm' artifacts --include='*.json'; then
+            echo 'Unexpected DNSSEC artifact in the DNNS build' >&2
+            exit 1
+          fi
+      - name: Verify there are no Node.js runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
