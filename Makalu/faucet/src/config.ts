@@ -1,8 +1,21 @@
 import 'dotenv/config';
 import { isAddress, type Address } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 
 const DEFAULT_NATIVE_AMOUNTS = ['1', '2', '5'] as const;
 const DEFAULT_TOKEN_AMOUNTS = ['10', '25', '50'] as const;
+const REQUIRED_MAKALU_TOKEN_ASSET_IDS = [
+  'wlitho',
+  'litbtc',
+  'lax',
+  'jot',
+  'colle',
+  'image',
+  'agii',
+  'bldr',
+  'fgpt',
+  'musa',
+] as const;
 
 export type FaucetAmount = string;
 
@@ -52,7 +65,7 @@ function parseAmountValue(value: unknown): string | null {
     return null;
   }
   const trimmed = value.trim();
-  return /^\d+(\.\d+)?$/.test(trimmed) ? trimmed : null;
+  return /^\d+(\.\d+)?$/.test(trimmed) && /[1-9]/.test(trimmed) ? trimmed : null;
 }
 
 function sanitizeAmountList(raw: unknown, fallback: readonly string[]): string[] {
@@ -80,7 +93,10 @@ function resolveDefaultAmount(value: unknown, allowedAmounts: string[]): string 
   return parsed && allowedAmounts.includes(parsed) ? parsed : allowedAmounts[0];
 }
 
-function parseTokenAssets(raw: string | undefined): TokenFaucetAsset[] {
+export function parseTokenAssets(
+  raw: string | undefined,
+  strict = false,
+): TokenFaucetAsset[] {
   if (!raw?.trim()) {
     return [];
   }
@@ -103,6 +119,9 @@ function parseTokenAssets(raw: string | undefined): TokenFaucetAsset[] {
       const contractAddress = typeof item.contractAddress === 'string' ? item.contractAddress.trim() : '';
 
       if (!id || seenIds.has(id) || !symbol || !isAddress(contractAddress)) {
+        if (strict) {
+          throw new Error('FAUCET_TOKEN_ASSETS contains an invalid or duplicate asset');
+        }
         console.warn('[faucet] Skipping invalid token asset config:', item);
         continue;
       }
@@ -133,11 +152,53 @@ function parseTokenAssets(raw: string | undefined): TokenFaucetAsset[] {
 
     return assets;
   } catch (error) {
+    if (strict) {
+      throw new Error(
+        `Invalid FAUCET_TOKEN_ASSETS: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     console.warn(
       '[faucet] Failed to parse FAUCET_TOKEN_ASSETS:',
       error instanceof Error ? error.message : String(error),
     );
     return [];
+  }
+}
+
+export function validateStrictRuntimeConfig(
+  environment: NodeJS.ProcessEnv,
+  tokenAssets: readonly TokenFaucetAsset[],
+): void {
+  const chainId = Number(environment.FAUCET_CHAIN_ID ?? '700777');
+  if (!Number.isSafeInteger(chainId) || chainId !== 700777) {
+    throw new Error('FAUCET_CHAIN_ID must be 700777 for the Makalu faucet');
+  }
+
+  const rpcUrl = environment.FAUCET_RPC_URL ?? '';
+  let parsedRpcUrl: URL;
+  try {
+    parsedRpcUrl = new URL(rpcUrl);
+  } catch {
+    throw new Error('FAUCET_RPC_URL must be a valid HTTPS URL');
+  }
+  if (parsedRpcUrl.protocol !== 'https:') {
+    throw new Error('FAUCET_RPC_URL must use HTTPS in strict mode');
+  }
+
+  const privateKey = environment.FAUCET_PRIVATE_KEY ?? '';
+  if (!/^0x[0-9a-fA-F]{64}$/.test(privateKey)) {
+    throw new Error('FAUCET_PRIVATE_KEY must be a 32-byte hexadecimal private key');
+  }
+  try {
+    privateKeyToAccount(privateKey as `0x${string}`);
+  } catch {
+    throw new Error('FAUCET_PRIVATE_KEY is not a valid secp256k1 private key');
+  }
+
+  const configuredIds = new Set(tokenAssets.map((asset) => asset.id));
+  const missingIds = REQUIRED_MAKALU_TOKEN_ASSET_IDS.filter((id) => !configuredIds.has(id));
+  if (missingIds.length > 0) {
+    throw new Error(`FAUCET_TOKEN_ASSETS is missing required Makalu assets: ${missingIds.join(', ')}`);
   }
 }
 
@@ -161,7 +222,13 @@ const nativeAsset: NativeFaucetAsset = {
   defaultAmount: dripAmount,
 };
 
-const tokenAssets = parseTokenAssets(process.env.FAUCET_TOKEN_ASSETS);
+const strictRuntimeConfig =
+  process.env.NODE_ENV === 'production' || process.env.FAUCET_STRICT_CONFIG === 'true';
+const tokenAssets = parseTokenAssets(process.env.FAUCET_TOKEN_ASSETS, strictRuntimeConfig);
+
+if (strictRuntimeConfig) {
+  validateStrictRuntimeConfig(process.env, tokenAssets);
+}
 const assets: FaucetAsset[] = [nativeAsset, ...tokenAssets];
 const assetsById = new Map<string, FaucetAsset>();
 
