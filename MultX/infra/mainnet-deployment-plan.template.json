@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "status": "DRAFT_DO_NOT_EXECUTE",
+  "release": {
+    "auditedTag": "REPLACE_WITH_FINAL_AUDITED_REMEDIATION_TAG",
+    "commit": "REPLACE_WITH_40_HEX_COMMIT",
+    "auditReportUrl": "REPLACE_WITH_FINAL_AUDIT_REPORT_HTTPS_URL",
+    "fixReviewUrl": "REPLACE_WITH_FINAL_FIX_REVIEW_HTTPS_URL",
+    "bytecodeEvidenceSha256": "REPLACE_WITH_64_HEX_EVIDENCE_SHA256",
+    "sourceBridgeRuntimeSha256": "REPLACE_WITH_AUDITED_SOURCE_BRIDGE_RUNTIME_SHA256",
+    "destinationBridgeRuntimeSha256": "REPLACE_WITH_AUDITED_DESTINATION_BRIDGE_RUNTIME_SHA256"
+  },
+  "changeWindow": {
+    "startUtc": "REPLACE_WITH_ISO_UTC_START",
+    "endUtc": "REPLACE_WITH_ISO_UTC_END",
+    "approvalRecordUrl": "REPLACE_WITH_APPROVAL_HTTPS_URL"
+  },
+  "bridgeSignerSet": {
+    "threshold": 5,
+    "addresses": [
+      "REPLACE_WITH_SIGNER_0_ADDRESS",
+      "REPLACE_WITH_SIGNER_1_ADDRESS",
+      "REPLACE_WITH_SIGNER_2_ADDRESS",
+      "REPLACE_WITH_SIGNER_3_ADDRESS",
+      "REPLACE_WITH_SIGNER_4_ADDRESS",
+      "REPLACE_WITH_SIGNER_5_ADDRESS",
+      "REPLACE_WITH_SIGNER_6_ADDRESS"
+    ],
+    "acceptanceRecords": [
+      "REPLACE_WITH_SIGNER_0_ACCEPTANCE_URL",
+      "REPLACE_WITH_SIGNER_1_ACCEPTANCE_URL",
+      "REPLACE_WITH_SIGNER_2_ACCEPTANCE_URL",
+      "REPLACE_WITH_SIGNER_3_ACCEPTANCE_URL",
+      "REPLACE_WITH_SIGNER_4_ACCEPTANCE_URL",
+      "REPLACE_WITH_SIGNER_5_ACCEPTANCE_URL",
+      "REPLACE_WITH_SIGNER_6_ACCEPTANCE_URL"
+    ]
+  },
+  "chains": [
+    {
+      "chainId": 9005,
+      "name": "LITHO Mainnet",
+      "bridgeKind": "source",
+      "rpcHttps": "https://rpc-mainnet.litho.ai",
+      "rpcWss": "wss://rpc-mainnet.litho.ai/websocket",
+      "confirmations": "REPLACE_WITH_APPROVED_CONFIRMATION_DEPTH",
+      "safe": "REPLACE_WITH_LITHO_SAFE",
+      "timelock": "REPLACE_WITH_LITHO_TIMELOCK",
+      "pauseGuardian": "REPLACE_WITH_LITHO_PAUSE_GUARDIAN",
+      "deployer": "REPLACE_WITH_LITHO_DEPLOYER",
+      "feePayer": "REPLACE_WITH_LITHO_FEE_PAYER",
+      "timelockDelaySeconds": 172800
+    },
+    {
+      "chainId": 1,
+      "name": "Ethereum Mainnet",
+      "bridgeKind": "destination",
+      "rpcHttps": "REPLACE_WITH_APPROVED_ETHEREUM_HTTPS_RPC",
+      "rpcWss": "REPLACE_WITH_APPROVED_ETHEREUM_WSS_RPC",
+      "confirmations": "REPLACE_WITH_APPROVED_CONFIRMATION_DEPTH",
+      "safe": "REPLACE_WITH_ETHEREUM_SAFE",
+      "timelock": "REPLACE_WITH_ETHEREUM_TIMELOCK",
+      "pauseGuardian": "REPLACE_WITH_ETHEREUM_PAUSE_GUARDIAN",
+      "deployer": "REPLACE_WITH_ETHEREUM_DEPLOYER",
+      "feePayer": "REPLACE_WITH_ETHEREUM_FEE_PAYER",
+      "timelockDelaySeconds": 172800
+    },
+    {
+      "chainId": 56,
+      "name": "BNB Smart Chain Mainnet",
+      "bridgeKind": "destination",
+      "rpcHttps": "REPLACE_WITH_APPROVED_BNB_HTTPS_RPC",
+      "rpcWss": "REPLACE_WITH_APPROVED_BNB_WSS_RPC",
+      "confirmations": "REPLACE_WITH_APPROVED_CONFIRMATION_DEPTH",
+      "safe": "REPLACE_WITH_BNB_SAFE",
+      "timelock": "REPLACE_WITH_BNB_TIMELOCK",
+      "pauseGuardian": "REPLACE_WITH_BNB_PAUSE_GUARDIAN",
+      "deployer": "REPLACE_WITH_BNB_DEPLOYER",
+      "feePayer": "REPLACE_WITH_BNB_FEE_PAYER",
+      "timelockDelaySeconds": 172800
+    },
+    {
+      "chainId": 8453,
+      "name": "Base Mainnet",
+      "bridgeKind": "destination",
+      "rpcHttps": "REPLACE_WITH_APPROVED_BASE_HTTPS_RPC",
+      "rpcWss": "REPLACE_WITH_APPROVED_BASE_WSS_RPC",
+      "confirmations": "REPLACE_WITH_APPROVED_CONFIRMATION_DEPTH",
+      "safe": "REPLACE_WITH_BASE_SAFE",
+      "timelock": "REPLACE_WITH_BASE_TIMELOCK",
+      "pauseGuardian": "REPLACE_WITH_BASE_PAUSE_GUARDIAN",
+      "deployer": "REPLACE_WITH_BASE_DEPLOYER",
+      "feePayer": "REPLACE_WITH_BASE_FEE_PAYER",
+      "timelockDelaySeconds": 172800
+    }
+  ],
+  "assets": [
+    {
+      "symbol": "REPLACE_WITH_APPROVED_ASSET_SYMBOL",
+      "name": "REPLACE_WITH_APPROVED_ASSET_NAME",
+      "decimals": 18,
+      "originChainId": 9005,
+      "originToken": "REPLACE_WITH_LITHO_ORIGIN_TOKEN",
+      "destinationChainIds": [1, 56, 8453],
+      "dailyCapBaseUnits": {
+        "9005": "REPLACE_WITH_APPROVED_LITHO_CAP",
+        "1": "REPLACE_WITH_APPROVED_ETHEREUM_CAP",
+        "56": "REPLACE_WITH_APPROVED_BNB_CAP",
+        "8453": "REPLACE_WITH_APPROVED_BASE_CAP"
+      },
+      "approvalRecordUrl": "REPLACE_WITH_ASSET_APPROVAL_HTTPS_URL"
+    }
+  ]
+}
