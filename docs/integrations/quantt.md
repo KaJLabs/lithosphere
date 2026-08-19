@@ -15,7 +15,7 @@ paths, inferred authentication, and inferred response fields are not acceptable 
 | Makalu status | PASS (disabled) | `https://makalu.litho.ai/api/quantt/status` returns HTTP 200 with `configured: false` and `apiOrigin: null`. |
 | Research portal | PASS | `https://research.quantt.at/` returns HTTP 200 with title `Quantt Agents Research`. |
 | Requested developer portal | FAIL | A standards-valid HTTPS request to `https://dev.quantt.at/` fails hostname verification. |
-| Developer DNS | OBSERVED | `dev.quantt.at` resolves to `91.236.195.168` at verification time. |
+| Developer DNS | OBSERVED | `dev.quantt.at` resolves externally at verification time; the raw address is retained only in the protected evidence record. |
 | Presented certificate | WRONG HOST | Certificate subject is `CN=dev.quantts.ai`; SANs cover `api.quantts.ai`, `dev.quantts.ai`, `engine.quantts.ai`, and `enterprise.quantts.ai`, but not `dev.quantt.at`. |
 
 The similarly named `https://dev.quantts.ai/` currently returns HTTP 200 and `https://api.quantts.ai/` returns HTTP

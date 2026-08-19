@@ -366,7 +366,7 @@ Evidence:
 
 **Current state:** The credentials-safe server proxy, explorer page, provisional normalizer, tests, and OpenAPI paths
 are deployed. The live status endpoint reports `configured: false`. The research site returns HTTP 200.
-`dev.quantt.at` resolves to `91.236.195.168`, but presents a certificate for `quantts.ai` names and fails hostname
+`dev.quantt.at` resolves externally, but presents a certificate for `quantts.ai` names and fails hostname
 verification. The similarly named `dev.quantts.ai` is reachable, but is not an approved substitute. Repository
 hardening removed guessed auth/path defaults and added the previously missing acceptance runbook. The adapter
 must remain fail-closed until the exact owner-approved contract and secret-manager credential are available. PR #88
