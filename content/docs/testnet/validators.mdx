@@ -37,11 +37,7 @@ curl -fsS https://api-mainnet.litho.ai/cosmos/staking/v1beta1/params
 curl -fsS https://api-mainnet.litho.ai/cosmos/slashing/v1beta1/params
 ```
 
-## Fees, stake, commission, and receiving addresses
-
-There is currently **no protocol-level “Ignite validator fee” and no Ignite
-receiving address in the LITHO staking parameters**. Do not send funds to an
-address copied from a chat message or to an existing validator address.
+## Stake, gas, and commission
 
 A validator operator needs LITHO in an account they control for:
 
@@ -56,12 +52,6 @@ The current genesis validator began with 1 LITHO bonded. That historical
 amount is not a published minimum stake or price for new validators. KaJ Labs
 must approve the new validator's intended self-delegation amount before the
 operator funds and submits the transaction.
-
-If “Ignite” refers to a separate commercial onboarding or managed-service
-charge, it is off-chain. Publish it only after KaJ Labs supplies an approved,
-signed fee schedule containing the legal recipient, asset, network, amount,
-official receiving address, validity period, and refund terms. Until then,
-the correct published value is **not confirmed — no payment requested**.
 
 Staking rewards are credited on-chain. By default, withdrawals go to the
 operator/delegator account unless the account owner sets a different
@@ -262,11 +252,7 @@ key moves and migrations with KaJ Labs.
 - RPC and administrative ports are not publicly exposed.
 - Consensus key backup/restore and double-sign controls are verified.
 - KaJ Labs approved the self-delegation and commission values.
-- No unverified onboarding fee or receiving address was used.
+- Self-delegation, commission, and gas values were reviewed before broadcast.
 - `create-validator` transaction succeeded and its hash was recorded.
 - Validator metadata and consensus public key match the approved application.
 - Monitoring, alerting, incident contacts, and upgrade procedure are active.
-
-For an off-chain onboarding fee or managed-service arrangement, request a
-signed KaJ Labs fee notice through the official validator-coordination channel
-before making any payment.
