@@ -38,7 +38,7 @@ Git. Use protected GitHub environments or the approved deployment secret
 manager.
 
 Current immutable candidate:
-[`multx-audit-candidate-v0.5.0-20260809`](https://github.com/KaJLabs/Lithosphere/releases/tag/multx-audit-candidate-v0.5.0-20260809).
+[`multx-audit-candidate-v0.6.0-20260819`](https://github.com/KaJLabs/Lithosphere/releases/tag/multx-audit-candidate-v0.6.0-20260819).
 See [`docs/MAINNET_DEPLOYMENT_GATES.md`](docs/MAINNET_DEPLOYMENT_GATES.md) for
 the fail-closed production sequence and remaining approvals.
 Use [`docs/V05_TESTNET_REDEPLOYMENT.md`](docs/V05_TESTNET_REDEPLOYMENT.md) for

@@ -1,5 +1,9 @@
 # MultX audit-candidate bytecode hashes - 2026-08-09
 
+> Superseded by `AUDIT_BYTECODE_HASHES_2026-08-19.md` and candidate
+> `multx-audit-candidate-v0.6.0-20260819`. Retained only as historical evidence;
+> do not use these hashes for a new audit or deployment.
+
 Candidate: `multx-audit-candidate-v0.5.0-20260809`
 
 The three in-scope contract sources at the working branch were verified to be

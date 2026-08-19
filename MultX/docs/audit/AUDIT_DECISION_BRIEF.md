@@ -1,6 +1,6 @@
 # MultX Bridge Audit — Decision Brief (for Litho leadership)
 
-**Prepared by:** infra team · **Updated:** 2026-08-09 · **Decision owner:** Litho leadership
+**Prepared by:** infra team · **Updated:** 2026-08-19 · **Decision owner:** Litho leadership
 **One-line ask:** approve the budget + pick a firm so we can sign the NDA and kick off the MultX bridge audit.
 
 ---
@@ -24,14 +24,17 @@ operator acceptance, and activation remain deliberately unset.
 
 A deliberately tight, self-contained scope so the audit is fast and inexpensive:
 
-- **3 Solidity files, 378 code lines (677 physical lines including NatSpec/comments)** — the bridge + wrapped-token contracts. No proxies, no external protocol composability.
-- The package includes the threat model, triaged Slither evidence, 76-test Hardhat suite, Foundry invariants, bytecode hashes, VPS signer protocol, and immutable candidate `multx-audit-candidate-v0.5.0-20260809`.
+- **3 Solidity files, 382 code lines (681 physical lines including NatSpec/comments)** — the bridge + wrapped-token contracts. No proxies, no external protocol composability.
+- The package includes the threat model, triaged Slither evidence, 88-test
+  Hardhat suite, Foundry invariants, bytecode hashes, the Fargate/KMS signer
+  protocol and immutable contract candidate
+  `multx-audit-candidate-v0.6.0-20260819`.
 
 ## Cost & timeline (ballpark — firms confirm exact)
 
 | | Estimate |
 |---|---|
-| **Fixed fee** | **~$20k–$50k** (small scope; was $50–150k before we narrowed it to 3 files) |
+| **Fixed fee** | **~$20k–$50k for the contract scope**; the firm must quote the signer-protocol review separately |
 | **Duration** | ~1–2 weeks review + a remediation re-review round |
 | **Lead time** | start within 2–4 weeks of go-ahead |
 
@@ -39,14 +42,17 @@ RFQ already prepared and addressed to three top-tier firms — **Trail of Bits, 
 
 ## What we need from you
 
-1. **Approve a budget** in the ~$20–50k range.
+1. **Approve the contract-audit budget** in the ~$20–50k range and authorize a
+   separately itemized signer-protocol quote.
 2. **Pick a firm** (or authorize us to run the RFQ and bring back quotes for your sign-off).
 3. Note: per the RFQ, the **vendor contract + payment are handled directly by the client**; infra team is the technical contact and will manage the engagement end-to-end.
 
 ## What's ready to send right now
 
-- Forwardable RFQ: `client-work/MultX-Bridge-Audit-RFQ.pdf`
+- Forwardable RFQ: `docs/audit/AUDIT_RFQ.md`
 - Technical package: `docs/audit/AUDIT_RFQ.md`, `MULTX_THREAT_MODEL.md`, `slither-pre.txt`
+- Immutable source bundle and checksums:
+  [`multx-audit-candidate-v0.6.0-20260819`](https://github.com/KaJLabs/Lithosphere/releases/tag/multx-audit-candidate-v0.6.0-20260819)
 
 Once leadership approves the engagement, the firm can review the already
 published immutable candidate. Any remediation produces a new immutable tag;
