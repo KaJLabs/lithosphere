@@ -1,0 +1,2 @@
+control_id,system,control_type,current_public_owner,target_public_owner,transfer_mechanism,required_approvals,preflight_evidence,execution_reference,rollback_reference,status
+PENDING,PENDING,PENDING,PENDING,PENDING,PENDING,PENDING,PENDING,PENDING,PENDING,not_started

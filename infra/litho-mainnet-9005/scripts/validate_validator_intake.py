@@ -81,7 +81,13 @@ def _valid_consensus_key(value: str) -> bool:
         return False
 
 
-def validate(path: Path, minimum_new: int) -> dict:
+def validate(
+    path: Path,
+    minimum_new: int,
+    expected_new: int | None = None,
+    minimum_commission_rate: Decimal = Decimal("0.05"),
+    minimum_self_delegation_exclusive: int | None = None,
+) -> dict:
     errors: list[str] = []
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -96,6 +102,8 @@ def validate(path: Path, minimum_new: int) -> dict:
 
     if len(rows) < minimum_new:
         errors.append(f"requires at least {minimum_new} new validator records; found {len(rows)}")
+    if expected_new is not None and len(rows) != expected_new:
+        errors.append(f"requires exactly {expected_new} new validator records; found {len(rows)}")
 
     seen: dict[str, dict[str, int]] = {name: {} for name in UNIQUE_COLUMNS}
     failure_domains: dict[str, int] = {}
@@ -136,8 +144,17 @@ def validate(path: Path, minimum_new: int) -> dict:
             errors.append(f"row {row_number}: sentry_peer_endpoints must use node-id@host:port entries separated by semicolons")
 
         try:
-            if int(row.get("self_delegation_ulitho") or "0") <= 0:
+            self_delegation = int(row.get("self_delegation_ulitho") or "0")
+            if self_delegation <= 0:
                 raise ValueError
+            if (
+                minimum_self_delegation_exclusive is not None
+                and self_delegation <= minimum_self_delegation_exclusive
+            ):
+                errors.append(
+                    f"row {row_number}: self_delegation_ulitho must be greater than "
+                    f"{minimum_self_delegation_exclusive}"
+                )
         except ValueError:
             errors.append(f"row {row_number}: self_delegation_ulitho must be a positive integer")
 
@@ -151,6 +168,10 @@ def validate(path: Path, minimum_new: int) -> dict:
         )
         if rate is not None and max_rate is not None and rate > max_rate:
             errors.append(f"row {row_number}: commission_rate exceeds commission_max_rate")
+        if rate is not None and rate < minimum_commission_rate:
+            errors.append(
+                f"row {row_number}: commission_rate must be at least {minimum_commission_rate}"
+            )
         if max_change is not None and max_rate is not None and max_change > max_rate:
             errors.append(f"row {row_number}: commission_max_change_rate exceeds commission_max_rate")
 
@@ -171,6 +192,9 @@ def validate(path: Path, minimum_new: int) -> dict:
         "read_only": True,
         "records": len(rows),
         "minimum_new_validators": minimum_new,
+        "expected_new_validators": expected_new,
+        "minimum_commission_rate": str(minimum_commission_rate),
+        "minimum_self_delegation_exclusive": minimum_self_delegation_exclusive,
         "unique_operators": len(seen["operator_id"]),
         "failure_domain_counts": dict(sorted(failure_domains.items())),
         "errors": errors,
@@ -181,12 +205,20 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("csv_path", type=Path)
     parser.add_argument("--minimum-new", type=int, default=32)
+    parser.add_argument("--expected-new", type=int)
+    parser.add_argument("--minimum-commission-rate", type=Decimal, default=Decimal("0.05"))
+    parser.add_argument("--minimum-self-delegation-exclusive", type=int)
     args = parser.parse_args()
-    result = validate(args.csv_path, args.minimum_new)
+    result = validate(
+        args.csv_path,
+        args.minimum_new,
+        args.expected_new,
+        args.minimum_commission_rate,
+        args.minimum_self_delegation_exclusive,
+    )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["ready"] else 1
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

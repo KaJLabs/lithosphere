@@ -128,6 +128,13 @@ modifying the sealed genesis.
 The no-message launch behavior is documented in
 `FIRST_BLOCK_MESSAGE_CEREMONY.md`.
 
+Validator expansion:
+
+- [Seven-validator and admin-migration plan](validator-expansion/SEVEN_VALIDATOR_AND_ADMIN_MIGRATION_PLAN.md)
+- [Seven-validator public intake template](validator-expansion/validator-7-intake.template.csv)
+- [Administrative-control migration template](validator-expansion/admin-control-migration.template.csv)
+- [Long-term expansion to 33+](validator-expansion/VALIDATOR_EXPANSION_33_PLAN.md)
+
 ## Post-launch follow-up
 
 1. Provide an auditable label/purpose for each allocation wallet.

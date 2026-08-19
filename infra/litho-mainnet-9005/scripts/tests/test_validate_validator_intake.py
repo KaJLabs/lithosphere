@@ -74,7 +74,33 @@ class ValidatorIntakeTest(unittest.TestCase):
         self.assertFalse(result["ready"])
         self.assertTrue(any("at least 2" in error for error in result["errors"]))
 
+    def test_enforces_exact_count_and_stake_above_live_comparator(self):
+        result = self.validate_rows([valid_row(1), valid_row(2)], minimum_new=1)
+        self.assertTrue(result["ready"])
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "intake.csv"
+            with path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=REQUIRED_COLUMNS)
+                writer.writeheader()
+                writer.writerows([valid_row(1), valid_row(2)])
+            result = validate(
+                path,
+                minimum_new=1,
+                expected_new=7,
+                minimum_self_delegation_exclusive=1_000_000_000_000_000_000,
+            )
+        self.assertFalse(result["ready"])
+        self.assertTrue(any("exactly 7" in error for error in result["errors"]))
+        self.assertTrue(any("must be greater than" in error for error in result["errors"]))
+
+    def test_enforces_live_minimum_commission(self):
+        row = valid_row(1)
+        row["commission_rate"] = "0.04"
+        result = self.validate_rows([row], minimum_new=1)
+        self.assertFalse(result["ready"])
+        self.assertTrue(any("commission_rate must be at least 0.05" in error for error in result["errors"]))
+
 
 if __name__ == "__main__":
     unittest.main()
-
