@@ -8,8 +8,12 @@
 
 ## Phase 0 — Engage (on green-light)
 
-- [ ] **[C]** Approve budget (~$20k–$50k) and select firm (or authorize [I] to run the RFQ and return quotes).
-- [ ] **[I]** Send the RFQ (`client-work/MultX-Bridge-Audit-RFQ.pdf`) to the chosen firm(s); collect quotes (fee, lead time, duration, team, re-audit terms, public-report OK).
+- [ ] **[C]** Approve the contract-audit budget (~$20k–$50k), authorize a
+      separately itemized signer-protocol quote, and select a firm (or
+      authorize [I] to run the RFQ and return exact quotes).
+- [ ] **[I]** Send the current RFQ (`AUDIT_RFQ.md`) and immutable v0.6
+      source bundle to the chosen firm(s); collect quotes (fee, lead time,
+      duration, team, re-audit terms, public-report approval).
 - [ ] **[C]** Confirm the winning quote; **[C]** sign the vendor contract + handle payment terms (per RFQ §7 — client owns the commercial relationship).
 - [ ] **[C/F]** Sign the firm's **mutual NDA** before any code is shared.
 - [ ] **[I]** Agree start date + primary comms channel; name the [I] technical point of contact for the engagement.
@@ -18,7 +22,7 @@
 
 > The historical `9f939ab` and `audit-freeze-2026-07-14` references are
 > superseded. The current published candidate is
-> `multx-audit-candidate-v0.5.0-20260809`. It includes destination-chain and
+> `multx-audit-candidate-v0.6.0-20260819`. It includes destination-chain and
 > bridge domain binding plus OpenZeppelin low-s ECDSA recovery. Never move or
 > reuse an audit tag; publish a new version if any reviewed source changes.
 
@@ -26,25 +30,35 @@
       `contracts/contracts/{MultXBridge,MultXBridgeDest,WrappedLEP100}.sol`.
 - [x] **[I]** Verify the tag resolves to the recorded commit:
       ```bash
-      git rev-list -n 1 multx-audit-candidate-v0.5.0-20260809
+      git rev-list -n 1 multx-audit-candidate-v0.6.0-20260819
       ```
-- [x] **[I]** Compile with `solc 0.8.24`, optimizer runs `200`, and record the candidate artifact hashes in [`AUDIT_BYTECODE_HASHES_2026-08-09.md`](./AUDIT_BYTECODE_HASHES_2026-08-09.md). Final deployment still requires constructor-linked deployed-bytecode verification.
-- [ ] **[I]** Share a read-only snapshot at the frozen commit (private repo invite **or** tarball — firm's preference).
+- [x] **[I]** Compile with `solc 0.8.24`, optimizer runs `200`, and record the candidate artifact hashes in [`AUDIT_BYTECODE_HASHES_2026-08-19.md`](./AUDIT_BYTECODE_HASHES_2026-08-19.md). Final deployment still requires constructor-linked deployed-bytecode verification.
+- [x] **[I]** Publish the read-only source snapshot and checksum at
+      [`multx-audit-candidate-v0.6.0-20260819`](https://github.com/KaJLabs/Lithosphere/releases/tag/multx-audit-candidate-v0.6.0-20260819).
+      A private repository invite can still be provided if required by the
+      selected firm.
 
 ## Phase 2 — Hand over the package
 
-- [ ] **[I]** Deliver: threat model, triaged Slither report, Hardhat test suite (`contracts/test/`), Foundry invariant suite (`contracts/test/foundry/`), historical testnet deployment evidence (`contracts/deployments/`), VPS signer architecture (`docs/VPS_SIGNER_ARCHITECTURE.md`), and signer operator runbook (`signer/OPERATOR_RUNBOOK.md`). Historical AWS/KMS runbooks are not production instructions.
-- [x] **[I]** Generate the **test-coverage report** (`cd contracts && npm run coverage`). The candidate has 76 passing Hardhat tests. Regenerate from the immutable tag when handing the package to the firm.
+- [ ] **[I]** Deliver: threat model, triaged Slither report, Hardhat test suite
+      (`contracts/test/`), Foundry invariant suite
+      (`contracts/test/foundry/`), historical testnet deployment evidence
+      (`contracts/deployments/`), the Fargate signer candidate
+      (`docs/FARGATE_PRODUCTION_SIGNER_CANDIDATE.md`), signer source manifest
+      (`docs/audit/AUDIT_SIGNER_SOURCE_MANIFEST_2026-08-19.md`), and signer
+      operator runbook (`signer/OPERATOR_RUNBOOK.md`). VPS/mTLS material is
+      rehearsal-only and is not the approved production architecture.
+- [x] **[I]** Generate the **test-coverage report** (`cd contracts && npm run coverage`). The candidate has 88 passing Hardhat tests. Regenerate from the immutable tag when handing the package to the firm.
 
       | File | % Stmts | % Branch | % Funcs | % Lines |
       |---|---|---|---|---|
-      | MultXBridge.sol | 84.31 | 55.88 | 69.23 | 82.61 |
-      | MultXBridgeDest.sol | 98.11 | 86.76 | 84.62 | 98.53 |
+      | MultXBridge.sol | 84.91 | 58.33 | 69.23 | 83.10 |
+      | MultXBridgeDest.sol | 98.18 | 87.50 | 84.62 | 98.57 |
       | WrappedLEP100.sol | 100 | 100 | 100 | 100 |
       | governance/GovTimelock.sol | 100 | 100 | 100 | 100 |
 
-      ⚠️ **Known gap:** `MultXBridge.sol` branch coverage (55.88%) trails `MultXBridgeDest.sol`
-      (86.76%) — the source-bridge test file predates the daily-cap/guardian hardening, so
+      ⚠️ **Known gap:** `MultXBridge.sol` branch coverage (58.33%) trails `MultXBridgeDest.sol`
+      (87.50%) — the source-bridge test file predates the daily-cap/guardian hardening, so
       its revert/edge branches are under-exercised. Recommend bringing the two suites to
       parity (daily-cap reset + exceeded paths, guardian-pause negative cases,
       `getDailyRemaining` branches) before or during the engagement. The Foundry invariant

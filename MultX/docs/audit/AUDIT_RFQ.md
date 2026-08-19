@@ -1,7 +1,7 @@
 # Request for Quote — MultX Bridge Smart-Contract Audit
 
 **Project:** Lithosphere — MultX cross-chain bridge
-**Updated:** 2026-08-08
+**Updated:** 2026-08-19
 **Requested by:** Lithosphere infrastructure team (technical point of contact)
 **Engagement type:** Fixed-scope, fixed-fee smart-contract security audit
 **Sent to:** Trail of Bits · Spearbit (Cantina) · Halborn
@@ -18,8 +18,8 @@ historical Kamet testnet deployment is retained only as test evidence. The
 contract audit, remediation review, signer-protocol review and final deployment
 approval are mandatory gates before mainnet contracts or real assets are enabled.
 
-The scope is small and self-contained: **three Solidity files, 378 code lines
-(677 physical lines including NatSpec/comments) total**,
+The scope is small and self-contained: **three Solidity files, 382 code lines
+(681 physical lines including NatSpec/comments) total**,
 no external protocol composability, no upgradeable proxies. We have prepared a
 full threat model and a triaged Slither report so the firm can move straight to
 manual review.
@@ -30,15 +30,15 @@ manual review.
 
 | File | Code lines | Physical lines | Role |
 |---|---:|---:|---|
-| `contracts/contracts/MultXBridge.sol` | 175 | 314 | Source-chain lock/release (LITHO) |
-| `contracts/contracts/MultXBridgeDest.sol` | 168 | 309 | Dest-chain burn/mint (Ethereum, BNB, Base) |
+| `contracts/contracts/MultXBridge.sol` | 177 | 316 | Source-chain lock/release (LITHO) |
+| `contracts/contracts/MultXBridgeDest.sol` | 170 | 311 | Dest-chain burn/mint (Ethereum, BNB, Base) |
 | `contracts/contracts/WrappedLEP100.sol` | 35 | 54 | Wrapped-asset ERC20 on destination chains |
-| **Total** | **378** | **677** | |
+| **Total** | **382** | **681** | |
 
 - **Solidity:** `0.8.24`, optimizer runs = 200
 - **Dependencies:** OpenZeppelin Contracts (Pausable, ReentrancyGuard,
   AccessControl, SafeERC20, ERC20Burnable) — assume sound (T6); do not re-audit.
-- **Frozen candidate:** `multx-audit-candidate-v0.5.0-20260809`. Earlier freeze tags are
+- **Frozen candidate:** `multx-audit-candidate-v0.6.0-20260819`. Earlier freeze tags are
   historical and must not be audited for LITHO mainnet deployment. If the
   reviewed source changes, KaJ Labs will publish a new immutable version rather
   than moving this tag.
@@ -47,9 +47,11 @@ manual review.
 
 - `LEP100Token.sol` (canonical tokens, already deployed, standard ERC20)
 - `contracts/dex/` (Uniswap v3 fork) and `contracts/dnns/` (ENS fork) — separate scope
-- `bridge-api/` off-chain validator service — assess via separate ops review if desired
+- General `api/` business logic beyond the two coordinator integration files
+  explicitly listed in section 4
 - Faucet contracts/scripts; `kamet-explorer` frontend
-- VPS hardening, PKI, networking and monitoring infrastructure (separate ops review)
+- AWS account configuration, VPC/ALB hardening, ECS operations and monitoring
+  infrastructure (separate cloud-operations review)
 
 ---
 
@@ -58,11 +60,11 @@ manual review.
 MultX is an N-of-M validator-multisig lock/mint bridge. On the source chain a
 user calls `lockTokens`, which escrows the source asset or burns a destination
 wrapped asset and
-emits `TokensLocked` with a monotonic nonce. A set of **7 validators
-(5-of-7 threshold)** runs on independently operated VPSs. Each rootless signer
-authenticates the coordinator with TLS 1.3 mTLS, independently verifies the
-source event and route policy, journals its decision to prevent equivocation,
-and produces an ECDSA signature. Anyone can submit
+emits `TokensLocked` with a monotonic nonce. A set of **7 bridge signers
+(5-of-7 threshold)** runs as seven isolated AWS Fargate services. Each signer
+uses a unique non-exportable KMS secp256k1 key, DynamoDB decision journal,
+private HTTPS endpoint and bearer token. It independently verifies the source
+event and route policy before producing an ECDSA signature. Anyone can submit
 the 5+ ordered signatures to `releaseTokens` on the destination chain, which
 verifies the validator set, checks `processedNonces` for replay, enforces a
 per-token daily cap, and releases (mints/transfers) to the recipient. Admin
@@ -79,18 +81,21 @@ owner-gated. Full detail in the threat model (attached).
 2. `docs/audit/slither-pre.txt` — Slither 0.11.5 report over all 3 contracts,
    with our triage of every finding.
 3. Hardhat test suite: `contracts/test/{MultXBridge,MultXBridgeDest,WrappedLEP100}.test.js`
-   (76 passing) **plus a Foundry invariant suite** (`contracts/test/foundry/`, 12
+   (88 passing) **plus a Foundry invariant suite** (`contracts/test/foundry/`, 12
    invariants across both bridges — solvency/backing, no-double-release, daily-cap,
    nonce-monotonicity, threshold well-formedness — each mutation-validated and run
    in CI). Directly addresses several §5 questions with executable properties.
 4. Deployment scripts and the current Kamet (testnet) deployment record.
-5. VPS signer implementation and architecture: `signer/`,
-   `api/src/services/remoteSigner.js`, and `docs/VPS_SIGNER_ARCHITECTURE.md`.
+5. Fargate/KMS signer implementation and architecture: `signer/`,
+   `api/src/services/{remoteSigner,validatorService}.js`,
+   `docs/FARGATE_PRODUCTION_SIGNER_CANDIDATE.md`, and
+   `docs/audit/AUDIT_SIGNER_SOURCE_MANIFEST_2026-08-19.md`.
 6. Operator runbooks and a dedicated technical point of contact for the duration.
 
-The Solidity review remains the fixed three-file, 378-code-line scope. Please quote the off-chain
+The Solidity review remains the fixed three-file, 382-code-line scope. Please quote the off-chain
 signer protocol review separately so its source-event verification, message
-construction, mTLS boundary and anti-equivocation behavior are explicitly covered.
+construction, private HTTPS/bearer boundary, KMS signing and DynamoDB
+anti-equivocation behavior are explicitly covered.
 
 ---
 
@@ -129,7 +134,7 @@ Please reply with:
 | **Public report** | can the final report be published? (we intend to) |
 
 Target window: we'd like to **start within 2–4 weeks** and have a draft report
-within the firm's standard turnaround for a ~530-LOC scope.
+within the firm's standard turnaround for the 382-code-line Solidity scope.
 
 ---
 

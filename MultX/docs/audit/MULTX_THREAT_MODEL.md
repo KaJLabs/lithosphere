@@ -1,14 +1,14 @@
 # MultX Bridge — Threat Model
 
-> **Current architecture notice (2026-08-08):** LITHO mainnet uses Cosmos ID
+> **Current architecture notice (2026-08-19):** LITHO mainnet uses Cosmos ID
 > `lithosphere_9005-1` and EVM chain ID `9005`. MultX remains disabled. The
-> production candidate replaces centralized AWS KMS signing with independent,
-> rootless VPS signer services using TLS 1.3 mTLS, source-event verification,
-> route policies, and fsync-backed anti-equivocation journals. The contracts
-> and this off-chain signer protocol require independent review before MultX
-> can be enabled. Historical Kamet deployment details remain for provenance.
+> production candidate uses seven isolated AWS Fargate services with unique
+> non-exportable KMS keys, DynamoDB anti-equivocation journals, private HTTPS
+> endpoints and bearer tokens. The contracts and this off-chain signer
+> protocol require independent review before MultX can be enabled. Historical
+> Kamet deployment details remain for provenance.
 
-**Last reviewed:** 2026-08-09
+**Last reviewed:** 2026-08-19
 **Audience:** External security audit firm + internal review
 **Repo:** `KaJLabs/Lithosphere` (`MultX/contracts/contracts/MultXBridge.sol`)
 **Companion docs:**
@@ -73,8 +73,8 @@ User                  MultXBridge (dest)         Validator service       MultXBr
 
 | Contract | Code lines | Physical lines | Purpose | Storage |
 |---|---:|---:|---|---|
-| `MultXBridge.sol` | 175 | 314 | Source-chain lock + release (LITHO) | nonce, validators[], supportedTokens, processedNonces, dailyCap/dailyVolume/lastCapReset, Pausable._paused |
-| `MultXBridgeDest.sol` | 168 | 309 | Destination-chain lock(burn) + release(mint) | same layout as `MultXBridge`, but `lockTokens` burns the wrapped token via `burnFrom` and `releaseTokens` mints via `bridgeMint` |
+| `MultXBridge.sol` | 177 | 316 | Source-chain lock + release (LITHO) | nonce, validators[], supportedTokens, processedNonces, dailyCap/dailyVolume/lastCapReset, Pausable._paused |
+| `MultXBridgeDest.sol` | 170 | 311 | Destination-chain lock(burn) + release(mint) | same layout as `MultXBridge`, but `lockTokens` burns the wrapped token via `burnFrom` and `releaseTokens` mints via `bridgeMint` |
 | `WrappedLEP100.sol` | 35 | 54 | Wrapped representation on destination chains | OZ ERC20 + ERC20Burnable + AccessControl with `BRIDGE_ROLE` |
 
 ### 1.4 Contracts out of scope (don't audit, don't bill)
@@ -90,10 +90,10 @@ User                  MultXBridge (dest)         Validator service       MultXBr
 
 | # | Assumption | What we mitigate / accept |
 |---|---|---|
-| T1 | Validator key custody is secure | Each independent operator runs one rootless VPS signer. The API holds no validator private keys. Keys are mounted from operator-controlled encrypted storage; TLS 1.3 mTLS authenticates API-to-signer traffic. Review `MultX/signer/`, `api/src/services/remoteSigner.js`, and the operator controls in `docs/VPS_SIGNER_ARCHITECTURE.md`. |
-| T2 | At least `signaturesRequired` validators (live: **5 of 7**) act honestly | This is the core security assumption. Any N out of M collusion can mint arbitrary wrapped tokens (limit: total locked on source). |
-| T3 | The Kamet chain itself is not 51%-attacked | Bridge security inherits chain security. Kamet runs CometBFT BFT consensus with the existing validator set (separate from bridge validators). |
-| T4 | Dest-chain RPC providers return honest state to validators | Mitigation: each validator runs its own RPC client; majority-truth via N-of-M signing already guards against a single bad RPC. |
+| T1 | Bridge signer key custody is secure | Each signer uses a unique non-exportable AWS KMS `ECC_SECG_P256K1` key. The API and containers hold no validator private keys. A private HTTPS load balancer and a unique bearer token authenticate API-to-signer traffic. Review `MultX/signer/`, `api/src/services/remoteSigner.js`, and `docs/FARGATE_PRODUCTION_SIGNER_CANDIDATE.md`. |
+| T2 | At least `signaturesRequired` bridge signers (target: **5 of 7**) act honestly | This is the core security assumption. Any N out of M collusion can mint arbitrary wrapped tokens (limit: total locked on source). The target set is not active on mainnet yet. |
+| T3 | LITHO mainnet itself remains within its BFT safety assumptions | Bridge security inherits chain security. LITHO runs CometBFT consensus with a consensus validator set that is separate from the seven MultX bridge signers. |
+| T4 | Source-chain RPC providers return honest state to bridge signers | Every signer queries its configured RPC and verifies the exact event and confirmation depth. Quorum does not provide independence if multiple signers share the same compromised upstream; endpoint/provider diversity must be reviewed before activation. |
 | T5 | Compiler (`solc 0.8.24` with optimizer runs=200) is sound | Standard assumption; well-known compiler, widely used. |
 | T6 | OpenZeppelin contracts (Pausable, ReentrancyGuard, AccessControl, SafeERC20, ERC20Burnable) are sound | OZ audited and battle-tested. |
 | T7 | The owner key (setValidatorSet/setDailyCap/addSupportedToken/unpause) is custodied securely | Target: **owner = TimelockController (48h) governed by an M-of-N Gnosis Safe** (ADR-0004), with a separate fast `pauseGuardian`. Built + tested; live transfer scheduled for production cutover (client decision — see L1). Until then the live owner is the deployer EOA. |
@@ -112,7 +112,7 @@ User                  MultXBridge (dest)         Validator service       MultXBr
 
 ### 3.2 Malicious validator subset (size ≥ signaturesRequired)
 
-**Capability:** sign release of arbitrary amounts of wrapped tokens on dest chains without a corresponding lock on Kamet (or vice versa).
+**Capability:** sign release of arbitrary amounts of wrapped tokens on destination chains without a corresponding lock on the configured source chain (or vice versa).
 
 **Impact:** Can mint up to the total user-supplied liquidity locked on the source chain (worst case: drain all locked LEP100). Cannot mint beyond what's been locked because the dest-chain `releaseTokens` is also one-way (it just transfers from the bridge's own balance).
 
@@ -120,7 +120,9 @@ Actually — on dest chains, `releaseTokens` calls `IERC20(token).safeTransfer(u
 
 **This is the core trust boundary.** Mitigated only by:
 - Validator set composition (independent operators, ideally not all under one legal/operational entity)
-- Independent VPS operators, encrypted key custody, mTLS and signer-local policy checks making a quorum compromise materially harder
+- Per-signer KMS/IAM isolation, private endpoint and bearer boundaries,
+  DynamoDB anti-equivocation records, and signer-local policy checks make a
+  quorum compromise materially harder
 - Daily caps (`dailyCap[token]`) — limits damage of a single-day rogue release
 - Emergency pause — owner can halt all bridge operations within one block of detection
 
@@ -157,19 +159,25 @@ Actually — on dest chains, `releaseTokens` calls `IERC20(token).safeTransfer(u
 
 **Impact:** that validator either signs an invalid attestation (caught by other validators refusing) or fails to sign valid attestations (degrades signing throughput but doesn't break safety).
 
-**Mitigation:** each validator should run its own independent RPC. Audit firm: please verify the validator deploy guide mandates separate RPC providers per validator.
+**Mitigation:** each signer verifies state using its configured RPC. Production
+approval must record provider/endpoint diversity so one compromised upstream
+cannot supply identical false state to a quorum. Audit firm: please assess the
+minimum acceptable diversity and failure policy.
 
 ---
 
 ## 4. Asset Flow Invariants
 
-For each LEP100 token `T` and each chain pair (Kamet, dest):
+For each LEP100 token `T` and each chain pair (LITHO source, destination):
 
 1. **Conservation (steady state):**
    ```
-   sum(T balance of Kamet bridge) >= sum(T minted on dest) - sum(T burned on dest)
+   sum(T balance of LITHO bridge) >= sum(T minted on dest) - sum(T burned on dest)
    ```
-   Or in plain terms: tokens locked on Kamet must always cover tokens currently minted on the dest chain. If users have wrapped tokens on a dest chain, the original tokens on Kamet should be held by the bridge contract.
+   Or in plain terms: tokens locked on LITHO must always cover tokens currently
+   minted on the destination chain. If users have wrapped tokens on a
+   destination chain, the original tokens on LITHO should be held by the bridge
+   contract.
 
 2. **Nonce monotonicity:** `nonce` strictly increases per chain. `processedNonces[srcChain][srcNonce]` is one-way (false → true, never reverted).
 
@@ -226,7 +234,10 @@ To keep the audit scoped tightly and the fee predictable:
 - **ENS fork (DNNS)** in `contracts/dnns/` — separate audit scope if/when needed
 - **Faucet** scripts and contracts — testnet helper only, doesn't hold mainnet funds
 - **Indexer + bridge-api business logic** in `bridge-api/` — not on-chain code; assess via separate ops security review
-- **Validator signer infrastructure** (VPS hardening, mTLS PKI, backups, monitoring) — separate ops review; the signing protocol itself still requires application-security review
+- **Validator signer infrastructure** (AWS account, VPC/ALB, ECS, IAM,
+  Secrets Manager and monitoring configuration) — separate cloud-operations
+  review; the signing protocol itself still requires application-security
+  review
 - **Frontend** (`kamet-explorer`) — not security-critical; users can always interact directly with the contract
 
 ---
@@ -236,7 +247,9 @@ To keep the audit scoped tightly and the fee predictable:
 We'd like the audit to specifically opine on:
 
 1. **Signature scheme:** confirm that the EIP-191 hash, now explicitly bound to destination `block.chainid` and `address(this)`, plus ordered-signer enforcement is robust against malleability and cross-domain replay. Advise whether EIP-712 is still required.
-2. **Cap semantics:** is the daily cap reset logic safe against day-boundary edge cases (e.g., timestamp manipulation by a malicious validator on Kamet — though that would require 51% control of Kamet, see T3)?
+2. **Cap semantics:** is the daily cap reset logic safe against day-boundary
+   edge cases, including bounded timestamp manipulation by source-chain block
+   producers?
 3. **Pause behavior on `releaseTokens`:** if a release is mid-execution when pause is called, does it complete? Should it?
 4. **Validator set rotation:** when `setValidatorSet` is called, any release tx not yet executed will reject signatures from the old set. Is this the desired behavior, or should there be a grace period? Recommend documenting this in operator runbook.
 5. **Dest-chain wrapped token (`WrappedLEP100`):** is the `BRIDGE_ROLE`-only mint pattern sufficient, or should we add explicit `pause` on the wrapper too?
@@ -258,16 +271,17 @@ We'd like the audit to specifically opine on:
   - `#4 0xc8C5c89ddb70CAEC942f2C5A77F4F4001ef3B415`
   - `#5 0x4CDd6D160Bd79fe7d4Bab06a9E0607870e8108D9`
   - `#6 0xB161611185Ce2c95849134188AC9F5DbC26bfD2D`
-- Validator keys: the Kamet deployment historically used AWS KMS. The LITHO
-  mainnet candidate does not use AWS. It requires independently operated VPS
-  signers and mounted operator-controlled key files. Production rejects local
-  validator keys in the API process. No LITHO mainnet signer set is active yet.
+- Validator keys: the LITHO mainnet candidate uses seven isolated AWS Fargate
+  services with one non-exportable KMS key and DynamoDB decision table per
+  signer. Production rejects file-backed keys. Release signing remains
+  disabled and no LITHO mainnet signer set is active on chain yet.
 
 ### Operational runbooks supplied to audit firm
 
 - `docs/operations/BRIDGE_RUNBOOK.md` — pause procedure, validator-set rotation, daily-cap management, incident-response playbook (key compromise / suspected contract bug / RPC brownout)
-- `docs/VPS_SIGNER_ARCHITECTURE.md` — current signer trust boundaries and launch gates
-- `docs/operations/VALIDATOR_KEY_ROTATION.md` — historical KMS procedures; must not be used for the VPS-only LITHO mainnet deployment
+- `docs/FARGATE_PRODUCTION_SIGNER_CANDIDATE.md` — current signer trust boundaries and launch gates
+- `docs/audit/AUDIT_SIGNER_SOURCE_MANIFEST_2026-08-19.md` — immutable signer source boundary and checksums
+- `docs/operations/VALIDATOR_KEY_ROTATION.md` — historical testnet procedures; not production authorization
 
 ---
 
@@ -277,13 +291,13 @@ Items the audit firm should expect at kickoff:
 
 - [x] Contract source code (`contracts/contracts/MultXBridge.sol`, `MultXBridgeDest.sol`, `WrappedLEP100.sol`)
 - [x] This threat model document
-- [x] Slither 0.11.5 pre-audit report (`slither-pre.txt`) — refreshed 2026-08-09 over the immutable candidate; 13 results retained with engineering triage for independent review
-- [x] Immutable candidate tag (`multx-audit-candidate-v0.5.0-20260809`; firms re-confirm the resolved commit at kickoff)
+- [x] Slither 0.11.5 pre-audit report (`slither-pre.txt`) — refreshed 2026-08-19 over the immutable candidate; 13 results retained with engineering triage for independent review
+- [x] Immutable candidate tag (`multx-audit-candidate-v0.6.0-20260819`; firms re-confirm the resolved commit at kickoff)
 - [x] Hardhat test suite (`contracts/test/MultXBridge.test.js`, `MultXBridgeDest.test.js`, `WrappedLEP100.test.js`)
 - [x] Deployment scripts (`contracts/scripts/02-redeploy-bridge-hardened.js`, `03-deploy-dest-chain.js`)
 - [x] Operator runbooks (`docs/operations/BRIDGE_RUNBOOK.md`, `VALIDATOR_KEY_ROTATION.md`)
-- [x] VPS signer reference implementation and architecture document
-- [ ] Independent review of the VPS signer protocol, mTLS deployment and operator key-custody procedure
+- [x] Fargate/KMS signer candidate, architecture document and source manifest
+- [ ] Independent review of the Fargate signer protocol, private HTTPS/bearer boundary, KMS use and DynamoDB anti-equivocation procedure
 - [x] Foundry invariant suite (`contracts/test/foundry/MultXBridgeInvariant.t.sol`) — solvency / release≤lock / nonce / threshold invariants over 16,384 fuzzed calls
 
 ---

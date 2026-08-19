@@ -3,7 +3,7 @@
 Status: **blocked - do not deploy or enable**
 
 The immutable engineering candidate is
-`multx-audit-candidate-v0.5.0-20260809`. It is not an audited production
+`multx-audit-candidate-v0.6.0-20260819`. It is not an audited production
 release. Bridge, Swap, Cross-swap/MultX, and Faucet remain disabled on LITHO
 mainnet.
 
