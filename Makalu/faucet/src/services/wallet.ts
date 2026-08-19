@@ -110,7 +110,7 @@ export async function getAssetBalance(asset: FaucetAsset): Promise<string> {
       `[faucet] Failed to fetch ${asset.symbol} balance:`,
       error instanceof Error ? error.message : String(error),
     );
-    return '0';
+    throw new Error(`Unable to read ${asset.symbol} faucet balance`);
   }
 }
 

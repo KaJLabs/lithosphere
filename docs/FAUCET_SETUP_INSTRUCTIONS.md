@@ -13,7 +13,7 @@ It does not authorize a wallet drain, transfer, deployment, or server change.
 
 Public probe: `https://makalu.litho.ai/api/faucet/info`
 
-Verified on 2026-08-16:
+Verified again on 2026-08-19:
 
 - The live faucet still derives address
   `0x43593dC799d432CB6382ae20186Ba5356AC7D271`.
@@ -26,6 +26,11 @@ Verified on 2026-08-16:
 - The secured faucet image exists at digest
   `sha256:34391877a9029461dfc261ce1ed0704b791d19f9065c0367a297952e49be12d8`,
   but it has not been deployed.
+
+The replacement candidate also fails startup in production when the Makalu chain
+identity, HTTPS RPC, private-key format, or required ten-asset configuration is
+invalid. An RPC balance-read failure is treated as unreadable and cannot be
+misreported as a genuine zero balance.
 
 ## Required approvals and inputs
 
