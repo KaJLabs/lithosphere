@@ -1,0 +1,258 @@
+---
+title: Validator onboarding
+description: Run and register a validator on LITHO Mainnet 9005.
+---
+
+# LITHO validator onboarding
+
+This guide explains what a prospective validator must provide, what payments
+are actually required by the chain, how to build a node, and how admission is
+verified. The values below are for **LITHO Mainnet**. Do not use Makalu or an
+older chain configuration for a mainnet validator.
+
+## Network reference
+
+| Item | Mainnet value |
+| --- | --- |
+| Cosmos chain ID | `lithosphere_9005-1` |
+| EVM chain ID | `9005` (`0x232d`) |
+| Native asset | `LITHO` |
+| Base denomination | `ulitho` |
+| Precision | 18 decimals (`1 LITHO = 10^18 ulitho`) |
+| Bond denomination | `ulitho` |
+| Maximum active validators | 100 |
+| Unbonding period | 21 days |
+| Minimum validator commission | 5% |
+| Genesis | `https://rpc-mainnet.litho.ai/genesis.json` |
+| Genesis SHA-256 | `13e4875b4a9dddc63bdfbd4968c7265f9bbc49218b59c5b49231a56fa313046f` |
+| REST/LCD | `https://api-mainnet.litho.ai` |
+| Explorer | `https://lithoscan.ai` |
+
+The staking and slashing parameters are on-chain values. Operators should
+query them again immediately before registration because governance can
+change them.
+
+```bash
+curl -fsS https://api-mainnet.litho.ai/cosmos/staking/v1beta1/params
+curl -fsS https://api-mainnet.litho.ai/cosmos/slashing/v1beta1/params
+```
+
+## Stake, gas, and commission
+
+A validator operator needs LITHO in an account they control for:
+
+1. **Self-delegation** — stake bonded to the new validator. It remains the
+   operator's delegated stake and is not an onboarding fee.
+2. **Transaction gas** — the normal network fee for broadcasting the
+   `create-validator` transaction.
+3. **Commission** — a percentage the operator retains from future delegation
+   rewards. Mainnet currently enforces a minimum commission of 5%.
+
+The current genesis validator began with 1 LITHO bonded. That historical
+amount is not a published minimum stake or price for new validators. KaJ Labs
+must approve the new validator's intended self-delegation amount before the
+operator funds and submits the transaction.
+
+Staking rewards are credited on-chain. By default, withdrawals go to the
+operator/delegator account unless the account owner sets a different
+withdrawal address through an on-chain transaction.
+
+## Before applying
+
+Send the following public information to the KaJ Labs validator coordinator:
+
+- operator organization and technical contact;
+- validator moniker, website, identity, and security contact;
+- operator account address and validator operator address;
+- consensus public key and P2P node ID;
+- hosting region, sentry topology, monitoring, and incident coverage;
+- intended self-delegation and commission settings;
+- evidence of tested backup, restore, upgrade, and double-sign prevention.
+
+Never send a mnemonic, private key, validator signing key, SSH credential, or
+backup decryption secret.
+
+## Host and network requirements
+
+| Resource | Minimum | Recommended |
+| --- | ---: | ---: |
+| Linux | Current supported 64-bit release | Ubuntu LTS, x86-64 |
+| CPU | 8 vCPU | 8+ dedicated vCPU |
+| RAM | 24 GB | 32 GB |
+| Storage | 300 GB free NVMe | 500+ GB NVMe with growth alerts |
+| Network | 100 Mbps | Stable 1 Gbps |
+
+Use a private validator behind at least two sentries. Restrict public ingress
+to P2P (`26656/tcp`) and approved administration sources. Bind CometBFT RPC,
+REST, gRPC, EVM RPC/WebSocket, and metrics to loopback or a protected
+monitoring network.
+
+Initial public peers:
+
+```text
+76cadd27f507c401f58c1335c3f5ece39412f179@31.97.39.146:27056
+94aa07934bc0614134056bcfe90feb0d214a6e66@72.60.177.106:27056
+```
+
+## Install the approved binary
+
+Obtain `lithod-mainnet-9005` through the KaJ Labs-approved release channel.
+There is no approved public mainnet binary URL at the time of publication. Do
+not continue unless its SHA-256 is exactly:
+
+```text
+0546677a9cf3a7f458797b65181a46f21c89185933e832d89ce728a144fd258c
+```
+
+```bash
+sha256sum ./lithod-mainnet-9005
+sudo install -o root -g root -m 0755 ./lithod-mainnet-9005 \
+  /usr/local/bin/lithod-mainnet-9005
+```
+
+Create an isolated service account and initialize the node:
+
+```bash
+sudo useradd --system --home-dir /var/lib/litho-mainnet-9005-val \
+  --shell /usr/sbin/nologin litho
+sudo install -d -o litho -g litho -m 0750 \
+  /var/lib/litho-mainnet-9005-val
+sudo -u litho /usr/local/bin/lithod-mainnet-9005 init \
+  <MONIKER> --chain-id lithosphere_9005-1 \
+  --home /var/lib/litho-mainnet-9005-val
+```
+
+## Install and verify genesis
+
+```bash
+curl -fsS https://rpc-mainnet.litho.ai/genesis.json \
+  -o /tmp/litho-mainnet-genesis.json
+printf '%s  %s\n' \
+  '13e4875b4a9dddc63bdfbd4968c7265f9bbc49218b59c5b49231a56fa313046f' \
+  /tmp/litho-mainnet-genesis.json | sha256sum --check
+sudo install -o litho -g litho -m 0640 \
+  /tmp/litho-mainnet-genesis.json \
+  /var/lib/litho-mainnet-9005-val/config/genesis.json
+```
+
+Stop if the checksum or the genesis `chain_id` differs.
+
+## Protect validator keys
+
+- `node_key.json` is the P2P identity.
+- `priv_validator_key.json` is the consensus signing identity.
+- The operator account signs staking transactions.
+
+Use an approved remote signer/HSM where available. Otherwise keep the
+consensus key restricted to the service account and maintain at least two
+encrypted, offline backups under independent custody. Preserve
+`priv_validator_state.json` during every restore or migration. Never run the
+same consensus key on two nodes.
+
+Record only the public consensus key:
+
+```bash
+sudo -u litho /usr/local/bin/lithod-mainnet-9005 tendermint show-validator \
+  --home /var/lib/litho-mainnet-9005-val
+```
+
+## Configure and synchronize
+
+Set the two peers above in `config/config.toml`. For a private validator use:
+
+```toml
+[rpc]
+laddr = "tcp://127.0.0.1:26657"
+unsafe = false
+
+[p2p]
+laddr = "tcp://0.0.0.0:26656"
+pex = false
+persistent_peers = "76cadd27f507c401f58c1335c3f5ece39412f179@31.97.39.146:27056,94aa07934bc0614134056bcfe90feb0d214a6e66@72.60.177.106:27056"
+
+[instrumentation]
+prometheus = true
+prometheus_listen_addr = "127.0.0.1:26660"
+```
+
+In `config/app.toml`, bind public APIs to loopback and set:
+
+```toml
+minimum-gas-prices = "0.0001ulitho"
+```
+
+Start the node using the approved systemd or Cosmovisor service. Do not submit
+the validator transaction until the local node reports `catching_up: false`,
+has peers, and matches the public mainnet height.
+
+```bash
+curl -fsS http://127.0.0.1:26657/status
+curl -fsS https://rpc-mainnet.litho.ai/status
+```
+
+## Create the validator
+
+Fund the operator account only after KaJ Labs approves the self-delegation and
+commission values. Generate the transaction file locally:
+
+```json
+{
+  "pubkey": { "@type": "/cosmos.crypto.ed25519.PubKey", "key": "<BASE64_CONSENSUS_PUBLIC_KEY>" },
+  "amount": "<APPROVED_SELF_DELEGATION_IN_ULITHO>ulitho",
+  "moniker": "<MONIKER>",
+  "identity": "<OPTIONAL_KEYBASE_ID>",
+  "website": "<HTTPS_URL>",
+  "security": "<SECURITY_EMAIL>",
+  "details": "<SHORT_DESCRIPTION>",
+  "commission-rate": "<RATE_AT_OR_ABOVE_0.05>",
+  "commission-max-rate": "<APPROVED_MAX_RATE>",
+  "commission-max-change-rate": "<APPROVED_DAILY_CHANGE_RATE>",
+  "min-self-delegation": "<APPROVED_MINIMUM_IN_BASE_UNITS>"
+}
+```
+
+Review every field, simulate if supported by the approved binary, then
+broadcast once:
+
+```bash
+/usr/local/bin/lithod-mainnet-9005 tx staking create-validator validator.json \
+  --from <OPERATOR_KEY_NAME> \
+  --chain-id lithosphere_9005-1 \
+  --home /var/lib/litho-mainnet-9005-val \
+  --gas auto --gas-adjustment 1.3 \
+  --fees <REVIEWED_FEE_IN_ULITHO>ulitho
+```
+
+Do not copy a fee from this page: gas depends on the simulated transaction.
+Record the transaction hash and verify the operator address, consensus public
+key, self-delegation, commission, and active-set status in LCD and Lithoscan.
+
+## Operating obligations
+
+Current mainnet slashing parameters are:
+
+| Parameter | Value |
+| --- | ---: |
+| Signed-block window | 10,000 blocks |
+| Minimum signed | 50% |
+| Downtime jail | 10 minutes |
+| Downtime slash | 1% |
+| Double-sign slash | 5% |
+
+Monitor signing, peers, height, disk, memory, clock drift, missed blocks, and
+service restarts continuously. Maintain a primary and backup responder. Test
+upgrades and restores without cloning a live consensus signer. Coordinate all
+key moves and migrations with KaJ Labs.
+
+## Acceptance checklist
+
+- Binary and genesis checksums match.
+- Chain IDs are `lithosphere_9005-1` and `9005`.
+- Node is fully synchronized with at least two peers.
+- RPC and administrative ports are not publicly exposed.
+- Consensus key backup/restore and double-sign controls are verified.
+- KaJ Labs approved the self-delegation and commission values.
+- Self-delegation, commission, and gas values were reviewed before broadcast.
+- `create-validator` transaction succeeded and its hash was recorded.
+- Validator metadata and consensus public key match the approved application.
+- Monitoring, alerting, incident contacts, and upgrade procedure are active.
