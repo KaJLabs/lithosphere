@@ -16,8 +16,13 @@ mainnet.
 - Contract, API, signer, SDK, and web source gates pass.
 - Candidate bytecode hashes and coverage evidence are recorded under
   `docs/audit/`.
-- Production uses independent rootless VPS signers over TLS 1.3 mTLS; AWS/KMS
-  and coordinator-held validator keys are excluded.
+- The approved production candidate uses seven isolated AWS Fargate services,
+  seven non-exportable `ECC_SECG_P256K1` KMS keys, seven DynamoDB
+  anti-equivocation tables and unique private HTTPS/bearer-token boundaries.
+- Transaction-free KMS identity verification is implemented while release
+  signing remains fail-closed with `SIGNER_RELEASE_SIGNING_ENABLED=false`.
+- Native ECS task credentials are used; no permanent AWS access keys, Roles
+  Anywhere certificates or exportable signer private keys are required.
 - Production API startup now requires an explicit audited network manifest and
   rejects all historical test-chain defaults.
 
@@ -30,8 +35,8 @@ mainnet.
 4. Approved Safe, timelock, pause guardian, deployment, and fee-payer
    addresses for LITHO, Ethereum, BNB, and Base.
 5. Approved bridge/token routes, daily caps, and supported assets.
-6. Seven independent bridge signer operators, with an approved threshold,
-   unique keys, mTLS identities, policies, backups, recovery exercises, and
+6. Seven approved bridge signer assignments, with an approved 5-of-7
+   threshold, unique KMS identities, route policies, recovery exercises, and
    acceptance records. These bridge signers are separate from the target 33+
    LITHO consensus validators.
 7. Approved HTTPS/WSS RPC endpoints for every chain and funded deployment/gas
@@ -55,10 +60,12 @@ credential belongs in this repository or chat.
    owners, guardians, caps, and token routes.
 5. Complete `infra/network.mainnet.template.json`, validate it through the API
    loader, mount it read-only, and deploy immutable API/signer image digests to
-   isolated VPS services. Keep public feature flags disabled.
-6. Prove mTLS rejection, independent source-event verification, route-policy
-   rejection, anti-equivocation persistence, signer backup restoration, API
-   database recovery, monitoring, and pause/rollback procedures.
+   the isolated Fargate services. Keep release signing and public feature flags
+   disabled.
+6. Prove private-network rejection, bearer-token rejection, independent
+   source-event verification, route-policy rejection, DynamoDB
+   anti-equivocation persistence, KMS identity recovery, API database
+   recovery, monitoring, and pause/rollback procedures.
 7. Run the approved canary with bounded value and limits, reconcile source and
    destination state, then pause again for review.
 8. Enable MultX only after written activation approval and a final public smoke
