@@ -9,20 +9,33 @@ until every manual result and the approval record are filled with durable eviden
 | --- | --- | --- |
 | Target | `https://makalu.litho.ai/signin` | Live route |
 | Network | Makalu, EVM chain ID `700777` (`0xab169`) | Explorer network configuration |
-| Published Chrome extension | `0.9.33`, updated 2026-08-12 | Chrome Web Store item `jajfgpnlaoakklhnnchdpiglmkkpcehj`, checked 2026-08-14 |
-| Published-version source | `imasssad/Thanos-Wallet` commit `c352a5cfef22` | Declares `0.9.33`, EIP-6963, RDNS `fi.thanos.wallet`, `window.thanos`, and EIP-1193 signing |
+| Published Chrome extension | `0.9.35`, updated 2026-08-17 | Chrome Web Store item `jajfgpnlaoakklhnnchdpiglmkkpcehj`, checked 2026-08-19 |
+| Published-version source | `imasssad/Thanos-Wallet` commit `4822f42abc49877d0066bfde87f22f10f460f034` | Declares `0.9.35`, EIP-6963, RDNS `fi.thanos.wallet`, `window.thanos`, and EIP-1193 signing |
 | Explorer integration | EIP-6963 discovery plus verified `window.thanos` fallback | `Makalu/explorer/components/ThanosSignIn.tsx` |
 | Server authentication | Nonce-bound SIWE, one-time replay protection, HMAC bearer session | `Makalu/api/src/routes.ts` and focused tests |
 | Makalu session secret | Present, non-placeholder, and at least 32 characters | Value-free production-container check on 2026-08-14 |
 
-The repository source currently declares Thanos `0.9.35`, but that was not the published Chrome version at the time
-of this check. Run acceptance with published version `0.9.33` unless the Chrome Web Store version is re-verified and
-this baseline is updated first.
+The repository source currently declares Thanos `0.9.38`, but the Chrome Web Store publishes `0.9.35`. Run
+acceptance only with published version `0.9.35`. If the store version changes, re-pin the matching source commit and
+repeat the automated preflight before starting the manual matrix.
+
+Run the transaction-free baseline immediately before manual acceptance:
+
+```bash
+node Makalu/scripts/verify-thanos-acceptance-baseline.mjs
+```
+
+The preflight checks the published version, pinned public source, provider markers, live sign-in route,
+unauthenticated session rejection, and Makalu chain identity. It does not connect a wallet, request a nonce, sign a
+message, or submit a transaction. The 2026-08-19 preflight passed at `2026-08-19T13:27:31Z`.
 
 ## Wallet-team test record
 
 Record a screenshot, transaction URL, test-run URL, or other durable reference in the Evidence column. Never attach
 seed phrases, private keys, session tokens, or deployment secrets.
+
+Use a dedicated low-value acceptance wallet. The wallet team must approve the sender and maximum transaction amount
+before the transaction scenario; the preflight does not authorize that transaction.
 
 | Scenario | Expected result | Result | Evidence |
 | --- | --- | --- | --- |
