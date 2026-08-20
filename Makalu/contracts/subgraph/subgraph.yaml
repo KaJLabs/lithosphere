@@ -1,0 +1,68 @@
+specVersion: 0.0.5
+description: Lithoswap V2 — pools, prices, and volume on Lithosphere Makalu
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: LithoswapV2Factory
+    # network name must match the graph-node's configured chain for Makalu.
+    network: makalu
+    source:
+      # Filled from deployments/dex-700777.json (LithoswapV2Factory) after deploy.
+      # Override via networks.json (`graph build --network makalu`).
+      address: "0x0000000000000000000000000000000000000000"
+      abi: LithoswapV2Factory
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/factory.ts
+      entities:
+        - LithoswapFactory
+        - Pair
+        - Token
+      abis:
+        - name: LithoswapV2Factory
+          file: ./abis/LithoswapV2Factory.json
+        - name: LithoswapV2Pair
+          file: ./abis/LithoswapV2Pair.json
+        - name: ERC20
+          file: ./abis/ERC20.json
+      eventHandlers:
+        - event: PairCreated(indexed address,indexed address,address,uint256)
+          handler: handleNewPair
+templates:
+  - kind: ethereum/contract
+    name: LithoswapV2Pair
+    network: makalu
+    source:
+      abi: LithoswapV2Pair
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/pair.ts
+      entities:
+        - Pair
+        - Token
+        - Transaction
+        - Mint
+        - Burn
+        - Swap
+        - PairDayData
+        - TokenDayData
+      abis:
+        - name: LithoswapV2Pair
+          file: ./abis/LithoswapV2Pair.json
+        - name: ERC20
+          file: ./abis/ERC20.json
+      eventHandlers:
+        - event: Sync(uint112,uint112)
+          handler: handleSync
+        - event: Swap(indexed address,uint256,uint256,uint256,uint256,indexed address)
+          handler: handleSwap
+        - event: Mint(indexed address,uint256,uint256)
+          handler: handleMint
+        - event: Burn(indexed address,uint256,uint256,indexed address)
+          handler: handleBurn

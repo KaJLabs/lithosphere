@@ -1,0 +1,116 @@
+# Lithoswap V2 subgraph schema (Makalu).
+#
+# Focused on on-chain facts that don't need a USD reference: reserves,
+# reserve-ratio prices, token-denominated volumes, liquidity/swap events, and
+# daily aggregates for charts. USD pricing is intentionally omitted — Makalu has
+# no stablecoin pool to anchor it; add a Bundle + derived pricing later if one
+# lands.
+
+type LithoswapFactory @entity {
+  " Factory address "
+  id: ID!
+  pairCount: Int!
+  txCount: BigInt!
+  totalVolumeToken: BigDecimal! # summed across pairs, token units (not USD)
+}
+
+type Token @entity {
+  " Token address "
+  id: ID!
+  symbol: String!
+  name: String!
+  decimals: BigInt!
+  totalSupply: BigInt!
+  tradeVolume: BigDecimal! # cumulative volume in this token's units
+  txCount: BigInt!
+  totalLiquidity: BigDecimal! # amount of this token pooled across all pairs
+}
+
+type Pair @entity {
+  " Pair (pool) address "
+  id: ID!
+  token0: Token!
+  token1: Token!
+  reserve0: BigDecimal!
+  reserve1: BigDecimal!
+  totalSupply: BigDecimal! # LP token supply
+  " token1 per token0 (reserve1/reserve0) "
+  token0Price: BigDecimal!
+  " token0 per token1 (reserve0/reserve1) "
+  token1Price: BigDecimal!
+  volumeToken0: BigDecimal!
+  volumeToken1: BigDecimal!
+  txCount: BigInt!
+  createdAtTimestamp: BigInt!
+  createdAtBlockNumber: BigInt!
+}
+
+type Transaction @entity {
+  " Transaction hash "
+  id: ID!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  mints: [Mint!]! @derivedFrom(field: "transaction")
+  burns: [Burn!]! @derivedFrom(field: "transaction")
+  swaps: [Swap!]! @derivedFrom(field: "transaction")
+}
+
+type Mint @entity {
+  " txhash-logindex "
+  id: ID!
+  transaction: Transaction!
+  timestamp: BigInt!
+  pair: Pair!
+  sender: Bytes!
+  amount0: BigDecimal!
+  amount1: BigDecimal!
+}
+
+type Burn @entity {
+  id: ID!
+  transaction: Transaction!
+  timestamp: BigInt!
+  pair: Pair!
+  sender: Bytes!
+  to: Bytes!
+  amount0: BigDecimal!
+  amount1: BigDecimal!
+}
+
+type Swap @entity {
+  id: ID!
+  transaction: Transaction!
+  timestamp: BigInt!
+  pair: Pair!
+  sender: Bytes!
+  from: Bytes!
+  to: Bytes!
+  amount0In: BigDecimal!
+  amount1In: BigDecimal!
+  amount0Out: BigDecimal!
+  amount1Out: BigDecimal!
+}
+
+type PairDayData @entity {
+  " pairAddress-dayId "
+  id: ID!
+  date: Int!
+  pair: Pair!
+  token0: Token!
+  token1: Token!
+  reserve0: BigDecimal!
+  reserve1: BigDecimal!
+  dailyVolumeToken0: BigDecimal!
+  dailyVolumeToken1: BigDecimal!
+  dailyTxns: BigInt!
+}
+
+type TokenDayData @entity {
+  " tokenAddress-dayId "
+  id: ID!
+  date: Int!
+  token: Token!
+  dailyVolumeToken: BigDecimal!
+  totalLiquidityToken: BigDecimal!
+  dailyTxns: BigInt!
+}
