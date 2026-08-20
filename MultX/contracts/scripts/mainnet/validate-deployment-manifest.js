@@ -126,6 +126,13 @@ function validateDeploymentManifest(input) {
       if (symbols.has(symbol)) throw new Error(`${assetPrefix}.symbol is duplicated`);
       symbols.add(symbol);
       address(asset.address, `${assetPrefix}.address`);
+      const expectedTargets = chainId === 9005 ? [1, 56, 8453] : [9005];
+      if (!Array.isArray(asset.targetChainIds) ||
+          asset.targetChainIds.length !== expectedTargets.length ||
+          !expectedTargets.every((target) => asset.targetChainIds.includes(target)) ||
+          new Set(asset.targetChainIds).size !== asset.targetChainIds.length) {
+        throw new Error(`${assetPrefix}.targetChainIds must contain exactly ${expectedTargets.join(', ')}`);
+      }
       baseUnits(asset.dailyCapBaseUnits, `${assetPrefix}.dailyCapBaseUnits`);
       sha256(asset.runtimeSha256, `${assetPrefix}.runtimeSha256`);
       if (chainId === 9005) {

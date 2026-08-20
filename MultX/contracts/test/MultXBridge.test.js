@@ -29,11 +29,11 @@ describe("MultXBridge", function () {
     ]);
   }
 
-  async function getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce) {
+  async function getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce, sourceBridge = owner.address) {
     const { chainId } = await ethers.provider.getNetwork();
     return ethers.utils.solidityKeccak256(
-      ["bytes32", "address", "address", "uint256", "uint256", "uint256", "uint256", "address"],
-      [sourceTxHash, token.address, user.address, amount, sourceChain, sourceNonce, chainId, bridge.address]
+      ["bytes32", "address", "address", "address", "uint256", "uint256", "uint256", "uint256", "address"],
+      [sourceTxHash, sourceBridge, token.address, user.address, amount, sourceChain, sourceNonce, chainId, bridge.address]
     );
   }
 
@@ -53,6 +53,7 @@ describe("MultXBridge", function () {
 
     // Add token to supported list
     await bridge.addSupportedToken(token.address);
+    await bridge.setSupportedRoute(token.address, 1, true);
 
     // Mint tokens to user
     await token.mint(user.address, ethers.utils.parseEther("1000"));
@@ -91,6 +92,29 @@ describe("MultXBridge", function () {
     expect(bridgeBalance).to.equal(amount);
   });
 
+  it("Rejects an unsupported token/target route on chain", async function () {
+    const amount = ethers.utils.parseEther("1");
+    await token.connect(user).approve(bridge.address, amount);
+    await expect(
+      bridge.connect(user).lockTokens(token.address, amount, 11155111)
+    ).to.be.revertedWith("Route not supported");
+  });
+
+  it("Rejects fee-on-transfer tokens whose received balance differs from amount", async function () {
+    const FeeToken = await ethers.getContractFactory("MockFeeOnTransferERC20");
+    const feeToken = await FeeToken.deploy();
+    await feeToken.deployed();
+    const amount = ethers.utils.parseEther("100");
+    await feeToken.transfer(user.address, amount);
+    await bridge.addSupportedToken(feeToken.address);
+    await bridge.setSupportedRoute(feeToken.address, 1, true);
+    await feeToken.connect(user).approve(bridge.address, amount.mul(99).div(100));
+
+    await expect(
+      bridge.connect(user).lockTokens(feeToken.address, amount.mul(99).div(100), 1)
+    ).to.be.revertedWith("Unsupported token transfer semantics");
+  });
+
   it("Should release tokens with valid signatures", async function () {
     const amount = ethers.utils.parseEther("100");
     const targetChain = 1;
@@ -116,6 +140,7 @@ describe("MultXBridge", function () {
       user.address,
       amount,
       sourceChain,
+      owner.address,
       sourceNonce,
       sourceTxHash,
       signatures
@@ -142,7 +167,7 @@ describe("MultXBridge", function () {
     const firstHash = await getReleaseHash(firstTxHash, firstAmount, 1, 501);
     const firstSigs = await getSortedSignatures([validator1, validator2], firstHash);
     await bridge.releaseTokens(
-      token.address, user.address, firstAmount, 1, 501, firstTxHash, firstSigs
+      token.address, user.address, firstAmount, 1, owner.address, 501, firstTxHash, firstSigs
     );
 
     expect(await bridge.releaseVolume(token.address)).to.equal(firstAmount);
@@ -153,10 +178,10 @@ describe("MultXBridge", function () {
     const secondSigs = await getSortedSignatures([validator1, validator2], secondHash);
     await expect(
       bridge.releaseTokens(
-        token.address, user.address, secondAmount, 1, 502, secondTxHash, secondSigs
+        token.address, user.address, secondAmount, 1, owner.address, 502, secondTxHash, secondSigs
       )
     ).to.be.revertedWith("Release cap exceeded");
-    expect(await bridge.processedNonces(1, 502)).to.equal(false);
+    expect(await bridge.processedNonces(1, owner.address, 502)).to.equal(false);
   });
 
   it("Should reject duplicate nonce", async function () {
@@ -182,6 +207,7 @@ describe("MultXBridge", function () {
       user.address,
       amount,
       sourceChain,
+      owner.address,
       sourceNonce,
       sourceTxHash,
       signatures
@@ -194,11 +220,33 @@ describe("MultXBridge", function () {
         user.address,
         amount,
         sourceChain,
+        owner.address,
         sourceNonce,
         sourceTxHash,
         signatures
       )
     ).to.be.revertedWith("Nonce already processed");
+  });
+
+  it("Namespaces replay protection by source bridge", async function () {
+    const amount = ethers.utils.parseEther("1");
+    const sourceChain = 1;
+    const sourceNonce = 777;
+    const sourceTxHashA = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("source-a"));
+    const sourceTxHashB = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("source-b"));
+    const sourceBridgeA = owner.address;
+    const sourceBridgeB = validator3.address;
+    await token.mint(bridge.address, amount.mul(2));
+
+    const hashA = await getReleaseHash(sourceTxHashA, amount, sourceChain, sourceNonce, sourceBridgeA);
+    const hashB = await getReleaseHash(sourceTxHashB, amount, sourceChain, sourceNonce, sourceBridgeB);
+    const sigsA = await getSortedSignatures([validator1, validator2], hashA);
+    const sigsB = await getSortedSignatures([validator1, validator2], hashB);
+
+    await bridge.releaseTokens(token.address, user.address, amount, sourceChain, sourceBridgeA, sourceNonce, sourceTxHashA, sigsA);
+    await bridge.releaseTokens(token.address, user.address, amount, sourceChain, sourceBridgeB, sourceNonce, sourceTxHashB, sigsB);
+    expect(await bridge.processedNonces(sourceChain, sourceBridgeA, sourceNonce)).to.equal(true);
+    expect(await bridge.processedNonces(sourceChain, sourceBridgeB, sourceNonce)).to.equal(true);
   });
 
   it("Should reject insufficient signatures", async function () {
@@ -223,6 +271,7 @@ describe("MultXBridge", function () {
         user.address,
         amount,
         sourceChain,
+        owner.address,
         sourceNonce,
         sourceTxHash,
         [sig1]
@@ -247,6 +296,7 @@ describe("MultXBridge", function () {
         user.address,
         amount,
         sourceChain,
+        owner.address,
         sourceNonce,
         sourceTxHash,
         signatures
@@ -276,6 +326,7 @@ describe("MultXBridge", function () {
         user.address,
         amount,
         sourceChain,
+        owner.address,
         sourceNonce,
         sourceTxHash,
         signatures

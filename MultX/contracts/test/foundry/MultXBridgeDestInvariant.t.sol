@@ -37,6 +37,7 @@ contract DestBridgeHandler is Test {
 
     uint256 constant SOURCE_CHAIN = 9005; // LITHO mainnet (where the original lock happened)
     uint256 constant TARGET_CHAIN = 9005; // bridging back to LITHO (not block.chainid)
+    address constant SOURCE_BRIDGE = address(0x5150);
 
     constructor(
         MultXBridgeDest _bridge,
@@ -67,7 +68,7 @@ contract DestBridgeHandler is Test {
     {
         bytes32 msgHash = keccak256(
             abi.encodePacked(
-                sourceTxHash, address(wrapped), user, amount, SOURCE_CHAIN,
+                sourceTxHash, SOURCE_BRIDGE, address(wrapped), user, amount, SOURCE_CHAIN,
                 sourceNonce, block.chainid, address(bridge)
             )
         );
@@ -85,7 +86,7 @@ contract DestBridgeHandler is Test {
         bytes[] memory sigs = _signQuorum(_ethSigned(user, amount, sourceNonce, sourceTxHash));
 
         try bridge.releaseTokens(
-            address(wrapped), user, amount, SOURCE_CHAIN, sourceNonce, sourceTxHash, sigs
+            address(wrapped), user, amount, SOURCE_CHAIN, SOURCE_BRIDGE, sourceNonce, sourceTxHash, sigs
         ) {
             totalMinted += amount;
             lastReleaseExists = true;
@@ -118,7 +119,7 @@ contract DestBridgeHandler is Test {
         bytes[] memory sigs =
             _signQuorum(_ethSigned(lastUser, lastAmount, lastSourceNonce, lastSourceTxHash));
         try bridge.releaseTokens(
-            address(wrapped), lastUser, lastAmount, SOURCE_CHAIN, lastSourceNonce, lastSourceTxHash, sigs
+            address(wrapped), lastUser, lastAmount, SOURCE_CHAIN, SOURCE_BRIDGE, lastSourceNonce, lastSourceTxHash, sigs
         ) {
             doubleReleaseCount += 1;
             totalMinted += lastAmount;
@@ -183,6 +184,7 @@ contract MultXBridgeDestInvariant is Test {
         // then register it so the burn (lockTokens) path accepts it.
         wrapped = new WrappedLEP100("Wrapped LITHO", "wLITHO", 18, address(bridge), address(0x0AB1), 9005);
         bridge.addSupportedToken(address(wrapped));
+        bridge.setSupportedRoute(address(wrapped), 9005, true);
 
         handler = new DestBridgeHandler(bridge, wrapped, address(this), pks, sigsRequired);
         targetContract(address(handler));
@@ -204,7 +206,7 @@ contract MultXBridgeDestInvariant is Test {
         assertLe(handler.totalBurned(), handler.totalMinted(), "burned > minted");
     }
 
-    // A processed (sourceChain, sourceNonce) can never mint a second time.
+    // A processed (sourceChain, sourceBridge, sourceNonce) can never mint a second time.
     function invariant_noDoubleRelease() public view {
         assertEq(handler.doubleReleaseCount(), 0, "replay of a processed nonce minted again");
     }

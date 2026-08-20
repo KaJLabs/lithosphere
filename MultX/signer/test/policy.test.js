@@ -45,6 +45,15 @@ test('accepts an allowlisted source bridge and token route', () => {
   assert.match(releaseMessageHash(attestation), /^0x[0-9a-f]{64}$/);
 });
 
+test('binds the signed release digest to the exact source bridge', () => {
+  const attestation = validateAttestation(input);
+  const otherSource = validateAttestation({
+    ...input,
+    sourceBridge: '0x7777777777777777777777777777777777777777',
+  });
+  assert.notEqual(releaseMessageHash(attestation), releaseMessageHash(otherSource));
+});
+
 test('rejects missing, malformed, and zero confirmation policy', () => {
   const source = policy.sources[0];
   assert.throws(

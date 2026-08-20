@@ -1,5 +1,8 @@
 # MultX audit-candidate bytecode hashes - 2026-08-19
 
+> **Historical v0.6 evidence only.** These hashes do not identify the v0.8
+> remediation and must not be used for deployment or the final fix review.
+
 Candidate: `multx-audit-candidate-v0.6.0-20260819`
 
 The three in-scope contracts were compiled from KaJ Labs `main` commit

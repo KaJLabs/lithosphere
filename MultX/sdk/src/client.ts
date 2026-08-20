@@ -186,18 +186,24 @@ export class MultXClient {
       const amountBN = ethers.toBigInt(opts.amount as ethers.BigNumberish);
       const userAddress = await opts.signer.getAddress();
 
-      const [balance, allowance, supported] = await Promise.all([
+      const [balance, allowance, supported, routeSupported] = await Promise.all([
         tokenContract.balanceOf!(userAddress) as Promise<bigint>,
         tokenContract.allowance!(userAddress, this.bridgeAddress) as Promise<bigint>,
         // `supportedTokens` is the deployed contract's public mapping getter.
         // Default to `true` on RPC failure so a flaky read never blocks a lock
         // the on-chain `require(supportedTokens[token])` would anyway enforce.
         (bridgeContract.supportedTokens!(opts.tokenAddress) as Promise<boolean>).catch(() => true),
+        (bridgeContract.supportedRoutes!(opts.tokenAddress, opts.targetChainId) as Promise<boolean>).catch(() => true),
       ]);
 
       if (!supported) {
         throw new Error(
           `${opts.tokenMeta?.symbol || 'Token'} is not on the bridge supported-token list`,
+        );
+      }
+      if (!routeSupported) {
+        throw new Error(
+          `${opts.tokenMeta?.symbol || 'Token'} is not approved for destination chain ${opts.targetChainId}`,
         );
       }
 

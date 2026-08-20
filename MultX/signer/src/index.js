@@ -102,7 +102,7 @@ const verifyAndSign = async (input) => {
   assertLockEvent(event, attestation);
 
   const hash = releaseMessageHash(attestation);
-  const key = `${attestation.sourceChain}:${attestation.sourceNonce}`;
+  const key = `${attestation.sourceChain}:${attestation.sourceBridge.toLowerCase()}:${attestation.sourceNonce}`;
   return serializeSigning(async () => {
     // Persist the decision before producing a signature. A crash can withhold
     // a signature but cannot erase or replace the anti-equivocation decision.

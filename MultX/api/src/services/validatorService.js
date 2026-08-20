@@ -98,9 +98,10 @@ export async function startValidatorService() {
 async function signWith(validator, attestation) {
   if (validator.kind === 'remote') return validator.signRelease(attestation);
   const hashHex = ethers.solidityPackedKeccak256(
-    ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256', 'uint256', 'address'],
+    ['bytes32', 'address', 'address', 'address', 'uint256', 'uint256', 'uint256', 'uint256', 'address'],
     [
       attestation.sourceTxHash,
+      attestation.sourceBridge,
       attestation.releaseToken,
       attestation.user,
       attestation.amount,

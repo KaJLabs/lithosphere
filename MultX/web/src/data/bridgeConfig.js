@@ -87,8 +87,9 @@ export const lookupWrapped = (chainId, wrappedAddress) => {
 
 export const BRIDGE_ABI_MINIMAL = [
   'function lockTokens(address token, uint256 amount, uint256 targetChain) returns (bytes32)',
-  'function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] calldata signatures)',
+  'function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, address sourceBridge, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] calldata signatures)',
   'function supportedTokens(address) view returns (bool)',
+  'function supportedRoutes(address,uint256) view returns (bool)',
   'function signaturesRequired() view returns (uint256)',
   'function getValidators() view returns (address[])',
   'function paused() view returns (bool)',

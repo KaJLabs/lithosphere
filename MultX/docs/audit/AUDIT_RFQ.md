@@ -1,5 +1,10 @@
 # Request for Quote — MultX Bridge Smart-Contract Audit
 
+> **Superseded historical intake (do not send as the v0.8 package).** Autha's
+> v0.7.0 report is NOT READY FOR MAINNET. Use
+> `AUTHA_V070_REMEDIATION_2026-08-21.md` and the new immutable v0.8 bundle only
+> after merge, green CI and tagging.
+
 **Project:** Lithosphere — MultX cross-chain bridge
 **Updated:** 2026-08-19
 **Requested by:** Lithosphere infrastructure team (technical point of contact)

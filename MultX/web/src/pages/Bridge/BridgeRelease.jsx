@@ -29,6 +29,7 @@ export const BridgeRelease = () => {
   const [userAddr, setUserAddr] = useState('');
   const [amount, setAmount] = useState('');
   const [sourceChain, setSourceChain] = useState('900523');
+  const [sourceBridge, setSourceBridge] = useState('');
   const [sourceNonce, setSourceNonce] = useState('');
 
   const [step, setStep] = useState('idle'); // idle | fetching | releasing | done | error
@@ -61,6 +62,7 @@ export const BridgeRelease = () => {
         user: userAddr,
         amount: amountBN,
         sourceChain: BigInt(sourceChain),
+        sourceBridge,
         sourceNonce: BigInt(sourceNonce),
         sourceTxHash,
         signatures,
@@ -136,6 +138,7 @@ export const BridgeRelease = () => {
           {field('Amount (human)', amount, setAmount, '100.0')}
         </div>
         {field('Recipient address', userAddr, setUserAddr, '0x...')}
+        {field('Source Bridge', sourceBridge, setSourceBridge, '0x...')}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           {field('Source Chain ID', sourceChain, setSourceChain, '900523')}
           {field('Source Nonce', sourceNonce, setSourceNonce, '1')}
@@ -179,7 +182,7 @@ export const BridgeRelease = () => {
             }}
             disabled={
               (wallet.isConnected && !wrongChain) &&
-              (!sourceTxHash || !tokenAddr || !userAddr || !amount || !sourceNonce ||
+              (!sourceTxHash || !sourceBridge || !tokenAddr || !userAddr || !amount || !sourceNonce ||
                step === 'fetching' || step === 'releasing')
             }
           >

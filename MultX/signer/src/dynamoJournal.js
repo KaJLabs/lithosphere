@@ -1,6 +1,6 @@
 import { DescribeTableCommand, DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 
-const DECISION_KEY = /^[1-9][0-9]*:[1-9][0-9]*$/;
+const DECISION_KEY = /^[1-9][0-9]*:0x[0-9a-fA-F]{40}:[1-9][0-9]*$/;
 const HASH = /^0x[0-9a-fA-F]{64}$/;
 
 const validateDecision = (key, hash) => {

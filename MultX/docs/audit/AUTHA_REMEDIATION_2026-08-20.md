@@ -1,5 +1,8 @@
 # Autha MultX v0 remediation record
 
+> **Historical v0.5-to-v0.7 remediation record.** Current status and v0.8 work
+> are recorded in `AUTHA_V070_REMEDIATION_2026-08-21.md`.
+
 - **Source report:** `client-work/Autha Audits — MultX v0.pdf`
 - **Audited candidate:** `multx-audit-candidate-v0.5.0-20260809`
 - **Report disposition:** NOT READY FOR MAINNET

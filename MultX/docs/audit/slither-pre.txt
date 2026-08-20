@@ -1,5 +1,6 @@
 ================================================================================
 MultX Bridge - Slither pre-audit static analysis
+HISTORICAL V0.6 EVIDENCE ONLY - regenerate from the immutable v0.8 tag.
 ================================================================================
 Tool      : Slither 0.11.5 (crytic)
 Compiler  : solc 0.8.24 (optimizer runs=200)

@@ -19,7 +19,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 ///      - `pauseGuardian`: a separate low-latency key that may `pause()` but never
 ///        `unpause()` or change config — so a compromised guardian can only halt.
 ///      - `ReentrancyGuard` + `whenNotPaused` protect `releaseTokens`.
-///      - Replay protection: `processedNonces[sourceChain][sourceNonce]`.
+///      - Replay protection: `processedNonces[sourceChain][sourceBridge][sourceNonce]`.
 ///      The contract is non-upgradeable; changing logic requires a redeploy.
 contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
@@ -34,8 +34,10 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
     uint256 public signaturesRequired;
     /// @notice Whether a token may be locked through this bridge.
     mapping(address => bool) public supportedTokens;
-    /// @notice processedNonces[sourceChain][sourceNonce] — replay guard for releases.
-    mapping(uint256 => mapping(uint256 => bool)) public processedNonces;
+    /// @notice Whether a token may be routed to a specific destination chain.
+    mapping(address => mapping(uint256 => bool)) public supportedRoutes;
+    /// @notice Replay guard namespaced by the exact source bridge instance.
+    mapping(uint256 => mapping(address => mapping(uint256 => bool))) public processedNonces;
 
     /// @notice Per-token fixed-window 24h cap applied independently to locks and releases (0 = unlimited).
     mapping(address => uint256) public dailyCap;
@@ -71,6 +73,7 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
         address indexed user,
         uint256 amount,
         uint256 sourceChain,
+        address sourceBridge,
         address releasedBy
     );
 
@@ -78,6 +81,8 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
     event ValidatorSetUpdated(address[] validators, uint256 signaturesRequired);
     /// @notice Emitted when a token's daily lock cap is set.
     event DailyCapSet(address indexed token, uint256 cap);
+    /// @notice Emitted when a token/destination route is enabled or disabled.
+    event SupportedRouteSet(address indexed token, uint256 indexed targetChain, bool supported);
     /// @notice Emitted when the fast pause guardian is set or cleared.
     event PauseGuardianUpdated(address indexed previousGuardian, address indexed newGuardian);
 
@@ -112,6 +117,16 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
     /// @param token ERC-20 token address to disable.
     function removeSupportedToken(address token) external onlyOwner {
         supportedTokens[token] = false;
+    }
+
+    /// @notice Enable or disable an explicit token/destination route. Owner-only.
+    function setSupportedRoute(address token, uint256 targetChain, bool supported) external onlyOwner {
+        require(token != address(0), "Invalid token address");
+        require(targetChain > 0, "Invalid target chain");
+        require(targetChain != block.chainid, "Target chain cannot be current chain");
+        if (supported) require(supportedTokens[token], "Token not supported");
+        supportedRoutes[token][targetChain] = supported;
+        emit SupportedRouteSet(token, targetChain, supported);
     }
 
     // ── Admin: pause ────────────────────────────────────────────────────────────
@@ -191,6 +206,7 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
         require(supportedTokens[token], "Token not supported");
         require(amount > 0, "Amount must be greater than 0");
         require(targetChain != block.chainid, "Target chain cannot be current chain");
+        require(supportedRoutes[token][targetChain], "Route not supported");
 
         // Daily cap check (skip if cap == 0)
         if (dailyCap[token] > 0) {
@@ -202,7 +218,10 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
             dailyVolume[token] += amount;
         }
 
+        uint256 balanceBefore = IERC20(token).balanceOf(address(this));
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 received = IERC20(token).balanceOf(address(this)) - balanceBefore;
+        require(received == amount, "Unsupported token transfer semantics");
 
         nonce++;
 
@@ -213,7 +232,8 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
                 amount,
                 targetChain,
                 nonce,
-                block.chainid
+                block.chainid,
+                address(this)
             )
         );
 
@@ -225,16 +245,17 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
 
     /// @notice Release escrowed `token` to `user` on proof of a validator quorum.
     /// @dev Verifies `signaturesRequired` distinct validator signatures over
-    ///      keccak256(sourceTxHash, token, user, amount, sourceChain, sourceNonce,
+    ///      keccak256(sourceTxHash, sourceBridge, token, user, amount, sourceChain, sourceNonce,
     ///                destinationChain, destinationBridge)
     ///      (EIP-191 prefixed). Signers must be supplied in strictly ascending
     ///      address order, which enforces distinctness. Marks the (sourceChain,
-    ///      sourceNonce) pair processed before transferring (checks-effects-
+    ///      sourceBridge, sourceNonce) tuple processed before transferring (checks-effects-
     ///      interactions) and is `nonReentrant`.
     /// @param token Token to release.
     /// @param user Recipient of the released funds.
     /// @param amount Amount to release (must be > 0).
     /// @param sourceChain Chain id where the corresponding lock occurred.
+    /// @param sourceBridge Bridge address where the corresponding lock occurred.
     /// @param sourceNonce Lock nonce on the source chain (replay key).
     /// @param sourceTxHash Lock txHash on the source chain (bound into the signed message).
     /// @param signatures Validator signatures, ascending by signer address.
@@ -243,11 +264,13 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
         address user,
         uint256 amount,
         uint256 sourceChain,
+        address sourceBridge,
         uint256 sourceNonce,
         bytes32 sourceTxHash,
         bytes[] calldata signatures
     ) external nonReentrant whenNotPaused {
-        require(!processedNonces[sourceChain][sourceNonce], "Nonce already processed");
+        require(sourceBridge != address(0), "Invalid source bridge");
+        require(!processedNonces[sourceChain][sourceBridge][sourceNonce], "Nonce already processed");
         require(signatures.length >= signaturesRequired, "Insufficient signatures");
         require(amount > 0, "Amount must be greater than 0");
 
@@ -257,6 +280,7 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
         bytes32 msgHash = keccak256(
             abi.encodePacked(
                 sourceTxHash,
+                sourceBridge,
                 token,
                 user,
                 amount,
@@ -295,11 +319,11 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
         // rate-limiting user ingress.
         _consumeReleaseCap(token, amount);
 
-        processedNonces[sourceChain][sourceNonce] = true;
+        processedNonces[sourceChain][sourceBridge][sourceNonce] = true;
 
         IERC20(token).safeTransfer(user, amount);
 
-        emit TokensReleased(sourceTxHash, token, user, amount, sourceChain, msg.sender);
+        emit TokensReleased(sourceTxHash, token, user, amount, sourceChain, sourceBridge, msg.sender);
     }
 
     function _consumeReleaseCap(address token, uint256 amount) internal {

@@ -4,6 +4,7 @@ import { releaseMessageDigest, sortReleaseSignatures } from '../../services/rele
 
 const fields = {
   sourceTxHash: `0x${'11'.repeat(32)}`,
+  sourceBridge: '0x5555555555555555555555555555555555555555',
   token: '0x1111111111111111111111111111111111111111',
   user: '0x2222222222222222222222222222222222222222',
   amount: '1000000000000000000',
@@ -14,16 +15,20 @@ const fields = {
 };
 
 describe('release message domain', () => {
-  it('binds both destination chain and destination bridge', () => {
+  it('binds source bridge, destination chain, and destination bridge', () => {
     const digest = releaseMessageDigest(fields);
     expect(releaseMessageDigest({ ...fields, destinationChain: 56 })).not.toBe(digest);
     expect(releaseMessageDigest({
       ...fields,
       destinationBridge: '0x4444444444444444444444444444444444444444',
     })).not.toBe(digest);
+    expect(releaseMessageDigest({
+      ...fields,
+      sourceBridge: '0x6666666666666666666666666666666666666666',
+    })).not.toBe(digest);
   });
 
-  it('sorts signatures by recovered validator address using the eight-field digest', async () => {
+  it('sorts signatures by recovered validator address using the nine-field digest', async () => {
     const wallets = [
       new ethers.Wallet(`0x${'01'.repeat(32)}`),
       new ethers.Wallet(`0x${'02'.repeat(32)}`),

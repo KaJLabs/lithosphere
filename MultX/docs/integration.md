@@ -165,7 +165,7 @@ Useful for direct contract reads:
 
 ```solidity
 function lockTokens(address token, uint256 amount, uint256 targetChain) external returns (uint256 nonce);
-function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] calldata signatures) external;
+function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, address sourceBridge, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] calldata signatures) external;
 function isTokenSupported(address token) external view returns (bool);
 
 event TokensLocked(bytes32 indexed txHash, address indexed token, address indexed user, uint256 amount, uint256 indexed targetChain, uint256 nonce);

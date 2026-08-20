@@ -2,17 +2,17 @@
 
 Status: **blocked - do not deploy or enable**
 
-The last immutable engineering candidate was
-`multx-audit-candidate-v0.6.0-20260819`. Autha's v0.5 review concluded **NOT
-READY FOR MAINNET**, and the post-report remediation source is not yet an
-independently reviewed immutable release. See
-`docs/audit/AUTHA_REMEDIATION_2026-08-20.md`. Bridge, Swap,
+Autha's v0.7.0 review concluded **NOT READY FOR MAINNET**. The v0.8
+remediation source is not yet a merged, immutable, independently reviewed
+release. See `docs/audit/AUTHA_V070_REMEDIATION_2026-08-21.md`. Bridge, Swap,
 Cross-swap/MultX, and Faucet remain disabled on LITHO mainnet.
 
 ## Completed preparation
 
-- Destination chain ID and exact release-bridge address are included in every
-  validator signature domain, with replay regression tests.
+- Source bridge, destination chain ID and exact release-bridge address are
+  included in every validator signature domain, with replay regression tests.
+- Token/destination routes are enforced on-chain, and unsupported events are
+  durably quarantined without stopping valid cursor progress.
 - OpenZeppelin ECDSA recovery rejects non-canonical high-s signatures, with
   explicit malleability regression tests on both bridge implementations.
 - Contract, API, signer, SDK, and web source gates pass.

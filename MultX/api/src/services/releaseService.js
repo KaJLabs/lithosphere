@@ -21,11 +21,11 @@ import { pool } from '../db/pool.js';
  */
 
 const BRIDGE_ABI = [
-  'function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] signatures) external',
+  'function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, address sourceBridge, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] signatures) external',
   'function getValidators() view returns (address[])',
   'function signaturesRequired() view returns (uint256)',
   'function paused() view returns (bool)',
-  'function processedNonces(uint256, uint256) view returns (bool)',
+  'function processedNonces(uint256, address, uint256) view returns (bool)',
 ];
 
 let releaseIntervalId = null;
@@ -68,14 +68,14 @@ async function getChainCtx(chainId) {
 // Recover the signer of every stored signature, drop any that aren't current
 // validators, dedupe by signer, and return the signatures sorted by signer
 // ascending (the order releaseTokens requires).
-async function orderedSignatures(tx, token, ctx) {
+async function orderedSignatures(tx, sourceBridge, token, ctx) {
   const { rows } = await pool.query(
     'SELECT signature FROM bridge_signatures WHERE tx_hash = $1',
     [tx.tx_hash]
   );
   const msgHash = ethers.solidityPackedKeccak256(
-    ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256', 'uint256', 'address'],
-    [tx.tx_hash, token, tx.from_address, tx.amount, tx.source_chain, tx.source_nonce,
+    ['bytes32', 'address', 'address', 'address', 'uint256', 'uint256', 'uint256', 'uint256', 'address'],
+    [tx.tx_hash, sourceBridge, token, tx.from_address, tx.amount, tx.source_chain, tx.source_nonce,
       ctx.chainId, ctx.bridgeAddress]
   );
   const ethHash = ethers.hashMessage(ethers.getBytes(msgHash));
@@ -110,10 +110,15 @@ async function releaseOne(tx) {
   }
   const token = tx.release_token;
   const amount = BigInt(tx.amount);
+  const sourceBridge = destChainConfig(tx.source_chain)?.bridge;
+  if (!sourceBridge) {
+    console.warn(`[ReleaseService] no source bridge for chain ${tx.source_chain} — skipping ${short(tx.tx_hash)}`);
+    return;
+  }
 
   // Idempotency: already released on-chain (e.g. the user claimed via the
   // explorer). Reconcile the DB and move on — never resubmit.
-  if (await ctx.bridge.processedNonces(tx.source_chain, tx.source_nonce)) {
+  if (await ctx.bridge.processedNonces(tx.source_chain, sourceBridge, tx.source_nonce)) {
     await markCompleted(tx.tx_hash, null);
     console.log(`[ReleaseService] ${short(tx.tx_hash)} already processed on-chain — reconciled to completed`);
     return;
@@ -123,7 +128,7 @@ async function releaseOne(tx) {
     return;
   }
 
-  const sigs = await orderedSignatures(tx, token, ctx);
+  const sigs = await orderedSignatures(tx, sourceBridge, token, ctx);
   if (sigs.length < ctx.required) {
     console.log(`[ReleaseService] ${short(tx.tx_hash)}: ${sigs.length}/${ctx.required} valid sigs — waiting`);
     return;
@@ -131,7 +136,7 @@ async function releaseOne(tx) {
 
   try {
     const resp = await ctx.bridge.releaseTokens(
-      token, tx.from_address, amount, tx.source_chain, tx.source_nonce, tx.tx_hash,
+      token, tx.from_address, amount, tx.source_chain, sourceBridge, tx.source_nonce, tx.tx_hash,
       sigs.slice(0, ctx.required), { gasLimit: 400_000 }
     );
     console.log(`[ReleaseService] releaseTokens sent for ${short(tx.tx_hash)} → ${resp.hash}`);

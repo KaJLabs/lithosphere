@@ -163,6 +163,7 @@ export const BridgeInbound = () => {
       // recover signer addresses and use them to sort.
       const sortedSigs = sortReleaseSignatures(signatures, {
         sourceTxHash: destTxHash,
+        sourceBridge: statusData.sourceBridge,
         token: kametOriginToken,
         user: wallet.account,
         amount: ethers.BigNumber.from(statusData.amount || '0'),
@@ -178,6 +179,7 @@ export const BridgeInbound = () => {
         wallet.account,
         ethers.BigNumber.from(statusData.amount),
         srcChainId,
+        statusData.sourceBridge,
         statusData.sourceNonce,
         destTxHash,
         sortedSigs

@@ -1,5 +1,8 @@
 # MultX Bridge Audit — Decision Brief (for Litho leadership)
 
+> **Superseded historical decision brief.** It predates Autha's v0.7.0 review
+> and must not be represented as the current v0.8 audit or release package.
+
 **Prepared by:** infra team · **Updated:** 2026-08-19 · **Decision owner:** Litho leadership
 **One-line ask:** approve the budget + pick a firm so we can sign the NDA and kick off the MultX bridge audit.
 

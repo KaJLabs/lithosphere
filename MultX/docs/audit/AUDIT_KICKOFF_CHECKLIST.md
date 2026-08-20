@@ -11,8 +11,8 @@
 - [ ] **[C]** Approve the contract-audit budget (~$20k–$50k), authorize a
       separately itemized signer-protocol quote, and select a firm (or
       authorize [I] to run the RFQ and return exact quotes).
-- [ ] **[I]** Send the current RFQ (`AUDIT_RFQ.md`) and immutable v0.6
-      source bundle to the chosen firm(s); collect quotes (fee, lead time,
+- [ ] **[I]** Send the current RFQ (`AUDIT_RFQ.md`) and the new immutable v0.8
+      source bundle after merge/CI/tag to the chosen firm(s); collect quotes (fee, lead time,
       duration, team, re-audit terms, public-report approval).
 - [ ] **[C]** Confirm the winning quote; **[C]** sign the vendor contract + handle payment terms (per RFQ §7 — client owns the commercial relationship).
 - [ ] **[C/F]** Sign the firm's **mutual NDA** before any code is shared.
@@ -20,21 +20,19 @@
 
 ## Phase 1 — Verify the immutable candidate
 
-> The historical `9f939ab` and `audit-freeze-2026-07-14` references are
-> superseded. The current published candidate is
-> `multx-audit-candidate-v0.6.0-20260819`. It includes destination-chain and
-> bridge domain binding plus OpenZeppelin low-s ECDSA recovery. Never move or
-> reuse an audit tag; publish a new version if any reviewed source changes.
+> All v0.6/v0.7 references are historical. The v0.8 candidate does not exist
+> until the remediation is merged, CI is green, and a new immutable tag is
+> created. Never move or reuse an audit tag; publish a new version if any
+> reviewed source changes.
 
-- [x] **[I]** Confirm the 3 in-scope files are final for this candidate:
+- [ ] **[I]** Confirm the 3 in-scope files are final for the v0.8 candidate:
       `contracts/contracts/{MultXBridge,MultXBridgeDest,WrappedLEP100}.sol`.
-- [x] **[I]** Verify the tag resolves to the recorded commit:
+- [ ] **[I]** Verify the new v0.8 tag resolves to the recorded commit:
       ```bash
-      git rev-list -n 1 multx-audit-candidate-v0.6.0-20260819
+      git rev-list -n 1 REPLACE_WITH_V08_TAG
       ```
-- [x] **[I]** Compile with `solc 0.8.24`, optimizer runs `200`, and record the candidate artifact hashes in [`AUDIT_BYTECODE_HASHES_2026-08-19.md`](./AUDIT_BYTECODE_HASHES_2026-08-19.md). Final deployment still requires constructor-linked deployed-bytecode verification.
-- [x] **[I]** Publish the read-only source snapshot and checksum at
-      [`multx-audit-candidate-v0.6.0-20260819`](https://github.com/KaJLabs/Lithosphere/releases/tag/multx-audit-candidate-v0.6.0-20260819).
+- [ ] **[I]** Compile with `solc 0.8.24`, optimizer runs `200`, and record fresh v0.8 artifact hashes. Final deployment still requires constructor-linked deployed-bytecode verification.
+- [ ] **[I]** Publish the read-only v0.8 source snapshot and checksum at the new immutable tag.
       A private repository invite can still be provided if required by the
       selected firm.
 
