@@ -5,11 +5,8 @@ schema:
 dataSources:
   - kind: ethereum/contract
     name: LithoswapV2Factory
-    # network name must match the graph-node's configured chain for Makalu.
     network: makalu
     source:
-      # Filled from deployments/dex-700777.json (LithoswapV2Factory) after deploy.
-      # Override via networks.json (`graph build --network makalu`).
       address: "0x0000000000000000000000000000000000000000"
       abi: LithoswapV2Factory
       startBlock: 0
