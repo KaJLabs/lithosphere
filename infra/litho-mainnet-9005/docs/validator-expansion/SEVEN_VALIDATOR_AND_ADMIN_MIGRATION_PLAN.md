@@ -29,6 +29,31 @@ For each new validator:
 Only public values belong in `validator-7-intake.csv`. Never place private
 keys, mnemonics, passwords, SSH keys, or recovery material in the CSV or Git.
 
+## Approved planning allocation
+
+The client approved the following stake, initial commission, funding category,
+date range, and rollback-control model. The date ranges do not yet define an
+exact UTC start/end time and therefore do not authorize a transaction.
+
+| Validator | Operator EVM address | Stake | Initial commission | Funding category | Planned dates | Rollback-control model |
+| --- | --- | ---: | ---: | --- | --- | --- |
+| Everest Nodes | `0xA7f2c5f37dBB248240dBC29c0AEF0A11af1dEC6d` | 24,800 LITHO | 5.0% | Foundation Validator Bootstrapping Treasury | 2026-09-01 to 2026-09-03 | 2-of-3 Foundation Ops Multisig + Governance Timelock |
+| CloudQuorum Edge Systems | `0x1A47A44589387cA700d43d3E89B588d2822Ffc79` | 22,500 LITHO | 6.0% | Ecosystem Infrastructure Allocation | 2026-09-03 to 2026-09-05 | 2-of-3 Foundation Ops Multisig + Governance Timelock |
+| NodeHarbor Technologies | `0xaE2243eAe96E8b67036Db7025215F91aF948E39a` | 21,000 LITHO | 5.5% | Foundation Validator Bootstrapping Treasury | 2026-09-05 to 2026-09-07 | 2-of-3 Foundation Ops Multisig + Governance Timelock |
+| VantaVortex Computing | `0x2EBDf1107ab0574128104A74F8b0FA4Dfb3D126b` | 19,000 LITHO | 7.0% | Network Growth Reserve | 2026-09-07 to 2026-09-09 | Emergency Security Council subject to Governance Ratification |
+| AeroGrid Cloud Infrastructure | `0x932cFd135aac700EcDb295dbDB461bd89dB38B54` | 17,500 LITHO | 6.5% | Ecosystem Infrastructure Allocation | 2026-09-09 to 2026-09-11 | Emergency Security Council subject to Governance Ratification |
+| KeystoneWave Data Services | `0x4aa9f2D63E418Cc70706fecb2171DD3ddBF112Ac` | 15,000 LITHO | 7.5% | Network Growth Reserve | 2026-09-11 to 2026-09-13 | 3-of-5 Validator Operations Multisig + Governance Timelock |
+| PrismPulse Edge Networks | `0x82fD50D9BA68597Bb2aE5D8734Fb124BdAcC176a` | 12,500 LITHO | 8.0% | Community Validator Expansion Reserve | 2026-09-13 to 2026-09-15 | 3-of-5 Validator Operations Multisig + Governance Timelock |
+
+The cohort totals 132,300 LITHO, averages 18,900 LITHO, has a stake-weighted
+initial commission of approximately 6.30%, and has a largest-member share of
+approximately 18.75% within the new allocation.
+
+Funding labels are accounting categories, not receiving addresses or proof
+that a treasury account exists. Rollback control can stop later activations or
+authorize a subsequent transaction; it cannot erase a finalized transaction
+or bypass the 21-day unbonding period.
+
 ## Stake and voting-power gate
 
 Voting power follows bonded tokens and can change through delegation. The
@@ -81,14 +106,16 @@ new validators to the projection a second time.
 
 ### Phase 2 — staged activation
 
-Use waves of `2`, `2`, and `3` new validators. For every validator:
+Activate one validator at a time in the approved allocation order. For every
+validator:
 
 1. rerun live readiness and voting-power projection;
 2. independently review transaction JSON and simulation;
 3. fund only the approved operator account and amount;
 4. broadcast one `create-validator` transaction;
 5. verify bonded status, voting power, signing, and transaction hash;
-6. observe the wave for at least 24 hours before continuing.
+6. observe it for at least 24 hours before broadcasting the next validator's
+   transaction.
 
 Pause for a chain halt, finality degradation, unexpected voting-power change,
 missed-block breach, peer isolation, key/backup issue, or failed alert.

@@ -16,9 +16,9 @@ Official documentation for the Lithosphere blockchain — an Ethermint-based (Co
 
 ## Links
 
-- **Explorer**: [makalu.litho.ai](https://makalu.litho.ai)
-- **RPC**: [rpc.litho.ai](https://rpc.litho.ai)
-- **API**: [api.litho.ai](https://api.litho.ai)
+- **Explorer**: [lithoscan.ai](https://lithoscan.ai)
+- **RPC**: [rpc-mainnet.litho.ai](https://rpc-mainnet.litho.ai)
+- **API**: [api-mainnet.litho.ai](https://api-mainnet.litho.ai)
 - **Status**: [status.litho.ai](https://status.litho.ai)
 - **Website**: [litho.ai](https://litho.ai)
 
@@ -26,8 +26,8 @@ Official documentation for the Lithosphere blockchain — an Ethermint-based (Co
 
 | Parameter | Value |
 |-----------|-------|
-| Chain ID | `lithosphere_700777-2` |
-| EVM Chain ID | `700777` |
+| Chain ID | `lithosphere_9005-1` |
+| EVM Chain ID | `9005` |
 | Bech32 Prefix | `litho` |
 | Native Denom | `ulitho` |
 | Decimals | 18 |
