@@ -57,6 +57,44 @@ Staking rewards are credited on-chain. By default, withdrawals go to the
 operator/delegator account unless the account owner sets a different
 withdrawal address through an on-chain transaction.
 
+## September 2026 onboarding cohort
+
+KaJ Labs has approved the following planning allocation for the first seven
+additional mainnet validators. The operator addresses are public account
+identifiers. They are not consensus public keys, P2P node IDs, or private-key
+custody evidence.
+
+| Validator | Operator address | Self-delegation | Initial commission | Funding category | Planned activation dates |
+| --- | --- | ---: | ---: | --- | --- |
+| Everest Nodes | `0xA7f2c5f37dBB248240dBC29c0AEF0A11af1dEC6d` | 24,800 LITHO | 5.0% | Foundation Validator Bootstrapping Treasury | 2026-09-01 to 2026-09-03 |
+| CloudQuorum Edge Systems | `0x1A47A44589387cA700d43d3E89B588d2822Ffc79` | 22,500 LITHO | 6.0% | Ecosystem Infrastructure Allocation | 2026-09-03 to 2026-09-05 |
+| NodeHarbor Technologies | `0xaE2243eAe96E8b67036Db7025215F91aF948E39a` | 21,000 LITHO | 5.5% | Foundation Validator Bootstrapping Treasury | 2026-09-05 to 2026-09-07 |
+| VantaVortex Computing | `0x2EBDf1107ab0574128104A74F8b0FA4Dfb3D126b` | 19,000 LITHO | 7.0% | Network Growth Reserve | 2026-09-07 to 2026-09-09 |
+| AeroGrid Cloud Infrastructure | `0x932cFd135aac700EcDb295dbDB461bd89dB38B54` | 17,500 LITHO | 6.5% | Ecosystem Infrastructure Allocation | 2026-09-09 to 2026-09-11 |
+| KeystoneWave Data Services | `0x4aa9f2D63E418Cc70706fecb2171DD3ddBF112Ac` | 15,000 LITHO | 7.5% | Network Growth Reserve | 2026-09-11 to 2026-09-13 |
+| PrismPulse Edge Networks | `0x82fD50D9BA68597Bb2aE5D8734Fb124BdAcC176a` | 12,500 LITHO | 8.0% | Community Validator Expansion Reserve | 2026-09-13 to 2026-09-15 |
+
+The cohort totals 132,300 LITHO, averages 18,900 LITHO per validator, and has
+a stake-weighted initial commission of approximately 6.30%. The largest member
+holds approximately 18.75% of this seven-validator allocation.
+
+These date ranges are staged planning windows, not permission to broadcast.
+The coordinator must publish exact UTC start/end times before each activation.
+Commission maximums, maximum daily changes, minimum self-delegation, funding
+transactions, operator/validator Bech32 addresses, consensus public keys, node
+IDs, sentry readiness, ownership assignments, and the change approval must
+also be recorded before registration.
+
+Funding-category labels identify approved planning buckets; they are not fee
+receiving addresses. No operator should send funds to an address supplied in
+chat. The approved treasury process funds the verified operator account only
+after node and transaction review.
+
+Operational rollback means stopping later cohorts, withholding unspent
+funding, pausing a change window, and executing an approved validator action.
+It cannot reverse a finalized transaction or bypass the on-chain 21-day
+unbonding period. Never restore or start the same consensus key on two hosts.
+
 ## Before applying
 
 Send the following public information to the KaJ Labs validator coordinator:
