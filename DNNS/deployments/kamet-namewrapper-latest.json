@@ -1,0 +1,16 @@
+{
+  "network": "litho_kamet",
+  "chainId": 900523,
+  "deployer": "0x10ed4F004Fe708014ae27Bcc20c9Ed9df3f4eadF",
+  "timestamp": "2026-05-10T10:03:53.146Z",
+  "contracts": {
+    "nameWrapper": "0xc47E49259b8dDa2C9D57941E1a52747E4c721Cb9",
+    "metadataService": "0x9138E4CD9c5EBAc6964Fd28516BD5B0E83E5AA51"
+  },
+  "config": {
+    "metadataUri": "https://names.litho.ai/metadata/{id}",
+    "registry": "0x316dc15bF377F7187e5BE38BA19e673Ca823d1ab",
+    "baseRegistrar": "0xB3D1a8e92FFAD73Ab8a07BF37A8E1374df8B3722",
+    "note": "Existing names must be wrapped by their owners before subdomain issuance is enabled for each parent."
+  }
+}

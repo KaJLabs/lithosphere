@@ -1,0 +1,58 @@
+{
+  "network": "kamet-900523",
+  "chainId": 900523,
+  "deployer": "0xE9267bDf7084815B0754545049AE45FE744Aefa8",
+  "timestamp": "2026-05-08T21:59:09.311Z",
+  "tld": "litho",
+  "tldNode": "0xe909d46f2bc25cccb05f02e1175c2d84a82f40f6cf869ba2a02e70459c252ac9",
+  "contracts": {
+    "registry": "0x316dc15bF377F7187e5BE38BA19e673Ca823d1ab",
+    "baseRegistrar": "0xB3D1a8e92FFAD73Ab8a07BF37A8E1374df8B3722",
+    "controller": "0xb042145B0Fd44b53691b59E98bE8F9F9EB0365c5",
+    "publicResolver": "0xc0F0849e09Df12E54fe4345ab4535B1F521f2190",
+    "reverseRegistrar": "0xDeFae50866342C8f72bd03292FFeAeb53eC781C2",
+    "priceOracle": "0xD3E0f31AB733C845ED9E4121d547Ca05E99384EB"
+  },
+  "config": {
+    "minCommitmentAge": 60,
+    "maxCommitmentAge": 86400
+  },
+  "reserved": [
+    {
+      "name": "litho",
+      "txHash": "0xd2c62b4f18ee4f54efb8e7eae94914af0e754abf50fdffffc5fcaa329865dcee"
+    },
+    {
+      "name": "kamet",
+      "txHash": "0xb2ac4f6d8256c2f15fb2b751c9fad2f9218ddbd7edfff799b0d71e9f89bd9f88"
+    },
+    {
+      "name": "makalu",
+      "txHash": "0x148bdc5fa2bed18690087ac870341cb0ba5070b9e8013e710cbd5a1359447113"
+    },
+    {
+      "name": "dex",
+      "txHash": "0x947d38f12b82445951b19dc295d6374f482bd46b83abadf98c2650c86e6f7a81"
+    },
+    {
+      "name": "treasury",
+      "txHash": "0x5c69b0d39114a16b03e69648b5d82ecf5f81ba928ba0484e4cc1938565153de9"
+    },
+    {
+      "name": "team",
+      "txHash": "0xfccbcd455fa2993497ab73a2faba2d8ab95f865af2170a3aa419638113cc2945"
+    },
+    {
+      "name": "faucet",
+      "txHash": "0x322e32e42800e05dc535e0b7e3344f64d04eb78b87d2238db6d60c54eb9b03ed"
+    },
+    {
+      "name": "quantts",
+      "txHash": "0x34eedc1d254511bff94f3f08b1d1ee0faaad96f2659dc82e1680ff1a03a3d749"
+    },
+    {
+      "name": "bridge",
+      "txHash": "0xe40cbe4237cec1b7822c9c0c2942b7a8c491fcdec9583e8d4992d82fea248b71"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "litho-dnns-contracts",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Lithosphere Decentralized Naming Service - ENS fork deployed to Kamet (chainId 900523). v0 = Kamet only, .litho TLD, free registration on testnet.",
+  "scripts": {
+    "preinstall": "node scripts/verify-dependency-pins.js",
+    "verify:dependencies": "node scripts/verify-dependency-pins.js",
+    "verify:public-boundary": "node scripts/verify-public-boundary.js",
+    "deploy:core": "hardhat run scripts/01-deploy-core.js  --network litho_kamet",
+    "reserve:names": "hardhat run scripts/02-reserve-names.js --network litho_kamet",
+    "resolve:test": "hardhat run scripts/03-resolve-test.js --network litho_kamet",
+    "deploy:ccip:sepolia": "hardhat run scripts/03-deploy-ccip-sepolia.js --network sepolia",
+    "deploy:ccip:bnb": "hardhat run scripts/04-deploy-ccip-bnb.js --network bnb_testnet",
+    "deploy:ccip:base": "hardhat run scripts/05-deploy-ccip-base.js --network base_sepolia",
+    "deploy:namewrapper": "hardhat run scripts/06-deploy-namewrapper.js --network litho_kamet",
+    "deploy:price-oracle": "hardhat run scripts/07-deploy-price-oracle.js --network litho_kamet",
+    "deploy:wrapper-resolver": "hardhat run scripts/08-deploy-wrapper-resolver.js --network litho_kamet",
+    "compile": "hardhat compile"
+  },
+  "devDependencies": {
+    "@ensdomains/ens-contracts": "1.4.0",
+    "@openzeppelin/contracts": "^4.9.0",
+    "hardhat": "^2.22.0",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
+    "ethers": "^5.7.2",
+    "dotenv": "^16.0.0"
+  }
+}

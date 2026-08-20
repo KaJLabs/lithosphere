@@ -1,0 +1,17 @@
+{
+  "network": "litho_kamet",
+  "chainId": 900523,
+  "deployer": "0x10ed4F004Fe708014ae27Bcc20c9Ed9df3f4eadF",
+  "timestamp": "2026-05-10T10:11:21.261Z",
+  "contracts": {
+    "publicResolver": "0x54639d978418766ccaD25ffb22C58fd5A5Df8C09",
+    "registry": "0x316dc15bF377F7187e5BE38BA19e673Ca823d1ab",
+    "nameWrapper": "0xc47E49259b8dDa2C9D57941E1a52747E4c721Cb9",
+    "controller": "0xb042145B0Fd44b53691b59E98bE8F9F9EB0365c5",
+    "reverseRegistrar": "0xDeFae50866342C8f72bd03292FFeAeb53eC781C2"
+  },
+  "transactions": {
+    "reverseDefaultResolver": null
+  },
+  "previousPublicResolver": "0xc0F0849e09Df12E54fe4345ab4535B1F521f2190"
+}
