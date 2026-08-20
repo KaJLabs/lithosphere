@@ -35,7 +35,10 @@
       "rpc": "https://rpc-mainnet.litho.ai",
       "ws": "wss://rpc-mainnet.litho.ai/websocket",
       "bridge": "REPLACE_WITH_AUDITED_LITHO_BRIDGE",
-      "pollMs": 2000
+      "pollMs": 2000,
+      "startBlock": "REPLACE_WITH_LITHO_BRIDGE_DEPLOYMENT_BLOCK",
+      "confirmations": "REPLACE_WITH_APPROVED_LITHO_FINALITY_DEPTH",
+      "reorgOverlap": "REPLACE_WITH_APPROVED_LITHO_REORG_OVERLAP"
     },
     {
       "name": "ethereum-mainnet",
@@ -43,7 +46,10 @@
       "rpc": "REPLACE_WITH_APPROVED_ETHEREUM_HTTPS_RPC",
       "ws": "REPLACE_WITH_APPROVED_ETHEREUM_WSS_RPC",
       "bridge": "REPLACE_WITH_AUDITED_ETHEREUM_BRIDGE",
-      "pollMs": 4000
+      "pollMs": 4000,
+      "startBlock": "REPLACE_WITH_ETHEREUM_BRIDGE_DEPLOYMENT_BLOCK",
+      "confirmations": "REPLACE_WITH_APPROVED_ETHEREUM_FINALITY_DEPTH",
+      "reorgOverlap": "REPLACE_WITH_APPROVED_ETHEREUM_REORG_OVERLAP"
     },
     {
       "name": "bnb-mainnet",
@@ -51,7 +57,10 @@
       "rpc": "REPLACE_WITH_APPROVED_BNB_HTTPS_RPC",
       "ws": "REPLACE_WITH_APPROVED_BNB_WSS_RPC",
       "bridge": "REPLACE_WITH_AUDITED_BNB_BRIDGE",
-      "pollMs": 4000
+      "pollMs": 4000,
+      "startBlock": "REPLACE_WITH_BNB_BRIDGE_DEPLOYMENT_BLOCK",
+      "confirmations": "REPLACE_WITH_APPROVED_BNB_FINALITY_DEPTH",
+      "reorgOverlap": "REPLACE_WITH_APPROVED_BNB_REORG_OVERLAP"
     },
     {
       "name": "base-mainnet",
@@ -59,7 +68,10 @@
       "rpc": "REPLACE_WITH_APPROVED_BASE_HTTPS_RPC",
       "ws": "REPLACE_WITH_APPROVED_BASE_WSS_RPC",
       "bridge": "REPLACE_WITH_AUDITED_BASE_BRIDGE",
-      "pollMs": 4000
+      "pollMs": 4000,
+      "startBlock": "REPLACE_WITH_BASE_BRIDGE_DEPLOYMENT_BLOCK",
+      "confirmations": "REPLACE_WITH_APPROVED_BASE_FINALITY_DEPTH",
+      "reorgOverlap": "REPLACE_WITH_APPROVED_BASE_REORG_OVERLAP"
     }
   ],
   "tokenPairs": [

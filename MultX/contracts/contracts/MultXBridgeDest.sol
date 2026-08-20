@@ -21,7 +21,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 /// sign attestations for both directions without code changes.
 /// @notice Mint/burn interface the destination bridge calls on a WrappedLEP100 token.
 interface IWrappedLEP100 {
-    /// @dev Mint `amount` wrapped tokens to `to` (bridge must hold the mint role).
+    /// @dev Mint `amount` wrapped tokens to `to` (caller must be the immutable bridge).
     function bridgeMint(address to, uint256 amount) external;
     /// @dev Burn `amount` of `account`'s wrapped tokens (requires prior approval).
     function burnFrom(address account, uint256 amount) external;
@@ -50,12 +50,16 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
     /// @notice processedNonces[sourceChain][sourceNonce] — replay guard for releases.
     mapping(uint256 => mapping(uint256 => bool)) public processedNonces;
 
-    /// @notice Per-token rolling 24h volume cap on locks (0 = unlimited).
+    /// @notice Per-token fixed-window 24h cap applied independently to locks and releases (0 = unlimited).
     mapping(address => uint256) public dailyCap;
-    /// @notice Per-token volume locked in the current 24h window.
+    /// @notice Per-token volume locked in the current fixed 24h window.
     mapping(address => uint256) public dailyVolume;
-    /// @notice Per-token timestamp at which the current 24h window started.
+    /// @notice Per-token timestamp at which the current lock window started.
     mapping(address => uint256) public lastCapReset;
+    /// @notice Per-token volume released in the current fixed 24h window.
+    mapping(address => uint256) public releaseVolume;
+    /// @notice Per-token timestamp at which the current release window started.
+    mapping(address => uint256) public lastReleaseCapReset;
 
     /// @notice Fast emergency-pause role, separate from the owner.
     /// The guardian can pause() but NOT unpause(), and cannot touch any config.
@@ -170,9 +174,9 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
 
     // ── Admin: daily cap ────────────────────────────────────────────────────────
 
-    /// @notice Set a token's rolling 24h lock cap (0 = unlimited). Owner-only.
+    /// @notice Set a token's fixed-window 24h lock and release cap (0 = unlimited). Owner-only.
     /// @param token Token to cap.
-    /// @param cap Maximum cumulative lock amount per 24h window.
+    /// @param cap Maximum cumulative amount in each independent lock/release window.
     function setDailyCap(address token, uint256 cap) external onlyOwner {
         dailyCap[token] = cap;
         emit DailyCapSet(token, cap);
@@ -191,7 +195,7 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
         address token,
         uint256 amount,
         uint256 targetChain
-    ) external whenNotPaused returns (bytes32) {
+    ) external nonReentrant whenNotPaused returns (bytes32) {
         require(supportedTokens[token], "Token not supported");
         require(amount > 0, "Amount must be greater than 0");
         require(targetChain != block.chainid, "Target chain cannot be current chain");
@@ -205,11 +209,13 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
             dailyVolume[token] += amount;
         }
 
+        // Reserve the nonce before the external burn (checks-effects-interactions).
+        // A failed burn reverts this increment with the rest of the transaction.
+        nonce++;
+
         // Burn the user's wrapped tokens. Requires prior approve() so the bridge
         // can call burnFrom — standard ERC20Burnable pattern.
         IWrappedLEP100(token).burnFrom(msg.sender, amount);
-
-        nonce++;
 
         bytes32 txHash = keccak256(
             abi.encodePacked(token, msg.sender, amount, targetChain, nonce, block.chainid)
@@ -286,13 +292,28 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
 
         require(validSignatures >= signaturesRequired, "Insufficient valid signatures");
 
+        // Apply the configured cap to outbound minting in a separate fixed
+        // 24-hour window. This limits a compromised quorum instead of only
+        // rate-limiting reverse-bridge burns.
+        _consumeReleaseCap(token, amount);
+
         processedNonces[sourceChain][sourceNonce] = true;
 
-        // Mint the wrapped tokens directly to the user. The wrapped token MUST
-        // have granted BRIDGE_ROLE to this contract at deploy time.
+        // Mint directly to the user. The wrapped token must bind its immutable
+        // bridge address to this exact contract at deployment time.
         IWrappedLEP100(token).bridgeMint(user, amount);
 
         emit TokensReleased(sourceTxHash, token, user, amount, sourceChain, msg.sender);
+    }
+
+    function _consumeReleaseCap(address token, uint256 amount) internal {
+        if (dailyCap[token] == 0) return;
+        if (block.timestamp >= lastReleaseCapReset[token] + 1 days) {
+            releaseVolume[token] = 0;
+            lastReleaseCapReset[token] = block.timestamp;
+        }
+        require(releaseVolume[token] + amount <= dailyCap[token], "Release cap exceeded");
+        releaseVolume[token] += amount;
     }
 
     // ── Views ───────────────────────────────────────────────────────────────────
@@ -306,6 +327,13 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
     function getDailyRemaining(address token) external view returns (uint256) {
         if (dailyCap[token] == 0) return type(uint256).max;
         uint256 vol = (block.timestamp >= lastCapReset[token] + 1 days) ? 0 : dailyVolume[token];
+        return dailyCap[token] > vol ? dailyCap[token] - vol : 0;
+    }
+
+    /// @notice Remaining releasable volume in the current fixed 24h window.
+    function getDailyReleaseRemaining(address token) external view returns (uint256) {
+        if (dailyCap[token] == 0) return type(uint256).max;
+        uint256 vol = (block.timestamp >= lastReleaseCapReset[token] + 1 days) ? 0 : releaseVolume[token];
         return dailyCap[token] > vol ? dailyCap[token] - vol : 0;
     }
 }

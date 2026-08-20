@@ -5,7 +5,8 @@
 -- Until this migration, the event listener only watched Kamet (chainId 900523)
 -- and the validator service implicitly assumed every lock originated there.
 -- The release-side hash that the contract verifies (per MultXBridge.releaseTokens)
--- is keccak256(sourceTxHash, token, user, amount, sourceChain, sourceNonce),
+-- is keccak256(sourceTxHash, token, user, amount, sourceChain, sourceNonce,
+--              destinationChain, destinationBridge),
 -- where `token` is the address on the chain WHERE RELEASE HAPPENS — which may
 -- differ from the locked token (e.g. wrapped vs original). The current code
 -- erroneously substitutes target_chain into the sourceChain slot of the hash,

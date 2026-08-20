@@ -66,7 +66,10 @@ contract DestBridgeHandler is Test {
         returns (bytes32)
     {
         bytes32 msgHash = keccak256(
-            abi.encodePacked(sourceTxHash, address(wrapped), user, amount, SOURCE_CHAIN, sourceNonce)
+            abi.encodePacked(
+                sourceTxHash, address(wrapped), user, amount, SOURCE_CHAIN,
+                sourceNonce, block.chainid, address(bridge)
+            )
         );
         return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", msgHash));
     }
@@ -130,8 +133,11 @@ contract DestBridgeHandler is Test {
         if (seed % 3 == 0) {
             cap = 0; // unlimited
         } else {
-            uint256 vol = bridge.dailyVolume(address(wrapped));
-            cap = bound(capSeed, vol, vol + 1e27);
+            uint256 lockVol = bridge.dailyVolume(address(wrapped));
+            uint256 releaseVol = bridge.releaseVolume(address(wrapped));
+            uint256 vol = lockVol > releaseVol ? lockVol : releaseVol;
+            uint256 minCap = vol == 0 ? 1 : vol;
+            cap = bound(capSeed, minCap, minCap + 1e27);
         }
         vm.prank(owner);
         bridge.setDailyCap(address(wrapped), cap);
@@ -173,8 +179,8 @@ contract MultXBridgeDestInvariant is Test {
         for (uint256 i = 0; i < 3; i++) vals[i] = vm.addr(pks[i]);
 
         bridge = new MultXBridgeDest(vals, sigsRequired);
-        // Deploy the wrapped token granting BRIDGE_ROLE to the bridge, then
-        // register it so the burn (lockTokens) path accepts it.
+        // Deploy the wrapped token with this bridge as its immutable minter,
+        // then register it so the burn (lockTokens) path accepts it.
         wrapped = new WrappedLEP100("Wrapped LITHO", "wLITHO", 18, address(bridge), address(0x0AB1), 9005);
         bridge.addSupportedToken(address(wrapped));
 
@@ -213,6 +219,7 @@ contract MultXBridgeDestInvariant is Test {
         uint256 cap = bridge.dailyCap(address(wrapped));
         if (cap > 0) {
             assertLe(bridge.dailyVolume(address(wrapped)), cap, "dailyVolume > dailyCap");
+            assertLe(bridge.releaseVolume(address(wrapped)), cap, "releaseVolume > dailyCap");
         }
     }
 

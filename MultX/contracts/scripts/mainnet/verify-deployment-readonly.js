@@ -12,13 +12,13 @@ const BRIDGE_ABI = [
   'function validators(uint256) view returns (address)',
   'function supportedTokens(address) view returns (bool)',
   'function dailyCap(address) view returns (uint256)',
+  'function releaseVolume(address) view returns (uint256)',
 ];
 
 const WRAPPED_ABI = [
   'function originChainId() view returns (uint256)',
   'function originToken() view returns (address)',
-  'function BRIDGE_ROLE() view returns (bytes32)',
-  'function hasRole(bytes32,address) view returns (bool)',
+  'function bridge() view returns (address)',
 ];
 
 const sha256Code = (code) => crypto.createHash('sha256')
@@ -53,25 +53,29 @@ async function verifyDeploymentReadonly(manifest, providerFactory = (rpc) => new
     }
 
     for (const asset of chain.assets) {
-      const [supported, cap, code] = await Promise.all([
+      const [supported, cap, released, code] = await Promise.all([
         bridge.supportedTokens(asset.address),
         bridge.dailyCap(asset.address),
+        bridge.releaseVolume(asset.address),
         provider.getCode(asset.address),
       ]);
       if (!supported) throw new Error(`${chain.name} ${asset.symbol} is not supported by the bridge`);
       if (cap.toString() !== asset.dailyCapBaseUnits) throw new Error(`${chain.name} ${asset.symbol} daily cap mismatch`);
+      if (!released.isZero()) throw new Error(`${chain.name} ${asset.symbol} release volume is not zero at deployment verification`);
       if (code === '0x' || sha256Code(code) !== asset.runtimeSha256.toLowerCase()) {
         throw new Error(`${chain.name} ${asset.symbol} runtime SHA-256 mismatch`);
       }
 
       if (asset.kind === 'wrapped') {
         const token = new ethers.Contract(asset.address, WRAPPED_ABI, provider);
-        const [originChainId, originToken, bridgeRole] = await Promise.all([
-          token.originChainId(), token.originToken(), token.BRIDGE_ROLE(),
+        const [originChainId, originToken, immutableBridge] = await Promise.all([
+          token.originChainId(), token.originToken(), token.bridge(),
         ]);
         if (originChainId.toNumber() !== 9005) throw new Error(`${chain.name} ${asset.symbol} origin chain mismatch`);
         if (originToken.toLowerCase() !== asset.originToken.toLowerCase()) throw new Error(`${chain.name} ${asset.symbol} origin token mismatch`);
-        if (!await token.hasRole(bridgeRole, chain.bridge.address)) throw new Error(`${chain.name} ${asset.symbol} bridge role is missing`);
+        if (immutableBridge.toLowerCase() !== chain.bridge.address.toLowerCase()) {
+          throw new Error(`${chain.name} ${asset.symbol} immutable bridge mismatch`);
+        }
       }
     }
 

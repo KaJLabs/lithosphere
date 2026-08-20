@@ -131,6 +131,34 @@ describe("MultXBridge", function () {
     expect(userBalance).to.equal(ethers.utils.parseEther("1000"));
   });
 
+  it("Should enforce the configured cap independently on releases", async function () {
+    const cap = ethers.utils.parseEther("10");
+    const firstAmount = ethers.utils.parseEther("6");
+    const secondAmount = ethers.utils.parseEther("5");
+    await bridge.setDailyCap(token.address, cap);
+    await token.mint(bridge.address, firstAmount.add(secondAmount));
+
+    const firstTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("release-cap-1"));
+    const firstHash = await getReleaseHash(firstTxHash, firstAmount, 1, 501);
+    const firstSigs = await getSortedSignatures([validator1, validator2], firstHash);
+    await bridge.releaseTokens(
+      token.address, user.address, firstAmount, 1, 501, firstTxHash, firstSigs
+    );
+
+    expect(await bridge.releaseVolume(token.address)).to.equal(firstAmount);
+    expect(await bridge.getDailyReleaseRemaining(token.address)).to.equal(cap.sub(firstAmount));
+
+    const secondTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("release-cap-2"));
+    const secondHash = await getReleaseHash(secondTxHash, secondAmount, 1, 502);
+    const secondSigs = await getSortedSignatures([validator1, validator2], secondHash);
+    await expect(
+      bridge.releaseTokens(
+        token.address, user.address, secondAmount, 1, 502, secondTxHash, secondSigs
+      )
+    ).to.be.revertedWith("Release cap exceeded");
+    expect(await bridge.processedNonces(1, 502)).to.equal(false);
+  });
+
   it("Should reject duplicate nonce", async function () {
     const amount = ethers.utils.parseEther("100");
     const targetChain = 1;

@@ -73,9 +73,9 @@ User                  MultXBridge (dest)         Validator service       MultXBr
 
 | Contract | Code lines | Physical lines | Purpose | Storage |
 |---|---:|---:|---|---|
-| `MultXBridge.sol` | 177 | 316 | Source-chain lock + release (LITHO) | nonce, validators[], supportedTokens, processedNonces, dailyCap/dailyVolume/lastCapReset, Pausable._paused |
-| `MultXBridgeDest.sol` | 170 | 311 | Destination-chain lock(burn) + release(mint) | same layout as `MultXBridge`, but `lockTokens` burns the wrapped token via `burnFrom` and `releaseTokens` mints via `bridgeMint` |
-| `WrappedLEP100.sol` | 35 | 54 | Wrapped representation on destination chains | OZ ERC20 + ERC20Burnable + AccessControl with `BRIDGE_ROLE` |
+| `MultXBridge.sol` | — | — | Source-chain lock + release (LITHO) | validator/replay state plus independent fixed-window lock and release volumes |
+| `MultXBridgeDest.sol` | — | — | Destination-chain lock(burn) + release(mint) | same controls as `MultXBridge`; burns on locks and mints on releases |
+| `WrappedLEP100.sol` | — | — | Wrapped representation on destination chains | OZ ERC20 + ERC20Burnable; one immutable bridge minter and no administrator |
 
 ### 1.4 Contracts out of scope (don't audit, don't bill)
 
@@ -91,11 +91,11 @@ User                  MultXBridge (dest)         Validator service       MultXBr
 | # | Assumption | What we mitigate / accept |
 |---|---|---|
 | T1 | Bridge signer key custody is secure | Each signer uses a unique non-exportable AWS KMS `ECC_SECG_P256K1` key. The API and containers hold no validator private keys. A private HTTPS load balancer and a unique bearer token authenticate API-to-signer traffic. Review `MultX/signer/`, `api/src/services/remoteSigner.js`, and `docs/FARGATE_PRODUCTION_SIGNER_CANDIDATE.md`. |
-| T2 | At least `signaturesRequired` bridge signers (target: **5 of 7**) act honestly | This is the core security assumption. Any N out of M collusion can mint arbitrary wrapped tokens (limit: total locked on source). The target set is not active on mainnet yet. |
+| T2 | At least `signaturesRequired` bridge signers (target: **5 of 7**) act honestly | This is the core security assumption. A quorum can authorize false releases, but every supported production asset must have a positive fixed-window outbound cap. The target set is not active on mainnet yet. |
 | T3 | LITHO mainnet itself remains within its BFT safety assumptions | Bridge security inherits chain security. LITHO runs CometBFT consensus with a consensus validator set that is separate from the seven MultX bridge signers. |
 | T4 | Source-chain RPC providers return honest state to bridge signers | Every signer queries its configured RPC and verifies the exact event and confirmation depth. Quorum does not provide independence if multiple signers share the same compromised upstream; endpoint/provider diversity must be reviewed before activation. |
 | T5 | Compiler (`solc 0.8.24` with optimizer runs=200) is sound | Standard assumption; well-known compiler, widely used. |
-| T6 | OpenZeppelin contracts (Pausable, ReentrancyGuard, AccessControl, SafeERC20, ERC20Burnable) are sound | OZ audited and battle-tested. |
+| T6 | OpenZeppelin contracts (Pausable, ReentrancyGuard, SafeERC20, ERC20Burnable) are sound | OZ audited and battle-tested. |
 | T7 | The owner key (setValidatorSet/setDailyCap/addSupportedToken/unpause) is custodied securely | Target: **owner = TimelockController (48h) governed by an M-of-N Gnosis Safe** (ADR-0004), with a separate fast `pauseGuardian`. Built + tested; live transfer scheduled for production cutover (client decision — see L1). Until then the live owner is the deployer EOA. |
 
 ---
@@ -114,16 +114,21 @@ User                  MultXBridge (dest)         Validator service       MultXBr
 
 **Capability:** sign release of arbitrary amounts of wrapped tokens on destination chains without a corresponding lock on the configured source chain (or vice versa).
 
-**Impact:** Can mint up to the total user-supplied liquidity locked on the source chain (worst case: drain all locked LEP100). Cannot mint beyond what's been locked because the dest-chain `releaseTokens` is also one-way (it just transfers from the bridge's own balance).
+**Impact:** Can authorize a false canonical transfer or wrapped-token mint. Each
+bridge enforces the configured positive per-token cap on releases in an
+independent fixed 24-hour window. This bounds, but does not eliminate, quorum
+compromise losses before detection and pause.
 
-Actually — on dest chains, `releaseTokens` calls `IERC20(token).safeTransfer(user, amount)`, which transfers from the bridge's own balance of wrapped tokens. **The bridge's balance is its mint authority via `BRIDGE_ROLE`**, so a colluding majority can mint arbitrarily.
+`WrappedLEP100` has no administrator or role-grant path. Its single immutable
+`bridge` address is the only caller that can mint, eliminating the separate
+administrator bypass identified as Autha C-01.
 
 **This is the core trust boundary.** Mitigated only by:
 - Validator set composition (independent operators, ideally not all under one legal/operational entity)
 - Per-signer KMS/IAM isolation, private endpoint and bearer boundaries,
   DynamoDB anti-equivocation records, and signer-local policy checks make a
   quorum compromise materially harder
-- Daily caps (`dailyCap[token]`) — limits damage of a single-day rogue release
+- Fixed-window caps (`dailyCap[token]`) independently constrain locks and releases; a boundary burst can approach 2x the configured cap and is included in policy sizing
 - Emergency pause — owner can halt all bridge operations within one block of detection
 
 ### 3.3 Malicious user / external attacker
@@ -141,9 +146,9 @@ Actually — on dest chains, `releaseTokens` calls `IERC20(token).safeTransfer(u
 | Lock 0 amount to create spam events | `require(amount > 0, "Amount must be greater than 0")` |
 | Lock to current chain (no-op bridge) | `require(targetChain != block.chainid)` |
 | Bridge unsupported token | `require(supportedTokens[token], "Token not supported")` |
-| Exceed daily cap | Per-token rolling 24h window + `require(dailyVolume + amount <= dailyCap)` (when cap > 0) |
+| Exceed lock or release cap | Per-token fixed 24h windows separately enforce `dailyVolume + amount <= dailyCap` and `releaseVolume + amount <= dailyCap` |
 | Front-run or malleate an in-flight signature submission | Signatures bind `(sourceTxHash, token, user, amount, sourceChain, sourceNonce, destinationChain, destinationBridge)`; OpenZeppelin ECDSA rejects non-canonical high-s signatures, and only the bound recipient receives funds |
-| Inflate cap by waiting just under 24h then bursting | `lastCapReset` is reset only when 24h has passed; a 23h59m burst still counts against the cap |
+| Burst across a cap-window boundary | Explicitly accepted fixed-window behavior; policy must size caps for a potential near-2x boundary burst and monitoring must alert before exhaustion |
 
 ### 3.4 Malicious bridge owner
 
@@ -220,7 +225,7 @@ function invariant_pause_blocks_lock() public {
 | L2 | No economic slashing of misbehaving validators | Out of scope for v1; bridge can rotate via `setValidatorSet` instead | Optional: stake LITHO via separate contract that can slash on equivocation proof |
 | L3 | Validator service uses one signature coordinator (`MultX/api`), not a P2P mesh | The coordinator cannot forge signatures and each signer independently validates the source event, confirmations, bridge and route. A coordinator outage can halt transfers, but cannot satisfy the quorum. | Add redundant coordinators or P2P aggregation if availability requires it |
 | L4 | Cross-destination replay — **resolved in audit candidate** | The signed hash now includes `block.chainid` and `address(this)`. Signer policies also bind the release bridge. Contract, API and signer tests reject reuse on a different chain/bridge. Independent audit confirmation remains required. |
-| L5 | `block.timestamp` used for daily cap reset | Acceptable: 24-hour window cannot be meaningfully manipulated by ±15s block-time drift | None |
+| L5 | Caps use fixed 24-hour windows, not rolling windows | Boundary behavior can allow nearly 2x the nominal cap in a short interval; this is documented and must be included in approved cap sizing | A future rolling-bucket implementation may reduce burst allowance |
 | L6 | Pause guardian == owner — **RESOLVED in code** | Dedicated `pauseGuardian` role added: a fast ops key can `pause()` without holding owner rights; `unpause()`/config stay owner-only. Proven in `contracts/test/Governance.integration.test.js`. The live `pauseGuardian` is assigned during the governance wiring at production cutover (address(0) until then → pause is owner-only, as today). | Assign guardian at cutover |
 | L7 | No on-chain `setSignaturesRequired` independent of `setValidatorSet` | `setValidatorSet` always takes both; intentional to prevent inconsistent state | None |
 
@@ -247,12 +252,11 @@ To keep the audit scoped tightly and the fee predictable:
 We'd like the audit to specifically opine on:
 
 1. **Signature scheme:** confirm that the EIP-191 hash, now explicitly bound to destination `block.chainid` and `address(this)`, plus ordered-signer enforcement is robust against malleability and cross-domain replay. Advise whether EIP-712 is still required.
-2. **Cap semantics:** is the daily cap reset logic safe against day-boundary
-   edge cases, including bounded timestamp manipulation by source-chain block
-   producers?
+2. **Cap semantics:** confirm the documented fixed-window boundary behavior and
+   the independent outbound release limiter adequately address M-04.
 3. **Pause behavior on `releaseTokens`:** if a release is mid-execution when pause is called, does it complete? Should it?
 4. **Validator set rotation:** when `setValidatorSet` is called, any release tx not yet executed will reject signatures from the old set. Is this the desired behavior, or should there be a grace period? Recommend documenting this in operator runbook.
-5. **Dest-chain wrapped token (`WrappedLEP100`):** is the `BRIDGE_ROLE`-only mint pattern sufficient, or should we add explicit `pause` on the wrapper too?
+5. **Dest-chain wrapped token (`WrappedLEP100`):** confirm its immutable bridge-only mint authority closes C-01 without introducing a new administrator path.
 
 ---
 
@@ -292,7 +296,8 @@ Items the audit firm should expect at kickoff:
 - [x] Contract source code (`contracts/contracts/MultXBridge.sol`, `MultXBridgeDest.sol`, `WrappedLEP100.sol`)
 - [x] This threat model document
 - [x] Slither 0.11.5 pre-audit report (`slither-pre.txt`) — refreshed 2026-08-19 over the immutable candidate; 13 results retained with engineering triage for independent review
-- [x] Immutable candidate tag (`multx-audit-candidate-v0.6.0-20260819`; firms re-confirm the resolved commit at kickoff)
+- [x] Historical pre-remediation candidate tag (`multx-audit-candidate-v0.6.0-20260819`)
+- [ ] New immutable Autha-remediation tag; create only after CI and merge, then require the firm to confirm its resolved commit
 - [x] Hardhat test suite (`contracts/test/MultXBridge.test.js`, `MultXBridgeDest.test.js`, `WrappedLEP100.test.js`)
 - [x] Deployment scripts (`contracts/scripts/02-redeploy-bridge-hardened.js`, `03-deploy-dest-chain.js`)
 - [x] Operator runbooks (`docs/operations/BRIDGE_RUNBOOK.md`, `VALIDATOR_KEY_ROTATION.md`)

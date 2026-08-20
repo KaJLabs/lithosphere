@@ -25,6 +25,9 @@ const candidate = () => ({
     ws: `wss://rpc-${chainId}.example.com/websocket`,
     bridge: bridge(index + 1),
     pollMs: 4000,
+    startBlock: 1000 + index,
+    confirmations: 12,
+    reorgOverlap: 12,
   })),
   tokenPairs: [
     { sourceChain: 9005, sourceToken: bridge(100), targetChain: 1, releaseToken: bridge(101) },
@@ -75,6 +78,20 @@ test('rejects a bridge mismatch between public and watched chain records', () =>
   const input = candidate();
   input.chainsToWatch[0].bridge = bridge(999);
   assert.throws(() => validateProductionNetworkConfig(input), /bridge does not match/);
+});
+
+test('rejects missing or invalid event-ingestion safety parameters', () => {
+  const missing = candidate();
+  delete missing.chainsToWatch[0].startBlock;
+  assert.throws(() => validateProductionNetworkConfig(missing), /startBlock/);
+
+  const zeroConfirmations = candidate();
+  zeroConfirmations.chainsToWatch[0].confirmations = 0;
+  assert.throws(() => validateProductionNetworkConfig(zeroConfirmations), /confirmations/);
+
+  const negativeOverlap = candidate();
+  negativeOverlap.chainsToWatch[0].reorgOverlap = -1;
+  assert.throws(() => validateProductionNetworkConfig(negativeOverlap), /reorgOverlap/);
 });
 
 

@@ -37,12 +37,16 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
     /// @notice processedNonces[sourceChain][sourceNonce] — replay guard for releases.
     mapping(uint256 => mapping(uint256 => bool)) public processedNonces;
 
-    /// @notice Per-token rolling 24h volume cap on locks (0 = unlimited).
+    /// @notice Per-token fixed-window 24h cap applied independently to locks and releases (0 = unlimited).
     mapping(address => uint256) public dailyCap;
-    /// @notice Per-token volume locked in the current 24h window.
+    /// @notice Per-token volume locked in the current fixed 24h window.
     mapping(address => uint256) public dailyVolume;
-    /// @notice Per-token timestamp at which the current 24h window started.
+    /// @notice Per-token timestamp at which the current lock window started.
     mapping(address => uint256) public lastCapReset;
+    /// @notice Per-token volume released in the current fixed 24h window.
+    mapping(address => uint256) public releaseVolume;
+    /// @notice Per-token timestamp at which the current release window started.
+    mapping(address => uint256) public lastReleaseCapReset;
 
     /// @notice Fast emergency-pause role, separate from the owner.
     /// The guardian can pause() but NOT unpause(), and cannot touch any config.
@@ -161,9 +165,9 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
 
     // ── Admin: daily cap ────────────────────────────────────────────────────────
 
-    /// @notice Set a token's rolling 24h lock cap (0 = unlimited). Owner-only.
+    /// @notice Set a token's fixed-window 24h lock and release cap (0 = unlimited). Owner-only.
     /// @param token Token to cap.
-    /// @param cap Maximum cumulative lock amount per 24h window.
+    /// @param cap Maximum cumulative amount in each independent lock/release window.
     function setDailyCap(address token, uint256 cap) external onlyOwner {
         dailyCap[token] = cap;
         emit DailyCapSet(token, cap);
@@ -183,7 +187,7 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
         address token,
         uint256 amount,
         uint256 targetChain
-    ) external whenNotPaused returns (bytes32) {
+    ) external nonReentrant whenNotPaused returns (bytes32) {
         require(supportedTokens[token], "Token not supported");
         require(amount > 0, "Amount must be greater than 0");
         require(targetChain != block.chainid, "Target chain cannot be current chain");
@@ -221,7 +225,8 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
 
     /// @notice Release escrowed `token` to `user` on proof of a validator quorum.
     /// @dev Verifies `signaturesRequired` distinct validator signatures over
-    ///      keccak256(sourceTxHash, token, user, amount, sourceChain, sourceNonce)
+    ///      keccak256(sourceTxHash, token, user, amount, sourceChain, sourceNonce,
+    ///                destinationChain, destinationBridge)
     ///      (EIP-191 prefixed). Signers must be supplied in strictly ascending
     ///      address order, which enforces distinctness. Marks the (sourceChain,
     ///      sourceNonce) pair processed before transferring (checks-effects-
@@ -285,11 +290,26 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
 
         require(validSignatures >= signaturesRequired, "Insufficient valid signatures");
 
+        // Apply the configured cap to outbound value in a separate fixed
+        // 24-hour window. This limits a compromised quorum instead of only
+        // rate-limiting user ingress.
+        _consumeReleaseCap(token, amount);
+
         processedNonces[sourceChain][sourceNonce] = true;
 
         IERC20(token).safeTransfer(user, amount);
 
         emit TokensReleased(sourceTxHash, token, user, amount, sourceChain, msg.sender);
+    }
+
+    function _consumeReleaseCap(address token, uint256 amount) internal {
+        if (dailyCap[token] == 0) return;
+        if (block.timestamp >= lastReleaseCapReset[token] + 1 days) {
+            releaseVolume[token] = 0;
+            lastReleaseCapReset[token] = block.timestamp;
+        }
+        require(releaseVolume[token] + amount <= dailyCap[token], "Release cap exceeded");
+        releaseVolume[token] += amount;
     }
 
     // ── Views ───────────────────────────────────────────────────────────────────
@@ -311,6 +331,13 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
     function getDailyRemaining(address token) external view returns (uint256) {
         if (dailyCap[token] == 0) return type(uint256).max;
         uint256 vol = (block.timestamp >= lastCapReset[token] + 1 days) ? 0 : dailyVolume[token];
+        return dailyCap[token] > vol ? dailyCap[token] - vol : 0;
+    }
+
+    /// @notice Remaining releasable volume in the current fixed 24h window.
+    function getDailyReleaseRemaining(address token) external view returns (uint256) {
+        if (dailyCap[token] == 0) return type(uint256).max;
+        uint256 vol = (block.timestamp >= lastReleaseCapReset[token] + 1 days) ? 0 : releaseVolume[token];
         return dailyCap[token] > vol ? dailyCap[token] - vol : 0;
     }
 }

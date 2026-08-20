@@ -13,7 +13,7 @@ mislabel the historical deployments. MultX remains disabled on LITHO mainnet.
 - Chain ID, Hardhat network, token code, and ERC-20 symbols are checked against
   the selected RPC before any transaction.
 - Governance owner and pause guardian must be distinct approved addresses.
-- Every supported token requires a positive, explicit base-unit daily cap.
+- Every supported token requires a positive, explicit base-unit fixed-window lock/release cap.
 - Preflight is the default and signs nothing.
 - Execution is rejected unless the current time is inside the manifest's exact
   approved UTC start/end window.

@@ -44,7 +44,7 @@ pause toggles) under fuzzing. Invariants asserted after every call sequence
 | `invariant_releaseNeverExceedsLock` | cumulative released ≤ cumulative locked |
 | `invariant_nonceEqualsLockSuccesses` | `nonce` increments by exactly 1 per successful lock, only on lock |
 | `invariant_noDoubleRelease` | a processed `(sourceChain, sourceNonce)` can never release twice (replay guard) |
-| `invariant_dailyVolumeWithinCap` | per-token `dailyVolume ≤ dailyCap` whenever a non-zero cap is set |
+| `invariant_dailyVolumeWithinCap` | per-token lock and release volumes are each ≤ `dailyCap` whenever a non-zero cap is set |
 | `invariant_signaturesRequiredWellFormed` | `0 < signaturesRequired ≤ validators.length` |
 
 The handler signs releases with known validator keys (`vm.sign`) sorted ascending
@@ -70,7 +70,7 @@ removing the contract's `require(!processedNonces[...])` makes
 The **destination** bridge is mint/burn, not escrow: `releaseTokens` MINTS wrapped
 tokens on an attested LITHO mainnet lock (forward), `lockTokens` BURNS them to bridge back
 (reverse). A `DestBridgeHandler` drives it against the real `WrappedLEP100` token
-(which grants `BRIDGE_ROLE` to the bridge), as the sole mint recipient and sole
+(which binds the bridge as its immutable minter), as the sole mint recipient and sole
 burner, so the accounting is exact:
 
 | Invariant | Property |
@@ -79,7 +79,7 @@ burner, so the accounting is exact:
 | `invariant_burnNeverExceedsMint` | cumulative burned ≤ cumulative minted |
 | `invariant_noDoubleRelease` | a processed `(sourceChain, sourceNonce)` can never mint twice |
 | `invariant_nonceEqualsBurnSuccesses` | `nonce` increments by exactly 1 per successful lock/burn, only on lock |
-| `invariant_dailyVolumeWithinCap` | per-token burn `dailyVolume ≤ dailyCap` whenever a non-zero cap is set |
+| `invariant_dailyVolumeWithinCap` | per-token burn and mint volumes are each ≤ `dailyCap` whenever a non-zero cap is set |
 | `invariant_signaturesRequiredWellFormed` | `0 < signaturesRequired ≤ validators.length` |
 
 Non-vacuity mutation-validated: minting `amount + 1` in `WrappedLEP100.bridgeMint`

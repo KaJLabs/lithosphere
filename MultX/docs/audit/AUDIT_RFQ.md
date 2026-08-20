@@ -37,9 +37,11 @@ manual review.
 
 - **Solidity:** `0.8.24`, optimizer runs = 200
 - **Dependencies:** OpenZeppelin Contracts (Pausable, ReentrancyGuard,
-  AccessControl, SafeERC20, ERC20Burnable) — assume sound (T6); do not re-audit.
-- **Frozen candidate:** `multx-audit-candidate-v0.6.0-20260819`. Earlier freeze tags are
-  historical and must not be audited for LITHO mainnet deployment. If the
+  SafeERC20, ERC20Burnable) — assume sound (T6); do not re-audit.
+- **Previous frozen candidate:** `multx-audit-candidate-v0.6.0-20260819`.
+  Autha's v0.5 findings require a new immutable post-remediation tag after CI
+  and merge; do not review an unfrozen branch tip. Earlier freeze tags are
+  historical and must not be approved for LITHO mainnet deployment. If the
   reviewed source changes, KaJ Labs will publish a new immutable version rather
   than moving this tag.
 
@@ -110,8 +112,8 @@ Beyond a standard full-coverage review, we specifically want findings on:
 3. **Pause semantics on `releaseTokens`** — mid-execution behavior when paused.
 4. **Validator-set rotation** — `setValidatorSet` invalidates in-flight signatures
    from the old set; is a grace period warranted?
-5. **`WrappedLEP100` mint authority** — is `BRIDGE_ROLE`-only mint sufficient, or
-   should the wrapper carry its own pause?
+5. **`WrappedLEP100` mint authority** — confirm the immutable bridge-only minter
+   closes Autha C-01 and cannot be replaced by an administrator.
 
 We also want L1 (single-EOA owner → recommend Gnosis Safe) explicitly graded as
 to whether it is REQUIRED-BEFORE-MAINNET in the firm's opinion.
