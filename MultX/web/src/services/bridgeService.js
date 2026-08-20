@@ -6,6 +6,7 @@ import {
   ERC20_BRIDGE_ABI,
   DEST_CHAIN_DEPLOYMENTS,
 } from '../data/bridgeConfig';
+import { sortReleaseSignatures } from './releaseMessage';
 
 const READ_RPC = import.meta.env.DEV
   ? '/rpc-proxy'
@@ -119,26 +120,16 @@ export const lockTokens = async (signer, tokenAddress, amount, targetChainId) =>
 
 export const releaseTokens = async (signer, { token, user, amount, sourceChain, sourceNonce, sourceTxHash, signatures }) => {
   const c = getBridgeContract(signer);
-  const sortedSigs = [...signatures].sort((a, b) => {
-    const addrA = ethers.utils.recoverAddress(
-      ethers.utils.hashMessage(ethers.utils.arrayify(
-        ethers.utils.solidityKeccak256(
-          ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
-          [sourceTxHash, token, user, amount, sourceChain, sourceNonce]
-        )
-      )),
-      a
-    );
-    const addrB = ethers.utils.recoverAddress(
-      ethers.utils.hashMessage(ethers.utils.arrayify(
-        ethers.utils.solidityKeccak256(
-          ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
-          [sourceTxHash, token, user, amount, sourceChain, sourceNonce]
-        )
-      )),
-      b
-    );
-    return addrA.toLowerCase() < addrB.toLowerCase() ? -1 : 1;
+  const destinationChain = await signer.getChainId();
+  const sortedSigs = sortReleaseSignatures(signatures, {
+    sourceTxHash,
+    token,
+    user,
+    amount,
+    sourceChain,
+    sourceNonce,
+    destinationChain,
+    destinationBridge: c.address,
   });
   const tx = await c.releaseTokens(token, user, amount, sourceChain, sourceNonce, sourceTxHash, sortedSigs);
   const receipt = await tx.wait();

@@ -2,10 +2,12 @@
 
 Status: **blocked - do not deploy or enable**
 
-The immutable engineering candidate is
-`multx-audit-candidate-v0.6.0-20260819`. It is not an audited production
-release. Bridge, Swap, Cross-swap/MultX, and Faucet remain disabled on LITHO
-mainnet.
+The last immutable engineering candidate was
+`multx-audit-candidate-v0.6.0-20260819`. Autha's v0.5 review concluded **NOT
+READY FOR MAINNET**, and the post-report remediation source is not yet an
+independently reviewed immutable release. See
+`docs/audit/AUTHA_REMEDIATION_2026-08-20.md`. Bridge, Swap,
+Cross-swap/MultX, and Faucet remain disabled on LITHO mainnet.
 
 ## Completed preparation
 
@@ -34,7 +36,7 @@ mainnet.
 3. Final immutable release tag approved after remediation.
 4. Approved Safe, timelock, pause guardian, deployment, and fee-payer
    addresses for LITHO, Ethereum, BNB, and Base.
-5. Approved bridge/token routes, daily caps, and supported assets.
+5. Approved bridge/token routes, positive fixed-window lock/release caps, and supported assets; cap approval accounts for near-2x boundary bursts.
 6. Seven approved bridge signer assignments, with an approved 5-of-7
    threshold, unique KMS identities, route policies, recovery exercises, and
    acceptance records. These bridge signers are separate from the target 33+

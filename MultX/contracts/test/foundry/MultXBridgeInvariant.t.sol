@@ -59,7 +59,10 @@ contract BridgeHandler is Test {
         returns (bytes32)
     {
         bytes32 msgHash = keccak256(
-            abi.encodePacked(sourceTxHash, address(token), user, amount, SOURCE_CHAIN, sourceNonce)
+            abi.encodePacked(
+                sourceTxHash, address(token), user, amount, SOURCE_CHAIN,
+                sourceNonce, block.chainid, address(bridge)
+            )
         );
         return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", msgHash));
     }
@@ -122,8 +125,11 @@ contract BridgeHandler is Test {
         if (seed % 3 == 0) {
             cap = 0; // unlimited
         } else {
-            uint256 vol = bridge.dailyVolume(address(token));
-            cap = bound(capSeed, vol, vol + 1e27);
+            uint256 lockVol = bridge.dailyVolume(address(token));
+            uint256 releaseVol = bridge.releaseVolume(address(token));
+            uint256 vol = lockVol > releaseVol ? lockVol : releaseVol;
+            uint256 minCap = vol == 0 ? 1 : vol;
+            cap = bound(capSeed, minCap, minCap + 1e27);
         }
         vm.prank(owner);
         bridge.setDailyCap(address(token), cap);
@@ -208,6 +214,7 @@ contract MultXBridgeInvariant is Test {
         uint256 cap = bridge.dailyCap(address(token));
         if (cap > 0) {
             assertLe(bridge.dailyVolume(address(token)), cap, "dailyVolume > dailyCap");
+            assertLe(bridge.releaseVolume(address(token)), cap, "releaseVolume > dailyCap");
         }
     }
 

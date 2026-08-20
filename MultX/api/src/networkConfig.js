@@ -15,6 +15,14 @@ const positiveSafeInteger = (value, field) => {
   return parsed;
 };
 
+const nonNegativeSafeInteger = (value, field) => {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`${field} must be a non-negative safe integer`);
+  }
+  return parsed;
+};
+
 
 const httpsUrl = (value, field) => {
   let parsed;
@@ -114,6 +122,9 @@ export function validateProductionNetworkConfig(input) {
       ws: wssUrl(chain?.ws, `${prefix}.ws`),
       bridge,
       pollMs: positiveSafeInteger(chain?.pollMs || 4000, `${prefix}.pollMs`),
+      startBlock: nonNegativeSafeInteger(chain?.startBlock, `${prefix}.startBlock`),
+      confirmations: positiveSafeInteger(chain?.confirmations, `${prefix}.confirmations`),
+      reorgOverlap: nonNegativeSafeInteger(chain?.reorgOverlap, `${prefix}.reorgOverlap`),
     };
   });
 

@@ -232,10 +232,13 @@ so a rollback is trivially scripted.
 
 ### 5.1 Concepts
 
-Each supported token can have a per-token daily volume cap. `dailyCap[token] = 0`
-means unlimited (default). Each `lockTokens` call checks: if 24h has passed
-since `lastCapReset[token]`, reset `dailyVolume[token] = 0`. Then require
-`dailyVolume[token] + amount <= dailyCap[token]`.
+Each supported token has one configured cap applied independently to locks and
+releases in separate fixed 24-hour windows. `dailyCap[token] = 0` means
+unlimited and is forbidden by the production deployment manifest. Lock volume
+uses `dailyVolume`/`lastCapReset`; outbound value uses
+`releaseVolume`/`lastReleaseCapReset`. These are tumbling windows, not rolling
+24-hour limits, so policy sizing must account for a near-2x burst across a
+window boundary.
 
 ### 5.2 Setting a cap
 

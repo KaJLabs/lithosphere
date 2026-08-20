@@ -7,119 +7,153 @@ const BRIDGE_ABI = [
 ];
 
 const MAX_BACKOFF_MS = 30_000;
-
-// Public RPCs cap eth_getLogs block ranges (BNB testnet rejects wide windows
-// with -32005 "limit exceeded"). Without a clamp, a watcher that falls behind
-// past the cap can never advance lastBlock: every poll re-requests the same
-// oversized range, fails, and the watcher wedges permanently. Walking forward
-// in bounded chunks keeps every query under the cap and catches up on its own.
 const MAX_BLOCKS_PER_POLL = 2_000;
-
-// Per-chain state (one entry per chainsToWatch row)
 const watchers = new Map();
-
 const backoffMs = (attempts) => Math.min(2000 * 2 ** attempts, MAX_BACKOFF_MS);
+const normalizedBridge = (spec) => spec.bridge.toLowerCase();
 
 function makeWatcher(spec) {
   return {
     spec,
     provider: null,
     contract: null,
-    lastBlock: 0,
+    lastBlock: null,
     consecutiveErrors: 0,
     pollTimer: null,
     retryTimer: null,
-    // Guards that prevent a transient RPC blip from multiplying into a
-    // connection storm (which previously exhausted local ports -> EADDRNOTAVAIL
-    // and permanently wedged the watcher): only one connect and one poll may be
-    // in flight at a time, and only one reconnect may be scheduled.
     reconnecting: false,
     polling: false,
   };
 }
 
-// Kill any interval/retry timers so we never leave orphaned setInterval()s
-// running (each orphan polled independently and opened its own connections).
 function clearTimers(w) {
   if (w.pollTimer) { clearInterval(w.pollTimer); w.pollTimer = null; }
   if (w.retryTimer) { clearTimeout(w.retryTimer); w.retryTimer = null; }
 }
 
-// Idempotent: schedules at most ONE reconnect, with backoff on consecutive errors.
 function scheduleReconnect(spec, w) {
-  if (w.retryTimer) return;             // a reconnect is already pending
-  clearTimers(w);                       // stop polling until we're reconnected
+  if (w.retryTimer) return;
+  clearTimers(w);
   const delay = backoffMs(w.consecutiveErrors);
   console.warn(`[EventListener:${spec.name}] Reconnecting in ${delay / 1000}s (attempt ${w.consecutiveErrors})`);
   w.retryTimer = setTimeout(() => { w.retryTimer = null; startWatcher(spec); }, delay);
 }
 
+export async function loadDurableCursor(spec, provider, database = pool, currentBlock = null) {
+  const result = await database.query(
+    `SELECT last_processed_block, last_processed_hash
+       FROM bridge_event_cursors
+      WHERE chain_id = $1 AND bridge_address = $2`,
+    [spec.chainId, normalizedBridge(spec)]
+  );
+
+  const configuredStart = Number.isSafeInteger(spec.startBlock) ? spec.startBlock : null;
+  if (result.rows.length === 0) {
+    if (configuredStart !== null) return configuredStart - 1;
+    // Development compatibility only. Production manifests require an
+    // explicit deployment start block and cannot silently skip history.
+    return currentBlock ?? provider.getBlockNumber();
+  }
+
+  const persisted = Number(result.rows[0].last_processed_block);
+  if (!Number.isSafeInteger(persisted) || persisted < 0) {
+    throw new Error(`Invalid durable cursor for chain ${spec.chainId}`);
+  }
+  const minimum = configuredStart === null ? 0 : Math.max(0, configuredStart - 1);
+  const overlap = Number.isSafeInteger(spec.reorgOverlap) ? spec.reorgOverlap : 0;
+  const resumeFrom = Math.max(minimum, persisted - overlap);
+
+  const persistedBlock = await provider.getBlock(persisted);
+  const expectedHash = result.rows[0].last_processed_hash.toLowerCase();
+  if (!persistedBlock?.hash || persistedBlock.hash.toLowerCase() !== expectedHash) {
+    throw new Error(
+      `Durable cursor hash mismatch for chain ${spec.chainId} at block ${persisted}; manual reconciliation required`
+    );
+  }
+  return resumeFrom;
+}
+
+export async function processBlockRange(w, toBlock, database = pool) {
+  const filter = w.contract.filters.TokensLocked();
+  const events = await w.contract.queryFilter(filter, w.lastBlock + 1, toBlock);
+  const rangeTip = await w.provider.getBlock(toBlock);
+  if (!rangeTip?.hash) throw new Error(`Missing block ${toBlock} while advancing cursor`);
+
+  const client = await database.connect();
+  try {
+    await client.query('BEGIN');
+    for (const event of events) {
+      const { txHash, token, user, amount, targetChain, nonce } = event.args;
+      const releaseChain = Number(targetChain.toString());
+      const releaseToken = resolveReleaseToken(w.spec.chainId, token, releaseChain);
+      if (!releaseToken) {
+        throw new Error(
+          `No release_token mapping for source=${w.spec.chainId}, token=${token}, target=${releaseChain}`
+        );
+      }
+
+      await client.query(
+        `INSERT INTO bridge_transactions
+           (tx_hash, from_address, token_address, amount, target_chain,
+            source_chain, source_nonce, release_token, status, block_number, block_hash)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'locked', $9, $10)
+         ON CONFLICT (tx_hash) DO UPDATE SET
+           block_number=EXCLUDED.block_number,
+           block_hash=EXCLUDED.block_hash,
+           source_chain=EXCLUDED.source_chain,
+           release_token=EXCLUDED.release_token`,
+        [
+          txHash,
+          user,
+          token,
+          amount.toString(),
+          releaseChain,
+          w.spec.chainId,
+          nonce.toString(),
+          releaseToken,
+          event.blockNumber,
+          event.blockHash || null,
+        ]
+      );
+    }
+
+    await client.query(
+      `INSERT INTO bridge_event_cursors
+         (chain_id, bridge_address, last_processed_block, last_processed_hash, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (chain_id, bridge_address) DO UPDATE SET
+         last_processed_block=EXCLUDED.last_processed_block,
+         last_processed_hash=EXCLUDED.last_processed_hash,
+         updated_at=NOW()`,
+      [w.spec.chainId, normalizedBridge(w.spec), toBlock, rangeTip.hash]
+    );
+    await client.query('COMMIT');
+    w.lastBlock = toBlock;
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch { /* preserve original failure */ }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function pollChain(name) {
   const w = watchers.get(name);
-  if (!w || !w.provider || !w.contract) return;
-  if (w.polling) return;                // previous poll still running — skip this tick
+  if (!w || !w.provider || !w.contract || w.lastBlock === null || w.polling) return;
   w.polling = true;
   try {
     const currentBlock = await w.provider.getBlockNumber();
-    if (currentBlock > w.lastBlock) {
-      const toBlock = Math.min(currentBlock, w.lastBlock + MAX_BLOCKS_PER_POLL);
-      const filter = w.contract.filters.TokensLocked();
-      const events = await w.contract.queryFilter(filter, w.lastBlock + 1, toBlock);
-
-      for (const event of events) {
-        const { txHash, token, user, amount, targetChain, nonce } = event.args;
-        const releaseChain = Number(targetChain.toString());
-        const releaseToken = resolveReleaseToken(w.spec.chainId, token, releaseChain);
-
-        console.log(
-          `[EventListener:${name}] TokensLocked txHash=${txHash.slice(0, 10)}… ` +
-          `token=${token.slice(0, 10)}… user=${user.slice(0, 10)}… ` +
-          `source=${w.spec.chainId} target=${releaseChain} release_token=${releaseToken ?? 'UNMAPPED'}`
-        );
-
-        if (!releaseToken) {
-          console.warn(
-            `[EventListener:${name}] No release_token mapping for ` +
-            `(source=${w.spec.chainId}, token=${token}, target=${releaseChain}). Row skipped.`
-          );
-          continue;
-        }
-
-        try {
-          await pool.query(
-            `INSERT INTO bridge_transactions
-               (tx_hash, from_address, token_address, amount, target_chain,
-                source_chain, source_nonce, release_token, status, block_number)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'locked', $9)
-             ON CONFLICT (tx_hash) DO UPDATE SET
-               status='locked',
-               block_number=$9,
-               source_chain=EXCLUDED.source_chain,
-               release_token=EXCLUDED.release_token`,
-            [
-              txHash,
-              user,
-              token,
-              amount.toString(),
-              releaseChain,
-              w.spec.chainId,
-              nonce.toString(),
-              releaseToken,
-              event.blockNumber,
-            ]
-          );
-        } catch (err) {
-          console.error(`[EventListener:${name}] DB error:`, err.message);
-        }
-      }
-
-      w.lastBlock = toBlock;
+    const confirmations = Number.isSafeInteger(w.spec.confirmations) ? w.spec.confirmations : 1;
+    const confirmedTip = currentBlock - confirmations + 1;
+    if (confirmedTip > w.lastBlock) {
+      const toBlock = Math.min(confirmedTip, w.lastBlock + MAX_BLOCKS_PER_POLL);
+      await processBlockRange(w, toBlock);
     }
     w.consecutiveErrors = 0;
-  } catch (err) {
-    console.error(`[EventListener:${name}] Poll error: ${err.message}`);
+  } catch (error) {
+    console.error(`[EventListener:${name}] Poll error: ${error.message}`);
     w.consecutiveErrors++;
-    scheduleReconnect(w.spec, w);       // idempotent — never piles up retries
+    scheduleReconnect(w.spec, w);
   } finally {
     w.polling = false;
   }
@@ -127,34 +161,32 @@ async function pollChain(name) {
 
 async function startWatcher(spec) {
   if (!spec.bridge) {
-    console.warn(`[EventListener:${spec.name}] No bridge address configured — skipping.`);
+    console.warn(`[EventListener:${spec.name}] No bridge address configured - skipping.`);
     return;
   }
 
   const w = watchers.get(spec.name) ?? makeWatcher(spec);
   watchers.set(spec.name, w);
-
-  if (w.reconnecting) return;           // single-flight: don't spawn a parallel connect
+  if (w.reconnecting) return;
   w.reconnecting = true;
-  clearTimers(w);                       // clear any prior interval/retry before reconnecting
+  clearTimers(w);
 
   try {
     w.provider = new ethers.JsonRpcProvider(spec.rpc, spec.chainId, { staticNetwork: true });
     await w.provider.getNetwork();
     const currentBlock = await w.provider.getBlockNumber();
-    // Preserve progress across reconnects so a blip doesn't skip locks; only
-    // cold-start from the chain tip on the very first successful connect.
-    if (!w.lastBlock) w.lastBlock = currentBlock;
+    if (w.lastBlock === null) {
+      w.lastBlock = await loadDurableCursor(spec, w.provider, pool, currentBlock);
+    }
     w.consecutiveErrors = 0;
     w.contract = new ethers.Contract(spec.bridge, BRIDGE_ABI, w.provider);
-
     console.log(
-      `[EventListener:${spec.name}] Connected — chainId=${spec.chainId} bridge=${spec.bridge}; ` +
+      `[EventListener:${spec.name}] Connected - chainId=${spec.chainId} bridge=${spec.bridge}; ` +
       `polling from block ${w.lastBlock} every ${spec.pollMs}ms`
     );
     w.pollTimer = setInterval(() => { pollChain(spec.name); }, spec.pollMs);
-  } catch (err) {
-    console.error(`[EventListener:${spec.name}] Connect error: ${err.message}`);
+  } catch (error) {
+    console.error(`[EventListener:${spec.name}] Connect error: ${error.message}`);
     w.consecutiveErrors++;
     scheduleReconnect(spec, w);
   } finally {
@@ -165,18 +197,15 @@ async function startWatcher(spec) {
 export async function startEventListener() {
   const chains = config.chainsToWatch || [];
   if (chains.length === 0) {
-    console.warn('[EventListener] No chainsToWatch configured — listener inactive.');
+    console.warn('[EventListener] No chainsToWatch configured - listener inactive.');
     return;
   }
   console.log(`[EventListener] Starting ${chains.length} parallel chain watcher(s)`);
-  // Spawn all in parallel — each restarts independently on failure.
-  await Promise.all(chains.map((c) => startWatcher(c).catch((e) =>
-    console.error(`[EventListener:${c.name}] Initial start failed: ${e.message}`)
+  await Promise.all(chains.map((chain) => startWatcher(chain).catch((error) =>
+    console.error(`[EventListener:${chain.name}] Initial start failed: ${error.message}`)
   )));
 }
 
 export function getProvider() {
-  // Backwards-compat — returns the Kamet provider if present.
-  const kamet = watchers.get('kamet');
-  return kamet?.provider ?? null;
+  return watchers.get('kamet')?.provider ?? null;
 }

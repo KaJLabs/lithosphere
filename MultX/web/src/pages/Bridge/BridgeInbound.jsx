@@ -19,6 +19,7 @@ import {
 } from '../../services/bridgeService';
 import { formatBN } from '../../helpers/formatBN';
 import { friendlyError } from '../../helpers/friendlyError';
+import { sortReleaseSignatures } from '../../services/releaseMessage';
 import '../../scss/pages/Explorer/explorerPage.scss';
 import '../../scss/pages/Bridge/bridgePage.scss';
 
@@ -160,17 +161,16 @@ export const BridgeInbound = () => {
       // Sort signatures by signer address (ascending) — contract requires it.
       // Each signature recovers the same digest (per validator key) so we can
       // recover signer addresses and use them to sort.
-      const digest = ethers.utils.solidityKeccak256(
-        ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256'],
-        [destTxHash, kametOriginToken, wallet.account, ethers.utils.parseUnits(statusData.amount ? formatBN(ethers.BigNumber.from(statusData.amount), 18, 18) : '0', 18), srcChainId, statusData.sourceNonce]
-      );
-      // ethers v5 signMessage prepends "\x19Ethereum Signed Message:\n32", so we recover via hashMessage
-      const signersWithSigs = signatures.map((sig) => ({
-        sig,
-        signer: ethers.utils.recoverAddress(ethers.utils.hashMessage(ethers.utils.arrayify(digest)), sig),
-      }));
-      signersWithSigs.sort((a, b) => a.signer.toLowerCase() < b.signer.toLowerCase() ? -1 : 1);
-      const sortedSigs = signersWithSigs.map((s) => s.sig);
+      const sortedSigs = sortReleaseSignatures(signatures, {
+        sourceTxHash: destTxHash,
+        token: kametOriginToken,
+        user: wallet.account,
+        amount: ethers.BigNumber.from(statusData.amount || '0'),
+        sourceChain: srcChainId,
+        sourceNonce: statusData.sourceNonce,
+        destinationChain: KAMET_CHAIN_ID,
+        destinationBridge: BRIDGE_ADDRESS,
+      });
 
       const kametBridge = new ethers.Contract(BRIDGE_ADDRESS, BRIDGE_ABI_MINIMAL, wallet.signer);
       const tx = await kametBridge.releaseTokens(

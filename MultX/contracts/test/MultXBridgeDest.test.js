@@ -60,14 +60,22 @@ describe("MultXBridgeDest", function () {
 
     await bridge.addSupportedToken(wrapped.address);
 
-    // Pre-mint the user some wrapped tokens (simulates a prior bridge-in)
-    // BRIDGE_ROLE was granted to the bridge contract by the WrappedLEP100 ctor,
-    // so we go through the bridge — but for test simplicity we'll grant the owner
-    // BRIDGE_ROLE temporarily to seed balances directly.
-    const BRIDGE_ROLE = ethers.utils.id("BRIDGE_ROLE");
-    await wrapped.grantRole(BRIDGE_ROLE, owner.address);
-    await wrapped.bridgeMint(user.address, ethers.utils.parseEther("1000"));
-    await wrapped.revokeRole(BRIDGE_ROLE, owner.address);
+    // Seed through a genuine quorum-authorized bridge release. WrappedLEP100
+    // has no administrator path that can introduce a second minter.
+    const seedAmount = ethers.utils.parseEther("1000");
+    const seedNonce = 1_000_000;
+    const seedTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("seed-release"));
+    const seedHash = getReleaseHash(seedTxHash, seedAmount, ORIGIN_CHAIN_ID, seedNonce);
+    const seedSignatures = await getSortedSignatures([v1, v2], seedHash);
+    await bridge.releaseTokens(
+      wrapped.address,
+      user.address,
+      seedAmount,
+      ORIGIN_CHAIN_ID,
+      seedNonce,
+      seedTxHash,
+      seedSignatures
+    );
   });
 
   describe("constructor", function () {
@@ -181,6 +189,33 @@ describe("MultXBridgeDest", function () {
       expect(await wrapped.totalSupply()).to.equal(ethers.utils.parseEther("1075"));
     });
 
+    it("Enforces the configured cap independently on outbound mints", async function () {
+      const cap = ethers.utils.parseEther("10");
+      const firstAmount = ethers.utils.parseEther("6");
+      const secondAmount = ethers.utils.parseEther("5");
+      await bridge.setDailyCap(wrapped.address, cap);
+
+      const firstTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("dest-release-cap-1"));
+      const firstHash = getReleaseHash(firstTxHash, firstAmount, ORIGIN_CHAIN_ID, 601);
+      const firstSigs = await getSortedSignatures([v1, v2], firstHash);
+      await bridge.releaseTokens(
+        wrapped.address, user.address, firstAmount, ORIGIN_CHAIN_ID, 601, firstTxHash, firstSigs
+      );
+
+      expect(await bridge.releaseVolume(wrapped.address)).to.equal(firstAmount);
+      expect(await bridge.getDailyReleaseRemaining(wrapped.address)).to.equal(cap.sub(firstAmount));
+
+      const secondTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("dest-release-cap-2"));
+      const secondHash = getReleaseHash(secondTxHash, secondAmount, ORIGIN_CHAIN_ID, 602);
+      const secondSigs = await getSortedSignatures([v1, v2], secondHash);
+      await expect(
+        bridge.releaseTokens(
+          wrapped.address, user.address, secondAmount, ORIGIN_CHAIN_ID, 602, secondTxHash, secondSigs
+        )
+      ).to.be.revertedWith("Release cap exceeded");
+      expect(await bridge.processedNonces(ORIGIN_CHAIN_ID, 602)).to.equal(false);
+    });
+
     it("Rejects a malleable high-s validator signature", async function () {
       const amount = ethers.utils.parseEther("5");
       const sourceTxHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("high-s-dest"));
@@ -267,8 +302,6 @@ describe("MultXBridgeDest", function () {
       const Bridge = await ethers.getContractFactory("MultXBridgeDest");
       const secondBridge = await Bridge.deploy([v1.address, v2.address, v3.address], 2);
       await secondBridge.deployed();
-      const BRIDGE_ROLE = ethers.utils.id("BRIDGE_ROLE");
-      await wrapped.grantRole(BRIDGE_ROLE, secondBridge.address);
 
       await expect(
         secondBridge.releaseTokens(
