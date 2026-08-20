@@ -1,0 +1,40 @@
+name: Lithoswap subgraph check
+
+on:
+  pull_request:
+    paths:
+      - "Makalu/contracts/subgraph/**"
+      - ".github/workflows/lithoswap-subgraph-check.yaml"
+  push:
+    branches:
+      - main
+    paths:
+      - "Makalu/contracts/subgraph/**"
+      - ".github/workflows/lithoswap-subgraph-check.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Makalu/contracts/subgraph
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: Makalu/contracts/subgraph/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Reject dependency vulnerabilities
+        run: npm audit --audit-level=high
+      - name: Generate schema types
+        run: npm run codegen
+      - name: Build the Makalu subgraph
+        run: npm run build:makalu
+      - name: Verify generated build inputs are reproducible
+        run: git diff --exit-code -- subgraph.yaml

@@ -27,15 +27,15 @@ Fill both in `networks.json` (and/or `subgraph.yaml`):
 
 ```sh
 cd Makalu/contracts/subgraph
-pnpm install
-pnpm codegen              # generates ./generated from schema + ABIs
-pnpm build:makalu         # applies networks.json, compiles the wasm mappings
-pnpm deploy               # → subgraph.litho.ai (self-hosted graph-node on vps2)
+npm ci
+npm run codegen           # generates ./generated from schema + ABIs
+npm run build:makalu      # applies networks.json, compiles the wasm mappings
+npm run deploy            # → subgraph.litho.ai (self-hosted graph-node on vps2)
 ```
 
-`codegen` + `build` are the correctness gate for the AssemblyScript mappings —
-run them wherever `@graphprotocol/graph-cli` and network access are available
-(vps2 or CI); they are not run in this offline workspace.
+`codegen` + `build` are the correctness gate for the AssemblyScript mappings.
+CI installs the committed lockfile, rejects dependency-audit findings, and runs
+both commands before a subgraph change can merge.
 
 ## Consuming from the explorer
 

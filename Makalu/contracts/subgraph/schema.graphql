@@ -6,7 +6,7 @@
 # no stablecoin pool to anchor it; add a Bundle + derived pricing later if one
 # lands.
 
-type LithoswapFactory @entity {
+type LithoswapFactory @entity(immutable: false) {
   " Factory address "
   id: ID!
   pairCount: Int!
@@ -14,7 +14,7 @@ type LithoswapFactory @entity {
   totalVolumeToken: BigDecimal! # summed across pairs, token units (not USD)
 }
 
-type Token @entity {
+type Token @entity(immutable: false) {
   " Token address "
   id: ID!
   symbol: String!
@@ -26,7 +26,7 @@ type Token @entity {
   totalLiquidity: BigDecimal! # amount of this token pooled across all pairs
 }
 
-type Pair @entity {
+type Pair @entity(immutable: false) {
   " Pair (pool) address "
   id: ID!
   token0: Token!
@@ -45,7 +45,7 @@ type Pair @entity {
   createdAtBlockNumber: BigInt!
 }
 
-type Transaction @entity {
+type Transaction @entity(immutable: true) {
   " Transaction hash "
   id: ID!
   blockNumber: BigInt!
@@ -55,7 +55,7 @@ type Transaction @entity {
   swaps: [Swap!]! @derivedFrom(field: "transaction")
 }
 
-type Mint @entity {
+type Mint @entity(immutable: true) {
   " txhash-logindex "
   id: ID!
   transaction: Transaction!
@@ -66,7 +66,7 @@ type Mint @entity {
   amount1: BigDecimal!
 }
 
-type Burn @entity {
+type Burn @entity(immutable: true) {
   id: ID!
   transaction: Transaction!
   timestamp: BigInt!
@@ -77,7 +77,7 @@ type Burn @entity {
   amount1: BigDecimal!
 }
 
-type Swap @entity {
+type Swap @entity(immutable: true) {
   id: ID!
   transaction: Transaction!
   timestamp: BigInt!
@@ -91,7 +91,7 @@ type Swap @entity {
   amount1Out: BigDecimal!
 }
 
-type PairDayData @entity {
+type PairDayData @entity(immutable: false) {
   " pairAddress-dayId "
   id: ID!
   date: Int!
@@ -105,7 +105,7 @@ type PairDayData @entity {
   dailyTxns: BigInt!
 }
 
-type TokenDayData @entity {
+type TokenDayData @entity(immutable: false) {
   " tokenAddress-dayId "
   id: ID!
   date: Int!
