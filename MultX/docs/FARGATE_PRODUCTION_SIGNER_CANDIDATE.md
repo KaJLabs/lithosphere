@@ -58,7 +58,7 @@ Before every signature, the signer independently:
 3. requires the configured confirmation depth;
 4. queries and matches the exact `TokensLocked` event;
 5. recomputes the release hash;
-6. conditionally records `(sourceChain, sourceNonce) -> hash` in DynamoDB; and
+6. conditionally records `(sourceChain, sourceBridge, sourceNonce) -> hash` in DynamoDB; and
 7. asks only its assigned KMS key to sign the recomputed hash.
 
 The conditional DynamoDB write happens before KMS signing and rejects a

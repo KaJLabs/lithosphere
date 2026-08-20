@@ -42,6 +42,7 @@
           "kind": "canonical",
           "symbol": "REPLACE_WITH_APPROVED_ASSET_SYMBOL",
           "address": "REPLACE_WITH_LITHO_ORIGIN_TOKEN",
+          "targetChainIds": [1, 56, 8453],
           "dailyCapBaseUnits": "REPLACE_WITH_APPROVED_LITHO_CAP",
           "runtimeSha256": "REPLACE_WITH_CANONICAL_TOKEN_RUNTIME_SHA256"
         }
@@ -58,6 +59,7 @@
           "kind": "wrapped",
           "symbol": "REPLACE_WITH_APPROVED_WRAPPED_SYMBOL",
           "address": "REPLACE_WITH_ETHEREUM_WRAPPED_TOKEN",
+          "targetChainIds": [9005],
           "originChainId": 9005,
           "originToken": "REPLACE_WITH_LITHO_ORIGIN_TOKEN",
           "deploymentTxHash": "REPLACE_WITH_32_BYTE_TX_HASH",

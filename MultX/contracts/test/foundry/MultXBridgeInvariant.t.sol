@@ -36,6 +36,7 @@ contract BridgeHandler is Test {
 
     uint256 constant TARGET_CHAIN = 11155111; // sepolia
     uint256 constant SOURCE_CHAIN = 56;        // bnb
+    address constant SOURCE_BRIDGE = address(0x5150);
 
     constructor(MultXBridge _bridge, MockERC20 _token, address _owner, uint256[] memory _sortedPks, uint256 _sigsRequired) {
         bridge = _bridge;
@@ -60,7 +61,7 @@ contract BridgeHandler is Test {
     {
         bytes32 msgHash = keccak256(
             abi.encodePacked(
-                sourceTxHash, address(token), user, amount, SOURCE_CHAIN,
+                sourceTxHash, SOURCE_BRIDGE, address(token), user, amount, SOURCE_CHAIN,
                 sourceNonce, block.chainid, address(bridge)
             )
         );
@@ -89,7 +90,7 @@ contract BridgeHandler is Test {
 
         bytes[] memory sigs = _signQuorum(_ethSigned(user, amount, sourceNonce, sourceTxHash));
 
-        try bridge.releaseTokens(address(token), user, amount, SOURCE_CHAIN, sourceNonce, sourceTxHash, sigs) {
+        try bridge.releaseTokens(address(token), user, amount, SOURCE_CHAIN, SOURCE_BRIDGE, sourceNonce, sourceTxHash, sigs) {
             totalReleased += amount;
             lastReleaseExists = true;
             lastAmount = amount;
@@ -108,7 +109,7 @@ contract BridgeHandler is Test {
         bytes[] memory sigs =
             _signQuorum(_ethSigned(lastUser, lastAmount, lastSourceNonce, lastSourceTxHash));
         try bridge.releaseTokens(
-            address(token), lastUser, lastAmount, SOURCE_CHAIN, lastSourceNonce, lastSourceTxHash, sigs
+            address(token), lastUser, lastAmount, SOURCE_CHAIN, SOURCE_BRIDGE, lastSourceNonce, lastSourceTxHash, sigs
         ) {
             // Reaching here means the replay guard failed.
             doubleReleaseCount += 1;
@@ -176,6 +177,7 @@ contract MultXBridgeInvariant is Test {
         token = new MockERC20("Litho", "LITHO", 18);
         bridge = new MultXBridge(vals, sigsRequired);
         bridge.addSupportedToken(address(token));
+        bridge.setSupportedRoute(address(token), 11155111, true);
 
         handler = new BridgeHandler(bridge, token, address(this), pks, sigsRequired);
         // bridge owner is this test contract (deployer); the handler pranks it for admin ops.
@@ -204,7 +206,7 @@ contract MultXBridgeInvariant is Test {
         assertEq(bridge.nonce(), handler.lockSuccesses(), "nonce != successful locks");
     }
 
-    // A processed (sourceChain, sourceNonce) can never release a second time.
+    // A processed (sourceChain, sourceBridge, sourceNonce) can never release a second time.
     function invariant_noDoubleRelease() public view {
         assertEq(handler.doubleReleaseCount(), 0, "replay of a processed nonce succeeded");
     }

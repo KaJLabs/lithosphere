@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 
+const DECISION_KEY = /^[1-9][0-9]*:0x[0-9a-fA-F]{40}:[1-9][0-9]*$/;
+
 export function createDecisionJournal(stateFile) {
   const directory = path.dirname(stateFile);
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -17,7 +19,7 @@ export function createDecisionJournal(stateFile) {
       let record;
       try { record = JSON.parse(line); }
       catch { throw new Error(`invalid JSON in signing journal line ${index + 1}`); }
-      if (!/^[1-9][0-9]*:[1-9][0-9]*$/.test(record?.key || '') ||
+      if (!DECISION_KEY.test(record?.key || '') ||
           !/^0x[0-9a-fA-F]{64}$/.test(record?.hash || '')) {
         throw new Error(`invalid signing journal record at line ${index + 1}`);
       }
@@ -29,7 +31,7 @@ export function createDecisionJournal(stateFile) {
 
   return {
     record(key, hash) {
-      if (!/^[1-9][0-9]*:[1-9][0-9]*$/.test(key) || !/^0x[0-9a-fA-F]{64}$/.test(hash)) {
+      if (!DECISION_KEY.test(key) || !/^0x[0-9a-fA-F]{64}$/.test(hash)) {
         throw new Error('invalid signing journal decision');
       }
       const prior = decisions.get(key);

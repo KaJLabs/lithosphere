@@ -12,11 +12,12 @@
 export const bridgeAbi: readonly string[] = [
   // Writes
   'function lockTokens(address token, uint256 amount, uint256 targetChain) external returns (bytes32 txHash)',
-  'function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] calldata signatures) external',
+  'function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, address sourceBridge, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] calldata signatures) external',
   // Views — `supportedTokens` is the public mapping getter (there is NO
   // isTokenSupported on-chain). nonce / paused / daily-cap / validator getters
   // are exposed for richer pre-flight checks.
   'function supportedTokens(address token) external view returns (bool)',
+  'function supportedRoutes(address token, uint256 targetChain) external view returns (bool)',
   'function nonce() external view returns (uint256)',
   'function paused() external view returns (bool)',
   'function signaturesRequired() external view returns (uint256)',
@@ -25,7 +26,7 @@ export const bridgeAbi: readonly string[] = [
   'function getValidatorCount() external view returns (uint256)',
   // Events — note `targetChain` / `sourceChain` are NOT indexed on-chain.
   'event TokensLocked(bytes32 indexed txHash, address indexed token, address indexed user, uint256 amount, uint256 targetChain, uint256 nonce)',
-  'event TokensReleased(bytes32 indexed txHash, address indexed token, address indexed user, uint256 amount, uint256 sourceChain, address releasedBy)',
+  'event TokensReleased(bytes32 indexed txHash, address indexed token, address indexed user, uint256 amount, uint256 sourceChain, address sourceBridge, address releasedBy)',
 ];
 
 export const tokenAbi: readonly string[] = [

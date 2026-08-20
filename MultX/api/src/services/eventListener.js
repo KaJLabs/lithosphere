@@ -84,12 +84,42 @@ export async function processBlockRange(w, toBlock, database = pool) {
     await client.query('BEGIN');
     for (const event of events) {
       const { txHash, token, user, amount, targetChain, nonce } = event.args;
-      const releaseChain = Number(targetChain.toString());
-      const releaseToken = resolveReleaseToken(w.spec.chainId, token, releaseChain);
+      const releaseChainText = targetChain.toString();
+      const releaseChainBigInt = BigInt(releaseChainText);
+      const releaseChain = releaseChainBigInt <= BigInt(Number.MAX_SAFE_INTEGER)
+        ? Number(releaseChainBigInt)
+        : null;
+      const releaseToken = releaseChain === null
+        ? null
+        : resolveReleaseToken(w.spec.chainId, token, releaseChain);
       if (!releaseToken) {
-        throw new Error(
-          `No release_token mapping for source=${w.spec.chainId}, token=${token}, target=${releaseChain}`
+        const reason = `unsupported route source=${w.spec.chainId}, token=${token}, target=${releaseChainText}`;
+        await client.query(
+          `INSERT INTO bridge_rejected_events
+             (chain_id, bridge_address, block_number, block_hash, transaction_hash,
+              log_index, lock_tx_hash, token_address, from_address, amount,
+              target_chain, source_nonce, rejection_reason)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+           ON CONFLICT (chain_id, bridge_address, block_number, log_index) DO UPDATE SET
+             last_seen_at=NOW(), rejection_reason=EXCLUDED.rejection_reason`,
+          [
+            w.spec.chainId,
+            normalizedBridge(w.spec),
+            event.blockNumber,
+            event.blockHash || null,
+            event.transactionHash || event.log?.transactionHash || null,
+            Number(event.index ?? event.logIndex ?? event.log?.index ?? 0),
+            txHash,
+            token,
+            user,
+            amount.toString(),
+            releaseChainText,
+            nonce.toString(),
+            reason,
+          ]
         );
+        console.error(`[EventListener:${w.spec.name}] quarantined ${txHash}: ${reason}`);
+        continue;
       }
 
       await client.query(

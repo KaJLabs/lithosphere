@@ -2,6 +2,7 @@ import { ethers } from 'ethers5';
 
 export const releaseMessageDigest = ({
   sourceTxHash,
+  sourceBridge,
   token,
   user,
   amount,
@@ -10,9 +11,10 @@ export const releaseMessageDigest = ({
   destinationChain,
   destinationBridge,
 }) => ethers.utils.solidityKeccak256(
-  ['bytes32', 'address', 'address', 'uint256', 'uint256', 'uint256', 'uint256', 'address'],
+  ['bytes32', 'address', 'address', 'address', 'uint256', 'uint256', 'uint256', 'uint256', 'address'],
   [
     sourceTxHash,
+    sourceBridge,
     token,
     user,
     amount,

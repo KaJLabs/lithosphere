@@ -10,7 +10,10 @@ const BRIDGE_ABI = [
   'function paused() view returns (bool)',
   'function signaturesRequired() view returns (uint256)',
   'function validators(uint256) view returns (address)',
+  'function getValidators() view returns (address[])',
+  'function getValidatorCount() view returns (uint256)',
   'function supportedTokens(address) view returns (bool)',
+  'function supportedRoutes(address,uint256) view returns (bool)',
   'function dailyCap(address) view returns (uint256)',
   'function releaseVolume(address) view returns (uint256)',
 ];
@@ -24,6 +27,21 @@ const WRAPPED_ABI = [
 const sha256Code = (code) => crypto.createHash('sha256')
   .update(Buffer.from(code.slice(2), 'hex'))
   .digest('hex');
+
+async function verifyExactValidatorSet(bridge, expected, chainName) {
+  const [countValue, completeSet] = await Promise.all([
+    bridge.getValidatorCount(),
+    bridge.getValidators(),
+  ]);
+  const count = Number(countValue.toString());
+  if (count !== expected.length || completeSet.length !== expected.length) {
+    throw new Error(`${chainName} live validator count ${count} does not equal manifest count ${expected.length}`);
+  }
+  if (completeSet.some((item, index) => item.toLowerCase() !== expected[index].toLowerCase())) {
+    throw new Error(`${chainName} bridge validator set mismatch`);
+  }
+  return completeSet;
+}
 
 async function verifyDeploymentReadonly(manifest, providerFactory = (rpc) => new ethers.providers.JsonRpcProvider(rpc)) {
   validateDeploymentManifest(manifest);
@@ -47,10 +65,7 @@ async function verifyDeploymentReadonly(manifest, providerFactory = (rpc) => new
     if (paused !== true) throw new Error(`${chain.name} bridge is not paused`);
     if (threshold.toNumber() !== 5) throw new Error(`${chain.name} threshold is not 5`);
 
-    const liveValidators = await Promise.all(chain.bridge.validators.map((_, index) => bridge.validators(index)));
-    if (liveValidators.some((item, index) => item.toLowerCase() !== chain.bridge.validators[index].toLowerCase())) {
-      throw new Error(`${chain.name} bridge validator set mismatch`);
-    }
+    await verifyExactValidatorSet(bridge, chain.bridge.validators, chain.name);
 
     for (const asset of chain.assets) {
       const [supported, cap, released, code] = await Promise.all([
@@ -60,6 +75,12 @@ async function verifyDeploymentReadonly(manifest, providerFactory = (rpc) => new
         provider.getCode(asset.address),
       ]);
       if (!supported) throw new Error(`${chain.name} ${asset.symbol} is not supported by the bridge`);
+      const routeStates = await Promise.all(
+        asset.targetChainIds.map((targetChain) => bridge.supportedRoutes(asset.address, targetChain))
+      );
+      if (routeStates.some((enabled) => !enabled)) {
+        throw new Error(`${chain.name} ${asset.symbol} approved route is not enabled`);
+      }
       if (cap.toString() !== asset.dailyCapBaseUnits) throw new Error(`${chain.name} ${asset.symbol} daily cap mismatch`);
       if (!released.isZero()) throw new Error(`${chain.name} ${asset.symbol} release volume is not zero at deployment verification`);
       if (code === '0x' || sha256Code(code) !== asset.runtimeSha256.toLowerCase()) {
@@ -103,4 +124,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { sha256Code, verifyDeploymentReadonly };
+module.exports = { sha256Code, verifyDeploymentReadonly, verifyExactValidatorSet };

@@ -37,12 +37,13 @@ No private keys, credentials, signing material or live `.env` files belong in
 Git. Use protected GitHub environments or the approved deployment secret
 manager.
 
-Last immutable pre-Autha-remediation candidate:
-[`multx-audit-candidate-v0.6.0-20260819`](https://github.com/KaJLabs/Lithosphere/releases/tag/multx-audit-candidate-v0.6.0-20260819).
-It is not approved for mainnet. Autha's v0.5 report is mapped in
-[`docs/audit/AUTHA_REMEDIATION_2026-08-20.md`](docs/audit/AUTHA_REMEDIATION_2026-08-20.md);
-the exact post-remediation candidate still requires an immutable tag and
-independent fix review.
+Autha's v0.7.0 review remains **NOT READY FOR MAINNET**. The current v0.8
+engineering remediation is mapped in
+[`docs/audit/AUTHA_V070_REMEDIATION_2026-08-21.md`](docs/audit/AUTHA_V070_REMEDIATION_2026-08-21.md).
+It is not an audited release: the exact merged commit still requires a new
+immutable tag, a complete regenerated evidence bundle, and Autha fix-review
+approval. Older v0.6/v0.7 tags and evidence files are historical inputs only
+and must not be used as the v0.8 release identity.
 See [`docs/MAINNET_DEPLOYMENT_GATES.md`](docs/MAINNET_DEPLOYMENT_GATES.md) for
 the fail-closed production sequence and remaining approvals.
 Use [`docs/V05_TESTNET_REDEPLOYMENT.md`](docs/V05_TESTNET_REDEPLOYMENT.md) for

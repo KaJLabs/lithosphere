@@ -18,14 +18,15 @@ disabled.
   zero caps.
 - `infra/mainnet-deployment-manifest.template.json`: sanitized post-deployment
   evidence record for addresses, transactions, blocks, runtime hashes, owners,
-  guardians, signer sets, caps and assets.
+  guardians, exact signer sets, caps, assets and explicit token/target routes.
 - `contracts/scripts/mainnet/validate-deployment-manifest.js`: rejects any
   incomplete, unpaused, unverified, unaudited-bytecode or
   cross-chain-inconsistent manifest.
 - `contracts/scripts/mainnet/verify-deployment-readonly.js`: performs only RPC
   reads to prove chain IDs, runtime hashes, pause state, owners, guardians,
-  5-of-7 signer sets, supported assets, caps and wrapped-token origin/bridge
-  roles. It refuses common signing-credential environment variables.
+  an exact complete 5-of-7 signer set (including a live-count check), supported
+  assets and routes, caps and wrapped-token origin/bridge roles. It refuses
+  common signing-credential environment variables.
 - `infra/network.mainnet.template.json`: API/indexer route manifest populated
   only from the validated deployment manifest.
 - `infra/docker-compose.mainnet.template.yml`: non-runnable API/database
@@ -53,8 +54,8 @@ disabled.
    `03-deploy-dest-chain.js` scripts are testnet-only and must not be used for
    mainnet.
 6. Deploy governance first and bridges paused. Deploy only approved wrapped
-   assets, grant only the approved bridge role, set caps and keep everything
-   paused.
+   assets, grant only the approved bridge role, set caps, explicitly enable
+   only approved token/target routes, and keep everything paused.
 7. Complete and validate `mainnet-deployment-manifest.template.json`:
 
    ```bash

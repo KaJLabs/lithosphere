@@ -43,11 +43,11 @@ export const ERC721_ABI = [
 
 export const MULTX_BRIDGE_ABI = [
   'function lockTokens(address token, uint256 amount, uint256 targetChain) returns (uint256 nonce)',
-  'function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] signatures)',
+  'function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, address sourceBridge, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] signatures)',
   'function isTokenSupported(address token) view returns (bool)',
   'function getTokenBalance(address token, address user) view returns (uint256)',
   'event TokensLocked(bytes32 indexed txHash, address indexed token, address indexed user, uint256 amount, uint256 indexed targetChain, uint256 nonce)',
-  'event TokensReleased(bytes32 indexed txHash, address indexed token, address indexed user, uint256 amount, uint256 indexed sourceChain, address submitter)'
+  'event TokensReleased(bytes32 indexed txHash, address indexed token, address indexed user, uint256 amount, uint256 sourceChain, address sourceBridge, address submitter)'
 ];
 
 export const KAMET_KNOWN_CONTRACTS = [

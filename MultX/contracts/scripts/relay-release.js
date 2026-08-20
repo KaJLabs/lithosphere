@@ -25,11 +25,11 @@ const DEST_BRIDGE = {
 };
 
 const BRIDGE_ABI = [
-  "function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] signatures) external",
+  "function releaseTokens(address token, address user, uint256 amount, uint256 sourceChain, address sourceBridge, uint256 sourceNonce, bytes32 sourceTxHash, bytes[] signatures) external",
   "function getValidators() view returns (address[])",
   "function signaturesRequired() view returns (uint256)",
   "function paused() view returns (bool)",
-  "function processedNonces(uint256, uint256) view returns (bool)",
+  "function processedNonces(uint256, address, uint256) view returns (bool)",
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -61,12 +61,13 @@ async function main() {
   const user = st.fromAddress;
   const amount = hre.ethers.BigNumber.from(st.amount);
   const sourceChain = st.sourceChain;
+  const sourceBridge = st.sourceBridge;
   const sourceNonce = st.sourceNonce;
   console.log(`Release: ${hre.ethers.utils.formatUnits(amount, 18)} of ${token} → ${user}`);
   console.log(`Source: chain ${sourceChain} nonce ${sourceNonce}`);
 
   if (await bridge.paused()) { console.error("Bridge is PAUSED — aborting."); process.exit(1); }
-  if (await bridge.processedNonces(sourceChain, sourceNonce)) {
+  if (await bridge.processedNonces(sourceChain, sourceBridge, sourceNonce)) {
     console.log("Nonce already processed — release was already executed. Nothing to do.");
     return;
   }
@@ -83,8 +84,8 @@ async function main() {
 
   // 2) reconstruct the signed message and validate + sort signatures ascending by signer
   const msgHash = hre.ethers.utils.keccak256(hre.ethers.utils.solidityPack(
-    ["bytes32", "address", "address", "uint256", "uint256", "uint256", "uint256", "address"],
-    [btx, token, user, amount, sourceChain, sourceNonce, net.chainId, bridgeAddr]
+    ["bytes32", "address", "address", "address", "uint256", "uint256", "uint256", "uint256", "address"],
+    [btx, sourceBridge, token, user, amount, sourceChain, sourceNonce, net.chainId, bridgeAddr]
   ));
   const ethHash = hre.ethers.utils.hashMessage(hre.ethers.utils.arrayify(msgHash));
   const paired = sigs.map((sig) => ({ sig, signer: hre.ethers.utils.recoverAddress(ethHash, sig) }))
@@ -99,7 +100,7 @@ async function main() {
   console.log(`\nSubmitting ${finalSigs.length} signatures (ascending): ${ordered.slice(0, required).map((p) => p.signer.slice(0, 8)).join(", ")}`);
 
   // 3) submit releaseTokens
-  const tx = await bridge.releaseTokens(token, user, amount, sourceChain, sourceNonce, btx, finalSigs, { gasLimit: 400_000 });
+  const tx = await bridge.releaseTokens(token, user, amount, sourceChain, sourceBridge, sourceNonce, btx, finalSigs, { gasLimit: 400_000 });
   console.log(`releaseTokens tx: ${tx.hash}`);
   const rcpt = await tx.wait();
   console.log(`  mined in block ${rcpt.blockNumber}, status ${rcpt.status}`);

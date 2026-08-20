@@ -47,8 +47,10 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
     uint256 public signaturesRequired;
     /// @notice Whether a wrapped token may be bridged through this contract.
     mapping(address => bool) public supportedTokens;
-    /// @notice processedNonces[sourceChain][sourceNonce] — replay guard for releases.
-    mapping(uint256 => mapping(uint256 => bool)) public processedNonces;
+    /// @notice Whether a wrapped token may be routed to a specific destination chain.
+    mapping(address => mapping(uint256 => bool)) public supportedRoutes;
+    /// @notice Replay guard namespaced by the exact source bridge instance.
+    mapping(uint256 => mapping(address => mapping(uint256 => bool))) public processedNonces;
 
     /// @notice Per-token fixed-window 24h cap applied independently to locks and releases (0 = unlimited).
     mapping(address => uint256) public dailyCap;
@@ -84,6 +86,7 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
         address indexed user,
         uint256 amount,
         uint256 sourceChain,
+        address sourceBridge,
         address releasedBy
     );
 
@@ -91,6 +94,7 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
     event ValidatorSetUpdated(address[] validators, uint256 signaturesRequired);
     /// @notice Emitted when a token's daily lock cap is set.
     event DailyCapSet(address indexed token, uint256 cap);
+    event SupportedRouteSet(address indexed token, uint256 indexed targetChain, bool supported);
     /// @notice Emitted when the fast pause guardian is set or cleared.
     event PauseGuardianUpdated(address indexed previousGuardian, address indexed newGuardian);
 
@@ -126,6 +130,16 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
     /// @param token Wrapped token address to disable.
     function removeSupportedToken(address token) external onlyOwner {
         supportedTokens[token] = false;
+    }
+
+    /// @notice Enable or disable an explicit token/destination route. Owner-only.
+    function setSupportedRoute(address token, uint256 targetChain, bool supported) external onlyOwner {
+        require(token != address(0), "Invalid token address");
+        require(targetChain > 0, "Invalid target chain");
+        require(targetChain != block.chainid, "Target chain cannot be current chain");
+        if (supported) require(supportedTokens[token], "Token not supported");
+        supportedRoutes[token][targetChain] = supported;
+        emit SupportedRouteSet(token, targetChain, supported);
     }
 
     // ── Admin: pause ────────────────────────────────────────────────────────────
@@ -199,6 +213,7 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
         require(supportedTokens[token], "Token not supported");
         require(amount > 0, "Amount must be greater than 0");
         require(targetChain != block.chainid, "Target chain cannot be current chain");
+        require(supportedRoutes[token][targetChain], "Route not supported");
 
         if (dailyCap[token] > 0) {
             if (block.timestamp >= lastCapReset[token] + 1 days) {
@@ -218,7 +233,7 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
         IWrappedLEP100(token).burnFrom(msg.sender, amount);
 
         bytes32 txHash = keccak256(
-            abi.encodePacked(token, msg.sender, amount, targetChain, nonce, block.chainid)
+            abi.encodePacked(token, msg.sender, amount, targetChain, nonce, block.chainid, address(this))
         );
 
         emit TokensLocked(txHash, token, msg.sender, amount, targetChain, nonce);
@@ -230,12 +245,13 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
     /// @notice Mint wrapped `token` to `user` on proof of a validator quorum.
     /// @dev Same verification as MultXBridge.releaseTokens (distinct ascending
     ///      validator signatures over the canonical EIP-191 message hash, single-use
-    ///      (sourceChain, sourceNonce), checks-effects-interactions, nonReentrant) —
+    ///      (sourceChain, sourceBridge, sourceNonce), checks-effects-interactions, nonReentrant) —
     ///      but mints via bridgeMint instead of transferring escrow.
     /// @param token Wrapped token to mint.
     /// @param user Recipient of the minted funds.
     /// @param amount Amount to mint (must be > 0).
     /// @param sourceChain Chain id where the corresponding lock occurred.
+    /// @param sourceBridge Bridge address where the corresponding lock occurred.
     /// @param sourceNonce Lock nonce on the source chain (replay key).
     /// @param sourceTxHash Lock txHash on the source chain (bound into the signed message).
     /// @param signatures Validator signatures, ascending by signer address.
@@ -244,11 +260,13 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
         address user,
         uint256 amount,
         uint256 sourceChain,
+        address sourceBridge,
         uint256 sourceNonce,
         bytes32 sourceTxHash,
         bytes[] calldata signatures
     ) external nonReentrant whenNotPaused {
-        require(!processedNonces[sourceChain][sourceNonce], "Nonce already processed");
+        require(sourceBridge != address(0), "Invalid source bridge");
+        require(!processedNonces[sourceChain][sourceBridge][sourceNonce], "Nonce already processed");
         require(signatures.length >= signaturesRequired, "Insufficient signatures");
         require(amount > 0, "Amount must be greater than 0");
 
@@ -258,6 +276,7 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
         bytes32 msgHash = keccak256(
             abi.encodePacked(
                 sourceTxHash,
+                sourceBridge,
                 token,
                 user,
                 amount,
@@ -297,13 +316,13 @@ contract MultXBridgeDest is Ownable, ReentrancyGuard, Pausable {
         // rate-limiting reverse-bridge burns.
         _consumeReleaseCap(token, amount);
 
-        processedNonces[sourceChain][sourceNonce] = true;
+        processedNonces[sourceChain][sourceBridge][sourceNonce] = true;
 
         // Mint directly to the user. The wrapped token must bind its immutable
         // bridge address to this exact contract at deployment time.
         IWrappedLEP100(token).bridgeMint(user, amount);
 
-        emit TokensReleased(sourceTxHash, token, user, amount, sourceChain, msg.sender);
+        emit TokensReleased(sourceTxHash, token, user, amount, sourceChain, sourceBridge, msg.sender);
     }
 
     function _consumeReleaseCap(address token, uint256 amount) internal {

@@ -8,6 +8,7 @@ describe("MultXBridgeDest", function () {
   );
   const ORIGIN_TOKEN = "0xC0FC628e3aB128fe387e7ed5e729bD809C017888";
   const ORIGIN_CHAIN_ID = 9005; // LITHO mainnet
+  const SOURCE_BRIDGE = "0x1111111111111111111111111111111111111111";
   const TARGET_CHAIN = ORIGIN_CHAIN_ID; // Reverse-bridge target is the LITHO source
   const HARDHAT_CHAIN_ID = 700777; // Default hardhat chainId per repo config
 
@@ -32,10 +33,10 @@ describe("MultXBridgeDest", function () {
     ]);
   }
 
-  function getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce, releaseBridge = bridge.address) {
+  function getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce, releaseBridge = bridge.address, sourceBridge = SOURCE_BRIDGE) {
     return ethers.utils.solidityKeccak256(
-      ["bytes32", "address", "address", "uint256", "uint256", "uint256", "uint256", "address"],
-      [sourceTxHash, wrapped.address, user.address, amount, sourceChain, sourceNonce,
+      ["bytes32", "address", "address", "address", "uint256", "uint256", "uint256", "uint256", "address"],
+      [sourceTxHash, sourceBridge, wrapped.address, user.address, amount, sourceChain, sourceNonce,
         HARDHAT_CHAIN_ID, releaseBridge]
     );
   }
@@ -59,6 +60,7 @@ describe("MultXBridgeDest", function () {
     await wrapped.deployed();
 
     await bridge.addSupportedToken(wrapped.address);
+    await bridge.setSupportedRoute(wrapped.address, TARGET_CHAIN, true);
 
     // Seed through a genuine quorum-authorized bridge release. WrappedLEP100
     // has no administrator path that can introduce a second minter.
@@ -72,6 +74,7 @@ describe("MultXBridgeDest", function () {
       user.address,
       seedAmount,
       ORIGIN_CHAIN_ID,
+      SOURCE_BRIDGE,
       seedNonce,
       seedTxHash,
       seedSignatures
@@ -142,6 +145,13 @@ describe("MultXBridgeDest", function () {
       ).to.be.revertedWith("Token not supported");
     });
 
+    it("Rejects a supported token on an unsupported target route", async function () {
+      await wrapped.connect(user).approve(bridge.address, ethers.utils.parseEther("1"));
+      await expect(
+        bridge.connect(user).lockTokens(wrapped.address, ethers.utils.parseEther("1"), 1)
+      ).to.be.revertedWith("Route not supported");
+    });
+
     it("Rejects zero amount", async function () {
       await expect(
         bridge.connect(user).lockTokens(wrapped.address, 0, TARGET_CHAIN)
@@ -174,7 +184,7 @@ describe("MultXBridgeDest", function () {
       const signatures = await getSortedSignatures([v1, v2], msgHash);
 
       const tx = await bridge.releaseTokens(
-        wrapped.address, user.address, amount, sourceChain, sourceNonce, sourceTxHash, signatures
+        wrapped.address, user.address, amount, sourceChain, SOURCE_BRIDGE, sourceNonce, sourceTxHash, signatures
       );
       const receipt = await tx.wait();
 
@@ -199,7 +209,7 @@ describe("MultXBridgeDest", function () {
       const firstHash = getReleaseHash(firstTxHash, firstAmount, ORIGIN_CHAIN_ID, 601);
       const firstSigs = await getSortedSignatures([v1, v2], firstHash);
       await bridge.releaseTokens(
-        wrapped.address, user.address, firstAmount, ORIGIN_CHAIN_ID, 601, firstTxHash, firstSigs
+        wrapped.address, user.address, firstAmount, ORIGIN_CHAIN_ID, SOURCE_BRIDGE, 601, firstTxHash, firstSigs
       );
 
       expect(await bridge.releaseVolume(wrapped.address)).to.equal(firstAmount);
@@ -210,10 +220,10 @@ describe("MultXBridgeDest", function () {
       const secondSigs = await getSortedSignatures([v1, v2], secondHash);
       await expect(
         bridge.releaseTokens(
-          wrapped.address, user.address, secondAmount, ORIGIN_CHAIN_ID, 602, secondTxHash, secondSigs
+          wrapped.address, user.address, secondAmount, ORIGIN_CHAIN_ID, SOURCE_BRIDGE, 602, secondTxHash, secondSigs
         )
       ).to.be.revertedWith("Release cap exceeded");
-      expect(await bridge.processedNonces(ORIGIN_CHAIN_ID, 602)).to.equal(false);
+      expect(await bridge.processedNonces(ORIGIN_CHAIN_ID, SOURCE_BRIDGE, 602)).to.equal(false);
     });
 
     it("Rejects a malleable high-s validator signature", async function () {
@@ -231,6 +241,7 @@ describe("MultXBridgeDest", function () {
           user.address,
           amount,
           sourceChain,
+          SOURCE_BRIDGE,
           sourceNonce,
           sourceTxHash,
           signatures
@@ -247,11 +258,30 @@ describe("MultXBridgeDest", function () {
       const msgHash = getReleaseHash(sourceTxHash, amount, sourceChain, sourceNonce);
       const sigs = await getSortedSignatures([v1, v2], msgHash);
 
-      await bridge.releaseTokens(wrapped.address, user.address, amount, sourceChain, sourceNonce, sourceTxHash, sigs);
+      await bridge.releaseTokens(wrapped.address, user.address, amount, sourceChain, SOURCE_BRIDGE, sourceNonce, sourceTxHash, sigs);
 
       await expect(
-        bridge.releaseTokens(wrapped.address, user.address, amount, sourceChain, sourceNonce, sourceTxHash, sigs)
+        bridge.releaseTokens(wrapped.address, user.address, amount, sourceChain, SOURCE_BRIDGE, sourceNonce, sourceTxHash, sigs)
       ).to.be.revertedWith("Nonce already processed");
+    });
+
+    it("Allows the same source nonce only when the source bridge differs", async function () {
+      const amount = ethers.utils.parseEther("1");
+      const sourceNonce = 707;
+      const otherSourceBridge = "0x7777777777777777777777777777777777777777";
+      const txA = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("dest-source-a"));
+      const txB = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("dest-source-b"));
+      const sigsA = await getSortedSignatures(
+        [v1, v2], getReleaseHash(txA, amount, ORIGIN_CHAIN_ID, sourceNonce)
+      );
+      const sigsB = await getSortedSignatures(
+        [v1, v2], getReleaseHash(txB, amount, ORIGIN_CHAIN_ID, sourceNonce, bridge.address, otherSourceBridge)
+      );
+
+      await bridge.releaseTokens(wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, SOURCE_BRIDGE, sourceNonce, txA, sigsA);
+      await bridge.releaseTokens(wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, otherSourceBridge, sourceNonce, txB, sigsB);
+      expect(await bridge.processedNonces(ORIGIN_CHAIN_ID, SOURCE_BRIDGE, sourceNonce)).to.equal(true);
+      expect(await bridge.processedNonces(ORIGIN_CHAIN_ID, otherSourceBridge, sourceNonce)).to.equal(true);
     });
 
     it("Rejects fewer signatures than required", async function () {
@@ -261,7 +291,7 @@ describe("MultXBridgeDest", function () {
       const sig1 = await v1.signMessage(ethers.utils.arrayify(msgHash));
 
       await expect(
-        bridge.releaseTokens(wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, 2, sourceTxHash, [sig1])
+        bridge.releaseTokens(wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, SOURCE_BRIDGE, 2, sourceTxHash, [sig1])
       ).to.be.revertedWith("Insufficient signatures");
     });
 
@@ -275,7 +305,7 @@ describe("MultXBridgeDest", function () {
       const reversed = [...sortedSigs].reverse();
 
       await expect(
-        bridge.releaseTokens(wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, 3, sourceTxHash, reversed)
+        bridge.releaseTokens(wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, SOURCE_BRIDGE, 3, sourceTxHash, reversed)
       ).to.be.revertedWith("Signatures must be in ascending order");
     });
 
@@ -288,7 +318,7 @@ describe("MultXBridgeDest", function () {
       const sigs = await getSortedSignatures([v1, user], msgHash);
 
       await expect(
-        bridge.releaseTokens(wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, 4, sourceTxHash, sigs)
+        bridge.releaseTokens(wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, SOURCE_BRIDGE, 4, sourceTxHash, sigs)
       ).to.be.revertedWith("Invalid signer");
     });
 
@@ -309,6 +339,7 @@ describe("MultXBridgeDest", function () {
           user.address,
           amount,
           ORIGIN_CHAIN_ID,
+          SOURCE_BRIDGE,
           sourceNonce,
           sourceTxHash,
           sigs
@@ -345,7 +376,7 @@ describe("MultXBridgeDest", function () {
       const msgHash = getReleaseHash(sourceTxHash, amount, ORIGIN_CHAIN_ID, 99);
       const sigs = await getSortedSignatures([v1, v2], msgHash);
       await expect(
-        bridge.releaseTokens(wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, 99, sourceTxHash, sigs)
+        bridge.releaseTokens(wrapped.address, user.address, amount, ORIGIN_CHAIN_ID, SOURCE_BRIDGE, 99, sourceTxHash, sigs)
       ).to.be.revertedWith("EnforcedPause");
     });
   });

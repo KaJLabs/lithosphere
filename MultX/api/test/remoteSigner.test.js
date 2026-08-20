@@ -75,10 +75,15 @@ test('rejects a signature if any signed release field changes', async () => {
   }), /expected/);
 });
 
-test('rejects replay on a different destination chain or bridge', async () => {
+test('rejects replay from a different source bridge or on a different destination domain', async () => {
   const wallet = ethers.Wallet.createRandom();
   const signature = await wallet.signMessage(ethers.getBytes(releaseMessageHash(attestation)));
 
+  assert.throws(() => verifyReleaseSignature({
+    attestation: { ...attestation, sourceBridge: ethers.Wallet.createRandom().address },
+    signature,
+    expectedAddress: wallet.address,
+  }), /expected/);
   assert.throws(() => verifyReleaseSignature({
     attestation: { ...attestation, targetChain: 8453 },
     signature,

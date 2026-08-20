@@ -24,7 +24,7 @@ The signer does not blindly sign an API-provided digest. For every request it:
    the explicit confirmation depth;
 4. verifies the exact `TokensLocked` event at the supplied block;
 5. recomputes the release hash locally;
-6. records an fsync-backed `(sourceChain, sourceNonce) -> hash` decision before
+6. records an fsync-backed `(sourceChain, sourceBridge, sourceNonce) -> hash` decision before
    signing and rejects equivocation, including after restart; and
 7. returns an EIP-191 signature only after those checks pass.
 

@@ -38,6 +38,7 @@ const validManifest = () => ({
       kind: chainId === 9005 ? 'canonical' : 'wrapped',
       symbol: 'ASSET',
       address: address(40 + index),
+      targetChainIds: chainId === 9005 ? [1, 56, 8453] : [9005],
       dailyCapBaseUnits: '1000000000000000000',
       runtimeSha256: 'd'.repeat(64),
       ...(chainId === 9005 ? {} : {
@@ -91,5 +92,11 @@ describe('mainnet deployment manifest', () => {
     const manifest = validManifest();
     manifest.chains[2].bridge.runtimeSha256 = 'f'.repeat(64);
     expect(() => validateDeploymentManifest(manifest)).to.throw('does not match the audited release');
+  });
+
+  it('rejects an incomplete or extra on-chain route declaration', () => {
+    const manifest = validManifest();
+    manifest.chains[0].assets[0].targetChainIds = [1, 56];
+    expect(() => validateDeploymentManifest(manifest)).to.throw('targetChainIds');
   });
 });

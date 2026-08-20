@@ -118,11 +118,12 @@ export const lockTokens = async (signer, tokenAddress, amount, targetChainId) =>
   return { txHash: tx.hash, receipt };
 };
 
-export const releaseTokens = async (signer, { token, user, amount, sourceChain, sourceNonce, sourceTxHash, signatures }) => {
+export const releaseTokens = async (signer, { token, user, amount, sourceChain, sourceBridge, sourceNonce, sourceTxHash, signatures }) => {
   const c = getBridgeContract(signer);
   const destinationChain = await signer.getChainId();
   const sortedSigs = sortReleaseSignatures(signatures, {
     sourceTxHash,
+    sourceBridge,
     token,
     user,
     amount,
@@ -131,7 +132,7 @@ export const releaseTokens = async (signer, { token, user, amount, sourceChain, 
     destinationChain,
     destinationBridge: c.address,
   });
-  const tx = await c.releaseTokens(token, user, amount, sourceChain, sourceNonce, sourceTxHash, sortedSigs);
+  const tx = await c.releaseTokens(token, user, amount, sourceChain, sourceBridge, sourceNonce, sourceTxHash, sortedSigs);
   const receipt = await tx.wait();
   return { txHash: tx.hash, receipt };
 };

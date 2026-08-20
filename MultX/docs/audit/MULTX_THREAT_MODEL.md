@@ -139,15 +139,17 @@ administrator bypass identified as Autha C-01.
 
 | Attack | Defense |
 |---|---|
-| Re-use signed release for the same source nonce twice | `processedNonces[sourceChain][sourceNonce]` set to true on first execution; subsequent calls revert |
+| Re-use signed release for the same source-bridge nonce twice | `processedNonces[sourceChain][sourceBridge][sourceNonce]` is set on first execution; subsequent calls for that exact source bridge revert |
 | Submit duplicate signatures to inflate count | Signature ordering check: `require(signer > lastSigner, "Signatures must be in ascending order")` |
 | Submit signatures from unknown signer | `require(isValidator[signer], "Invalid signer")` |
 | Reentrancy on `releaseTokens` (try to recurse during `safeTransfer`) | `nonReentrant` modifier from OZ ReentrancyGuard |
 | Lock 0 amount to create spam events | `require(amount > 0, "Amount must be greater than 0")` |
 | Lock to current chain (no-op bridge) | `require(targetChain != block.chainid)` |
 | Bridge unsupported token | `require(supportedTokens[token], "Token not supported")` |
+| Bridge an approved token to an unsupported chain | `supportedRoutes[token][targetChain]` must be explicitly enabled by governance; the listener quarantines historical/unmapped events and advances its durable cursor |
+| Admit fee-on-transfer or rebasing semantics | Source escrow verifies its exact post-transfer balance delta; asset policy separately prohibits rebasing, reflection, callback-bearing and other non-standard balance behavior |
 | Exceed lock or release cap | Per-token fixed 24h windows separately enforce `dailyVolume + amount <= dailyCap` and `releaseVolume + amount <= dailyCap` |
-| Front-run or malleate an in-flight signature submission | Signatures bind `(sourceTxHash, token, user, amount, sourceChain, sourceNonce, destinationChain, destinationBridge)`; OpenZeppelin ECDSA rejects non-canonical high-s signatures, and only the bound recipient receives funds |
+| Front-run or malleate an in-flight signature submission | Signatures bind `(sourceTxHash, sourceBridge, token, user, amount, sourceChain, sourceNonce, destinationChain, destinationBridge)`; OpenZeppelin ECDSA rejects non-canonical high-s signatures, and only the bound recipient receives funds |
 | Burst across a cap-window boundary | Explicitly accepted fixed-window behavior; policy must size caps for a potential near-2x boundary burst and monitoring must alert before exhaustion |
 
 ### 3.4 Malicious bridge owner
@@ -199,8 +201,8 @@ Audit firm: please test these with Foundry / Echidna invariant tests. Suggested 
 ```solidity
 // Echidna-style invariants
 function invariant_no_double_release() public view {
-  for (each sourceChain, sourceNonce) {
-    assert(processedNonces[sourceChain][sourceNonce] == true || release_for_that_nonce_count == 0);
+  for (each sourceChain, sourceBridge, sourceNonce) {
+    assert(processedNonces[sourceChain][sourceBridge][sourceNonce] == true || release_for_that_nonce_count == 0);
   }
 }
 

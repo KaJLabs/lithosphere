@@ -43,7 +43,7 @@ pause toggles) under fuzzing. Invariants asserted after every call sequence
 | `invariant_solvency` | escrow balance == total locked − total released |
 | `invariant_releaseNeverExceedsLock` | cumulative released ≤ cumulative locked |
 | `invariant_nonceEqualsLockSuccesses` | `nonce` increments by exactly 1 per successful lock, only on lock |
-| `invariant_noDoubleRelease` | a processed `(sourceChain, sourceNonce)` can never release twice (replay guard) |
+| `invariant_noDoubleRelease` | a processed `(sourceChain, sourceBridge, sourceNonce)` can never release twice (replay guard) |
 | `invariant_dailyVolumeWithinCap` | per-token lock and release volumes are each ≤ `dailyCap` whenever a non-zero cap is set |
 | `invariant_signaturesRequiredWellFormed` | `0 < signaturesRequired ≤ validators.length` |
 
@@ -77,7 +77,7 @@ burner, so the accounting is exact:
 |---|---|
 | `invariant_supplyEqualsMintedMinusBurned` | wrapped `totalSupply` == total minted − total burned (no unbacked wrapped tokens) |
 | `invariant_burnNeverExceedsMint` | cumulative burned ≤ cumulative minted |
-| `invariant_noDoubleRelease` | a processed `(sourceChain, sourceNonce)` can never mint twice |
+| `invariant_noDoubleRelease` | a processed `(sourceChain, sourceBridge, sourceNonce)` can never mint twice |
 | `invariant_nonceEqualsBurnSuccesses` | `nonce` increments by exactly 1 per successful lock/burn, only on lock |
 | `invariant_dailyVolumeWithinCap` | per-token burn and mint volumes are each ≤ `dailyCap` whenever a non-zero cap is set |
 | `invariant_signaturesRequiredWellFormed` | `0 < signaturesRequired ≤ validators.length` |

@@ -1,5 +1,8 @@
 # MultX signer audit source manifest - 2026-08-19
 
+> **Historical v0.6 evidence only.** Regenerate a complete source manifest from
+> the immutable v0.8 tag before handing the remediation back to Autha.
+
 Status: audit input only. MultX and release signing remain disabled.
 
 The Solidity audit candidate remains the immutable tag

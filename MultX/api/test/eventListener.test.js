@@ -42,7 +42,7 @@ test('cursor hash mismatch fails closed for manual reconciliation', async () => 
   );
 });
 
-function rangeFixture({ failInsert = false, targetChain = 11155111 } = {}) {
+function rangeFixture({ failInsert = false, targetChain = 11155111, targetChains = null } = {}) {
   const calls = [];
   const client = {
     async query(sql) {
@@ -61,18 +61,20 @@ function rangeFixture({ failInsert = false, targetChain = 11155111 } = {}) {
     provider: { getBlock: async () => ({ hash: blockHash }) },
     contract: {
       filters: { TokensLocked: () => ({}) },
-      queryFilter: async () => [{
+      queryFilter: async () => (targetChains || [targetChain]).map((chain, index) => ({
         args: {
-          txHash: `0x${'12'.repeat(32)}`,
+          txHash: `0x${String(index + 12).padStart(2, '0').repeat(32)}`,
           token: sourceToken,
           user: '0x2222222222222222222222222222222222222222',
           amount: 10n,
-          targetChain: BigInt(targetChain),
-          nonce: 7n,
+          targetChain: BigInt(chain),
+          nonce: BigInt(index + 7),
         },
         blockNumber: 100,
         blockHash,
-      }],
+        transactionHash: `0x${String(index + 22).padStart(2, '0').repeat(32)}`,
+        index,
+      })),
     },
   };
   return { calls, client, watcher, database: { connect: async () => client } };
@@ -101,12 +103,44 @@ test('database failure rolls back and never advances the cursor', async () => {
   assert.ok(!fixture.calls.includes('COMMIT'));
 });
 
-test('unmapped routes roll back instead of being skipped', async () => {
+test('an unmapped route is quarantined and the cursor advances', async () => {
   const fixture = rangeFixture({ targetChain: 999999 });
-  await assert.rejects(
-    processBlockRange(fixture.watcher, 100, fixture.database),
-    /No release_token mapping/
-  );
-  assert.equal(fixture.watcher.lastBlock, 99);
-  assert.ok(fixture.calls.includes('ROLLBACK'));
+  await processBlockRange(fixture.watcher, 100, fixture.database);
+  assert.equal(fixture.watcher.lastBlock, 100);
+  assert.match(fixture.calls[1], /^INSERT INTO bridge_rejected_events/);
+  assert.ok(fixture.calls.includes('COMMIT'));
+  assert.ok(!fixture.calls.includes('ROLLBACK'));
+});
+
+for (const [position, targetChains] of [
+  ['first', [999999, 11155111, 11155111]],
+  ['middle', [11155111, 999999, 11155111]],
+  ['last', [11155111, 11155111, 999999]],
+]) {
+  test(`an unsupported ${position} event in a block cannot poison valid later progress`, async () => {
+    const fixture = rangeFixture({ targetChains });
+    await processBlockRange(fixture.watcher, 100, fixture.database);
+    assert.equal(fixture.watcher.lastBlock, 100);
+    assert.equal(fixture.calls.filter((call) => /^INSERT INTO bridge_rejected_events/.test(call)).length, 1);
+    assert.equal(fixture.calls.filter((call) => /^INSERT INTO bridge_transactions/.test(call)).length, 2);
+    assert.ok(fixture.calls.includes('COMMIT'));
+  });
+}
+
+test('restart overlap reprocesses a quarantined event idempotently and advances', async () => {
+  const fixture = rangeFixture({ targetChain: 999999 });
+  await processBlockRange(fixture.watcher, 100, fixture.database);
+  fixture.watcher.lastBlock = 99;
+  await processBlockRange(fixture.watcher, 100, fixture.database);
+  assert.equal(fixture.watcher.lastBlock, 100);
+  assert.equal(fixture.calls.filter((call) => /^INSERT INTO bridge_rejected_events/.test(call)).length, 2);
+  assert.equal(fixture.calls.filter((call) => call === 'COMMIT').length, 2);
+});
+
+test('an arbitrary uint256 target chain is quarantined without overflowing PostgreSQL BIGINT', async () => {
+  const fixture = rangeFixture({ targetChain: (2n ** 256n - 1n).toString() });
+  await processBlockRange(fixture.watcher, 100, fixture.database);
+  assert.equal(fixture.watcher.lastBlock, 100);
+  assert.match(fixture.calls[1], /^INSERT INTO bridge_rejected_events/);
+  assert.ok(fixture.calls.includes('COMMIT'));
 });

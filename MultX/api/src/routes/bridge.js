@@ -38,6 +38,9 @@ router.get('/status/:txHash', async (req, res, next) => {
     }
 
     const tx = result.rows[0];
+    const sourceBridge = config.chainsToWatch.find(
+      (chain) => Number(chain.chainId) === Number(tx.source_chain)
+    )?.bridge || null;
     res.json({
       txHash: tx.tx_hash,
       fromAddress: tx.from_address,
@@ -45,6 +48,7 @@ router.get('/status/:txHash', async (req, res, next) => {
       releaseToken: tx.release_token,
       amount: tx.amount,
       sourceChain: tx.source_chain ? Number(tx.source_chain) : null,
+      sourceBridge,
       targetChain: tx.target_chain ? Number(tx.target_chain) : null,
       sourceNonce: tx.source_nonce,
       status: statusMapping[tx.status] || tx.status,
