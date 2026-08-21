@@ -31,7 +31,7 @@ const BRIDGE_ABI = [
 let releaseIntervalId = null;
 let running = false;                 // serialize ticks (one relayer EOA → no nonce races)
 const inFlight = new Set();          // tx_hashes being processed in the current tick
-const chainCtx = new Map();          // chainId → { bridge, required, validators, name }
+const chainCtx = new Map();          // chainId → signer-bound connection; policy is read live
 
 const short = (h) => (h ? `${h.substring(0, 10)}…` : h);
 
@@ -39,8 +39,8 @@ function destChainConfig(chainId) {
   return config.chainsToWatch.find((c) => Number(c.chainId) === Number(chainId)) || null;
 }
 
-// Lazily build (and cache) the signer-bound bridge contract + on-chain params
-// for a destination chain. Returns null if the chain has no bridge configured.
+// Lazily cache only the signer-bound bridge connection. Validator membership
+// and threshold are re-read from chain for every release attempt.
 async function getChainCtx(chainId) {
   const key = Number(chainId);
   if (chainCtx.has(key)) return chainCtx.get(key);
@@ -51,18 +51,27 @@ async function getChainCtx(chainId) {
   const provider = new ethers.JsonRpcProvider(cc.rpc);
   const wallet = new ethers.Wallet(config.relayerPrivateKey, provider);
   const bridge = new ethers.Contract(cc.bridge, BRIDGE_ABI, wallet);
-  const [required, validatorList] = await Promise.all([bridge.signaturesRequired(), bridge.getValidators()]);
   const ctx = {
     bridge,
     bridgeAddress: cc.bridge,
     chainId: key,
     name: cc.name,
-    required: Number(required),
-    validators: new Set(validatorList.map((a) => a.toLowerCase())),
   };
   chainCtx.set(key, ctx);
-  console.log(`[ReleaseService] dest ${cc.name} (${key}) bridge ${cc.bridge} — requires ${ctx.required} of ${ctx.validators.size} validators`);
+  console.log(`[ReleaseService] dest ${cc.name} (${key}) bridge ${cc.bridge} connected; validator policy is read live per release`);
   return ctx;
+}
+
+export async function refreshValidatorPolicy(ctx) {
+  const [required, validatorList] = await Promise.all([
+    ctx.bridge.signaturesRequired(),
+    ctx.bridge.getValidators(),
+  ]);
+  return {
+    ...ctx,
+    required: Number(required),
+    validators: new Set(validatorList.map((address) => address.toLowerCase())),
+  };
 }
 
 // Recover the signer of every stored signature, drop any that aren't current
@@ -103,14 +112,15 @@ async function releaseOne(tx) {
     console.warn(`[ReleaseService] incomplete release evidence — skipping ${short(tx.tx_hash)}`);
     return;
   }
-  const ctx = await getChainCtx(tx.target_chain);
-  if (!ctx) {
+  const connection = await getChainCtx(tx.target_chain);
+  if (!connection) {
     console.warn(`[ReleaseService] no dest bridge for chain ${tx.target_chain} — skipping ${short(tx.tx_hash)}`);
     return;
   }
+  const ctx = await refreshValidatorPolicy(connection);
   const token = tx.release_token;
   const amount = BigInt(tx.amount);
-  const sourceBridge = destChainConfig(tx.source_chain)?.bridge;
+  const sourceBridge = tx.source_bridge;
   if (!sourceBridge) {
     console.warn(`[ReleaseService] no source bridge for chain ${tx.source_chain} — skipping ${short(tx.tx_hash)}`);
     return;
@@ -159,7 +169,7 @@ async function processReleases() {
   try {
     const { rows } = await pool.query(
       `SELECT tx_hash, from_address, token_address, release_token, amount,
-              target_chain, source_chain, source_nonce
+              target_chain, source_chain, source_bridge, source_nonce
        FROM bridge_transactions
        WHERE status = 'signed' AND release_tx_hash IS NULL
        ORDER BY timestamp ASC`
