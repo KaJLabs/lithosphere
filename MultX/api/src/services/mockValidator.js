@@ -33,7 +33,7 @@ async function processSignings() {
     // Find all 'locked' transactions
     const result = await pool.query(
       `SELECT tx_hash, from_address, token_address, release_token, amount,
-              target_chain, source_chain, source_nonce
+              target_chain, source_chain, source_bridge, source_nonce
        FROM bridge_transactions WHERE status = 'locked'`
     );
 
@@ -52,16 +52,13 @@ async function processSignings() {
           try {
             const releaseToken = tx.release_token || tx.token_address;
             const sourceChain  = tx.source_chain  || 900523;
-            const sourceSpec = config.chainsToWatch.find(
-              (chain) => Number(chain.chainId) === Number(sourceChain)
-            );
             const targetSpec = config.chainsToWatch.find(
               (chain) => Number(chain.chainId) === Number(tx.target_chain)
             );
-            if (!sourceSpec?.bridge || !targetSpec?.bridge) throw new Error('source or target bridge is not configured');
+            if (!tx.source_bridge || !targetSpec?.bridge) throw new Error('source or target bridge is not configured');
             const hash = ethers.solidityPackedKeccak256(
               ['bytes32', 'address', 'address', 'address', 'uint256', 'uint256', 'uint256', 'uint256', 'address'],
-              [tx.tx_hash, sourceSpec.bridge, releaseToken, tx.from_address, tx.amount, sourceChain, tx.source_nonce,
+              [tx.tx_hash, tx.source_bridge, releaseToken, tx.from_address, tx.amount, sourceChain, tx.source_nonce,
                 tx.target_chain, targetSpec.bridge]
             );
 

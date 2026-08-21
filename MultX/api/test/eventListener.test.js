@@ -44,10 +44,12 @@ test('cursor hash mismatch fails closed for manual reconciliation', async () => 
 
 function rangeFixture({ failInsert = false, targetChain = 11155111, targetChains = null } = {}) {
   const calls = [];
+  const params = [];
   const client = {
-    async query(sql) {
+    async query(sql, values) {
       const text = String(sql).trim();
       calls.push(text);
+      params.push(values);
       if (failInsert && text.startsWith('INSERT INTO bridge_transactions')) {
         throw new Error('temporary database failure');
       }
@@ -77,7 +79,7 @@ function rangeFixture({ failInsert = false, targetChain = 11155111, targetChains
       })),
     },
   };
-  return { calls, client, watcher, database: { connect: async () => client } };
+  return { calls, params, client, watcher, database: { connect: async () => client } };
 }
 
 test('events and cursor commit atomically before in-memory progress advances', async () => {
@@ -86,6 +88,7 @@ test('events and cursor commit atomically before in-memory progress advances', a
   assert.equal(fixture.watcher.lastBlock, 100);
   assert.equal(fixture.calls[0], 'BEGIN');
   assert.match(fixture.calls[1], /^INSERT INTO bridge_transactions/);
+  assert.equal(fixture.params[1][5], bridge.toLowerCase());
   assert.doesNotMatch(fixture.calls[1], /status='locked'/);
   assert.match(fixture.calls[2], /^INSERT INTO bridge_event_cursors/);
   assert.equal(fixture.calls[3], 'COMMIT');

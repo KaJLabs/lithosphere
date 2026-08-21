@@ -38,9 +38,6 @@ router.get('/status/:txHash', async (req, res, next) => {
     }
 
     const tx = result.rows[0];
-    const sourceBridge = config.chainsToWatch.find(
-      (chain) => Number(chain.chainId) === Number(tx.source_chain)
-    )?.bridge || null;
     res.json({
       txHash: tx.tx_hash,
       fromAddress: tx.from_address,
@@ -48,7 +45,7 @@ router.get('/status/:txHash', async (req, res, next) => {
       releaseToken: tx.release_token,
       amount: tx.amount,
       sourceChain: tx.source_chain ? Number(tx.source_chain) : null,
-      sourceBridge,
+      sourceBridge: tx.source_bridge,
       targetChain: tx.target_chain ? Number(tx.target_chain) : null,
       sourceNonce: tx.source_nonce,
       status: statusMapping[tx.status] || tx.status,
@@ -96,7 +93,7 @@ router.get('/transactions/:address', async (req, res, next) => {
     const limit  = Math.min(parseInt(req.query.limit  || '25', 10), 100);
     const cursor = req.query.cursor || null; // ISO timestamp — return rows older than this
 
-    const cols = `tx_hash, timestamp, token_address, release_token,
+    const cols = `tx_hash, timestamp, token_address, release_token, source_bridge,
                   source_chain, target_chain, amount, status`;
     let query, params;
     if (cursor) {
@@ -121,6 +118,7 @@ router.get('/transactions/:address', async (req, res, next) => {
       fromToken:    row.token_address,
       toToken:      row.release_token || row.token_address,
       sourceChain:  row.source_chain ? Number(row.source_chain) : 900523,
+      sourceBridge: row.source_bridge,
       targetChain:  row.target_chain ? Number(row.target_chain) : null,
       amount:       (BigInt(row.amount) / BigInt(10 ** 18)).toString(),
       status:       statusMapping[row.status] || row.status,

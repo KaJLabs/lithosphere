@@ -120,23 +120,22 @@ async function processSignings() {
   try {
     const result = await pool.query(
       `SELECT tx_hash, from_address, token_address, release_token, amount,
-              target_chain, source_chain, source_nonce, block_number
+              target_chain, source_chain, source_bridge, source_nonce, block_number
        FROM bridge_transactions WHERE status IN ('locked', 'signing')`
     );
 
     if (result.rows.length === 0) return;
 
     for (const tx of result.rows) {
-      if (!tx.release_token || !tx.source_chain || !tx.source_nonce || !tx.block_number) {
+      if (!tx.release_token || !tx.source_chain || !tx.source_bridge || !tx.source_nonce || !tx.block_number) {
         console.error(`[ValidatorService] Refusing ${tx.tx_hash}: incomplete multichain lock evidence`);
         continue;
       }
       const releaseToken = tx.release_token;
       const sourceChain = tx.source_chain;
-      const sourceSpec = config.chainsToWatch.find((c) => Number(c.chainId) === Number(sourceChain));
       const targetSpec = config.chainsToWatch.find((c) => Number(c.chainId) === Number(tx.target_chain));
-      if (!sourceSpec?.bridge || !targetSpec?.bridge) {
-        console.error(`[ValidatorService] Refusing ${tx.tx_hash}: missing source/target bridge or block evidence`);
+      if (!targetSpec?.bridge) {
+        console.error(`[ValidatorService] Refusing ${tx.tx_hash}: missing target bridge or block evidence`);
         continue;
       }
 
@@ -145,7 +144,7 @@ async function processSignings() {
         sourceChain,
         sourceNonce: tx.source_nonce,
         sourceBlock: tx.block_number,
-        sourceBridge: sourceSpec.bridge,
+        sourceBridge: tx.source_bridge,
         sourceToken: tx.token_address,
         releaseToken,
         user: tx.from_address,

@@ -124,12 +124,13 @@ export async function processBlockRange(w, toBlock, database = pool) {
 
       await client.query(
         `INSERT INTO bridge_transactions
-           (tx_hash, from_address, token_address, amount, target_chain,
+           (tx_hash, from_address, token_address, amount, target_chain, source_bridge,
             source_chain, source_nonce, release_token, status, block_number, block_hash)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'locked', $9, $10)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'locked', $10, $11)
          ON CONFLICT (tx_hash) DO UPDATE SET
            block_number=EXCLUDED.block_number,
            block_hash=EXCLUDED.block_hash,
+           source_bridge=EXCLUDED.source_bridge,
            source_chain=EXCLUDED.source_chain,
            release_token=EXCLUDED.release_token`,
         [
@@ -138,6 +139,7 @@ export async function processBlockRange(w, toBlock, database = pool) {
           token,
           amount.toString(),
           releaseChain,
+          normalizedBridge(w.spec),
           w.spec.chainId,
           nonce.toString(),
           releaseToken,
