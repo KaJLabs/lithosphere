@@ -1,0 +1,162 @@
+diff --git a/baseapp/baseapp.go b/baseapp/baseapp.go
+index 5fb0b0fca..17d1cd4cc 100644
+--- a/baseapp/baseapp.go
++++ b/baseapp/baseapp.go
+@@ -413,6 +413,11 @@ func (app *BaseApp) Mempool() mempool.Mempool {
+ 	return app.mempool
+ }
+ 
++// StreamingManager returns the StreamingManager of the app.
++func (app *BaseApp) StreamingManager() storetypes.StreamingManager {
++	return app.streamingManager
++}
++
+ // Init initializes the app. It seals the app, preventing any
+ // further modifications. In addition, it validates the app against
+ // the earlier provided settings. Returns an error if validation fails.
+diff --git a/client/config/toml.go b/client/config/toml.go
+index b3ef23ee5..9ba2dcbb2 100644
+--- a/client/config/toml.go
++++ b/client/config/toml.go
+@@ -2,6 +2,7 @@ package config
+ 
+ import (
+ 	"bytes"
++	"fmt"
+ 	"os"
+ 	"text/template"
+ 
+@@ -47,9 +48,14 @@ func writeConfigToFile(configFilePath string, config *ClientConfig) error {
+ 
+ // getClientConfig reads values from client.toml file and unmarshalls them into ClientConfig
+ func getClientConfig(configPath string, v *viper.Viper) (*ClientConfig, error) {
++	const (
++		confName = "client"
++		confType = "toml"
++	)
+ 	v.AddConfigPath(configPath)
+-	v.SetConfigName("client")
+-	v.SetConfigType("toml")
++	v.SetConfigName(confName)
++	v.SetConfigType(confType)
++	v.SetConfigFile(fmt.Sprintf("%s/%s.%s", configPath, confName, confType))
+ 
+ 	if err := v.ReadInConfig(); err != nil {
+ 		return nil, err
+diff --git a/client/flags/flags.go b/client/flags/flags.go
+index 26a93a5e6..e02e009ce 100644
+--- a/client/flags/flags.go
++++ b/client/flags/flags.go
+@@ -10,13 +10,14 @@ import (
+ 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
+ )
+ 
++// DefaultGasAdjustment is applied to gas estimates to avoid tx execution
++// failures due to state changes that might occur between the tx simulation
++// and the actual run.
++var DefaultGasAdjustment = 1.0
++
+ const (
+-	// DefaultGasAdjustment is applied to gas estimates to avoid tx execution
+-	// failures due to state changes that might occur between the tx simulation
+-	// and the actual run.
+-	DefaultGasAdjustment = 1.0
+-	DefaultGasLimit      = 200000
+-	GasFlagAuto          = "auto"
++	DefaultGasLimit = 200000
++	GasFlagAuto     = "auto"
+ 
+ 	// DefaultKeyringBackend
+ 	DefaultKeyringBackend = keyring.BackendOS
+diff --git a/store/cachekv/store.go b/store/cachekv/store.go
+index 08cfc2b32..f5871314a 100644
+--- a/store/cachekv/store.go
++++ b/store/cachekv/store.go
+@@ -171,6 +171,34 @@ func (store *Store) CacheWrapWithTrace(w io.Writer, tc types.TraceContext) types
+ 	return NewStore(tracekv.NewStore(store, w, tc))
+ }
+ 
++// Copy creates a deep copy of the Store object
++func (store *Store) Copy() types.CacheKVStore {
++	store.mtx.Lock()
++	defer store.mtx.Unlock()
++
++	cacheCopy := make(map[string]*cValue, len(store.cache))
++	for key, val := range store.cache {
++		newVal := *val
++		cacheCopy[key] = &newVal
++	}
++
++	unsortedCacheCopy := make(map[string]struct{}, len(store.unsortedCache))
++	for key := range store.unsortedCache {
++		unsortedCacheCopy[key] = struct{}{}
++	}
++
++	sortedCacheCopy := store.sortedCache.Copy()
++
++	newStore := &Store{
++		cache:         cacheCopy,
++		unsortedCache: unsortedCacheCopy,
++		sortedCache:   sortedCacheCopy,
++		parent:        store.parent,
++	}
++
++	return newStore
++}
++
+ //----------------------------------------
+ // Iteration
+ 
+diff --git a/store/cachemulti/store.go b/store/cachemulti/store.go
+index 696911370..94a5f1974 100644
+--- a/store/cachemulti/store.go
++++ b/store/cachemulti/store.go
+@@ -168,3 +168,26 @@ func (cms Store) GetKVStore(key types.StoreKey) types.KVStore {
+ 	}
+ 	return store.(types.KVStore)
+ }
++
++// Copy creates a deep copy of the Store object
++func (cms Store) Copy() types.CacheMultiStore {
++	newDB := cms.db.Copy()
++
++	newStores := make(map[types.StoreKey]types.CacheWrap, len(cms.stores))
++	for key, store := range cms.stores {
++		store, ok := store.(*cachekv.Store)
++		if ok {
++			newStores[key] = store.Copy()
++		}
++	}
++
++	newStore := Store{
++		db:           newDB,
++		stores:       newStores,
++		keys:         cms.keys,
++		traceWriter:  cms.traceWriter,
++		traceContext: cms.traceContext,
++	}
++
++	return newStore
++}
+diff --git a/store/types/store.go b/store/types/store.go
+index 898017995..6b51f16f3 100644
+--- a/store/types/store.go
++++ b/store/types/store.go
+@@ -157,7 +157,8 @@ type MultiStore interface {
+ // From MultiStore.CacheMultiStore()....
+ type CacheMultiStore interface {
+ 	MultiStore
+-	Write() // Writes operations to underlying KVStore
++	Write()                // Writes operations to underlying KVStore
++	Copy() CacheMultiStore // Returns a deep copy of the CacheMultiStore
+ }
+ 
+ // CommitMultiStore is an interface for a MultiStore without cache capabilities.
+@@ -276,6 +277,7 @@ type CacheKVStore interface {
+ 
+ 	// Writes operations to underlying KVStore
+ 	Write()
++	Copy() CacheKVStore
+ }
+ 
+ // CommitKVStore is an interface for MultiStore.
