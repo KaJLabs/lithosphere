@@ -18,7 +18,14 @@ set -euo pipefail
 # Configuration (override via environment variables)
 # ---------------------------------------------------------------------------
 EVMOS_VERSION="${EVMOS_VERSION:-v20.0.0}"
-BUILD_DIR="${BUILD_DIR:-/tmp/evmos-build-$$}"
+EVMOS_COMMIT="${EVMOS_COMMIT:-eca13ef2521a9ef13c32e80b1b147230bdb155b5}"
+COSMOS_SDK_VERSION="${COSMOS_SDK_VERSION:-v0.50.14}"
+COSMOS_SDK_COMMIT="${COSMOS_SDK_COMMIT:-f2e6295b662fdb27ea33da1296c29588ccdaab42}"
+COMETBFT_VERSION="${COMETBFT_VERSION:-v0.38.22}"
+IBC_GO_VERSION="${IBC_GO_VERSION:-v8.7.0}"
+COSMOS_MATH_VERSION="${COSMOS_MATH_VERSION:-v1.4.0}"
+BUILD_DIR="${BUILD_DIR:-/tmp/litho-evmos-v20-security-build}"
+SDK_BUILD_DIR="${SDK_BUILD_DIR:-/tmp/litho-cosmos-sdk-v0.50.14}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUTPUT="${OUTPUT:-${SCRIPT_DIR}/lithod}"
 SKIP_SBOM=false
@@ -42,6 +49,10 @@ echo "Build dir : ${BUILD_DIR}"
 echo "Output    : ${OUTPUT}"
 echo "Prefix    : ${BECH32_PREFIX}"
 echo "Denom     : ${DENOM}"
+echo "SDK       : ${COSMOS_SDK_VERSION} (${COSMOS_SDK_COMMIT})"
+echo "CometBFT  : ${COMETBFT_VERSION}"
+echo "IBC-Go    : ${IBC_GO_VERSION}"
+echo "SDK Math  : ${COSMOS_MATH_VERSION}"
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -71,8 +82,18 @@ cleanup() {
         echo "Cleaning up ${BUILD_DIR} ..."
         rm -rf "${BUILD_DIR}"
     fi
+    if [ -d "${SDK_BUILD_DIR}" ]; then
+        echo "Cleaning up ${SDK_BUILD_DIR} ..."
+        rm -rf "${SDK_BUILD_DIR}"
+    fi
 }
 trap cleanup EXIT
+
+if [[ -e "${BUILD_DIR}" || -e "${SDK_BUILD_DIR}" ]]; then
+    echo "ERROR: build paths must not already exist: ${BUILD_DIR}, ${SDK_BUILD_DIR}" >&2
+    echo "Remove only these stale task-specific directories after verifying their paths." >&2
+    exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # 1. Clone Evmos at pinned version
@@ -81,6 +102,42 @@ echo ">>> Cloning evmos/evmos @ ${EVMOS_VERSION} ..."
 git clone --depth 1 --branch "${EVMOS_VERSION}" \
     https://github.com/evmos/evmos.git "${BUILD_DIR}"
 cd "${BUILD_DIR}"
+ACTUAL_EVMOS_COMMIT="$(git rev-parse HEAD)"
+if [[ "${ACTUAL_EVMOS_COMMIT}" != "${EVMOS_COMMIT}" ]]; then
+    echo "ERROR: Evmos source mismatch: expected ${EVMOS_COMMIT}, got ${ACTUAL_EVMOS_COMMIT}" >&2
+    exit 1
+fi
+echo ""
+
+# Rebase Evmos's small Cosmos-SDK compatibility delta onto the patched SDK
+# release. A local replace is intentional: the upstream Evmos SDK fork ended at
+# v0.50.9 and therefore does not contain the later consensus security fixes.
+echo ">>> Cloning patched Cosmos SDK ${COSMOS_SDK_VERSION} ..."
+git clone --depth 1 --branch "${COSMOS_SDK_VERSION}" \
+    https://github.com/cosmos/cosmos-sdk.git "${SDK_BUILD_DIR}"
+ACTUAL_SDK_COMMIT="$(git -C "${SDK_BUILD_DIR}" rev-parse HEAD)"
+if [[ "${ACTUAL_SDK_COMMIT}" != "${COSMOS_SDK_COMMIT}" ]]; then
+    echo "ERROR: Cosmos SDK source mismatch: expected ${COSMOS_SDK_COMMIT}, got ${ACTUAL_SDK_COMMIT}" >&2
+    exit 1
+fi
+
+SDK_COMPAT_PATCH="${SCRIPT_DIR}/patches/cosmos-sdk-v0.50.14-evmos-compat.patch"
+git -C "${SDK_BUILD_DIR}" apply --check "${SDK_COMPAT_PATCH}"
+git -C "${SDK_BUILD_DIR}" apply "${SDK_COMPAT_PATCH}"
+
+echo ">>> Pinning patched consensus dependencies ..."
+go mod edit -require="cosmossdk.io/math@${COSMOS_MATH_VERSION}"
+go mod edit -require="github.com/cometbft/cometbft@${COMETBFT_VERSION}"
+go mod edit -require="github.com/cosmos/cosmos-sdk@${COSMOS_SDK_VERSION}"
+go mod edit -require="github.com/cosmos/ibc-go/v8@${IBC_GO_VERSION}"
+go mod edit -replace="github.com/cosmos/cosmos-sdk=${SDK_BUILD_DIR}"
+go mod tidy
+go mod verify
+
+test "$(go list -m -f '{{.Version}}' cosmossdk.io/math)" = "${COSMOS_MATH_VERSION}"
+test "$(go list -m -f '{{.Version}}' github.com/cometbft/cometbft)" = "${COMETBFT_VERSION}"
+test "$(go list -m -f '{{.Version}}' github.com/cosmos/ibc-go/v8)" = "${IBC_GO_VERSION}"
+test "$(go list -m -f '{{with .Replace}}{{.Dir}}{{end}}' github.com/cosmos/cosmos-sdk)" = "${SDK_BUILD_DIR}"
 echo ""
 
 # Enforce LITHO's permanent fixed supply before applying branding changes.
@@ -89,10 +146,17 @@ echo ">>> Applying permanent LITHO supply-cap patch ..."
 git apply --check "${SUPPLY_PATCH}"
 git apply "${SUPPLY_PATCH}"
 
+# Evmos integration tests use a deliberately small synthetic genesis. Normalize
+# that fixture to the immutable LITHO cap without weakening the production gate.
+INTEGRATION_TEST_PATCH="${SCRIPT_DIR}/patches/evmos-v20-litho-integration-tests.patch"
+git apply --check "${INTEGRATION_TEST_PATCH}"
+git apply "${INTEGRATION_TEST_PATCH}"
+
 echo ">>> Testing genesis cap, transaction cap, and permanent inflation disable ..."
 go test ./app/post -run TestSupplyCapDecorator -count=1
 go test ./x/inflation/v1/types -run TestLITHOInflationPermanentlyDisabled -count=1
 go test ./app -run TestValidateLITHOGenesisSupply -count=1
+go test ./x/erc20/keeper ./x/ibc/transfer/keeper -count=1
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -229,6 +293,20 @@ fi
 BUILT_SHA256="$(sha256sum "${OUTPUT}" | awk '{print $1}')"
 echo "SHA256 : ${BUILT_SHA256}"
 echo ""
+
+echo ">>> Verifying security dependency evidence embedded in the binary ..."
+"${SCRIPT_DIR}/verify-lithod-security-dependencies.sh" "${OUTPUT}" "${SDK_BUILD_DIR}"
+
+echo ">>> Writing immutable build evidence ..."
+sha256sum "${OUTPUT}" > "${OUTPUT}.sha256"
+go version -m "${OUTPUT}" > "${OUTPUT}.modules.txt"
+sha256sum \
+    "${SDK_COMPAT_PATCH}" \
+    "${SUPPLY_PATCH}" \
+    "${INTEGRATION_TEST_PATCH}" > "${OUTPUT}.patches.sha256"
+echo "Evidence: ${OUTPUT}.sha256"
+echo "Evidence: ${OUTPUT}.modules.txt"
+echo "Evidence: ${OUTPUT}.patches.sha256"
 
 # ---------------------------------------------------------------------------
 # 8. SBOM Generation (auto-call unless --skip-sbom)

@@ -17,6 +17,10 @@
 Dockerfile   text eol=lf
 *.dockerfile text eol=lf
 
+# Unified patch files intentionally contain diff context prefixes before tabs
+# and blank lines. Disable source-whitespace heuristics for patch payloads.
+*.patch      text eol=lf -whitespace
+
 # Explicit overrides for files that MUST stay CRLF (Windows batch scripts).
 *.bat        text eol=crlf
 *.cmd        text eol=crlf

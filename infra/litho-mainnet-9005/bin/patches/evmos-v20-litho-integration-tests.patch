@@ -1,0 +1,70 @@
+diff --git a/testutil/integration/evmos/network/network.go b/testutil/integration/evmos/network/network.go
+index a302ada..85c8f4b 100644
+--- a/testutil/integration/evmos/network/network.go
++++ b/testutil/integration/evmos/network/network.go
+@@ -24,10 +24,13 @@ import (
+ 	sdktypes "github.com/cosmos/cosmos-sdk/types"
+ 	sdktestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
+ 	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
++	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
++	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+ 	consensustypes "github.com/cosmos/cosmos-sdk/x/consensus/types"
+ 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
+ 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
+ 	commonnetwork "github.com/evmos/evmos/v20/testutil/integration/common/network"
++	"github.com/evmos/evmos/v20/utils"
+ 	erc20types "github.com/evmos/evmos/v20/x/erc20/types"
+ 	evmtypes "github.com/evmos/evmos/v20/x/evm/types"
+ 	feemarkettypes "github.com/evmos/evmos/v20/x/feemarket/types"
+@@ -169,6 +172,11 @@ func (n *IntegrationNetwork) configureAndInitChain() error {
+ 		return err
+ 	}
+ 
++	genesisState, err = normalizeLITHOTestGenesisSupply(evmosApp, genesisState)
++	if err != nil {
++		return err
++	}
++
+ 	// Init chain
+ 	stateBytes, err := cmtjson.MarshalIndent(genesisState, "", " ")
+ 	if err != nil {
+@@ -241,6 +249,39 @@ func (n *IntegrationNetwork) configureAndInitChain() error {
+ 	return nil
+ }
+ 
++// normalizeLITHOTestGenesisSupply makes Evmos's small synthetic integration
++// genesis compatible with LITHO's immutable one-billion-token genesis rule.
++// It never reduces supply, so an over-cap fixture continues to fail closed.
++func normalizeLITHOTestGenesisSupply(
++	evmosApp *app.Evmos,
++	genesisState types.GenesisState,
++) (types.GenesisState, error) {
++	bankGenesis := banktypes.GetGenesisStateFromAppState(evmosApp.AppCodec(), genesisState)
++	totalSupply := calculateTotalSupply(bankGenesis.Balances).AmountOf(utils.BaseDenom)
++	maximumSupply := app.LITHOMaximumSupply()
++	if totalSupply.GT(maximumSupply) {
++		return genesisState, fmt.Errorf(
++			"LITHO integration-test genesis exceeds maximum supply: maximum %s, got %s",
++			maximumSupply,
++			totalSupply,
++		)
++	}
++
++	if totalSupply.Equal(maximumSupply) {
++		return genesisState, nil
++	}
++
++	topUp := sdktypes.NewCoin(utils.BaseDenom, maximumSupply.Sub(totalSupply))
++	bankGenesis.Balances = append(bankGenesis.Balances, banktypes.Balance{
++		Address: authtypes.NewModuleAddress("litho_test_genesis_reserve").String(),
++		Coins:   sdktypes.NewCoins(topUp),
++	})
++	bankGenesis.Supply = calculateTotalSupply(bankGenesis.Balances)
++	genesisState[banktypes.ModuleName] = evmosApp.AppCodec().MustMarshalJSON(bankGenesis)
++
++	return genesisState, nil
++}
++
+ // GetContext returns the network's context
+ func (n *IntegrationNetwork) GetContext() sdktypes.Context {
+ 	return n.ctx

@@ -36,7 +36,7 @@ new file mode 100644
 index 0000000..6253113
 --- /dev/null
 +++ b/app/litho_supply.go
-@@ -0,0 +1,48 @@
+@@ -0,0 +1,54 @@
 +// Copyright Tharsis Labs Ltd.(Evmos)
 +// SPDX-License-Identifier:ENCL-1.0(https://github.com/evmos/evmos/blob/main/LICENSE)
 +
@@ -56,6 +56,12 @@ index 0000000..6253113
 +)
 +
 +var lithoMaximumSupply = math.NewInt(1_000_000_000).Mul(evmostypes.PowerReduction)
++
++// LITHOMaximumSupply returns the immutable native-token supply cap. The value
++// is exposed so integration fixtures can construct a valid LITHO genesis.
++func LITHOMaximumSupply() math.Int {
++	return lithoMaximumSupply
++}
 +
 +func rejectInflationMinting(_ context.Context, coins sdk.Coins) error {
 +	if coins.Empty() {
