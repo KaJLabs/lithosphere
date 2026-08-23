@@ -1,10 +1,10 @@
 # Makalu extra works — living handoff
 
 - **Status:** Active — closing one stream at a time
-- **Last verified:** 2026-08-15 00:04 PKT (UTC+05:00)
+- **Last verified:** 2026-08-23 PKT (UTC+05:00)
 - **Repository:** `KaJLabs/Lithosphere`
-- **Default branch inspected:** `origin/main` at `5570c959c4dc746a5fdae28c859318d963b0a7ae`
-- **Latest merged workstream change:** PR #75 at `5570c959c4dc746a5fdae28c859318d963b0a7ae`
+- **Default branch inspected:** `origin/main` at `6ab0dcb0774421d6d57895b302ab8cc5b73d1762`
+- **Latest merged workstream change:** PR #129 at `6ab0dcb0774421d6d57895b302ab8cc5b73d1762`
 - **Network in scope:** Makalu testnet, EVM chain ID `700777`, Cosmos chain ID `lithosphere_700777-2`
 
 This is the source of truth for the seven Makalu extra-work streams. Update it whenever code is merged, a release is
@@ -30,6 +30,7 @@ Use these status values:
 - `IN PROGRESS` — safe repository or environment work remains possible.
 - `EXTERNAL BLOCKER` — the next required input or authority is held outside this repository.
 - `LOCAL ONLY` — material work exists but is not yet merged into `main`.
+- `DEFERRED` — the client explicitly accepted the current state and moved the stream out of the active queue.
 
 When changing a status, update the summary, the stream checklist, the verification ledger, and the change log in the
 same commit. Never include wallet keys, API keys, validator snapshots, private inventory, or other secrets here.
@@ -37,8 +38,10 @@ same commit. Never include wallet keys, API keys, validator snapshots, private i
 ## Executive snapshot
 
 No stream is marked complete unless every acceptance criterion has evidence. The Lithoscan mainnet cutover is
-complete, but it is not one of these seven Makalu extra-work closures. The longest remaining engineering track is
-the compiler/toolchain; the highest-priority operational gap is the encrypted validator backup.
+complete, but it is not one of these seven Makalu extra-work closures. On 2026-08-23 the client accepted the faucet
+for now, deferred further MX-02 work, confirmed deployment access, and asked the team to focus on more important
+tasks. MX-01 MultX is therefore the active priority; its production deployment remains blocked by the independent
+Autha fix review and the governance, route, signer, canary, and activation approvals.
 
 The worktree is shared and contains pre-existing changes across several streams. Preserve them, isolate each stream
 into a reviewable change, and never bulk-commit the dirty worktree.
@@ -46,11 +49,11 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
 | MX-06 | Validator cleanup and safety | Chain monitor active; encrypted backup blocked | EXTERNAL BLOCKER | Assign custodians and add the public `BACKUP_RECIPIENT`, then run backup/restore verification. |
-| MX-02 | LEP100 faucet assets | Safeguards and secured image pipeline merged; production release remains manual | EXTERNAL BLOCKER | Rotate the exposed faucet key, install the protected wrapper, fund assets, deploy, and prove live claims/alerts. |
+| MX-02 | LEP100 faucet assets | Current faucet accepted by client; remaining rotation/funding closure postponed | DEFERRED | Take no faucet deployment or funding action until the client reprioritizes it. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
-| MX-01 | MultX / Lithoswap | V2 DEX and non-AWS signer hardening merged; swap disabled | IN PROGRESS | Obtain independent audit, operator, deployment, controller, and liquidity approvals. |
+| MX-01 | MultX / Lithoswap | v0.8.1 remediation candidate merged/tagged; Autha fix review pending; MultX disabled | IN PROGRESS | Obtain Autha approval of the exact immutable candidate, then complete the transaction-free deployment gates. |
 | MX-07 | Developer toolchain | All eight tool boundaries plus locked, checksummed three-OS preview packaging reviewed; four tools remain specification-only and there is no deployable compiler/public release | IN PROGRESS | Obtain approved language/VM semantics and product/release/security acceptance before compiler or public-release work. |
 
 ## Sequential closure queue
@@ -58,30 +61,28 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 Only one repository stream is active at a time. An external blocker is recorded and escalated, then work advances
 to the next executable stream without pretending the blocked stream is complete.
 
-1. [ ] **MX-06 Validator cleanup and safety** — waiting on responder/custodian governance and public backup recipient.
-2. [ ] **MX-02 LEP100 faucet assets** — safeguards and image publishing merged; key rotation, VPS wrapper activation, funding, live claims, and alerts remain.
-3. [ ] **MX-03 Thanos Wallet** — next after MX-02 repository work is verified.
-4. [ ] **MX-04 DNNS** — deployed; waiting on DNNS-owner interface, documentation, reverse-record, and cache-policy acceptance.
-5. [ ] **MX-05 Quantt** — deployed; waiting on Quantt API/TLS/product inputs and acceptance.
-6. [ ] **MX-01 MultX / Lithoswap** — security, deployment, liquidity, and acceptance remain.
-7. [ ] **MX-07 Developer toolchain** — separate major compiler/release program.
+1. [ ] **MX-01 MultX / Lithoswap** — active priority; independent Autha fix review and production approvals block deployment/activation.
+2. [ ] **MX-06 Validator cleanup and safety** — waiting on responder/custodian governance and public backup recipient.
+3. [ ] **MX-03 Thanos Wallet** — deployed; waiting on wallet-team acceptance.
+4. [ ] **MX-04 DNNS** — deployed; waiting on DNNS-owner acceptance inputs.
+5. [ ] **MX-05 Quantt** — deployed but disabled; waiting on Quantt API/TLS/product inputs and acceptance.
+6. [ ] **MX-07 Developer toolchain** — separate major compiler/release program.
+7. [ ] **MX-02 LEP100 faucet assets** — deferred by the client on 2026-08-23; retain safeguards and make no changes.
 
 ## MX-01 — MultX Swap / Lithoswap
 
 **Owners:** Dev Infra + Backend/Bridge team + contract deploy authority + approved liquidity owner
 
-**Current state:** The MultX bridge UI/API and consolidated MultX source are merged, and the live feature
-configuration reports the bridge enabled. PR #75 added a fail-closed, manifest-driven paused v0.5 Kamet/Makalu
-redeployment procedure and was review-hardened to enforce the exact approved UTC window before reading the key or
-signing. It merged as `5570c959c4dc746a5fdae28c859318d963b0a7ae`; no deployment occurred. AWS KMS/IAM PR #78
-was closed without merge because it conflicts with the confirmed no-AWS architecture; `main` retains the existing
-provider-neutral VPS remote-signer/quorum implementation. PR #68 isolated,
-review-hardened, and merged the same-chain Lithoswap V2 contracts, deployment/liquidity/E2E scripts, and tests as
-`07b37969f00d97eaca17794c31a83546b60a1940`. The optional V2
-subgraph remains local-only and is not required for on-chain quotes. PR #93 hardened the provider-neutral signer,
-API quorum, and bridge validator-set invariants and merged as `60f3f7bb151e9e2be48632468212e602220f40f4`.
-No deployment, key access, funding, or feature enablement occurred. The live configuration reports `swap: false`; `/swap` and
-`/cross-swap` return HTTP 200 but render unavailable states.
+**Current state:** The MultX bridge UI/API, Lithoswap V2 contracts, optional subgraph, and production-candidate
+hardening are merged. Since the earlier VPS-only review, PRs #115, #116, and #119 changed the repository's recorded
+production signer direction to seven isolated AWS Fargate/KMS signers, while keeping release signing disabled. Autha
+reported v0.7 as not ready for mainnet. PR #129 merged the v0.8 remediation as
+`6ab0dcb0774421d6d57895b302ab8cc5b73d1762`, tagged
+`multx-audit-candidate-v0.8.1-20260822`; independent Autha fix-review acceptance of that exact candidate is pending.
+The client confirmed deployment access on 2026-08-23, but that does not authorize infrastructure, contract, signer,
+liquidity, canary, or feature-flag changes. The previously stated no-AWS direction and the newer repository direction
+must be explicitly reconciled by the accountable architecture owner before any AWS connectivity or deployment work.
+MultX, Swap, and release signing remain disabled.
 
 Completed or evidenced:
 
@@ -111,13 +112,22 @@ Completed or evidenced:
       dependency audits report zero vulnerabilities locally (2026-08-16).
 - [x] PR #93 passed all repository checks and merged by `bachal-mb` as
       `60f3f7bb151e9e2be48632468212e602220f40f4`; no deployment or key access occurred (2026-08-16).
+- [x] The optional V2 subgraph merged in PR #71; its dependency advisories were remediated in PR #128 (2026-08-23
+      verification of `main`).
+- [x] PR #129 merged the Autha v0.8 engineering remediations and the exact commit is tagged
+      `multx-audit-candidate-v0.8.1-20260822` (2026-08-22).
+- [x] Clean-checkout verification on that tag passed 112 contract, 32 API, and 23 signer tests (2026-08-23).
+- [x] Client confirmed deployment access is available; no credential was printed or committed (2026-08-23).
 
 Remaining actions:
 
 - [x] Isolate, review, and merge the V2 contracts, release-gated deployment/liquidity scripts, and tests in PR #68.
-- [ ] Separately review the optional V2 subgraph only if analytics are required. It is not required for quotes or swaps.
-- [x] Close PR #78's AWS-specific signer proposal; AWS KMS/IAM is not an accepted project dependency.
+- [x] Review and merge the optional V2 subgraph and remediate its dependency advisories (PRs #71 and #128).
+- [ ] Obtain an explicit accountable-owner decision reconciling the earlier no-AWS direction with the AWS
+      Fargate/KMS candidate now recorded on `main`; do not configure AWS connectivity from an inferred decision.
 - [x] Merge the provider-neutral signer/API/bridge review hardening in PR #93.
+- [ ] Obtain Autha's fix-review approval bound to the exact v0.8.1 tag and 40-character commit, then regenerate the
+      final evidence bundle required by the audit record.
 - [ ] Complete independent and operator acceptance, including key custody, host hardening, monitoring, failure
       behavior, recovery, and rollback before deployment.
 - [ ] Modernize or explicitly disposition the MultX deployment/test toolchain's transitive audit findings before
@@ -179,6 +189,9 @@ deployed: faucet releases are manual pending rotation of the exposed funding key
 Treasury replenishment is also required before live token claims can pass. The former setup guide was removed because
 it referenced a retired hosting path, assumed an unapproved funding amount, and instructed direct privileged edits;
 the replacement runbook is VPS-only, wrapper-bound, and requires explicit old/new address and per-asset approvals.
+On 2026-08-23 the client accepted the current faucet for now and explicitly moved the team to higher-priority work.
+The remaining checklist is retained for traceability, but it is deferred and must not trigger a deployment, wallet
+rotation, drain, funding transfer, or secret change without a new client priority and the existing approvals.
 
 Completed or evidenced:
 
@@ -692,8 +705,23 @@ Evidence:
 | 2026-08-16 | Mainnet monitor live recheck | PASS | The latest inspected scheduled chain-monitor run `31945720631` passed. |
 | 2026-08-16 | Signing-state backup live recheck | EXTERNAL BLOCKER | Run `31933222228` failed configuration validation because `BACKUP_RECIPIENT` is empty; SSH/export/encryption steps were skipped and deduplicated incident #74 remains open. |
 | 2026-08-16 | Faucet runbook safety review | READY | Removed obsolete hosting/direct-sudo instructions and assumed funding amounts; replacement requires explicit drain/funding approvals, secret-manager custody, restricted VPS wrappers, immutable images, public smoke tests, alert evidence, and rollback ownership. |
+| 2026-08-23 | Faucet priority | DEFERRED | Client accepted the faucet for now and directed the team to more important work; no rotation, funding, deployment, or secret change was performed. |
+| 2026-08-23 | MultX v0.8.1 candidate verification | PASS, NOT DEPLOYABLE | Exact `6ab0dcb`/`multx-audit-candidate-v0.8.1-20260822` checkout passed 112 contract, 32 API, and 23 signer tests. Autha fix review and production approvals remain mandatory. |
+| 2026-08-23 | Deployment access | CLIENT-CONFIRMED | Access is available, but no credential was exposed or tested and no deployment/activation authorization was inferred. |
 
 ## Change log
+
+### 2026-08-23 — Client reprioritized faucet; MultX verification resumed
+
+- Marked MX-02 deferred after the client accepted the current faucet for now; retained all unresolved rotation,
+  funding, claims, alerting, and acceptance items without performing them.
+- Recorded client-confirmed deployment access as capability only, not authority to deploy contracts, configure
+  signer infrastructure, move assets, run a value-bearing canary, or enable features.
+- Refreshed `origin/main` to `6ab0dcb0774421d6d57895b302ab8cc5b73d1762` and made MX-01 the active priority.
+- Verified the exact v0.8.1 candidate locally: 112 contract, 32 API, and 23 signer tests passed.
+- Deployment remains blocked on Autha's independent fix review, final evidence, architecture reconciliation,
+  governance/routes/signers/finality inputs, and explicit canary/activation approvals. MultX remains disabled.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-16 — MX-02 protected faucet runbook prepared
 
