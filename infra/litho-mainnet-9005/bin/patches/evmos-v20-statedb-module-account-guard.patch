@@ -1,0 +1,141 @@
+diff --git a/x/evm/keeper/statedb.go b/x/evm/keeper/statedb.go
+index d614ef1..7e0e3f4 100644
+--- a/x/evm/keeper/statedb.go
++++ b/x/evm/keeper/statedb.go
+@@ -12,6 +12,7 @@ import (
+ 	"cosmossdk.io/store/prefix"
+ 	storetypes "cosmossdk.io/store/types"
+ 	sdk "github.com/cosmos/cosmos-sdk/types"
++	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+ 	"github.com/ethereum/go-ethereum/common"
+ 	evmostypes "github.com/evmos/evmos/v20/types"
+ 	"github.com/evmos/evmos/v20/x/evm/statedb"
+@@ -76,9 +77,19 @@ func (k *Keeper) ForEachStorage(ctx sdk.Context, addr common.Address, cb func(ke
+ func (k *Keeper) SetBalance(ctx sdk.Context, addr common.Address, amount *big.Int) error {
+ 	cosmosAddr := sdk.AccAddress(addr.Bytes())
+ 
++	if acct := k.accountKeeper.GetAccount(ctx, cosmosAddr); acct != nil {
++		if _, isModule := acct.(sdk.ModuleAccountI); isModule {
++			return errorsmod.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to receive funds", cosmosAddr)
++		}
++	}
++
+ 	params := k.GetParams(ctx)
+ 	coin := k.bankKeeper.GetBalance(ctx, cosmosAddr, params.EvmDenom)
+ 	balance := coin.Amount.BigInt()
++	if k.bankKeeper.BlockedAddr(cosmosAddr) && amount.Cmp(balance) != 0 {
++		return errorsmod.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to receive funds", cosmosAddr)
++	}
++
+ 	delta := new(big.Int).Sub(amount, balance)
+ 	switch delta.Sign() {
+ 	case 1:
+diff --git a/x/evm/keeper/statedb_test.go b/x/evm/keeper/statedb_test.go
+index 6ec8aca..863007c 100644
+--- a/x/evm/keeper/statedb_test.go
++++ b/x/evm/keeper/statedb_test.go
+@@ -4,6 +4,7 @@ import (
+ 	"fmt"
+ 	"math/big"
+ 
++	sdkmath "cosmossdk.io/math"
+ 	"cosmossdk.io/store/prefix"
+ 	"github.com/cosmos/cosmos-sdk/client"
+ 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+@@ -12,6 +13,7 @@ import (
+ 	authsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
+ 	authtx "github.com/cosmos/cosmos-sdk/x/auth/tx"
+ 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
++	inflationtypes "github.com/evmos/evmos/v20/x/inflation/v1/types"
+ 
+ 	"github.com/ethereum/go-ethereum/common"
+ 	ethtypes "github.com/ethereum/go-ethereum/core/types"
+@@ -941,6 +943,76 @@ func (suite *KeeperTestSuite) TestSetBalance() {
+ 	}
+ }
+ 
++func (suite *KeeperTestSuite) TestSetBalanceRejectsModuleAccounts() {
++	testCases := []struct {
++		name     string
++		amountFn func(*big.Int) *big.Int
++	}{
++		{
++			name: "increase",
++			amountFn: func(current *big.Int) *big.Int {
++				return new(big.Int).Add(current, big.NewInt(1))
++			},
++		},
++		{
++			name: "decrease",
++			amountFn: func(current *big.Int) *big.Int {
++				return new(big.Int).Sub(current, big.NewInt(1))
++			},
++		},
++		{
++			name: "unchanged",
++			amountFn: func(current *big.Int) *big.Int {
++				return new(big.Int).Set(current)
++			},
++		},
++	}
++
++	for _, tc := range testCases {
++		suite.Run(tc.name, func() {
++			suite.SetupTest()
++			ctx := suite.network.GetContext()
++			moduleAddr := authtypes.NewModuleAddress(inflationtypes.ModuleName)
++			params := suite.network.App.EvmKeeper.GetParams(ctx)
++			coins := sdk.NewCoins(sdk.NewCoin(params.EvmDenom, sdkmath.NewInt(100)))
++			suite.Require().NoError(
++				suite.network.App.BankKeeper.MintCoins(ctx, inflationtypes.ModuleName, coins),
++			)
++
++			ethAddr := common.BytesToAddress(moduleAddr.Bytes())
++			before := suite.network.App.EvmKeeper.GetBalance(ctx, ethAddr)
++			err := suite.network.App.EvmKeeper.SetBalance(ctx, ethAddr, tc.amountFn(before))
++			suite.Require().Error(err)
++			suite.Require().ErrorContains(err, "is not allowed to receive funds")
++			after := suite.network.App.EvmKeeper.GetBalance(ctx, ethAddr)
++			suite.Require().Equal(before, after)
++		})
++	}
++}
++
++func (suite *KeeperTestSuite) TestSetBalanceRejectsBlockedAccountChange() {
++	suite.SetupTest()
++	ctx := suite.network.GetContext()
++	blockedAddr := common.HexToAddress(types.StakingPrecompileAddress)
++	before := suite.network.App.EvmKeeper.GetBalance(ctx, blockedAddr)
++
++	err := suite.network.App.EvmKeeper.SetBalance(ctx, blockedAddr, new(big.Int).Add(before, big.NewInt(1)))
++	suite.Require().Error(err)
++	suite.Require().ErrorContains(err, "is not allowed to receive funds")
++	after := suite.network.App.EvmKeeper.GetBalance(ctx, blockedAddr)
++	suite.Require().Equal(before, after)
++}
++
++func (suite *KeeperTestSuite) TestSetBalanceAllowsEOA() {
++	suite.SetupTest()
++	ctx := suite.network.GetContext()
++	addr := utiltx.GenerateAddress()
++	amount := big.NewInt(12345)
++
++	suite.Require().NoError(suite.network.App.EvmKeeper.SetBalance(ctx, addr, amount))
++	suite.Require().Equal(amount, suite.network.App.EvmKeeper.GetBalance(ctx, addr))
++}
++
+ func (suite *KeeperTestSuite) TestDeleteAccount() {
+ 	var (
+ 		ctx          sdk.Context
+diff --git a/x/evm/types/interfaces.go b/x/evm/types/interfaces.go
+index 7a8bf43..122f90e 100644
+--- a/x/evm/types/interfaces.go
++++ b/x/evm/types/interfaces.go
+@@ -37,6 +37,7 @@ type BankKeeper interface {
+ 	GetBalance(ctx context.Context, addr sdk.AccAddress, denom string) sdk.Coin
+ 	SendCoinsFromModuleToAccount(ctx context.Context, senderModule string, recipientAddr sdk.AccAddress, amt sdk.Coins) error
+ 	MintCoins(ctx context.Context, moduleName string, amt sdk.Coins) error
++	BlockedAddr(addr sdk.AccAddress) bool
+ 	BurnCoins(ctx context.Context, moduleName string, amt sdk.Coins) error
+ }
+ 
