@@ -152,11 +152,17 @@ INTEGRATION_TEST_PATCH="${SCRIPT_DIR}/patches/evmos-v20-litho-integration-tests.
 git apply --check "${INTEGRATION_TEST_PATCH}"
 git apply "${INTEGRATION_TEST_PATCH}"
 
+STATEDB_GUARD_PATCH="${SCRIPT_DIR}/patches/evmos-v20-statedb-module-account-guard.patch"
+echo ">>> Applying Cosmos EVM v0.7.2 module-account StateDB guard backport ..."
+git apply --check "${STATEDB_GUARD_PATCH}"
+git apply "${STATEDB_GUARD_PATCH}"
+
 echo ">>> Testing genesis cap, transaction cap, and permanent inflation disable ..."
 go test ./app/post -run TestSupplyCapDecorator -count=1
 go test ./x/inflation/v1/types -run TestLITHOInflationPermanentlyDisabled -count=1
 go test ./app -run TestValidateLITHOGenesisSupply -count=1
 go test ./x/erc20/keeper ./x/ibc/transfer/keeper -count=1
+go test ./x/evm/keeper -run 'TestKeeperTestSuite/TestSetBalance' -count=1
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -303,7 +309,8 @@ go version -m "${OUTPUT}" > "${OUTPUT}.modules.txt"
 sha256sum \
     "${SDK_COMPAT_PATCH}" \
     "${SUPPLY_PATCH}" \
-    "${INTEGRATION_TEST_PATCH}" > "${OUTPUT}.patches.sha256"
+    "${INTEGRATION_TEST_PATCH}" \
+    "${STATEDB_GUARD_PATCH}" > "${OUTPUT}.patches.sha256"
 echo "Evidence: ${OUTPUT}.sha256"
 echo "Evidence: ${OUTPUT}.modules.txt"
 echo "Evidence: ${OUTPUT}.patches.sha256"
