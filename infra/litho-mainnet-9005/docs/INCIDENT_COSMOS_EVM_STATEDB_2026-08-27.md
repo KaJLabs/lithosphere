@@ -1,6 +1,6 @@
 # Cosmos EVM StateDB security response — 2026-08-27
 
-Status: **mainnet intentionally paused; forensic snapshot sealed; Makalu validation passed; production restart pending independent approval**
+Status: **remediated; Makalu validation passed; mainnet resumed successfully after independent review**
 
 ## Reason for the pause
 
@@ -107,6 +107,38 @@ validator upgrade. Public RPC reported Cosmos chain ID
 `lithosphere_700777-2`, EVM chain ID `700777`, and continuing block production.
 No transaction was submitted during this validation.
 
+## Mainnet rollout and resumption
+
+PR #132 passed all automated checks and was independently approved and merged
+as `272ea76c5fa0be2b2e66b55c9968678e0c431314`. Both non-signing sentries were
+started first with the exact Makalu-validated binary and remained consistent at
+the frozen public height. The validator was then started at 2026-08-27
+14:22:56 UTC with its preserved signing state at height `4988062`, round 0,
+step 3.
+
+Consensus resumed without rollback or process restart. The pending empty block
+`4988063` linked correctly to locally committed block `4988062`; the first block
+with a post-resume timestamp was `4988064`. At common validation height
+`4988600`, all three nodes returned block hash
+`FB8233F01020CC2FB0D2D978265443BBCBB25FB0323E4D0D7399EAB4BA46D28E`
+and header app hash
+`DF6827744EC573E0DECEB3D2F6F2B48C052D644B1E1D160F107A094F4509F47F`.
+The commit contained the expected validator signature.
+
+Post-resume checks confirmed:
+
+- Cosmos chain ID `lithosphere_9005-1` and EVM chain ID `9005`;
+- all three processes running candidate SHA-256
+  `358feb6fc95fbdc4c6f992510e8d0329d3511a17b623e55c61e67b8c6dfff26f`;
+- all nodes healthy, not catching up, and reporting zero process restarts;
+- exact supply `1000000000000000000000000000ulitho`;
+- zero indexed transactions after the paused height;
+- public RPC height advancing and public gRPC reachable; and
+- no error-priority validator or sentry journal entries.
+
+Root-only post-resume evidence and checksum manifests are retained beneath the
+original timestamped incident directory on the validator and both sentries.
+
 ## Required validation order
 
 1. Clean pinned build and regression tests.
@@ -114,12 +146,12 @@ No transaction was submitted during this validation.
 3. Makalu deployment with the exact candidate binary. **Passed.**
 4. Makalu transaction-free regression, restart, RPC, EVM, Cosmos and invariant
    tests. **Passed.**
-5. Binary/SBOM/checksum delivery and independent review.
-6. Mainnet sentry rollout and health checks.
-7. Mainnet validator rollout with the current signing state; never restore an older
-   `priv_validator_state.json`.
+5. Binary/SBOM/checksum delivery and independent review. **Passed.**
+6. Mainnet sentry rollout and health checks. **Passed.**
+7. Mainnet validator rollout with the current signing state; never restore an
+   older `priv_validator_state.json`. **Passed.**
 8. Resume only after all gates pass, then verify first-block continuity,
-   app-hash continuity, supply, validator signing and public APIs.
+   app-hash continuity, supply, validator signing and public APIs. **Passed.**
 
 ## Rollback
 
