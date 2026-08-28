@@ -7,35 +7,49 @@
 # Prerequisites: go (1.22+), make, gcc, git
 #
 # Usage:
-#   bash bin/build-lithod.sh                          # default Evmos version
-#   EVMOS_VERSION=v19.0.0 bash bin/build-lithod.sh    # override version
+#   bash bin/build-lithod.sh
+#
+# Release source and dependency pins are immutable. Security-pin environment
+# overrides and optional SBOM generation are deliberately rejected.
 #
 # Output: bin/lithod (Linux x86_64 ELF binary)
 # =============================================================================
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Configuration (override via environment variables)
+# Immutable release identity
 # ---------------------------------------------------------------------------
-EVMOS_VERSION="${EVMOS_VERSION:-v20.0.0}"
-EVMOS_COMMIT="${EVMOS_COMMIT:-eca13ef2521a9ef13c32e80b1b147230bdb155b5}"
-COSMOS_SDK_VERSION="${COSMOS_SDK_VERSION:-v0.50.14}"
-COSMOS_SDK_COMMIT="${COSMOS_SDK_COMMIT:-f2e6295b662fdb27ea33da1296c29588ccdaab42}"
-COMETBFT_VERSION="${COMETBFT_VERSION:-v0.38.22}"
-IBC_GO_VERSION="${IBC_GO_VERSION:-v8.7.0}"
-COSMOS_MATH_VERSION="${COSMOS_MATH_VERSION:-v1.4.0}"
-BUILD_DIR="${BUILD_DIR:-/tmp/litho-evmos-v20-security-build}"
-SDK_BUILD_DIR="${SDK_BUILD_DIR:-/tmp/litho-cosmos-sdk-v0.50.14}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUTPUT="${OUTPUT:-${SCRIPT_DIR}/lithod}"
-SKIP_SBOM=false
+EVIDENCE_DIR="${EVIDENCE_DIR:-${OUTPUT}.evidence}"
+RELEASE_MANIFEST="${SCRIPT_DIR}/lithod-release-manifest.sh"
 
-# Parse command-line flags
-for arg in "$@"; do
-    case "$arg" in
-        --skip-sbom) SKIP_SBOM=true ;;
-    esac
+if [[ $# -ne 0 ]]; then
+    echo "ERROR: release build accepts no command-line overrides" >&2
+    exit 2
+fi
+
+SECURITY_PINS=(
+    EVMOS_VERSION EVMOS_COMMIT COSMOS_SDK_VERSION COSMOS_SDK_COMMIT
+    COMETBFT_VERSION IBC_GO_VERSION COSMOS_MATH_VERSION GO_VERSION
+    BUILD_DIR SDK_BUILD_DIR
+)
+for pin in "${SECURITY_PINS[@]}"; do
+    if [[ -v "${pin}" ]]; then
+        echo "ERROR: release security pin may not be supplied through the environment: ${pin}" >&2
+        exit 2
+    fi
 done
+
+BUILD_DIR="/tmp/litho-evmos-v20-security-build"
+SDK_BUILD_DIR="/tmp/litho-cosmos-sdk-v0.50.14"
+
+if [[ ! -f "${RELEASE_MANIFEST}" ]]; then
+    echo "ERROR: immutable release manifest is missing: ${RELEASE_MANIFEST}" >&2
+    exit 1
+fi
+# shellcheck source=lithod-release-manifest.sh
+source "${RELEASE_MANIFEST}"
 
 # Branding constants
 BECH32_PREFIX="litho"
@@ -59,7 +73,7 @@ echo ""
 # Prerequisites check
 # ---------------------------------------------------------------------------
 MISSING=""
-for cmd in go make gcc git sed find; do
+for cmd in go gofmt make gcc git sed find grep xargs awk sort sha256sum cp cmp curl tar tee date head uname; do
     if ! command -v "$cmd" &>/dev/null; then
         MISSING="${MISSING} $cmd"
     fi
@@ -71,8 +85,18 @@ if [ -n "$MISSING" ]; then
 fi
 
 GO_VER=$(go version)
+if [[ "$(go env GOVERSION)" != "${GO_VERSION}" ]]; then
+    echo "ERROR: release Go version mismatch: expected ${GO_VERSION}, got $(go env GOVERSION)" >&2
+    exit 1
+fi
 echo "Go: ${GO_VER}"
 echo ""
+
+if [[ -e "${OUTPUT}" || -e "${EVIDENCE_DIR}" ]]; then
+    echo "ERROR: release output paths must not already exist: ${OUTPUT}, ${EVIDENCE_DIR}" >&2
+    exit 1
+fi
+mkdir -p "$(dirname "${OUTPUT}")" "${EVIDENCE_DIR}"
 
 # ---------------------------------------------------------------------------
 # Cleanup on exit
@@ -122,6 +146,30 @@ if [[ "${ACTUAL_SDK_COMMIT}" != "${COSMOS_SDK_COMMIT}" ]]; then
 fi
 
 SDK_COMPAT_PATCH="${SCRIPT_DIR}/patches/cosmos-sdk-v0.50.14-evmos-compat.patch"
+SUPPLY_PATCH="${SCRIPT_DIR}/patches/evmos-v20-litho-fixed-supply.patch"
+INTEGRATION_TEST_PATCH="${SCRIPT_DIR}/patches/evmos-v20-litho-integration-tests.patch"
+LITHO_TEST_FIXTURES_PATCH="${SCRIPT_DIR}/patches/evmos-v20-litho-test-fixtures.patch"
+STATEDB_GUARD_PATCH="${SCRIPT_DIR}/patches/evmos-v20-statedb-module-account-guard.patch"
+STATEDB_PRECOMPILE_REGRESSION_PATCH="${SCRIPT_DIR}/patches/evmos-v20-statedb-precompile-regression.patch"
+
+verify_patch() {
+    local path="$1"
+    local expected="$2"
+    if [[ ! -f "${path}" ]]; then
+        echo "ERROR: release patch is missing: ${path}" >&2
+        exit 1
+    fi
+    echo "${expected}  ${path}" | sha256sum --check --strict
+}
+
+echo ">>> Verifying immutable patch identities ..."
+verify_patch "${SDK_COMPAT_PATCH}" "${SDK_COMPAT_PATCH_SHA256}"
+verify_patch "${SUPPLY_PATCH}" "${SUPPLY_PATCH_SHA256}"
+verify_patch "${INTEGRATION_TEST_PATCH}" "${INTEGRATION_TEST_PATCH_SHA256}"
+verify_patch "${LITHO_TEST_FIXTURES_PATCH}" "${LITHO_TEST_FIXTURES_PATCH_SHA256}"
+verify_patch "${STATEDB_GUARD_PATCH}" "${STATEDB_GUARD_PATCH_SHA256}"
+verify_patch "${STATEDB_PRECOMPILE_REGRESSION_PATCH}" "${STATEDB_PRECOMPILE_REGRESSION_PATCH_SHA256}"
+
 git -C "${SDK_BUILD_DIR}" apply --check "${SDK_COMPAT_PATCH}"
 git -C "${SDK_BUILD_DIR}" apply "${SDK_COMPAT_PATCH}"
 
@@ -141,29 +189,26 @@ test "$(go list -m -f '{{with .Replace}}{{.Dir}}{{end}}' github.com/cosmos/cosmo
 echo ""
 
 # Enforce LITHO's permanent fixed supply before applying branding changes.
-SUPPLY_PATCH="${SCRIPT_DIR}/patches/evmos-v20-litho-fixed-supply.patch"
 echo ">>> Applying permanent LITHO supply-cap patch ..."
 git apply --check "${SUPPLY_PATCH}"
 git apply "${SUPPLY_PATCH}"
 
 # Evmos integration tests use a deliberately small synthetic genesis. Normalize
 # that fixture to the immutable LITHO cap without weakening the production gate.
-INTEGRATION_TEST_PATCH="${SCRIPT_DIR}/patches/evmos-v20-litho-integration-tests.patch"
 git apply --check "${INTEGRATION_TEST_PATCH}"
 git apply "${INTEGRATION_TEST_PATCH}"
 
-STATEDB_GUARD_PATCH="${SCRIPT_DIR}/patches/evmos-v20-statedb-module-account-guard.patch"
+echo ">>> Applying deterministic LITHO test-fixture conversion ..."
+git apply --check "${LITHO_TEST_FIXTURES_PATCH}"
+git apply "${LITHO_TEST_FIXTURES_PATCH}"
+
 echo ">>> Applying Cosmos EVM v0.7.2 module-account StateDB guard backport ..."
 git apply --check "${STATEDB_GUARD_PATCH}"
 git apply "${STATEDB_GUARD_PATCH}"
 
-echo ">>> Testing genesis cap, transaction cap, and permanent inflation disable ..."
-go test ./app/post -run TestSupplyCapDecorator -count=1
-go test ./x/inflation/v1/types -run TestLITHOInflationPermanentlyDisabled -count=1
-go test ./app -run TestValidateLITHOGenesisSupply -count=1
-go test ./x/erc20/keeper ./x/ibc/transfer/keeper -count=1
-go test ./x/evm/keeper -run 'TestKeeperTestSuite/TestSetBalance' -count=1
-echo ""
+echo ">>> Applying StateDB/precompile transaction regression backport ..."
+git apply --check "${STATEDB_PRECOMPILE_REGRESSION_PATCH}"
+git apply "${STATEDB_PRECOMPILE_REGRESSION_PATCH}"
 
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
@@ -241,17 +286,91 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# 6. Build
+# 6. Freeze and test the exact final source tree
+# ---------------------------------------------------------------------------
+echo ">>> Formatting and freezing the final source tree ..."
+EXPECTED_NEW_SOURCE_FILES=(
+    "app/litho_supply.go"
+    "app/litho_supply_test.go"
+    "app/post/supply_cap.go"
+    "app/post/supply_cap_test.go"
+    "x/inflation/v1/types/litho_params_test.go"
+)
+mapfile -t ACTUAL_NEW_SOURCE_FILES < <(git ls-files --others --exclude-standard | sort)
+if [[ "$(printf '%s\n' "${ACTUAL_NEW_SOURCE_FILES[@]}")" != "$(printf '%s\n' "${EXPECTED_NEW_SOURCE_FILES[@]}" | sort)" ]]; then
+    echo "ERROR: patched tree contains an unexpected set of new source files" >&2
+    printf 'Expected:\n%s\nActual:\n%s\n' \
+        "$(printf '%s\n' "${EXPECTED_NEW_SOURCE_FILES[@]}" | sort)" \
+        "$(printf '%s\n' "${ACTUAL_NEW_SOURCE_FILES[@]}")" >&2
+    exit 1
+fi
+git add --intent-to-add -- "${ACTUAL_NEW_SOURCE_FILES[@]}"
+
+mapfile -d '' CHANGED_GO_FILES < <(git diff --name-only --diff-filter=ACMR -z -- '*.go')
+if [[ ${#CHANGED_GO_FILES[@]} -eq 0 ]]; then
+    echo "ERROR: release patches produced no changed Go source" >&2
+    exit 1
+fi
+gofmt -w "${CHANGED_GO_FILES[@]}"
+
+git diff --check
+git -C "${SDK_BUILD_DIR}" diff --check
+
+FINAL_EVMOS_DIFF="${EVIDENCE_DIR}/evmos-final-source.diff"
+FINAL_SDK_DIFF="${EVIDENCE_DIR}/cosmos-sdk-final-source.diff"
+git diff --binary --full-index HEAD > "${FINAL_EVMOS_DIFF}"
+git -C "${SDK_BUILD_DIR}" diff --binary --full-index HEAD > "${FINAL_SDK_DIFF}"
+cp go.mod "${EVIDENCE_DIR}/go.mod"
+cp go.sum "${EVIDENCE_DIR}/go.sum"
+go list -m -json all > "${EVIDENCE_DIR}/modules.json"
+git status --porcelain=v1 --untracked-files=no > "${EVIDENCE_DIR}/evmos-final-status.txt"
+git -C "${SDK_BUILD_DIR}" status --porcelain=v1 --untracked-files=no > "${EVIDENCE_DIR}/cosmos-sdk-final-status.txt"
+
+FROZEN_EVMOS_DIFF_SHA256="$(sha256sum "${FINAL_EVMOS_DIFF}" | awk '{print $1}')"
+FROZEN_SDK_DIFF_SHA256="$(sha256sum "${FINAL_SDK_DIFF}" | awk '{print $1}')"
+
+verify_frozen_source() {
+    local current_evmos
+    local current_sdk
+    current_evmos="$(git diff --binary --full-index HEAD | sha256sum | awk '{print $1}')"
+    current_sdk="$(git -C "${SDK_BUILD_DIR}" diff --binary --full-index HEAD | sha256sum | awk '{print $1}')"
+    if [[ "${current_evmos}" != "${FROZEN_EVMOS_DIFF_SHA256}" ]]; then
+        echo "ERROR: Evmos final source changed after the release freeze" >&2
+        exit 1
+    fi
+    if [[ "${current_sdk}" != "${FROZEN_SDK_DIFF_SHA256}" ]]; then
+        echo "ERROR: Cosmos SDK final source changed after the release freeze" >&2
+        exit 1
+    fi
+}
+
+echo ">>> Testing the exact frozen final tree ..."
+go test ./app/post -run TestSupplyCapDecorator -count=1 | tee "${EVIDENCE_DIR}/test-supply-cap.log"
+go test ./x/inflation/v1/types -run TestLITHOInflationPermanentlyDisabled -count=1 | tee "${EVIDENCE_DIR}/test-inflation-disabled.log"
+go test ./app -run TestValidateLITHOGenesisSupply -count=1 | tee "${EVIDENCE_DIR}/test-genesis-supply.log"
+go test ./x/erc20/keeper ./x/ibc/transfer/keeper -count=1 | tee "${EVIDENCE_DIR}/test-erc20-ibc.log"
+go test ./x/evm/keeper -run 'TestKeeperTestSuite/TestSetBalance' -count=1 | tee "${EVIDENCE_DIR}/test-statedb-keeper.log"
+go test ./precompiles/staking \
+    -run '^TestPrecompileIntegrationTestSuite$' \
+    -ginkgo.focus 'should reject internal transfers to the bonded tokens pool across precompile orderings' \
+    -count=1 | tee "${EVIDENCE_DIR}/test-statedb-precompile-integration.log"
+verify_frozen_source
+echo ""
+
+# ---------------------------------------------------------------------------
+# 7. Build
 # ---------------------------------------------------------------------------
 echo ">>> Building (this may take several minutes) ..."
 echo ""
 
 make build 2>&1 | tail -30
 
+verify_frozen_source
+
 echo ""
 
 # ---------------------------------------------------------------------------
-# 7. Locate and copy binary
+# 8. Locate and copy binary
 # ---------------------------------------------------------------------------
 BUILT=""
 for candidate in \
@@ -303,46 +422,63 @@ echo ""
 echo ">>> Verifying security dependency evidence embedded in the binary ..."
 "${SCRIPT_DIR}/verify-lithod-security-dependencies.sh" "${OUTPUT}" "${SDK_BUILD_DIR}"
 
-echo ">>> Writing immutable build evidence ..."
-sha256sum "${OUTPUT}" > "${OUTPUT}.sha256"
-go version -m "${OUTPUT}" > "${OUTPUT}.modules.txt"
+echo ">>> Generating mandatory CycloneDX SBOM ..."
+SBOM_SCRIPT="${SCRIPT_DIR}/generate-sbom.sh"
+if [[ ! -f "${SBOM_SCRIPT}" ]]; then
+    echo "ERROR: mandatory SBOM generator is missing: ${SBOM_SCRIPT}" >&2
+    exit 1
+fi
+bash "${SBOM_SCRIPT}" \
+    --binary "${OUTPUT}" \
+    --output-dir "${EVIDENCE_DIR}" \
+    --release-version "${RELEASE_ID}" \
+    --tool-version "${CYCLONEDX_GOMOD_VERSION}" \
+    --tool-sha256 "${CYCLONEDX_GOMOD_LINUX_AMD64_SHA256}"
+
+echo ">>> Writing immutable release evidence ..."
+cp "${OUTPUT}" "${EVIDENCE_DIR}/lithod"
+chmod 0755 "${EVIDENCE_DIR}/lithod"
+cp "${RELEASE_MANIFEST}" "${EVIDENCE_DIR}/lithod-release-manifest.sh"
+go version -m "${OUTPUT}" > "${EVIDENCE_DIR}/lithod.modules.txt"
 sha256sum \
     "${SDK_COMPAT_PATCH}" \
     "${SUPPLY_PATCH}" \
     "${INTEGRATION_TEST_PATCH}" \
-    "${STATEDB_GUARD_PATCH}" > "${OUTPUT}.patches.sha256"
-echo "Evidence: ${OUTPUT}.sha256"
-echo "Evidence: ${OUTPUT}.modules.txt"
-echo "Evidence: ${OUTPUT}.patches.sha256"
+    "${LITHO_TEST_FIXTURES_PATCH}" \
+    "${STATEDB_GUARD_PATCH}" \
+    "${STATEDB_PRECOMPILE_REGRESSION_PATCH}" > "${EVIDENCE_DIR}/patches.sha256"
+{
+    echo "release_id=${RELEASE_ID}"
+    echo "release_manifest_version=${RELEASE_MANIFEST_VERSION}"
+    echo "evmos_commit=${ACTUAL_EVMOS_COMMIT}"
+    echo "cosmos_sdk_commit=${ACTUAL_SDK_COMMIT}"
+    echo "evmos_final_source_diff_sha256=${FROZEN_EVMOS_DIFF_SHA256}"
+    echo "cosmos_sdk_final_source_diff_sha256=${FROZEN_SDK_DIFF_SHA256}"
+    echo "go_version=$(go env GOVERSION)"
+    echo "build_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    uname -a
+    git --version
+    gcc --version | head -1
+    make --version | head -1
+} > "${EVIDENCE_DIR}/build-environment.txt"
 
-# ---------------------------------------------------------------------------
-# 8. SBOM Generation (auto-call unless --skip-sbom)
-# ---------------------------------------------------------------------------
-if [[ "${SKIP_SBOM}" == "true" ]]; then
-    echo ">>> SBOM generation skipped (--skip-sbom)"
-else
-    echo ">>> Generating SBOM artifacts ..."
-    SBOM_SCRIPT="${SCRIPT_DIR}/generate-sbom.sh"
-    if [[ -f "${SBOM_SCRIPT}" ]]; then
-        bash "${SBOM_SCRIPT}" \
-            --binary "${OUTPUT}" \
-            --output-dir "${SCRIPT_DIR}/sbom" \
-            --evmos-version "${EVMOS_VERSION}" || {
-            echo "WARNING: SBOM generation failed (non-fatal)"
-            echo "Run manually: bash bin/generate-sbom.sh"
-        }
-    else
-        echo "WARNING: generate-sbom.sh not found at ${SBOM_SCRIPT}"
-        echo "SBOM generation skipped"
-    fi
-fi
+verify_frozen_source
+(
+    cd "${EVIDENCE_DIR}"
+    find . -type f ! -name 'SHA256SUMS.txt' -print0 \
+        | sort -z \
+        | xargs -0 sha256sum
+) > "${EVIDENCE_DIR}/SHA256SUMS.txt"
+
+echo "Evidence directory: ${EVIDENCE_DIR}"
+echo "Binary SHA-256: $(sha256sum "${EVIDENCE_DIR}/lithod" | awk '{print $1}')"
+echo "SBOM SHA-256: $(sha256sum "${EVIDENCE_DIR}/lithod.cdx.json" | awk '{print $1}')"
+echo "Evidence manifest: ${EVIDENCE_DIR}/SHA256SUMS.txt"
 
 echo ""
 echo "Next steps:"
 echo "  1. Verify:  ./bin/lithod version"
 echo "  2. Genesis: bash scripts/generate_lithosphere_genesis.sh"
 echo "  3. Deploy:  ansible-playbook -i inventory/hosts playbooks/site.yml --tags binary,genesis"
-if [[ "${SKIP_SBOM}" == "false" ]]; then
-    echo "  4. Sign:    bash bin/sign-release.sh"
-    echo "  5. Publish: bash bin/publish-release.sh --version <ver>"
-fi
+echo "  4. Submit the complete evidence directory to Autha for R1 review"
+echo "  5. Do not deploy until Autha accepts this exact release identity"

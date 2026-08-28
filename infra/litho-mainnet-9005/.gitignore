@@ -16,4 +16,5 @@
 **/__pycache__/
 **/*.pyc
 bin/lithod*
+!bin/lithod-release-manifest.sh
 ansible/inventory/mainnet-9005-private/
