@@ -1,4 +1,4 @@
-# LCE1 R8 Conformance Vectors
+# LCE1 R9 Conformance Vectors
 
 `golden.json` contains 74 byte-exact accepted objects and their derived hashes:
 at least one example for every registered object type plus KEY, AND, THRESHOLD,
@@ -42,6 +42,7 @@ Run the complete independent suite from the remediation directory:
 python reference/generate_vectors.py
 node reference/lce_v1_independent.mjs
 python reference/authorization_dispatch_v1.py
+node reference/authorization_dispatch_v1_independent.mjs
 python reference/generate_r8_subject_binding_vectors.py
 python reference/subject_action_binding_v1.py
 node reference/subject_action_binding_v1_independent.mjs
