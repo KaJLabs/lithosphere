@@ -1,0 +1,450 @@
+{
+  "schema": "AUTHORIZATION_SEQUENCE_STATE_V1",
+  "cases": [
+    {
+      "name": "exact_next_then_duplicate_replay",
+      "operations": [
+        {
+          "type": "initialize",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "height": 100
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 1,
+          "height": 100
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 1,
+          "height": 101
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true,
+          false
+        ],
+        "errors": [
+          "OK",
+          "OK",
+          "SEQUENCE_MISMATCH"
+        ],
+        "states": [
+          {
+            "key": "1:1111111111111111111111111111111111111111:1:1",
+            "next_sequence": 2,
+            "last_height": 100
+          }
+        ]
+      }
+    },
+    {
+      "name": "gap_rejected",
+      "operations": [
+        {
+          "type": "initialize",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "height": 100
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 2,
+          "height": 100
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          false
+        ],
+        "errors": [
+          "OK",
+          "SEQUENCE_MISMATCH"
+        ],
+        "states": [
+          {
+            "key": "1:1111111111111111111111111111111111111111:1:1",
+            "next_sequence": 1,
+            "last_height": 100
+          }
+        ]
+      }
+    },
+    {
+      "name": "failed_action_does_not_consume",
+      "operations": [
+        {
+          "type": "initialize",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "height": 100
+        },
+        {
+          "type": "reject",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 1,
+          "height": 100
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 1,
+          "height": 101
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          false,
+          true
+        ],
+        "errors": [
+          "OK",
+          "ACTION_REJECTED",
+          "OK"
+        ],
+        "states": [
+          {
+            "key": "1:1111111111111111111111111111111111111111:1:1",
+            "next_sequence": 2,
+            "last_height": 101
+          }
+        ]
+      }
+    },
+    {
+      "name": "restart_loads_committed_state",
+      "operations": [
+        {
+          "type": "initialize",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "height": 100
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 1,
+          "height": 100
+        },
+        {
+          "type": "restart"
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 2,
+          "height": 101
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true,
+          true,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK",
+          "OK",
+          "OK"
+        ],
+        "states": [
+          {
+            "key": "1:1111111111111111111111111111111111111111:1:1",
+            "next_sequence": 3,
+            "last_height": 101
+          }
+        ]
+      }
+    },
+    {
+      "name": "reorg_restores_committed_counter",
+      "operations": [
+        {
+          "type": "initialize",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "height": 100
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 1,
+          "height": 100
+        },
+        {
+          "type": "checkpoint"
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 2,
+          "height": 101
+        },
+        {
+          "type": "reorg"
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 2,
+          "height": 102
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK",
+          "OK",
+          "OK",
+          "OK",
+          "OK"
+        ],
+        "states": [
+          {
+            "key": "1:1111111111111111111111111111111111111111:1:1",
+            "next_sequence": 3,
+            "last_height": 102
+          }
+        ]
+      }
+    },
+    {
+      "name": "namespace_and_action_are_independent",
+      "operations": [
+        {
+          "type": "initialize",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "height": 100
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 1,
+          "height": 100
+        },
+        {
+          "type": "initialize",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 2,
+          "height": 100
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 2,
+          "sequence": 1,
+          "height": 100
+        },
+        {
+          "type": "initialize",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 2,
+          "action": 1,
+          "height": 100
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 2,
+          "action": 1,
+          "sequence": 1,
+          "height": 100
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK",
+          "OK",
+          "OK",
+          "OK",
+          "OK"
+        ],
+        "states": [
+          {
+            "key": "1:1111111111111111111111111111111111111111:1:1",
+            "next_sequence": 2,
+            "last_height": 100
+          },
+          {
+            "key": "1:1111111111111111111111111111111111111111:1:2",
+            "next_sequence": 2,
+            "last_height": 100
+          },
+          {
+            "key": "1:1111111111111111111111111111111111111111:2:1",
+            "next_sequence": 2,
+            "last_height": 100
+          }
+        ]
+      }
+    },
+    {
+      "name": "binary_upgrade_preserves_counter",
+      "operations": [
+        {
+          "type": "initialize",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "height": 100
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 1,
+          "height": 100
+        },
+        {
+          "type": "upgrade"
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 1,
+          "height": 101
+        },
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 2,
+          "height": 102
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true,
+          true,
+          false,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK",
+          "OK",
+          "SEQUENCE_MISMATCH",
+          "OK"
+        ],
+        "states": [
+          {
+            "key": "1:1111111111111111111111111111111111111111:1:1",
+            "next_sequence": 3,
+            "last_height": 102
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing_sequence_state_rejected",
+      "operations": [
+        {
+          "type": "commit",
+          "subject_kind": 1,
+          "subject_id": "1111111111111111111111111111111111111111",
+          "namespace": 1,
+          "action": 1,
+          "sequence": 1,
+          "height": 100
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false
+        ],
+        "errors": [
+          "MISSING_SEQUENCE_STATE"
+        ],
+        "states": []
+      }
+    }
+  ]
+}

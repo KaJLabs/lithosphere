@@ -1,0 +1,1077 @@
+{
+  "schema": "CRYPTO_REGISTRY_LIFECYCLE_V1",
+  "cases": [
+    {
+      "name": "define_profile_embeds_preimage",
+      "initial": {
+        "sequence": 1,
+        "profiles": [
+          {
+            "id": 1,
+            "name": "PROFILE_1",
+            "definition_height": 1
+          }
+        ],
+        "lifecycles": [
+          {
+            "id": 1,
+            "current": 1,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          }
+        ],
+        "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "steps": [
+        {
+          "height": 100,
+          "operation": {
+            "type": "define",
+            "profile_id": 2,
+            "prior_state": 0,
+            "next_state": 1,
+            "activation_height": 100,
+            "proposed_profile": {
+              "id": 2,
+              "name": "PROFILE_2",
+              "definition_height": 100
+            }
+          }
+        },
+        {
+          "height": 100,
+          "operation": {
+            "type": "observe",
+            "profile_id": 2
+          }
+        }
+      ],
+      "expected": {
+        "trace": [
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "EXPERIMENTAL",
+            "state_sequence": 2,
+            "root_before": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab",
+            "root_after": "739800c8a64484f0192d2c626c26f2d9e23d361bb8076ff4c38710d460fee0f534bd24e3302a173ce0794d7338a17b83a6bea837100277b3393381895a5adebd"
+          },
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "EXPERIMENTAL",
+            "state_sequence": 2,
+            "root_before": "739800c8a64484f0192d2c626c26f2d9e23d361bb8076ff4c38710d460fee0f534bd24e3302a173ce0794d7338a17b83a6bea837100277b3393381895a5adebd",
+            "root_after": "739800c8a64484f0192d2c626c26f2d9e23d361bb8076ff4c38710d460fee0f534bd24e3302a173ce0794d7338a17b83a6bea837100277b3393381895a5adebd"
+          }
+        ],
+        "final_state": {
+          "sequence": 2,
+          "profiles": [
+            {
+              "id": 1,
+              "name": "PROFILE_1",
+              "definition_height": 1
+            },
+            {
+              "id": 2,
+              "name": "PROFILE_2",
+              "definition_height": 100
+            }
+          ],
+          "lifecycles": [
+            {
+              "id": 1,
+              "current": 1,
+              "state_height": 1,
+              "scheduled": 0,
+              "scheduled_height": 0
+            },
+            {
+              "id": 2,
+              "current": 1,
+              "state_height": 100,
+              "scheduled": 0,
+              "scheduled_height": 0
+            }
+          ],
+          "prior_root": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab",
+          "root": "739800c8a64484f0192d2c626c26f2d9e23d361bb8076ff4c38710d460fee0f534bd24e3302a173ce0794d7338a17b83a6bea837100277b3393381895a5adebd"
+        }
+      }
+    },
+    {
+      "name": "define_profile_id_mismatch_rejected",
+      "initial": {
+        "sequence": 1,
+        "profiles": [
+          {
+            "id": 1,
+            "name": "PROFILE_1",
+            "definition_height": 1
+          }
+        ],
+        "lifecycles": [
+          {
+            "id": 1,
+            "current": 1,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          }
+        ],
+        "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "steps": [
+        {
+          "height": 100,
+          "operation": {
+            "type": "define",
+            "profile_id": 2,
+            "prior_state": 0,
+            "next_state": 1,
+            "activation_height": 100,
+            "proposed_profile": {
+              "id": 3,
+              "name": "PROFILE_3",
+              "definition_height": 100
+            }
+          }
+        }
+      ],
+      "expected": {
+        "trace": [
+          {
+            "accepted": false,
+            "error": "PROFILE_ID_MISMATCH",
+            "effective_state": "ABSENT",
+            "state_sequence": 1,
+            "root_before": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab",
+            "root_after": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab"
+          }
+        ],
+        "final_state": {
+          "sequence": 1,
+          "profiles": [
+            {
+              "id": 1,
+              "name": "PROFILE_1",
+              "definition_height": 1
+            }
+          ],
+          "lifecycles": [
+            {
+              "id": 1,
+              "current": 1,
+              "state_height": 1,
+              "scheduled": 0,
+              "scheduled_height": 0
+            }
+          ],
+          "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+          "root": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab"
+        }
+      }
+    },
+    {
+      "name": "multi_profile_root_is_ordered_and_independent",
+      "initial": {
+        "sequence": 1,
+        "profiles": [
+          {
+            "id": 1,
+            "name": "PROFILE_1",
+            "definition_height": 1
+          },
+          {
+            "id": 2,
+            "name": "PROFILE_2",
+            "definition_height": 1
+          }
+        ],
+        "lifecycles": [
+          {
+            "id": 1,
+            "current": 1,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          },
+          {
+            "id": 2,
+            "current": 2,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          }
+        ],
+        "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "steps": [
+        {
+          "height": 100,
+          "operation": {
+            "type": "schedule",
+            "profile_id": 1,
+            "prior_state": 1,
+            "next_state": 2,
+            "activation_height": 86500
+          }
+        },
+        {
+          "height": 100,
+          "operation": {
+            "type": "schedule",
+            "profile_id": 2,
+            "prior_state": 2,
+            "next_state": 3,
+            "activation_height": 86500
+          }
+        }
+      ],
+      "expected": {
+        "trace": [
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "EXPERIMENTAL",
+            "state_sequence": 2,
+            "root_before": "68f05e5401b408f6af1f6489faaa3ca633259010b6f9e2a142c664945d32afe4e02a273eb0f6c56552d7465bc791fb15136efc6f688a65ef27f7513b3c1046e3",
+            "root_after": "801445761dc3057fc013701b6b0ede63f27af354c859d1ff8bed512fcda76568682d1c4778cbf013e7b1fa82aa46453eb7757a1bd3a3751d4833c93a0e9b89ca"
+          },
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "ACTIVE",
+            "state_sequence": 3,
+            "root_before": "801445761dc3057fc013701b6b0ede63f27af354c859d1ff8bed512fcda76568682d1c4778cbf013e7b1fa82aa46453eb7757a1bd3a3751d4833c93a0e9b89ca",
+            "root_after": "4370f5703e4903b82f36e5031e36a405515dcd8eddbebdae61c663cfafdfe8bea6d2b149b023e5d6e1f1035194110861034cd9952efdffa1f0b595aea88900cb"
+          }
+        ],
+        "final_state": {
+          "sequence": 3,
+          "profiles": [
+            {
+              "id": 1,
+              "name": "PROFILE_1",
+              "definition_height": 1
+            },
+            {
+              "id": 2,
+              "name": "PROFILE_2",
+              "definition_height": 1
+            }
+          ],
+          "lifecycles": [
+            {
+              "id": 1,
+              "current": 1,
+              "state_height": 1,
+              "scheduled": 2,
+              "scheduled_height": 86500
+            },
+            {
+              "id": 2,
+              "current": 2,
+              "state_height": 1,
+              "scheduled": 3,
+              "scheduled_height": 86500
+            }
+          ],
+          "prior_root": "801445761dc3057fc013701b6b0ede63f27af354c859d1ff8bed512fcda76568682d1c4778cbf013e7b1fa82aa46453eb7757a1bd3a3751d4833c93a0e9b89ca",
+          "root": "4370f5703e4903b82f36e5031e36a405515dcd8eddbebdae61c663cfafdfe8bea6d2b149b023e5d6e1f1035194110861034cd9952efdffa1f0b595aea88900cb"
+        }
+      }
+    },
+    {
+      "name": "experimental_schedule_active_boundary",
+      "initial": {
+        "sequence": 1,
+        "profiles": [
+          {
+            "id": 1,
+            "name": "PROFILE_1",
+            "definition_height": 1
+          }
+        ],
+        "lifecycles": [
+          {
+            "id": 1,
+            "current": 1,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          }
+        ],
+        "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "steps": [
+        {
+          "height": 100,
+          "operation": {
+            "type": "schedule",
+            "profile_id": 1,
+            "prior_state": 1,
+            "next_state": 2,
+            "activation_height": 86500
+          }
+        },
+        {
+          "height": 86499,
+          "operation": {
+            "type": "observe",
+            "profile_id": 1
+          }
+        },
+        {
+          "height": 86500,
+          "operation": {
+            "type": "observe",
+            "profile_id": 1
+          }
+        }
+      ],
+      "expected": {
+        "trace": [
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "EXPERIMENTAL",
+            "state_sequence": 2,
+            "root_before": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab",
+            "root_after": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18"
+          },
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "EXPERIMENTAL",
+            "state_sequence": 2,
+            "root_before": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18",
+            "root_after": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18"
+          },
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "ACTIVE",
+            "state_sequence": 2,
+            "root_before": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18",
+            "root_after": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18"
+          }
+        ],
+        "final_state": {
+          "sequence": 2,
+          "profiles": [
+            {
+              "id": 1,
+              "name": "PROFILE_1",
+              "definition_height": 1
+            }
+          ],
+          "lifecycles": [
+            {
+              "id": 1,
+              "current": 1,
+              "state_height": 1,
+              "scheduled": 2,
+              "scheduled_height": 86500
+            }
+          ],
+          "prior_root": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab",
+          "root": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18"
+        }
+      }
+    },
+    {
+      "name": "cancel_before_activation",
+      "initial": {
+        "sequence": 1,
+        "profiles": [
+          {
+            "id": 1,
+            "name": "PROFILE_1",
+            "definition_height": 1
+          }
+        ],
+        "lifecycles": [
+          {
+            "id": 1,
+            "current": 1,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          }
+        ],
+        "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "steps": [
+        {
+          "height": 100,
+          "operation": {
+            "type": "schedule",
+            "profile_id": 1,
+            "prior_state": 1,
+            "next_state": 2,
+            "activation_height": 86500
+          }
+        },
+        {
+          "height": 500,
+          "operation": {
+            "type": "cancel",
+            "profile_id": 1,
+            "prior_state": 1,
+            "next_state": 0,
+            "activation_height": 0
+          }
+        }
+      ],
+      "expected": {
+        "trace": [
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "EXPERIMENTAL",
+            "state_sequence": 2,
+            "root_before": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab",
+            "root_after": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18"
+          },
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "EXPERIMENTAL",
+            "state_sequence": 3,
+            "root_before": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18",
+            "root_after": "4aee6410ef8b57250fe8727c8570dbf2dd6fca016fbf4915c938392d9afdaed246cb9f6b6b8b03d53ab39ff016ee52efcc4a82e4b1d1405adb986c8478ca2d1a"
+          }
+        ],
+        "final_state": {
+          "sequence": 3,
+          "profiles": [
+            {
+              "id": 1,
+              "name": "PROFILE_1",
+              "definition_height": 1
+            }
+          ],
+          "lifecycles": [
+            {
+              "id": 1,
+              "current": 1,
+              "state_height": 1,
+              "scheduled": 0,
+              "scheduled_height": 0
+            }
+          ],
+          "prior_root": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18",
+          "root": "4aee6410ef8b57250fe8727c8570dbf2dd6fca016fbf4915c938392d9afdaed246cb9f6b6b8b03d53ab39ff016ee52efcc4a82e4b1d1405adb986c8478ca2d1a"
+        }
+      }
+    },
+    {
+      "name": "active_deprecates_and_blocks_registration",
+      "initial": {
+        "sequence": 1,
+        "profiles": [
+          {
+            "id": 1,
+            "name": "PROFILE_1",
+            "definition_height": 1
+          }
+        ],
+        "lifecycles": [
+          {
+            "id": 1,
+            "current": 2,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          }
+        ],
+        "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "steps": [
+        {
+          "height": 100,
+          "operation": {
+            "type": "schedule",
+            "profile_id": 1,
+            "prior_state": 2,
+            "next_state": 3,
+            "activation_height": 86500
+          }
+        },
+        {
+          "height": 86500,
+          "operation": {
+            "type": "admit_registration",
+            "profile_id": 1
+          }
+        }
+      ],
+      "expected": {
+        "trace": [
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "ACTIVE",
+            "state_sequence": 2,
+            "root_before": "797aa9b1d3f7ccd14f858aa3efb53be8c9f5c72c0fe931a1049b57f46089e547fa6a157042fb3d9d26d07deee7d68e3a5b13f74dabb918272ea853fcba0ccd5a",
+            "root_after": "1d6474c5289195006ca5bb13650ff4631c5b8854330cff78069f40897d9838cfe60a8ab8f32dca054e8929cd063efbfbd30b305d6e5e6c58cd4eee05481f6c1a"
+          },
+          {
+            "accepted": false,
+            "error": "PROFILE_DEPRECATED",
+            "effective_state": "DEPRECATED",
+            "state_sequence": 2,
+            "root_before": "1d6474c5289195006ca5bb13650ff4631c5b8854330cff78069f40897d9838cfe60a8ab8f32dca054e8929cd063efbfbd30b305d6e5e6c58cd4eee05481f6c1a",
+            "root_after": "1d6474c5289195006ca5bb13650ff4631c5b8854330cff78069f40897d9838cfe60a8ab8f32dca054e8929cd063efbfbd30b305d6e5e6c58cd4eee05481f6c1a"
+          }
+        ],
+        "final_state": {
+          "sequence": 2,
+          "profiles": [
+            {
+              "id": 1,
+              "name": "PROFILE_1",
+              "definition_height": 1
+            }
+          ],
+          "lifecycles": [
+            {
+              "id": 1,
+              "current": 2,
+              "state_height": 1,
+              "scheduled": 3,
+              "scheduled_height": 86500
+            }
+          ],
+          "prior_root": "797aa9b1d3f7ccd14f858aa3efb53be8c9f5c72c0fe931a1049b57f46089e547fa6a157042fb3d9d26d07deee7d68e3a5b13f74dabb918272ea853fcba0ccd5a",
+          "root": "1d6474c5289195006ca5bb13650ff4631c5b8854330cff78069f40897d9838cfe60a8ab8f32dca054e8929cd063efbfbd30b305d6e5e6c58cd4eee05481f6c1a"
+        }
+      }
+    },
+    {
+      "name": "deprecated_normally_disables",
+      "initial": {
+        "sequence": 1,
+        "profiles": [
+          {
+            "id": 1,
+            "name": "PROFILE_1",
+            "definition_height": 1
+          }
+        ],
+        "lifecycles": [
+          {
+            "id": 1,
+            "current": 3,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          }
+        ],
+        "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "steps": [
+        {
+          "height": 100,
+          "operation": {
+            "type": "schedule",
+            "profile_id": 1,
+            "prior_state": 3,
+            "next_state": 4,
+            "activation_height": 86500
+          }
+        },
+        {
+          "height": 86500,
+          "operation": {
+            "type": "observe",
+            "profile_id": 1
+          }
+        }
+      ],
+      "expected": {
+        "trace": [
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "DEPRECATED",
+            "state_sequence": 2,
+            "root_before": "9dc867aa40b7b124951852202be8cd00fdc5aba27d3deee247019da402ced68a1c70c125bc871500b83b948ac4b6be8ade2011d5f8e32dc23eb21360e2fe0442",
+            "root_after": "34adac626219bb4da44ddc5f4eae15ba5cbce7f1479a0a3ce841b8af79e80c66dee6dca4d1a584933dd1195a885c88a67b22dd6f2662ef87f6b8f3fcc09128ca"
+          },
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "DISABLED",
+            "state_sequence": 2,
+            "root_before": "34adac626219bb4da44ddc5f4eae15ba5cbce7f1479a0a3ce841b8af79e80c66dee6dca4d1a584933dd1195a885c88a67b22dd6f2662ef87f6b8f3fcc09128ca",
+            "root_after": "34adac626219bb4da44ddc5f4eae15ba5cbce7f1479a0a3ce841b8af79e80c66dee6dca4d1a584933dd1195a885c88a67b22dd6f2662ef87f6b8f3fcc09128ca"
+          }
+        ],
+        "final_state": {
+          "sequence": 2,
+          "profiles": [
+            {
+              "id": 1,
+              "name": "PROFILE_1",
+              "definition_height": 1
+            }
+          ],
+          "lifecycles": [
+            {
+              "id": 1,
+              "current": 3,
+              "state_height": 1,
+              "scheduled": 4,
+              "scheduled_height": 86500
+            }
+          ],
+          "prior_root": "9dc867aa40b7b124951852202be8cd00fdc5aba27d3deee247019da402ced68a1c70c125bc871500b83b948ac4b6be8ade2011d5f8e32dc23eb21360e2fe0442",
+          "root": "34adac626219bb4da44ddc5f4eae15ba5cbce7f1479a0a3ce841b8af79e80c66dee6dca4d1a584933dd1195a885c88a67b22dd6f2662ef87f6b8f3fcc09128ca"
+        }
+      }
+    },
+    {
+      "name": "experimental_normal_disable_rejected",
+      "initial": {
+        "sequence": 1,
+        "profiles": [
+          {
+            "id": 1,
+            "name": "PROFILE_1",
+            "definition_height": 1
+          }
+        ],
+        "lifecycles": [
+          {
+            "id": 1,
+            "current": 1,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          }
+        ],
+        "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "steps": [
+        {
+          "height": 100,
+          "operation": {
+            "type": "schedule",
+            "profile_id": 1,
+            "prior_state": 1,
+            "next_state": 4,
+            "activation_height": 86500
+          }
+        }
+      ],
+      "expected": {
+        "trace": [
+          {
+            "accepted": false,
+            "error": "INVALID_NORMAL_EDGE",
+            "effective_state": "EXPERIMENTAL",
+            "state_sequence": 1,
+            "root_before": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab",
+            "root_after": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab"
+          }
+        ],
+        "final_state": {
+          "sequence": 1,
+          "profiles": [
+            {
+              "id": 1,
+              "name": "PROFILE_1",
+              "definition_height": 1
+            }
+          ],
+          "lifecycles": [
+            {
+              "id": 1,
+              "current": 1,
+              "state_height": 1,
+              "scheduled": 0,
+              "scheduled_height": 0
+            }
+          ],
+          "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+          "root": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab"
+        }
+      }
+    },
+    {
+      "name": "emergency_disable_without_prior_schedule",
+      "initial": {
+        "sequence": 1,
+        "profiles": [
+          {
+            "id": 1,
+            "name": "PROFILE_1",
+            "definition_height": 1
+          }
+        ],
+        "lifecycles": [
+          {
+            "id": 1,
+            "current": 2,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          }
+        ],
+        "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "steps": [
+        {
+          "height": 100,
+          "operation": {
+            "type": "emergency_disable",
+            "profile_id": 1,
+            "prior_state": 2,
+            "next_state": 4,
+            "activation_height": 200
+          }
+        },
+        {
+          "height": 199,
+          "operation": {
+            "type": "observe",
+            "profile_id": 1
+          }
+        },
+        {
+          "height": 200,
+          "operation": {
+            "type": "observe",
+            "profile_id": 1
+          }
+        }
+      ],
+      "expected": {
+        "trace": [
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "ACTIVE",
+            "state_sequence": 2,
+            "root_before": "797aa9b1d3f7ccd14f858aa3efb53be8c9f5c72c0fe931a1049b57f46089e547fa6a157042fb3d9d26d07deee7d68e3a5b13f74dabb918272ea853fcba0ccd5a",
+            "root_after": "31078892e7ce3ed962bbb38cd77f167c0f383f10b00114de83c72d2921bcaf34d5193f85ffb89773779ff82d8abdab0e50872edbee9042600a6d1fc5cc4c1dc5"
+          },
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "ACTIVE",
+            "state_sequence": 2,
+            "root_before": "31078892e7ce3ed962bbb38cd77f167c0f383f10b00114de83c72d2921bcaf34d5193f85ffb89773779ff82d8abdab0e50872edbee9042600a6d1fc5cc4c1dc5",
+            "root_after": "31078892e7ce3ed962bbb38cd77f167c0f383f10b00114de83c72d2921bcaf34d5193f85ffb89773779ff82d8abdab0e50872edbee9042600a6d1fc5cc4c1dc5"
+          },
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "DISABLED",
+            "state_sequence": 2,
+            "root_before": "31078892e7ce3ed962bbb38cd77f167c0f383f10b00114de83c72d2921bcaf34d5193f85ffb89773779ff82d8abdab0e50872edbee9042600a6d1fc5cc4c1dc5",
+            "root_after": "31078892e7ce3ed962bbb38cd77f167c0f383f10b00114de83c72d2921bcaf34d5193f85ffb89773779ff82d8abdab0e50872edbee9042600a6d1fc5cc4c1dc5"
+          }
+        ],
+        "final_state": {
+          "sequence": 2,
+          "profiles": [
+            {
+              "id": 1,
+              "name": "PROFILE_1",
+              "definition_height": 1
+            }
+          ],
+          "lifecycles": [
+            {
+              "id": 1,
+              "current": 2,
+              "state_height": 1,
+              "scheduled": 4,
+              "scheduled_height": 200
+            }
+          ],
+          "prior_root": "797aa9b1d3f7ccd14f858aa3efb53be8c9f5c72c0fe931a1049b57f46089e547fa6a157042fb3d9d26d07deee7d68e3a5b13f74dabb918272ea853fcba0ccd5a",
+          "root": "31078892e7ce3ed962bbb38cd77f167c0f383f10b00114de83c72d2921bcaf34d5193f85ffb89773779ff82d8abdab0e50872edbee9042600a6d1fc5cc4c1dc5"
+        }
+      }
+    },
+    {
+      "name": "emergency_supersedes_unmatured_deprecation",
+      "initial": {
+        "sequence": 1,
+        "profiles": [
+          {
+            "id": 1,
+            "name": "PROFILE_1",
+            "definition_height": 1
+          }
+        ],
+        "lifecycles": [
+          {
+            "id": 1,
+            "current": 2,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          }
+        ],
+        "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "steps": [
+        {
+          "height": 100,
+          "operation": {
+            "type": "schedule",
+            "profile_id": 1,
+            "prior_state": 2,
+            "next_state": 3,
+            "activation_height": 86500
+          }
+        },
+        {
+          "height": 200,
+          "operation": {
+            "type": "emergency_disable",
+            "profile_id": 1,
+            "prior_state": 2,
+            "next_state": 4,
+            "activation_height": 300
+          }
+        },
+        {
+          "height": 300,
+          "operation": {
+            "type": "observe",
+            "profile_id": 1
+          }
+        }
+      ],
+      "expected": {
+        "trace": [
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "ACTIVE",
+            "state_sequence": 2,
+            "root_before": "797aa9b1d3f7ccd14f858aa3efb53be8c9f5c72c0fe931a1049b57f46089e547fa6a157042fb3d9d26d07deee7d68e3a5b13f74dabb918272ea853fcba0ccd5a",
+            "root_after": "1d6474c5289195006ca5bb13650ff4631c5b8854330cff78069f40897d9838cfe60a8ab8f32dca054e8929cd063efbfbd30b305d6e5e6c58cd4eee05481f6c1a"
+          },
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "ACTIVE",
+            "state_sequence": 3,
+            "root_before": "1d6474c5289195006ca5bb13650ff4631c5b8854330cff78069f40897d9838cfe60a8ab8f32dca054e8929cd063efbfbd30b305d6e5e6c58cd4eee05481f6c1a",
+            "root_after": "29059db0fc904d1111edbce08ebfe724e5f5be0c9e6e58d21be536fea875e1ca738d3bc631583b705d5edc5a9e19ed23a4da040e51ddea8f843b4a4d3ee65904"
+          },
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "DISABLED",
+            "state_sequence": 3,
+            "root_before": "29059db0fc904d1111edbce08ebfe724e5f5be0c9e6e58d21be536fea875e1ca738d3bc631583b705d5edc5a9e19ed23a4da040e51ddea8f843b4a4d3ee65904",
+            "root_after": "29059db0fc904d1111edbce08ebfe724e5f5be0c9e6e58d21be536fea875e1ca738d3bc631583b705d5edc5a9e19ed23a4da040e51ddea8f843b4a4d3ee65904"
+          }
+        ],
+        "final_state": {
+          "sequence": 3,
+          "profiles": [
+            {
+              "id": 1,
+              "name": "PROFILE_1",
+              "definition_height": 1
+            }
+          ],
+          "lifecycles": [
+            {
+              "id": 1,
+              "current": 2,
+              "state_height": 1,
+              "scheduled": 4,
+              "scheduled_height": 300
+            }
+          ],
+          "prior_root": "1d6474c5289195006ca5bb13650ff4631c5b8854330cff78069f40897d9838cfe60a8ab8f32dca054e8929cd063efbfbd30b305d6e5e6c58cd4eee05481f6c1a",
+          "root": "29059db0fc904d1111edbce08ebfe724e5f5be0c9e6e58d21be536fea875e1ca738d3bc631583b705d5edc5a9e19ed23a4da040e51ddea8f843b4a4d3ee65904"
+        }
+      }
+    },
+    {
+      "name": "mature_schedule_materialized_by_later_mutation",
+      "initial": {
+        "sequence": 1,
+        "profiles": [
+          {
+            "id": 1,
+            "name": "PROFILE_1",
+            "definition_height": 1
+          }
+        ],
+        "lifecycles": [
+          {
+            "id": 1,
+            "current": 1,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          }
+        ],
+        "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "steps": [
+        {
+          "height": 100,
+          "operation": {
+            "type": "schedule",
+            "profile_id": 1,
+            "prior_state": 1,
+            "next_state": 2,
+            "activation_height": 86500
+          }
+        },
+        {
+          "height": 90000,
+          "operation": {
+            "type": "schedule",
+            "profile_id": 1,
+            "prior_state": 2,
+            "next_state": 3,
+            "activation_height": 176400
+          }
+        }
+      ],
+      "expected": {
+        "trace": [
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "EXPERIMENTAL",
+            "state_sequence": 2,
+            "root_before": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab",
+            "root_after": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18"
+          },
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "ACTIVE",
+            "state_sequence": 3,
+            "root_before": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18",
+            "root_after": "3f1245feef768caf8229f4f42347b88c3836b1abf28b3d9f0c9b0221e98b3a43fc2540760d97735f62e4405d564899753398f1f4bb74fbb2d307c6858f3c9e92"
+          }
+        ],
+        "final_state": {
+          "sequence": 3,
+          "profiles": [
+            {
+              "id": 1,
+              "name": "PROFILE_1",
+              "definition_height": 1
+            }
+          ],
+          "lifecycles": [
+            {
+              "id": 1,
+              "current": 2,
+              "state_height": 86500,
+              "scheduled": 3,
+              "scheduled_height": 176400
+            }
+          ],
+          "prior_root": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18",
+          "root": "3f1245feef768caf8229f4f42347b88c3836b1abf28b3d9f0c9b0221e98b3a43fc2540760d97735f62e4405d564899753398f1f4bb74fbb2d307c6858f3c9e92"
+        }
+      }
+    },
+    {
+      "name": "cancel_at_boundary_rejected",
+      "initial": {
+        "sequence": 1,
+        "profiles": [
+          {
+            "id": 1,
+            "name": "PROFILE_1",
+            "definition_height": 1
+          }
+        ],
+        "lifecycles": [
+          {
+            "id": 1,
+            "current": 1,
+            "state_height": 1,
+            "scheduled": 0,
+            "scheduled_height": 0
+          }
+        ],
+        "prior_root": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "steps": [
+        {
+          "height": 100,
+          "operation": {
+            "type": "schedule",
+            "profile_id": 1,
+            "prior_state": 1,
+            "next_state": 2,
+            "activation_height": 86500
+          }
+        },
+        {
+          "height": 86500,
+          "operation": {
+            "type": "cancel",
+            "profile_id": 1,
+            "prior_state": 1,
+            "next_state": 0,
+            "activation_height": 0
+          }
+        }
+      ],
+      "expected": {
+        "trace": [
+          {
+            "accepted": true,
+            "error": "OK",
+            "effective_state": "EXPERIMENTAL",
+            "state_sequence": 2,
+            "root_before": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab",
+            "root_after": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18"
+          },
+          {
+            "accepted": false,
+            "error": "PRIOR_STATE_MISMATCH",
+            "effective_state": "ACTIVE",
+            "state_sequence": 2,
+            "root_before": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18",
+            "root_after": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18"
+          }
+        ],
+        "final_state": {
+          "sequence": 2,
+          "profiles": [
+            {
+              "id": 1,
+              "name": "PROFILE_1",
+              "definition_height": 1
+            }
+          ],
+          "lifecycles": [
+            {
+              "id": 1,
+              "current": 1,
+              "state_height": 1,
+              "scheduled": 2,
+              "scheduled_height": 86500
+            }
+          ],
+          "prior_root": "0c71302dd0a3330fa94e0e80b8eb378178771ad87b6280b029140b82fe69617736b5b7fd0f24df33d9dc5a82ca8dacb73fdaa0b631f786d2b15008a4740e9cab",
+          "root": "f2ada6998b935d171967afc7c2870528b43a1ac83af0e9e51bce64469d072b4f6832af80f70e19c70f240bf0a35e37e90b6bc00e83b3049f7e457e4b5e580a18"
+        }
+      }
+    }
+  ]
+}

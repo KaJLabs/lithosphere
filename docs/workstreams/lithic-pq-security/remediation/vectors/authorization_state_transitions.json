@@ -1,0 +1,943 @@
+{
+  "schema": "AUTHORIZATION_STATE_TRANSITION_V1",
+  "cases": [
+    {
+      "name": "register_pending_activate",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 9,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "REGISTER",
+          "slot": 1,
+          "epoch": 1,
+          "height": 90,
+          "deadline": 100,
+          "activation": 101
+        },
+        {
+          "type": "activate",
+          "height": 101
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK"
+        ],
+        "policy_version": 2,
+        "authorization_epoch": 2,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          },
+          {
+            "slot": 9,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ],
+        "pending": null,
+        "records": [
+          "REGISTER_REQUESTED",
+          "PENDING_ACTIVATED"
+        ]
+      }
+    },
+    {
+      "name": "register_cancel_reregister_burns_epoch",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 9,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "REGISTER",
+          "slot": 1,
+          "epoch": 1,
+          "height": 90,
+          "deadline": 100,
+          "activation": 101
+        },
+        {
+          "type": "cancel",
+          "height": 99
+        },
+        {
+          "type": "request",
+          "kind": "REGISTER",
+          "slot": 1,
+          "epoch": 2,
+          "height": 110,
+          "deadline": 120,
+          "activation": 121
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK",
+          "OK"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "CANCELLED"
+          },
+          {
+            "slot": 1,
+            "epoch": 2,
+            "state": "PENDING_ACTIVATION"
+          },
+          {
+            "slot": 9,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ],
+        "pending": {
+          "kind": "REGISTER",
+          "slot": 1,
+          "epoch": 2,
+          "prior_epoch": 0,
+          "prior_slot": 0,
+          "deadline": 120,
+          "activation": 121,
+          "next_policy_version": 2,
+          "next_authorization_epoch": 2
+        },
+        "records": [
+          "REGISTER_REQUESTED",
+          "PENDING_CANCELLED",
+          "REGISTER_REQUESTED"
+        ]
+      }
+    },
+    {
+      "name": "rotate_cancel_rotate_burns_epoch",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "ROTATE",
+          "slot": 1,
+          "epoch": 2,
+          "prior_epoch": 1,
+          "height": 90,
+          "deadline": 100,
+          "activation": 101
+        },
+        {
+          "type": "cancel",
+          "height": 100
+        },
+        {
+          "type": "request",
+          "kind": "ROTATE",
+          "slot": 1,
+          "epoch": 3,
+          "prior_epoch": 1,
+          "height": 110,
+          "deadline": 120,
+          "activation": 121
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK",
+          "OK"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          },
+          {
+            "slot": 1,
+            "epoch": 2,
+            "state": "CANCELLED"
+          },
+          {
+            "slot": 1,
+            "epoch": 3,
+            "state": "PENDING_ACTIVATION"
+          }
+        ],
+        "pending": {
+          "kind": "ROTATE",
+          "slot": 1,
+          "epoch": 3,
+          "prior_epoch": 1,
+          "prior_slot": 1,
+          "deadline": 120,
+          "activation": 121,
+          "next_policy_version": 2,
+          "next_authorization_epoch": 2
+        },
+        "records": [
+          "ROTATE_REQUESTED",
+          "PENDING_CANCELLED",
+          "ROTATE_REQUESTED"
+        ]
+      }
+    },
+    {
+      "name": "disable_pending_cancel",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "DISABLE",
+          "slot": 1,
+          "epoch": 1,
+          "prior_epoch": 1,
+          "height": 90,
+          "deadline": 100,
+          "activation": 101
+        },
+        {
+          "type": "cancel",
+          "height": 100
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ],
+        "pending": null,
+        "records": [
+          "DISABLE_REQUESTED",
+          "PENDING_CANCELLED"
+        ]
+      }
+    },
+    {
+      "name": "disable_pending_activate",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "DISABLE",
+          "slot": 1,
+          "epoch": 1,
+          "prior_epoch": 1,
+          "height": 90,
+          "deadline": 100,
+          "activation": 101
+        },
+        {
+          "type": "activate",
+          "height": 101
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK"
+        ],
+        "policy_version": 2,
+        "authorization_epoch": 2,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "DISABLED"
+          }
+        ],
+        "pending": null,
+        "records": [
+          "DISABLE_REQUESTED",
+          "PENDING_ACTIVATED"
+        ]
+      }
+    },
+    {
+      "name": "recovery_pending_cancel",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "RECOVER",
+          "slot": 2,
+          "epoch": 1,
+          "prior_slot": 1,
+          "prior_epoch": 1,
+          "height": 90,
+          "deadline": 100,
+          "activation": 101
+        },
+        {
+          "type": "cancel",
+          "height": 99
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          },
+          {
+            "slot": 2,
+            "epoch": 1,
+            "state": "CANCELLED"
+          }
+        ],
+        "pending": null,
+        "records": [
+          "RECOVER_REQUESTED",
+          "PENDING_CANCELLED"
+        ]
+      }
+    },
+    {
+      "name": "recovery_pending_activate",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "RECOVER",
+          "slot": 2,
+          "epoch": 1,
+          "prior_slot": 1,
+          "prior_epoch": 1,
+          "height": 90,
+          "deadline": 100,
+          "activation": 101
+        },
+        {
+          "type": "activate",
+          "height": 101
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK"
+        ],
+        "policy_version": 2,
+        "authorization_epoch": 2,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "RECOVERED"
+          },
+          {
+            "slot": 2,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ],
+        "pending": null,
+        "records": [
+          "RECOVER_REQUESTED",
+          "PENDING_ACTIVATED"
+        ]
+      }
+    },
+    {
+      "name": "activation_before_maturity_rejected",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "ROTATE",
+          "slot": 1,
+          "epoch": 2,
+          "prior_epoch": 1,
+          "height": 90,
+          "deadline": 100,
+          "activation": 101
+        },
+        {
+          "type": "activate",
+          "height": 100
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          false
+        ],
+        "errors": [
+          "OK",
+          "NOT_MATURE"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          },
+          {
+            "slot": 1,
+            "epoch": 2,
+            "state": "PENDING_ACTIVATION"
+          }
+        ],
+        "pending": {
+          "kind": "ROTATE",
+          "slot": 1,
+          "epoch": 2,
+          "prior_epoch": 1,
+          "prior_slot": 1,
+          "deadline": 100,
+          "activation": 101,
+          "next_policy_version": 2,
+          "next_authorization_epoch": 2
+        },
+        "records": [
+          "ROTATE_REQUESTED"
+        ]
+      }
+    },
+    {
+      "name": "forged_future_execution_height_rejected",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "DISABLE",
+          "slot": 1,
+          "epoch": 1,
+          "prior_epoch": 1,
+          "height": 100,
+          "deadline": 900,
+          "activation": 1000
+        },
+        {
+          "type": "activate",
+          "height": 500,
+          "claimed_execution_height": 1000
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          false
+        ],
+        "errors": [
+          "OK",
+          "UNREGISTERED_EXECUTION_HEIGHT_FIELD"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ],
+        "pending": {
+          "kind": "DISABLE",
+          "slot": 1,
+          "epoch": 1,
+          "prior_epoch": 1,
+          "prior_slot": 1,
+          "deadline": 900,
+          "activation": 1000,
+          "next_policy_version": 2,
+          "next_authorization_epoch": 2
+        },
+        "records": [
+          "DISABLE_REQUESTED"
+        ]
+      }
+    },
+    {
+      "name": "same_block_cancellation_window_bypass_rejected",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "ROTATE",
+          "slot": 1,
+          "epoch": 2,
+          "prior_epoch": 1,
+          "height": 100000,
+          "deadline": 1,
+          "activation": 2
+        },
+        {
+          "type": "activate",
+          "height": 100000
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false,
+          false
+        ],
+        "errors": [
+          "CANCELLATION_WINDOW_TOO_SHORT",
+          "NO_PENDING_MUTATION"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ],
+        "pending": null,
+        "records": []
+      }
+    },
+    {
+      "name": "future_deadline_but_short_activation_delay_rejected",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "ROTATE",
+          "slot": 1,
+          "epoch": 2,
+          "prior_epoch": 1,
+          "height": 100,
+          "deadline": 110,
+          "activation": 110
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false
+        ],
+        "errors": [
+          "INVALID_WINDOW"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ],
+        "pending": null,
+        "records": []
+      }
+    },
+    {
+      "name": "ordinary_governance_cannot_emergency_disable",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "governance",
+          "height": 101,
+          "action": 4,
+          "inner_action": 4,
+          "target_type": 2,
+          "emergency": true,
+          "authority": "ORDINARY"
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false
+        ],
+        "errors": [
+          "WRONG_AUTHORITY_ROOT"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ],
+        "pending": null,
+        "records": []
+      }
+    },
+    {
+      "name": "independent_emergency_root_can_disable",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "governance",
+          "height": 101,
+          "action": 4,
+          "inner_action": 4,
+          "target_type": 2,
+          "emergency": true,
+          "authority": "PQ_REGISTRY_EMERGENCY_2_OF_3"
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true
+        ],
+        "errors": [
+          "OK"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 1,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ],
+        "pending": null,
+        "records": [
+          "EMERGENCY_DISABLE_AUTHORIZED"
+        ]
+      }
+    },
+    {
+      "name": "maximum_pending_horizon_enforced",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 9,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "ROTATE",
+          "slot": 1,
+          "prior_epoch": 1,
+          "epoch": 2,
+          "deadline": 110,
+          "activation": 100101,
+          "height": 100
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false
+        ],
+        "errors": [
+          "PENDING_HORIZON_EXCEEDED"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 9,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ],
+        "pending": null,
+        "records": []
+      }
+    },
+    {
+      "name": "recovery_can_cancel_after_ordinary_deadline",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 9,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "ROTATE",
+          "slot": 1,
+          "prior_epoch": 1,
+          "epoch": 2,
+          "deadline": 110,
+          "activation": 1000,
+          "height": 100
+        },
+        {
+          "type": "cancel",
+          "authority": "ordinary",
+          "height": 500
+        },
+        {
+          "type": "cancel",
+          "authority": "recovery",
+          "height": 501
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false,
+          false,
+          false
+        ],
+        "errors": [
+          "NON_MONOTONIC_EPOCH",
+          "NO_PENDING_MUTATION",
+          "NO_PENDING_MUTATION"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 9,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ],
+        "pending": null,
+        "records": []
+      }
+    },
+    {
+      "name": "second_pending_request_rejected",
+      "initial": {
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 9,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "type": "request",
+          "kind": "ROTATE",
+          "slot": 1,
+          "prior_epoch": 1,
+          "epoch": 2,
+          "deadline": 110,
+          "activation": 1000,
+          "height": 100
+        },
+        {
+          "type": "request",
+          "kind": "RECOVER",
+          "slot": 2,
+          "prior_epoch": 1,
+          "epoch": 2,
+          "deadline": 110,
+          "activation": 1000,
+          "height": 101,
+          "prior_slot": 1
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false,
+          false
+        ],
+        "errors": [
+          "NON_MONOTONIC_EPOCH",
+          "CANCELLATION_WINDOW_TOO_SHORT"
+        ],
+        "policy_version": 1,
+        "authorization_epoch": 1,
+        "keys": [
+          {
+            "slot": 9,
+            "epoch": 1,
+            "state": "ACTIVE"
+          }
+        ],
+        "pending": null,
+        "records": []
+      }
+    }
+  ]
+}
