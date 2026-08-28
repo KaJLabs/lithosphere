@@ -1,0 +1,187 @@
+{
+  "schema": "EMERGENCY_AUTHORITY_ALGORITHM_UPGRADE_V1",
+  "initial": {
+    "active_profile": 513,
+    "active_commitment": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "successor_profile": 258,
+    "successor_commitment": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "successor_present": true,
+    "activation_height": 1000,
+    "registry_root": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "successor_profile_state": "ACTIVE",
+    "scheduled_state": "NONE",
+    "scheduled_height": 0
+  },
+  "cases": [
+    {
+      "name": "premature_upgrade_rejected",
+      "operations": [
+        {
+          "type": "upgrade",
+          "height": 999,
+          "commitment": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "registry_root": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false
+        ],
+        "errors": [
+          "WRONG_ACTIVATION_HEIGHT"
+        ],
+        "active_profile": 513,
+        "successor_present": true
+      }
+    },
+    {
+      "name": "wrong_successor_rejected",
+      "operations": [
+        {
+          "type": "upgrade",
+          "height": 1000,
+          "commitment": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "registry_root": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false
+        ],
+        "errors": [
+          "SUCCESSOR_COMMITMENT_MISMATCH"
+        ],
+        "active_profile": 513,
+        "successor_present": true
+      }
+    },
+    {
+      "name": "exact_upgrade_and_single_use",
+      "operations": [
+        {
+          "type": "authorize",
+          "height": 999,
+          "profile": 513
+        },
+        {
+          "type": "upgrade",
+          "height": 1000,
+          "commitment": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "registry_root": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        {
+          "type": "authorize",
+          "height": 1000,
+          "profile": 513
+        },
+        {
+          "type": "authorize",
+          "height": 1000,
+          "profile": 258
+        },
+        {
+          "type": "upgrade",
+          "height": 1000,
+          "commitment": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "registry_root": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        {
+          "type": "historical",
+          "height": 999,
+          "profile": 513
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true,
+          false,
+          true,
+          false,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK",
+          "WRONG_ACTIVE_PROFILE",
+          "OK",
+          "SUCCESSOR_ALREADY_CONSUMED",
+          "OK"
+        ],
+        "active_profile": 258,
+        "successor_present": false
+      }
+    },
+    {
+      "name": "registry_root_mismatch",
+      "initial_override": {},
+      "operations": [
+        {
+          "type": "upgrade",
+          "height": 1000,
+          "commitment": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "registry_root": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false
+        ],
+        "errors": [
+          "CRYPTO_REGISTRY_ROOT_MISMATCH"
+        ],
+        "active_profile": 513,
+        "successor_present": true
+      }
+    },
+    {
+      "name": "successor_profile_disabled",
+      "initial_override": {
+        "successor_profile_state": "DISABLED"
+      },
+      "operations": [
+        {
+          "type": "upgrade",
+          "height": 1000,
+          "commitment": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "registry_root": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false
+        ],
+        "errors": [
+          "SUCCESSOR_PROFILE_NOT_ACTIVE"
+        ],
+        "active_profile": 513,
+        "successor_present": true
+      }
+    },
+    {
+      "name": "successor_disable_scheduled_at_migration",
+      "initial_override": {
+        "scheduled_state": "DISABLED",
+        "scheduled_height": 1000
+      },
+      "operations": [
+        {
+          "type": "upgrade",
+          "height": 1000,
+          "commitment": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "registry_root": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false
+        ],
+        "errors": [
+          "SUCCESSOR_PROFILE_TRANSITION_CONFLICT"
+        ],
+        "active_profile": 513,
+        "successor_present": true
+      }
+    }
+  ]
+}

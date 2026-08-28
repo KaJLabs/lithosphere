@@ -1,0 +1,206 @@
+{
+  "schema": "EMERGENCY_ACTION_SEQUENCE_V1",
+  "initial": {
+    "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "next_sequence": 7,
+    "general_sequence_present": false
+  },
+  "cases": [
+    {
+      "name": "exact_wrapper_sequence",
+      "operations": [
+        {
+          "type": "emergency",
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 7,
+          "action_valid": true
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true
+        ],
+        "errors": [
+          "OK"
+        ],
+        "state": {
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "next_sequence": 8,
+          "general_sequence_present": false
+        }
+      }
+    },
+    {
+      "name": "replay_rejected",
+      "operations": [
+        {
+          "type": "emergency",
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 7,
+          "action_valid": true
+        },
+        {
+          "type": "emergency",
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 7,
+          "action_valid": true
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          false
+        ],
+        "errors": [
+          "OK",
+          "EMERGENCY_SEQUENCE_MISMATCH"
+        ],
+        "state": {
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "next_sequence": 8,
+          "general_sequence_present": false
+        }
+      }
+    },
+    {
+      "name": "gap_rejected",
+      "operations": [
+        {
+          "type": "emergency",
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 8,
+          "action_valid": true
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false
+        ],
+        "errors": [
+          "EMERGENCY_SEQUENCE_MISMATCH"
+        ],
+        "state": {
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "next_sequence": 7,
+          "general_sequence_present": false
+        }
+      }
+    },
+    {
+      "name": "failed_action_does_not_consume",
+      "operations": [
+        {
+          "type": "emergency",
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 7,
+          "action_valid": false
+        },
+        {
+          "type": "emergency",
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 7,
+          "action_valid": true
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false,
+          true
+        ],
+        "errors": [
+          "ACTION_REJECTED",
+          "OK"
+        ],
+        "state": {
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "next_sequence": 8,
+          "general_sequence_present": false
+        }
+      }
+    },
+    {
+      "name": "authority_rotation_preserves_counter",
+      "operations": [
+        {
+          "type": "rotate",
+          "new_authority": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "type": "emergency",
+          "authority": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sequence": 7,
+          "action_valid": true
+        }
+      ],
+      "expected": {
+        "accepted": [
+          true,
+          true
+        ],
+        "errors": [
+          "OK",
+          "OK"
+        ],
+        "state": {
+          "authority": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "next_sequence": 8,
+          "general_sequence_present": false
+        }
+      }
+    },
+    {
+      "name": "parallel_general_counter_rejected",
+      "initial_override": {
+        "general_sequence_present": true
+      },
+      "operations": [
+        {
+          "type": "emergency",
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 7,
+          "action_valid": true
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false
+        ],
+        "errors": [
+          "COMPETING_SEQUENCE_STATE"
+        ],
+        "state": {
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "next_sequence": 7,
+          "general_sequence_present": true
+        }
+      }
+    },
+    {
+      "name": "missing_wrapper_counter_rejected",
+      "initial_override": {
+        "next_sequence": null
+      },
+      "operations": [
+        {
+          "type": "emergency",
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 7,
+          "action_valid": true
+        }
+      ],
+      "expected": {
+        "accepted": [
+          false
+        ],
+        "errors": [
+          "MISSING_EMERGENCY_SEQUENCE_STATE"
+        ],
+        "state": {
+          "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "next_sequence": null,
+          "general_sequence_present": false
+        }
+      }
+    }
+  ]
+}
