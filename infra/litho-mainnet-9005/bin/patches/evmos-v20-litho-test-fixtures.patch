@@ -1,0 +1,13 @@
+diff --git a/x/erc20/keeper/ibc_callbacks_test.go b/x/erc20/keeper/ibc_callbacks_test.go
+index 3eb0151..2e9bc9c 100644
+--- a/x/erc20/keeper/ibc_callbacks_test.go
++++ b/x/erc20/keeper/ibc_callbacks_test.go
+@@ -313,7 +313,7 @@ func (suite *KeeperTestSuite) TestOnTimeoutPacket() {
+ 
+ func (suite *KeeperTestSuite) TestConvertCoinToERC20FromPacket() {
+ 	var ctx sdk.Context
+-	senderAddr := "evmos1x2w87cvt5mqjncav4lxy8yfreynn273xn5335v"
++	senderAddr := "litho1x2w87cvt5mqjncav4lxy8yfreynn273xpxvc7n"
+ 
+ 	testCases := []struct {
+ 		name     string

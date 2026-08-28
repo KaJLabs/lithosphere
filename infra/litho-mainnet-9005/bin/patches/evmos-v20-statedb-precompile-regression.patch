@@ -1,0 +1,108 @@
+diff --git a/precompiles/staking/integration_test.go b/precompiles/staking/integration_test.go
+index 7f5f3bc..6c2d327 100644
+--- a/precompiles/staking/integration_test.go
++++ b/precompiles/staking/integration_test.go
+@@ -2923,34 +2923,75 @@ var _ = Describe("Calling staking precompile via Solidity", Ordered, func() {
+ 					}),
+ 				)
+ 
+-				It("should NOT delegate and update balances accordingly - internal transfer to tokens pool", func() {
+-					args.MethodName = "testDelegateWithTransfer"
+-					args.Args = []interface{}{
+-						common.BytesToAddress(bondedTokensPoolAccAddr),
+-						s.keyring.GetAddr(0), valAddr.String(), delAmt.BigInt(), true, true,
+-					}
+-
+-					_, _, err := s.factory.CallContractAndCheckLogs(
+-						s.keyring.GetPrivKey(0),
+-						txArgs,
+-						args,
+-						execRevertedCheck,
+-					)
+-					Expect(err).To(BeNil(), "error while calling the smart contract: %v", err)
+-					Expect(s.network.NextBlock()).To(BeNil())
+-
+-					// contract balance should remain unchanged
+-					balRes, err := s.grpcHandler.GetBalance(contractTwoAddr.Bytes(), s.bondDenom)
+-					Expect(err).To(BeNil())
+-					contractFinalBal := balRes.Balance
+-					Expect(contractFinalBal.Amount).To(Equal(contractInitialBalance.Amount))
+-
+-					// check the bondedTokenPool should remain unchanged
+-					balRes, err = s.grpcHandler.GetBalance(bondedTokensPoolAccAddr, s.bondDenom)
+-					Expect(err).To(BeNil())
+-					bondedTokensPoolFinalBalance := balRes.Balance
+-					Expect(bondedTokensPoolFinalBalance.Amount).To(Equal(bondedTokensPoolInitialBalance.Amount))
+-				})
++				DescribeTable("should reject internal transfers to the bonded tokens pool across precompile orderings",
++					func(tc struct {
++						before bool
++						after  bool
++						msgAmt *big.Int
++					}) {
++						args.MethodName = "testDelegateWithTransfer"
++						args.Args = []interface{}{
++							common.BytesToAddress(bondedTokensPoolAccAddr),
++							s.keyring.GetAddr(0), valAddr.String(), delAmt.BigInt(), tc.before, tc.after,
++						}
++
++						txArgs.To = &contractTwoAddr
++						txArgs.Amount = tc.msgAmt
++
++						totalSupplyBefore, err := s.grpcHandler.GetTotalSupply()
++						Expect(err).To(BeNil())
++
++						errorCheck := execRevertedCheck
++						if !tc.before && tc.after && tc.msgAmt == nil {
++							errorCheck = defaultLogCheck.WithErrContains("is not allowed to receive funds")
++						}
++
++						_, _, err = s.factory.CallContractAndCheckLogs(
++							s.keyring.GetPrivKey(0),
++							txArgs,
++							args,
++							errorCheck,
++						)
++						Expect(err).To(BeNil(), "error while calling the smart contract: %v", err)
++						Expect(s.network.NextBlock()).To(BeNil())
++
++						balRes, err := s.grpcHandler.GetBalance(contractTwoAddr.Bytes(), s.bondDenom)
++						Expect(err).To(BeNil())
++						Expect(balRes.Balance.Amount).To(Equal(contractInitialBalance.Amount))
++
++						balRes, err = s.grpcHandler.GetBalance(bondedTokensPoolAccAddr, s.bondDenom)
++						Expect(err).To(BeNil())
++						Expect(balRes.Balance.Amount).To(Equal(bondedTokensPoolInitialBalance.Amount))
++
++						delegation, err := s.grpcHandler.GetDelegation(s.keyring.GetAccAddr(0).String(), valAddr.String())
++						Expect(err).To(BeNil())
++						Expect(delegation.DelegationResponse.Delegation).To(Equal(prevDelegation))
++
++						totalSupplyAfter, err := s.grpcHandler.GetTotalSupply()
++						Expect(err).To(BeNil())
++						Expect(totalSupplyAfter.Supply).To(Equal(totalSupplyBefore.Supply))
++					},
++					Entry("internal transfer before precompile call", struct {
++						before bool
++						after  bool
++						msgAmt *big.Int
++					}{before: true, after: false, msgAmt: nil}),
++					Entry("internal transfer after precompile call", struct {
++						before bool
++						after  bool
++						msgAmt *big.Int
++					}{before: false, after: true, msgAmt: nil}),
++					Entry("internal transfers before and after precompile call", struct {
++						before bool
++						after  bool
++						msgAmt *big.Int
++					}{before: true, after: true, msgAmt: nil}),
++					Entry("internal transfer after precompile call with matching transaction value", struct {
++						before bool
++						after  bool
++						msgAmt *big.Int
++					}{before: false, after: true, msgAmt: big.NewInt(15)}),
++				)
+ 			})
+ 
+ 			It("should not delegate when exceeding the allowance", func() {
