@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import argparse
 import json
 import stat
 import zipfile
@@ -12,11 +13,9 @@ from pathlib import Path, PurePosixPath
 HERE = Path(__file__).resolve()
 INFRA = HERE.parents[1]
 REPO = next(parent for parent in HERE.parents if (parent / ".git").exists())
-PRIMARY = next(parent for parent in REPO.parents if (parent / "client-work").is_dir())
-CLIENT_WORK = PRIMARY / "client-work"
 BIN = INFRA / "bin"
 EVIDENCE = BIN / "lithod.evidence"
-OUT = CLIENT_WORK / "LITHO_L1_Autha_Implementation_R1_1_Evidence_2026-08-28.zip"
+OUT_NAME = "LITHO_L1_Autha_Implementation_R1_1_Evidence_2026-08-28.zip"
 PREFIX = "litho-l1-v20.0.0-r1.1"
 STAMP = (2026, 8, 28, 0, 0, 0)
 EXPECTED_BINARY_SHA256 = "1f03146df86391715b86971b14b6074580b7efd06d7265a1725d90e426b8efbc"
@@ -41,8 +40,16 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def review_file(pattern: str) -> Path:
-    matches = list(CLIENT_WORK.glob(pattern))
+def default_client_work() -> Path:
+    candidates = [REPO / "client-work"] + [parent / "client-work" for parent in REPO.parents]
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    raise RuntimeError("client-work directory not found; pass --client-work")
+
+
+def review_file(client_work: Path, pattern: str) -> Path:
+    matches = list(client_work.glob(pattern))
     if len(matches) != 1:
         raise RuntimeError(f"expected one review matching {pattern!r}, found {len(matches)}")
     return matches[0]
@@ -64,7 +71,7 @@ def add(selected: dict[str, tuple[bytes, int]], name: str, source: Path, mode: i
     selected[f"{PREFIX}/{PurePosixPath(name).as_posix()}"] = (source.read_bytes(), mode)
 
 
-def build_payloads() -> dict[str, tuple[bytes, int]]:
+def build_payloads(client_work: Path) -> dict[str, tuple[bytes, int]]:
     selected: dict[str, tuple[bytes, int]] = {}
     binary = EVIDENCE / "lithod"
     if sha256(binary.read_bytes()) != EXPECTED_BINARY_SHA256:
@@ -120,28 +127,33 @@ def build_payloads() -> dict[str, tuple[bytes, int]]:
     add(selected, "docs/MAKALU_R1_EXACT_BINARY_REGRESSION_RUNBOOK_2026-08-28.md",
         INFRA / "docs" / "MAKALU_R1_EXACT_BINARY_REGRESSION_RUNBOOK_2026-08-28.md")
     add(selected, "review/Autha_LITHO_L1_R1_Remediation_Re-Review.docx",
-        review_file("Autha LITHO L1 R1 Remediation Re-Review.docx"))
-    add(selected, "review/AUTHA_AUDITS.md", review_file("AUTHA AUDITS.md"))
+        review_file(client_work, "Autha LITHO L1 R1 Remediation Re-Review.docx"))
+    add(selected, "review/AUTHA_AUDITS.md", review_file(client_work, "AUTHA AUDITS.md"))
     add(selected, "evidence/linux-archive-validation.txt",
-        review_file("LITHO_L1_R1_1_LINUX_ARCHIVE_VALIDATION_2026-08-28.txt"))
+        review_file(client_work, "LITHO_L1_R1_1_LINUX_ARCHIVE_VALIDATION_2026-08-28.txt"))
     return selected
 
 
 def main() -> None:
-    selected = build_payloads()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--client-work", type=Path)
+    args = parser.parse_args()
+    client_work = args.client_work.resolve() if args.client_work else default_client_work()
+    out = client_work / OUT_NAME
+    selected = build_payloads(client_work)
     checksums = "\n".join(
         f"{sha256(data)}  {name.removeprefix(PREFIX + '/')}"
         for name, (data, _) in sorted(selected.items())
     ) + "\n"
     selected[f"{PREFIX}/SHA256SUMS.txt"] = (checksums.encode(), 0o644)
-    with zipfile.ZipFile(OUT, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+    with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for name, (data, mode) in sorted(selected.items()):
             info = zipfile.ZipInfo(name, STAMP)
             info.create_system = 3
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = (stat.S_IFREG | mode) << 16
             archive.writestr(info, data)
-    print(OUT)
+    print(out)
     print(f"members={len(selected)}")
 
 
