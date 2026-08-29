@@ -10,10 +10,12 @@ members = [
     "crates/lithtest",
     "crates/lithsec",
     "crates/lithpkg",
+    "crates/litho-pq-conformance",
 ]
 
-# The Lithosphere developer toolchain. Std-only by design (zero external crates)
-# so the scaffold builds offline without a crates.io fetch.
+# The user-facing scaffold crates remain std-only. The isolated, disabled
+# `litho-pq-conformance` candidate uses exact pinned cryptographic dependencies
+# and is not linked into any shipped tool or runtime.
 [workspace.package]
 version = "0.0.1"
 edition = "2021"
