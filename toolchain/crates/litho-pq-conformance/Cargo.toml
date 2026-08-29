@@ -1,0 +1,16 @@
+[package]
+name = "litho-pq-conformance"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Non-consensus Makalu conformance harness for the frozen LITHO PQ profiles"
+publish = false
+
+[dependencies]
+ml-dsa = { version = "=0.1.1", default-features = false, features = ["alloc", "zeroize"] }
+sha2 = { version = "=0.11.0", default-features = false }
+slh-dsa = { version = "=0.2.0-rc.5", features = ["zeroize"] }
+
+[lints.rust]
+unsafe_code = "forbid"
