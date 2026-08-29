@@ -10,8 +10,9 @@ frozen by the Autha-approved R9 design:
 It is deliberately **not** linked into consensus, LithoVM, the compiler,
 network services, or the explorer. It cannot activate a profile or authorize a
 transaction. Its purpose is to freeze dependencies, execute official NIST
-key-generation known-answer checks, exercise strict decoders and negative
-cases, and collect initial measurements on x86-64 and ARM64.
+key-generation, signature-generation and signature-verification known-answer
+checks, exercise strict decoders and negative cases, and collect initial
+measurements on x86-64 and ARM64.
 
 ```text
 cargo run -p litho-pq-conformance --locked -- profiles
@@ -19,8 +20,8 @@ cargo run -p litho-pq-conformance --release --locked -- self-test
 cargo run -p litho-pq-conformance --release --locked -- benchmark
 ```
 
-The NIST vectors are reduced to seed material plus SHA-256 commitments to the
-official expected outputs. This avoids copying private-key fixtures into logs
-while still requiring byte-for-byte output agreement. Provenance is pinned in
+The NIST vectors are reduced to the exact selected binary inputs and expected
+outputs. They are never printed by the tests. A deterministic extraction
+script, full-source hashes, per-file hashes, and pinned upstream commit make
+the selection independently reproducible. Provenance is recorded in
 `NIST_VECTOR_PROVENANCE.md`.
-

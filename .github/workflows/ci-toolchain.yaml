@@ -35,11 +35,11 @@ jobs:
       run:
         working-directory: toolchain
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install Rust toolchain
-        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+        run: rustup toolchain install 1.96.0 --profile minimal --component rustfmt,clippy
       - name: Select Rust toolchain
-        run: rustup default stable
+        run: rustup default 1.96.0
       - name: Formatting (reviewed front-end slice)
         run: >-
           rustfmt --check --edition 2021
@@ -174,7 +174,7 @@ jobs:
           $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
           "$hash  $archive" | Set-Content "$archive.sha256" -Encoding ascii
       - name: Upload boundary preview
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ steps.stage.outputs.archive_base }}
           path: toolchain/dist/${{ steps.stage.outputs.archive_base }}.*
@@ -197,11 +197,11 @@ jobs:
       run:
         working-directory: toolchain
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install Rust toolchain
-        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+        run: rustup toolchain install 1.96.0 --profile minimal --component rustfmt,clippy
       - name: Select Rust toolchain
-        run: rustup default stable
+        run: rustup default 1.96.0
       - name: Locked dependency and lint gate
         run: |
           cargo clippy -p litho-pq-conformance --all-targets --locked -- -D warnings
@@ -219,6 +219,16 @@ jobs:
           jq -e '.schema == 1 and (.profiles | length) == 3' pq-evidence/benchmark.json >/dev/null
           rustc --version --verbose > pq-evidence/rustc-version.txt
           uname -a > pq-evidence/platform.txt
+          {
+            echo "ImageOS=${ImageOS:-unknown}"
+            echo "ImageVersion=${ImageVersion:-unknown}"
+            echo "ImageArchitecture=${ImageArchitecture:-unknown}"
+            echo "RUNNER_ARCH=${RUNNER_ARCH:-unknown}"
+            echo "RUNNER_OS=${RUNNER_OS:-unknown}"
+            echo "GITHUB_SHA=${GITHUB_SHA}"
+            echo "GITHUB_RUN_ID=${GITHUB_RUN_ID}"
+            echo "GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT}"
+          } > pq-evidence/runner-image.txt
       - name: Generate reproducible CycloneDX SBOM
         if: matrix.asset == 'linux-x86_64'
         shell: bash
@@ -236,7 +246,7 @@ jobs:
           cargo install cargo-audit --version 0.22.2 --locked --no-default-features
           cargo audit --file Cargo.lock --json > pq-evidence/rustsec-audit.json
       - name: Upload Phase 1 evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: litho-pq-phase1-${{ matrix.asset }}
           path: toolchain/pq-evidence/

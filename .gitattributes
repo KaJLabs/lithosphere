@@ -38,6 +38,7 @@ Dockerfile   text eol=lf
 *.woff       binary
 *.woff2      binary
 *.wasm       binary
+*.bin        binary
 
 # Generated lockfiles — keep LF (they're checked in, not edited by hand) and
 # treat as binary in diffs to keep PR noise down on large pnpm-lock changes.

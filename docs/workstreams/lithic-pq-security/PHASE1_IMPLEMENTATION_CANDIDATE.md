@@ -1,4 +1,4 @@
-# Phase 1 implementation candidate
+# Phase 1 R1 implementation candidate
 
 **Status:** disabled, non-consensus, Makalu-only candidate
 
@@ -15,13 +15,22 @@ The candidate provides:
 - RustCrypto ML-DSA `0.1.1`, which contains the fix for
   CVE-2026-24850/GHSA-5x2r-hc65-25f9;
 - RustCrypto SLH-DSA `0.2.0-rc.5` for the exact SHAKE-256s profile;
-- reduced NIST ACVP key-generation KATs with pinned upstream commit and expected
-  output commitments;
+- reduced NIST ACVP key-generation, signature-generation and
+  signature-verification KATs with a pinned upstream commit and per-file
+  commitments;
 - exact-length, fail-closed public-key and signature decoding;
-- context-bound sign/verify self-tests and tamper rejection;
-- an explicit regression for repeated ML-DSA hint indices;
+- context-bound sign/verify self-tests covering wrong context, message,
+  signature and key rejection for all profiles;
+- N-1/N+1 key and signature length rejection for all profiles;
+- explicit repeated-hint regressions for ML-DSA-65 and ML-DSA-87 routed through
+  the public verifier;
+- an exact 64-byte `SigningRootV1` verification boundary for later Phase 2 use;
 - x86-64 and ARM64 CI measurements, process-memory evidence, and a reproducible
   CycloneDX SBOM.
+
+The compiler is pinned to Rust `1.96.0`; workflow actions are pinned to full
+commit SHAs. Evidence records its exact GitHub commit, run, attempt, runner
+architecture, runner OS and runner image.
 
 ## Safety boundary
 
@@ -44,4 +53,3 @@ cargo run -p litho-pq-conformance --release --locked -- benchmark
 
 CI runs the same commands on GitHub-hosted Linux x86-64 and ARM64 runners. The
 benchmark numbers are measurements, not approved gas or consensus constants.
-

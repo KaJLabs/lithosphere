@@ -10,13 +10,21 @@
 
 The dependency graph is frozen by `toolchain/Cargo.lock`, including registry
 checksums. CI uses `--locked` for every build, lint, test, and measurement.
+Rust is pinned to `1.96.0` by `toolchain/rust-toolchain.toml` and the workflow.
+The Phase 1 workflow pins every third-party GitHub Action to an immutable full
+commit SHA and records the runner image metadata with each evidence artifact.
 
 ## ML-DSA advisory floor
 
 RustCrypto advisory GHSA-5x2r-hc65-25f9 / CVE-2026-24850 affected versions up
 to `0.1.0-rc.3`; the patched floor is `0.1.0-rc.4`. This candidate pins
 `0.1.1` and includes a repeated-hint negative regression that requires strict,
-canonical decoding.
+canonical decoding for both ML-DSA-65 and ML-DSA-87.
+
+The review also tracks CVE-2026-22705 / GHSA-hcp2-x6j4-29j7 /
+RUSTSEC-2025-0144. The exact dependency graph and point-in-time RustSec output
+are evidence inputs; an automated zero-finding result does not override a
+manual applicability decision or authorize activation.
 
 ## SLH-DSA release status
 
@@ -36,4 +44,3 @@ The x86-64 CI job generates:
 
 An empty RustSec report is a point-in-time check, not a substitute for Autha's
 implementation review or cryptographic validation.
-

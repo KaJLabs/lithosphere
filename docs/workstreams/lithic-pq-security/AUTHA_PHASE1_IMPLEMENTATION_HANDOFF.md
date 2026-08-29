@@ -1,10 +1,12 @@
-# Autha Phase 1 implementation-review handoff
+# Autha Phase 1 R1 implementation-review handoff
 
-**Candidate identity:** `849e3d78492ebd4136f9bbaf24208284d4218841`
+**Candidate identity:** set to the exact merge commit after this remediation PR
+is merged
 
-**Source PR:** <https://github.com/KaJLabs/Lithosphere/pull/137>
+**Source PR:** <https://github.com/KaJLabs/Lithosphere/pull/138>
 
-**Evidence run:** <https://github.com/KaJLabs/Lithosphere/actions/runs/33253023378>
+**Evidence run:** set to the successful default-branch run for that exact merge
+commit
 
 ## Review request
 
@@ -15,8 +17,9 @@ against the Phase 0 R9 design freeze. The requested decision is limited to:
    algorithms, contexts, public-key lengths and signature lengths;
 2. fail-closed decoding, context separation and tamper/replay-relevant negative
    tests;
-3. NIST ACVP key-generation vector provenance and the reduced KAT selection;
-4. the ML-DSA repeated-hint regression for
+3. NIST ACVP key-generation, signature-generation and
+   signature-verification provenance and reduced KAT selection;
+4. the ML-DSA-65 and ML-DSA-87 repeated-hint regressions for
    CVE-2026-24850/GHSA-5x2r-hc65-25f9;
 5. pinned dependency, CycloneDX SBOM and RustSec evidence; and
 6. x86-64 and ARM64 performance and memory observations.
@@ -38,8 +41,10 @@ Those remain separate fail-closed gates.
 ## Evidence identity
 
 The candidate merge commit is the immutable review identity. The package
-builder reads candidate source directly from that Git object rather than from
-the packaging branch.
+builder reads source directly from that Git object, requires both architecture
+artifacts to declare the same `GITHUB_SHA` and `GITHUB_RUN_ID`, and refuses a
+mismatch. The included minimal workspace rebuilds and tests without the rest
+of the repository.
 
 The GitHub run completed successfully on Linux x86-64 and Linux ARM64 and
 produced:
@@ -69,8 +74,11 @@ Build the deterministic Autha package with:
 
 ```text
 python docs/workstreams/lithic-pq-security/remediation/reference/build_phase1_autha_package.py \
+  --candidate <exact-merge-commit> \
+  --run-id <exact-default-branch-run> \
+  --source-pr https://github.com/KaJLabs/Lithosphere/pull/138 \
   --evidence-root <downloaded-GitHub-artifacts> \
-  --review-doc <Autha-R9-design-freeze-review.docx> \
+  --review-doc <prior-review.docx> \
   --output <output.zip>
 ```
 
@@ -78,5 +86,9 @@ Verify it independently with:
 
 ```text
 python docs/workstreams/lithic-pq-security/remediation/reference/verify_phase1_autha_package.py \
-  <output.zip>
+  <output.zip> --candidate <exact-merge-commit> --run-id <exact-run-id>
 ```
+
+The outer archive must then receive the approved detached organizational
+signature before it is sent to Autha. No signature key is stored in this
+repository or used by CI.
