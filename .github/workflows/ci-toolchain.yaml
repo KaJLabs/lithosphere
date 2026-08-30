@@ -65,7 +65,10 @@ jobs:
       - name: Lints (reviewed workspace)
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests
-        run: cargo test --workspace --locked
+        # PQ verification has a dedicated release-mode x86-64/ARM64 gate below.
+        # Exclude it here to avoid repeating expensive SLH-DSA tests in debug
+        # mode on non-validator desktop platforms.
+        run: cargo test --workspace --exclude litho-pq-conformance --locked
       - name: Release build
         run: cargo build --workspace --release --locked
       - name: lithc check smoke test
