@@ -1,0 +1,334 @@
+{
+  "cases": [
+    {
+      "deterministic": true,
+      "files": {
+        "context": {
+          "bytes": 17,
+          "name": "ml65-siggen-tc31.context.bin",
+          "sha256": "cdf25d944d0f0534b7af281a2d84cb5b9276336afe9461473e349f68db46c3ef"
+        },
+        "message": {
+          "bytes": 1727,
+          "name": "ml65-siggen-tc31.message.bin",
+          "sha256": "b811a10690281e7d8ba67e6de3161231b5a84d5e782ab8baed7bfc097be4240f"
+        },
+        "pk": {
+          "bytes": 1952,
+          "name": "ml65-siggen-tc31.pk.bin",
+          "sha256": "58e9b3d549e18bd5dccfb561b9f2122af9c6e46bb18360ca958f358fec89d78b"
+        },
+        "signature": {
+          "bytes": 3309,
+          "name": "ml65-siggen-tc31.signature.bin",
+          "sha256": "913320405addf583ccdbf3ab7bb464e4c450e19e0c1690411e5555883f20c2b6"
+        },
+        "sk": {
+          "bytes": 4032,
+          "name": "ml65-siggen-tc31.sk.bin",
+          "sha256": "d1f6d638105d56f1472537dfd60f41d8fcc94a0068a321f790d4ec5d95e75ed0"
+        }
+      },
+      "parameter_set": "ML-DSA-65",
+      "pre_hash": "pure",
+      "reason": null,
+      "signature_interface": "external",
+      "source": "ML-DSA-sigGen-FIPS204_internalProjection.json",
+      "tc_id": 31,
+      "test_passed": null,
+      "test_type": "AFT",
+      "tg_id": 3
+    },
+    {
+      "deterministic": true,
+      "files": {
+        "context": {
+          "bytes": 141,
+          "name": "ml87-siggen-tc61.context.bin",
+          "sha256": "392cf4bf811df2e23bb02bcae719325a792bdb6ace6f16ac154843acd8b6239c"
+        },
+        "message": {
+          "bytes": 2262,
+          "name": "ml87-siggen-tc61.message.bin",
+          "sha256": "705b4d01cbe2e072b7f1aa8338cb5162047ac7d1ef544b954e7e61e05e89ab60"
+        },
+        "pk": {
+          "bytes": 2592,
+          "name": "ml87-siggen-tc61.pk.bin",
+          "sha256": "0a69dc746525694c247186ba322788a0b1f16d4b19965fc0c4af33b69edb64b8"
+        },
+        "signature": {
+          "bytes": 4627,
+          "name": "ml87-siggen-tc61.signature.bin",
+          "sha256": "efd56cc7a0887e6008b9d31ff4965a9d5331c2dbc0beecf60d7f9f379d2751ae"
+        },
+        "sk": {
+          "bytes": 4896,
+          "name": "ml87-siggen-tc61.sk.bin",
+          "sha256": "474859dbde8dfd776cfd3c33e7828635f6ab8bd245282fd926048f7f5ab85a39"
+        }
+      },
+      "parameter_set": "ML-DSA-87",
+      "pre_hash": "pure",
+      "reason": null,
+      "signature_interface": "external",
+      "source": "ML-DSA-sigGen-FIPS204_internalProjection.json",
+      "tc_id": 61,
+      "test_passed": null,
+      "test_type": "AFT",
+      "tg_id": 5
+    },
+    {
+      "deterministic": true,
+      "files": {
+        "context": {
+          "bytes": 111,
+          "name": "slh256s-siggen-tc252.context.bin",
+          "sha256": "73906cc7bb8b1fce68451be3835e53cb4ce52814cfb548cb678d98ce01aeeb11"
+        },
+        "message": {
+          "bytes": 8192,
+          "name": "slh256s-siggen-tc252.message.bin",
+          "sha256": "b98d4c1d4a1fb2891ada91b30ff15cef299eab31d04dddb12f34baf0e805c459"
+        },
+        "pk": {
+          "bytes": 64,
+          "name": "slh256s-siggen-tc252.pk.bin",
+          "sha256": "e8d30079f3559bed95c7cc6156f1fcf19c875a8ed91a61a63369d1e815c7e439"
+        },
+        "signature": {
+          "bytes": 29792,
+          "name": "slh256s-siggen-tc252.signature.bin",
+          "sha256": "7957276425c568514b4bd25069d3e5acc1da993d643fa036ba71992b2347d473"
+        },
+        "sk": {
+          "bytes": 128,
+          "name": "slh256s-siggen-tc252.sk.bin",
+          "sha256": "ece6288783e54d8d89472c1ee3f49fae1ff855a43aced55b4bb4f7abe9dd0350"
+        }
+      },
+      "parameter_set": "SLH-DSA-SHAKE-256s",
+      "pre_hash": "pure",
+      "reason": null,
+      "signature_interface": "external",
+      "source": "SLH-DSA-sigGen-FIPS205_internalProjection.json",
+      "tc_id": 252,
+      "test_passed": null,
+      "test_type": "AFT",
+      "tg_id": 29
+    },
+    {
+      "deterministic": null,
+      "files": {
+        "context": {
+          "bytes": 142,
+          "name": "ml65-sigver-valid-tc33.context.bin",
+          "sha256": "a9ce73821e80cdf934513ee95d4002924d5c06173ef1766b5e9672acf72330ba"
+        },
+        "message": {
+          "bytes": 1481,
+          "name": "ml65-sigver-valid-tc33.message.bin",
+          "sha256": "6923837e5fe3d3d73e22d92f0b244c1ff836abf21a2e9fc95610ece693f72664"
+        },
+        "pk": {
+          "bytes": 1952,
+          "name": "ml65-sigver-valid-tc33.pk.bin",
+          "sha256": "d190a6a6d0d8438b195f4d32e6ed1d236d10709ed6fbca47306efb5ada1468e1"
+        },
+        "signature": {
+          "bytes": 3309,
+          "name": "ml65-sigver-valid-tc33.signature.bin",
+          "sha256": "57d8384ce083b170a117b13172b9b712cbd944ba349a1598ac5e69526786f9e8"
+        }
+      },
+      "parameter_set": "ML-DSA-65",
+      "pre_hash": "pure",
+      "reason": "valid signature and message - signature should verify successfully",
+      "signature_interface": "external",
+      "source": "ML-DSA-sigVer-FIPS204_internalProjection.json",
+      "tc_id": 33,
+      "test_passed": true,
+      "test_type": "AFT",
+      "tg_id": 3
+    },
+    {
+      "deterministic": null,
+      "files": {
+        "context": {
+          "bytes": 13,
+          "name": "ml65-sigver-invalid-tc31.context.bin",
+          "sha256": "6d3691bf6aed51fd7966cad29768eac16ac51734b2cd11da4f3c8b98238abd7e"
+        },
+        "message": {
+          "bytes": 3468,
+          "name": "ml65-sigver-invalid-tc31.message.bin",
+          "sha256": "0a5e13852a9376b1c83297e502c09664c35a4d1a13c7fd0f0feef90ae98834ed"
+        },
+        "pk": {
+          "bytes": 1952,
+          "name": "ml65-sigver-invalid-tc31.pk.bin",
+          "sha256": "abb1fcf6f209eba69f6a2ce2d5510a6487584a36ca543783df5f338bd386c725"
+        },
+        "signature": {
+          "bytes": 3309,
+          "name": "ml65-sigver-invalid-tc31.signature.bin",
+          "sha256": "532646784cd450f22ad9c7a0f89f4651ac95eaaa9348b2812e6d6ba076d27df5"
+        }
+      },
+      "parameter_set": "ML-DSA-65",
+      "pre_hash": "pure",
+      "reason": "modified signature - z",
+      "signature_interface": "external",
+      "source": "ML-DSA-sigVer-FIPS204_internalProjection.json",
+      "tc_id": 31,
+      "test_passed": false,
+      "test_type": "AFT",
+      "tg_id": 3
+    },
+    {
+      "deterministic": null,
+      "files": {
+        "context": {
+          "bytes": 93,
+          "name": "ml87-sigver-valid-tc63.context.bin",
+          "sha256": "7cd43bb067957379cfc885f868a790a1ea8a4bbdffd618f936efb8ba45d06f58"
+        },
+        "message": {
+          "bytes": 7147,
+          "name": "ml87-sigver-valid-tc63.message.bin",
+          "sha256": "c5901466c7cdb54de386119722f02fbc28d05fce6954c32c4aa5cb3bab29c82d"
+        },
+        "pk": {
+          "bytes": 2592,
+          "name": "ml87-sigver-valid-tc63.pk.bin",
+          "sha256": "e28f1de67cda68b593cf8e1eccb6daf42de204121c76b500d4dca13cde67cc27"
+        },
+        "signature": {
+          "bytes": 4627,
+          "name": "ml87-sigver-valid-tc63.signature.bin",
+          "sha256": "36470abfed8e6e135f5af9aa2c8e8c7b4f5f49b2d964cdb3e29c16eddb650df0"
+        }
+      },
+      "parameter_set": "ML-DSA-87",
+      "pre_hash": "pure",
+      "reason": "valid signature and message - signature should verify successfully",
+      "signature_interface": "external",
+      "source": "ML-DSA-sigVer-FIPS204_internalProjection.json",
+      "tc_id": 63,
+      "test_passed": true,
+      "test_type": "AFT",
+      "tg_id": 5
+    },
+    {
+      "deterministic": null,
+      "files": {
+        "context": {
+          "bytes": 76,
+          "name": "ml87-sigver-invalid-tc61.context.bin",
+          "sha256": "bab8e7896a9a572f0fade3259129c46175e9597ee2b3118b7d828a1ae8276102"
+        },
+        "message": {
+          "bytes": 3155,
+          "name": "ml87-sigver-invalid-tc61.message.bin",
+          "sha256": "1efb0f11075c0f8ff304c971798aecb267a736a15888d724022016322e468690"
+        },
+        "pk": {
+          "bytes": 2592,
+          "name": "ml87-sigver-invalid-tc61.pk.bin",
+          "sha256": "49737f398d16e6d8deeb883ab18b16af438c8422caef4e6438078340b82ba7c1"
+        },
+        "signature": {
+          "bytes": 4627,
+          "name": "ml87-sigver-invalid-tc61.signature.bin",
+          "sha256": "67c69ccfce57dd2ad5f282d7635d3ca2cc414c009011161e98c29faad62bb60d"
+        }
+      },
+      "parameter_set": "ML-DSA-87",
+      "pre_hash": "pure",
+      "reason": "modified message",
+      "signature_interface": "external",
+      "source": "ML-DSA-sigVer-FIPS204_internalProjection.json",
+      "tc_id": 61,
+      "test_passed": false,
+      "test_type": "AFT",
+      "tg_id": 5
+    },
+    {
+      "deterministic": null,
+      "files": {
+        "context": {
+          "bytes": 154,
+          "name": "slh256s-sigver-valid-tc399.context.bin",
+          "sha256": "b2810729c74bf95768bbd9efce0220e6a60af7aba359c270c55de4a9e969ef49"
+        },
+        "message": {
+          "bytes": 2065,
+          "name": "slh256s-sigver-valid-tc399.message.bin",
+          "sha256": "79c129eef94640d1fc62d2af01ec2fa1338d06ad637d80de6af77b4627fe2765"
+        },
+        "pk": {
+          "bytes": 64,
+          "name": "slh256s-sigver-valid-tc399.pk.bin",
+          "sha256": "9f5c306910aa9f4fa9b4480112c0c868234239af9d45704da0ae51c5f910b889"
+        },
+        "signature": {
+          "bytes": 29792,
+          "name": "slh256s-sigver-valid-tc399.signature.bin",
+          "sha256": "a4292d0fd3736631ca27bf81ab48247c3d80922145811c94dbac9b6d4c38b863"
+        }
+      },
+      "parameter_set": "SLH-DSA-SHAKE-256s",
+      "pre_hash": "pure",
+      "reason": "valid signature and message - signature should verify successfully",
+      "signature_interface": "external",
+      "source": "SLH-DSA-sigVer-FIPS205_internalProjection.json",
+      "tc_id": 399,
+      "test_passed": true,
+      "test_type": "AFT",
+      "tg_id": 29
+    },
+    {
+      "deterministic": null,
+      "files": {
+        "context": {
+          "bytes": 0,
+          "name": "slh256s-sigver-invalid-tc393.context.bin",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "message": {
+          "bytes": 1,
+          "name": "slh256s-sigver-invalid-tc393.message.bin",
+          "sha256": "af193a8cdcd0e3fb39e71147e59efa5cad40763d2611f5beff34a274f514362f"
+        },
+        "pk": {
+          "bytes": 64,
+          "name": "slh256s-sigver-invalid-tc393.pk.bin",
+          "sha256": "b7b5021d8b39ebaef012dcd7a15bf83889a02a7cd59195657f72295f6c4ecd7d"
+        },
+        "signature": {
+          "bytes": 29792,
+          "name": "slh256s-sigver-invalid-tc393.signature.bin",
+          "sha256": "3a26c6867dbfa9286efc1208bea0d9374fb3e34240ee169b715edb8e3759c8b1"
+        }
+      },
+      "parameter_set": "SLH-DSA-SHAKE-256s",
+      "pre_hash": "pure",
+      "reason": "modified signature - SIGFORS",
+      "signature_interface": "external",
+      "source": "SLH-DSA-sigVer-FIPS205_internalProjection.json",
+      "tc_id": 393,
+      "test_passed": false,
+      "test_type": "AFT",
+      "tg_id": 29
+    }
+  ],
+  "schema": 1,
+  "sources": {
+    "ML-DSA-sigGen-FIPS204_internalProjection.json": "72dcaf5f69853ca267ccd16af9cb40949786aca0fcfbf05d1ebeba132b93af22",
+    "ML-DSA-sigVer-FIPS204_internalProjection.json": "47cdd6314c7f746d02421ffcba89d4dbc7bb875ac49e07a029fdfc26fba55437",
+    "SLH-DSA-sigGen-FIPS205_internalProjection.json": "62b42e7c27fda5de8a94aba2943ae413b59b6ea08141f3bc035b1eceae235dba",
+    "SLH-DSA-sigVer-FIPS205_internalProjection.json": "a013fc2104f4ed4799d96d51141f65b965969b2cf10646626a021b6d456ce792"
+  },
+  "upstream_commit": "975de31eb83d87039ec88934fdc47d8c312b892d",
+  "upstream_repository": "https://github.com/usnistgov/ACVP-Server"
+}

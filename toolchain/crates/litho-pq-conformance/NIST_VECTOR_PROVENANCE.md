@@ -9,6 +9,10 @@ Source files:
 
 - `gen-val/json-files/ML-DSA-keyGen-FIPS204/internalProjection.json`
 - `gen-val/json-files/SLH-DSA-keyGen-FIPS205/internalProjection.json`
+- `gen-val/json-files/ML-DSA-sigGen-FIPS204/internalProjection.json`
+- `gen-val/json-files/ML-DSA-sigVer-FIPS204/internalProjection.json`
+- `gen-val/json-files/SLH-DSA-sigGen-FIPS205/internalProjection.json`
+- `gen-val/json-files/SLH-DSA-sigVer-FIPS205/internalProjection.json`
 
 Selected cases:
 
@@ -18,7 +22,28 @@ Selected cases:
 | ML-DSA-87 | 51 | `33f49649f05ec2fc3b050007b18ade043bbc8d1c0ded03a269d540486daaa5f4` | `c64e15742f27d7d8e2832f7d55a5c014f2c9536082f3a3181cfc6246908dd649` |
 | SLH-DSA-SHAKE-256s | 91 | `49a30ef4ed23a45399324c774fab8572e668f0266575c152783c8187395d9365` | `3411ecdfeac0db9c1bba94f9d3384e8ef0e82b08bdb373c71884e9a6348ae86d` |
 
-These checks establish agreement with an independently generated NIST sample
-for key generation. They are evidence for the Phase 1 candidate only; they are
-not a FIPS 140 validation and do not authorize activation.
+The reduced signature fixture manifest is
+`fixtures/nist/manifest.json` (SHA-256
+`224570219ea696dfb913d9e1a3e3c2faab26146da18feb7e37c1f0027178e3e3`).
+It records the SHA-256 of every full upstream JSON source and every extracted
+binary. `fixtures/generate_from_nist.py` deterministically regenerates it from
+those immutable sources.
 
+| Profile | Operation | ACVP group/case | Expected result |
+| --- | --- | --- | --- |
+| ML-DSA-65 | sigGen | tg3/tc31 | exact signature bytes |
+| ML-DSA-87 | sigGen | tg5/tc61 | exact signature bytes |
+| SLH-DSA-SHAKE-256s | sigGen | tg29/tc252 | exact signature bytes |
+| ML-DSA-65 | sigVer | tg3/tc33, tc31 | valid, invalid |
+| ML-DSA-87 | sigVer | tg5/tc63, tc61 | valid, invalid |
+| SLH-DSA-SHAKE-256s | sigVer | tg29/tc399, tc393 | valid, invalid |
+
+The ACVP signature cases exercise their published NIST contexts. Separate
+tests exercise the exact frozen LITHO contexts and prove fail-closed behavior
+for a wrong context, altered message, altered signature, wrong public key, and
+N-1/N+1 key or signature encodings for every profile. Both ML-DSA profiles
+also route a repeated-hint encoding through the public verifier.
+
+These checks establish agreement with independently generated NIST samples.
+They are evidence for the disabled Phase 1 candidate only; they are not FIPS
+140 validation, a claim of NIST module certification, or activation approval.
