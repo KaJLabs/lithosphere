@@ -48,7 +48,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
-| MX-06 | Validator cleanup and safety | Backup/recovery controls passed; claimed private inventory path is not present and approvers remain unnamed | EXTERNAL BLOCKER | Publish `ansible/inventory/mainnet-9005/` on a reviewed private-repo ref and name the Validator Infra, Chain, and CAB approvers. |
+| MX-06 | Validator cleanup and safety | Backup/recovery controls passed; inventory is in open private PR #16 while execution inputs and approvers remain incomplete | EXTERNAL BLOCKER | Review/merge private PR #16, identify the exact playbook/role, reconcile public RPC intent, and name the Validator Infra, Chain, and CAB approvers. |
 | MX-02 | LEP100 faucet assets | Current faucet accepted by client; remaining rotation/funding closure postponed | DEFERRED | Take no faucet deployment or funding action until the client reprioritizes it. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
@@ -456,9 +456,13 @@ The activation run was an approved manual dispatch; the later scheduled run esta
 operation while retaining the protected environment approval gate.
 On 2026-09-01 the client identified `KaJLabs/Lithosphere-Production-Infra` and
 `ansible/inventory/mainnet-9005/`, and approved only an Ansible `--check --diff` run. Repository admin access was
-verified, but the claimed inventory path is absent from `main` and every available remote branch, and no open PR
-supplies it. The older merged detector in `BrewCodeDev/lithosphere-dev-infra` targets obsolete AWS inventory and
-disables SSH host-key verification, so it is not authorized or suitable for current bare-metal mainnet. Approver
+verified. Private PR #16 now publishes the claimed inventory at commit
+`9015a04a3445dc0c3a4f2f843e98c765e8ed9a15`; its inventory parses, excludes AWS and private key material, and
+requires strict SSH host-key checking. It remains open with no recorded review or CI checks, and its branch contains
+inventory only rather than the playbook/role needed for an Ansible check. Its sentry variables also bind CometBFT RPC
+to `0.0.0.0`, conflicting with this tracker's no-public-RPC policy and requiring explicit resolution before comparing
+or applying intent. The older merged detector in `BrewCodeDev/lithosphere-dev-infra` targets obsolete AWS inventory
+and disables SSH host-key verification, so it is not authorized or suitable for current bare-metal mainnet. Approver
 assignments are also explicitly pending; therefore no drift command has been run.
 
 Completed or evidenced:
@@ -482,8 +486,10 @@ Completed or evidenced:
 External inputs and authority required:
 
 - [x] Admin access to the identified private repository `KaJLabs/Lithosphere-Production-Infra` is verified.
-- [ ] The claimed `ansible/inventory/mainnet-9005/` path is published on a reviewed private-repository ref; it is
-      currently absent from every available branch (verified 2026-09-01).
+- [ ] Review and merge private-infra PR #16, which publishes `ansible/inventory/mainnet-9005/`; the open branch parses
+      successfully but has no recorded review or CI check (verified 2026-09-01).
+- [ ] Identify the exact private-repository playbook/role ref for `--check --diff`; PR #16 contains inventory only.
+- [ ] Reconcile the sentry `rpc_laddr = tcp://0.0.0.0:27057` intent with the approved no-public-Comet-RPC policy.
 - [ ] Named Chain, Validator Infra, and CAB approvers and an approved check window.
 - [x] Authority is limited to a read-only Ansible `--check --diff` run; no apply, configuration change, deployment,
       or restart is authorized.
@@ -736,15 +742,19 @@ Evidence:
 | 2026-09-01 | Dual-recipient backup activation | PASS (MANUAL) | PR #139 merged; approved manual run `33489075548` produced two independently encrypted ciphertexts and a manifest at signed height `5,776,198`; artifact hashes match the manifest. First scheduled recurrence remains to be observed. |
 | 2026-09-01 | Dual-recipient recovery drill | PASS | Primary and backup custodians independently passed offline decryption and content validation at height `5,776,198`; no plaintext key files were written locally and no recovery private key was shared/uploaded. Incident #74 closed. |
 | 2026-09-01 | Dual-recipient scheduled recurrence | PASS | Protected scheduled run `33505116681` on merged commit `9d09afa72d865b9c957396d386e0a50a4e282245` produced two distinct-recipient ciphertexts and a matching manifest at signed height `5,802,670`; no recovery private key was used and no plaintext key files were written locally. |
-| 2026-09-01 | MX-06 private inventory gate | BLOCKED | Client identified `KaJLabs/Lithosphere-Production-Infra/ansible/inventory/mainnet-9005/` and authorized only `--check --diff`, but the path is absent from every available branch and approver assignments are pending. No Ansible command ran. |
+| 2026-09-01 | MX-06 private inventory gate | BLOCKED | Private PR #16 publishes a parsable strict-host-key inventory at `9015a04a3445dc0c3a4f2f843e98c765e8ed9a15`, but it is unreviewed, contains no executable playbook/role, conflicts with the no-public-RPC policy on sentry intent, and approver assignments remain pending. No Ansible command ran. |
 
 ## Change log
 
 ### 2026-09-01 — MX-06 private inventory and approval gate verified
 
 - Verified admin access to the client-identified private repository without cloning or exposing repository content.
-- Verified `ansible/inventory/mainnet-9005/` is absent from `main` and every available branch, with no open PR adding
-  it. The claimed path must be published on a reviewed ref before any check can begin.
+- Initially verified the claimed inventory was absent. Private PR #16 subsequently published it at
+  `9015a04a3445dc0c3a4f2f843e98c765e8ed9a15`; the inventory parses, excludes AWS and private key material, and uses
+  strict SSH host-key checking.
+- PR #16 remains open without recorded review/CI evidence and contains inventory only, so the exact checked
+  playbook/role is still unidentified. Its public sentry RPC binding also conflicts with the tracker policy and must be
+  reconciled before the inventory can represent approved intent.
 - Reviewed the existing merged drift-detector source in the other developer repository. Its obsolete AWS inventory
   and disabled SSH host-key checking make it unsuitable for the current bare-metal mainnet inventory.
 - Recorded the client's read-only `ansible --check --diff` authorization. No apply, configuration change, deployment,
