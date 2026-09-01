@@ -62,7 +62,7 @@ Validator Infra, Chain, and CAB approvers must be named before the authorized
 
 ## Canonical EVM registry status
 
-The following were independently rechecked on `2026-09-02`:
+The following were independently rechecked on `2026-09-02` before submission:
 
 - canonical file
   `_data/chains/eip155-9005.json` in
@@ -72,16 +72,23 @@ The following were independently rechecked on `2026-09-02`:
 - open and closed pull-request/issue search in the canonical repository: no
   `9005` submission or acceptance record found.
 
-Registry acceptance therefore remains open. KaJ Labs must approve the exact
-public registry name and metadata before submission; no registry identity is
-inferred by this record.
+KaJ Labs then approved the public identity as `Lithosphere Mainnet`, short name
+`litho`, native currency `LITHO` with 18 decimals, RPC
+`https://rpc-mainnet.litho.ai`, and explorer `https://lithoscan.ai`. The
+canonical submission is
+[`ethereum-lists/chains#8660`](https://github.com/ethereum-lists/chains/pull/8660),
+commit `6e8e05d6a29fe3453430a35a606f9cb04c135d51`.
+
+Submission evidence is now recorded, but registry acceptance remains open
+until the external maintainers merge the pull request and the aggregate
+registry publishes chain ID `9005`.
 
 ## Honest remaining original-scope gates
 
 1. Name the Validator Infra, Chain, and CAB approvers, then run the merged
    read-only drift check.
-2. Approve and submit the exact public EVM registry metadata, then retain the
-   accepted PR and acceptance date.
+2. Obtain external maintainer acceptance of the submitted EVM registry entry,
+   then retain the merge and aggregate-publication evidence.
 3. Record the monitoring responders and alert destination and complete the
    controlled alert-delivery test.
 4. Obtain Autha's focused final release-evidence disposition for the exact L1
