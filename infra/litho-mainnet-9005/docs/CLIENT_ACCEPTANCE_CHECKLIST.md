@@ -1,6 +1,6 @@
 # LITHO Mainnet 9005 Client Acceptance Checklist
 
-Last reviewed: 2026-07-29
+Last reviewed: 2026-09-02
 
 This is a review and signature record, not evidence that unchecked work is
 complete. Checked items below mean the repository contains delivery evidence;
@@ -30,6 +30,14 @@ they do not substitute for client acceptance.
 - [x] Bridge, Swap, Faucet, and MultX remain disabled.
 - [x] Lithoscan production cutover, public smoke tests, synchronization
   monitoring, and rollback closeout completed on 2026-07-31.
+- [x] Dual-recipient current signing-state backup, independent offline recovery
+  verification, and the first protected scheduled recurrence passed on
+  2026-09-01. See [the signing-state backup runbook](SIGNING_STATE_BACKUP_RUNBOOK.md).
+- [x] A public, credential-free recheck at `2026-09-01T19:02:25Z` observed EVM
+  chain ID `0x232d`, Cosmos chain ID `lithosphere_9005-1`, synchronized height
+  `5,844,584`, a fresh block, matching REST identity, reachable gRPC, and the
+  sealed genesis checksum. See
+  [the post-launch closure evidence](POST_LAUNCH_SCOPE_CLOSURE_2026-09-02.md).
 
 ## B. Client review
 
@@ -75,13 +83,13 @@ written risk acceptance and review date.
 | Risk/gate | Closure or acceptance reference | Owner | Review date | Done |
 |---|---|---|---|---|
 | Single active validator and no active failover signer | `TBD` | KaJ Labs | `TBD` | [ ] |
-| Signing-state backup prepared but protected activation/restore drill pending | `TBD` | KaJ Labs | `TBD` | [ ] |
+| Recurring encrypted current signing-state backup and isolated recovery verification | [Backup runbook](SIGNING_STATE_BACKUP_RUNBOOK.md), [activation run 33489075548](https://github.com/KaJLabs/Lithosphere/actions/runs/33489075548), and [scheduled recurrence 33505116681](https://github.com/KaJLabs/Lithosphere/actions/runs/33505116681) | KaJ Labs | 2026-09-01 | [x] |
 | Mainnet monitor/rules prepared but protected access and paging route not activated | `TBD` | KaJ Labs | `TBD` | [ ] |
-| Raw sentry node ports not yet restricted | `TBD` | KaJ Labs | `TBD` | [ ] |
+| Raw sentry node ports not yet restricted | Desired-state correction merged privately at `KaJLabs/Lithosphere-Production-Infra@339e9a9`; read-only drift check and any separately approved apply remain pending | KaJ Labs | 2026-09-02 | [ ] |
 | Restore, failover, and transaction drills outstanding | `TBD` | KaJ Labs | `TBD` | [ ] |
-| Fixed-supply patch lacks independent external review | `TBD` | KaJ Labs | `TBD` | [ ] |
+| Fixed-supply patch release acceptance | Autha R1 conditional pass records no remaining Critical or High implementation defect; focused final release-evidence disposition remains pending | KaJ Labs | 2026-09-02 | [ ] |
 | Allocation labels and remaining economic/governance decisions | `TBD` | KaJ Labs | `TBD` | [ ] |
-| EVM chain ID registry acceptance evidence | `TBD` | KaJ Labs | `TBD` | [ ] |
+| EVM chain ID registry acceptance evidence | Canonical registry, aggregate, and PR history rechecked on 2026-09-02; chain ID `9005` remains absent and no submission record was found | KaJ Labs | 2026-09-02 | [ ] |
 | Lithoscan certificate/Cloudflare/canary cutover | [Cutover record](LITHOSCAN_CUTOVER_READINESS_2026-07-29.md) and [closeout report](lithoscan-window-close.json) | KaJ Labs | 2026-07-31 | [x] |
 
 ## E. Handoff decision
