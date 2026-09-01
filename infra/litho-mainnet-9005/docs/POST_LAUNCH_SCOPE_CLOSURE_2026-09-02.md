@@ -76,8 +76,8 @@ KaJ Labs then approved the public identity as `Lithosphere Mainnet`, short name
 `litho`, native currency `LITHO` with 18 decimals, RPC
 `https://rpc-mainnet.litho.ai`, and explorer `https://lithoscan.ai`. The
 canonical submission is
-[`ethereum-lists/chains#8660`](https://github.com/ethereum-lists/chains/pull/8660),
-commit `6e8e05d6a29fe3453430a35a606f9cb04c135d51`.
+[`ethereum-lists/chains#8661`](https://github.com/ethereum-lists/chains/pull/8661),
+commit `782156ed2c8b475d9e1112168b06e73a09f3ce2c`.
 
 Submission evidence is now recorded, but registry acceptance remains open
 until the external maintainers merge the pull request and the aggregate

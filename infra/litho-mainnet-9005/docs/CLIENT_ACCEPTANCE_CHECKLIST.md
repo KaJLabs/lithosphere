@@ -89,7 +89,7 @@ written risk acceptance and review date.
 | Restore, failover, and transaction drills outstanding | `TBD` | KaJ Labs | `TBD` | [ ] |
 | Fixed-supply patch release acceptance | Autha R1 conditional pass records no remaining Critical or High implementation defect; focused final release-evidence disposition remains pending | KaJ Labs | 2026-09-02 | [ ] |
 | Allocation labels and remaining economic/governance decisions | `TBD` | KaJ Labs | `TBD` | [ ] |
-| EVM chain ID registry acceptance evidence | Approved metadata submitted in [`ethereum-lists/chains#8660`](https://github.com/ethereum-lists/chains/pull/8660) at `6e8e05d6a29fe3453430a35a606f9cb04c135d51`; external merge and aggregate publication remain pending | KaJ Labs | 2026-09-02 | [ ] |
+| EVM chain ID registry acceptance evidence | Approved metadata submitted in [`ethereum-lists/chains#8661`](https://github.com/ethereum-lists/chains/pull/8661) at `782156ed2c8b475d9e1112168b06e73a09f3ce2c`; external merge and aggregate publication remain pending | KaJ Labs | 2026-09-02 | [ ] |
 | Lithoscan certificate/Cloudflare/canary cutover | [Cutover record](LITHOSCAN_CUTOVER_READINESS_2026-07-29.md) and [closeout report](lithoscan-window-close.json) | KaJ Labs | 2026-07-31 | [x] |
 
 ## E. Handoff decision
