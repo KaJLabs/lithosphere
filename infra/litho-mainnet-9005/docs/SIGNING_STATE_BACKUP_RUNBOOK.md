@@ -1,15 +1,19 @@
 # Current validator signing-state backup
 
-Status: **dual-recipient backup activated and independently recovery-verified;
-first post-activation scheduled recurrence pending**
+Status: **dual-recipient backup activated, independently recovery-verified, and
+first post-activation scheduled recurrence verified**
 
 Activation evidence (2026-09-01): PR #139 merged as
 `a1e7bb1c40e05e6b9420d39383a06c787d128acb`. Approved protected manual run
 `33489075548` produced two ciphertexts and one manifest at signed height
 `5,776,198`. Both custodians independently decrypted and content-validated
 their ciphertext offline. Neither wrote plaintext key files locally, and no
-recovery private-key material was shared or uploaded. The next scheduled run
-must pass to demonstrate recurring operation.
+recovery private-key material was shared or uploaded. Protected scheduled run
+`33505116681` then passed on merged commit
+`9d09afa72d865b9c957396d386e0a50a4e282245` at signed height `5,802,670`.
+Its two ciphertext hashes match the common manifest and its recipient public-key
+fingerprints are distinct. No recovery private key was used and no plaintext key
+files were written locally.
 
 The launch-time height-0 identity package is not a current signing-state
 backup. This control captures the validator consensus key together with its

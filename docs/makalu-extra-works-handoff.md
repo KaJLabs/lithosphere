@@ -48,7 +48,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
-| MX-06 | Validator cleanup and safety | Dual-recipient backup/recovery passed; first scheduled recurrence and config cleanup remain | EXTERNAL BLOCKER | Confirm the next scheduled backup, then obtain the private inventory and rolling-cleanup window. |
+| MX-06 | Validator cleanup and safety | Dual-recipient backup, recovery, and first scheduled recurrence passed; config cleanup remains | EXTERNAL BLOCKER | Obtain the private inventory, named owners, and approved rolling-cleanup window. |
 | MX-02 | LEP100 faucet assets | Current faucet accepted by client; remaining rotation/funding closure postponed | DEFERRED | Take no faucet deployment or funding action until the client reprioritizes it. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
@@ -62,7 +62,7 @@ Only one repository stream is active at a time. An external blocker is recorded 
 to the next executable stream without pretending the blocked stream is complete.
 
 1. [ ] **MX-01 MultX / Lithoswap** — active priority; independent Autha fix review and production approvals block deployment/activation.
-2. [ ] **MX-06 Validator cleanup and safety** — manual activation/recovery passed; first scheduled recurrence, private-inventory cleanup, and owner acceptance remain.
+2. [ ] **MX-06 Validator cleanup and safety** — backup activation, recovery, and first scheduled recurrence passed; private-inventory cleanup and owner acceptance remain.
 3. [ ] **MX-03 Thanos Wallet** — deployed; waiting on wallet-team acceptance.
 4. [ ] **MX-04 DNNS** — deployed; waiting on DNNS-owner acceptance inputs.
 5. [ ] **MX-05 Quantt** — deployed but disabled; waiting on Quantt API/TLS/product inputs and acceptance.
@@ -449,9 +449,11 @@ passing. PR #139 upgraded the signing-state control to two independent recipient
 captured and independently encrypted height `5,776,198`; the retained manifest contains two distinct recipient
 fingerprints and matching ciphertext hashes. Both custodians independently decrypted and content-validated their
 ciphertext offline without writing plaintext key files locally or sharing/uploading recovery private keys. Backup
-incident #74 is closed. No restore was installed and no second signer was started.
-The successful activation run was an approved manual dispatch; the next scheduled run must pass to establish recurring
-dual-recipient operation.
+incident #74 is closed. The first protected scheduled recurrence, run `33505116681`, also passed on merged commit
+`9d09afa72d865b9c957396d386e0a50a4e282245` at signed height `5,802,670`; its two ciphertext hashes match the
+manifest and its recipient fingerprints are distinct. No restore was installed and no second signer was started.
+The activation run was an approved manual dispatch; the later scheduled run establishes recurring dual-recipient
+operation while retaining the protected environment approval gate.
 
 Completed or evidenced:
 
@@ -468,6 +470,8 @@ Completed or evidenced:
 - [x] Protected dual-recipient backup run `33489075548` passed and uploaded two ciphertexts plus one manifest (2026-09-01).
 - [x] Both custodians independently passed offline decryption and content validation at height `5,776,198`; no
       plaintext key file or recovery private key was shared/uploaded (2026-09-01).
+- [x] First protected scheduled dual-recipient recurrence `33505116681` passed at height `5,802,670` and retained
+      two ciphertexts plus one matching manifest (2026-09-01).
 
 External inputs and authority required:
 
@@ -491,7 +495,8 @@ Remaining actions:
 - [ ] Run a controlled monitoring alert and retain delivery/acknowledgement evidence for both responders.
 - [x] Run one successful protected encrypted signing-state backup (`33489075548`).
 - [x] Perform isolated, non-signing recovery verification independently for both recipients.
-- [ ] Confirm the first post-activation scheduled dual-recipient backup passes without manual intervention.
+- [x] Confirm the first post-activation scheduled dual-recipient backup passes without a manual workflow dispatch
+      (`33505116681`; protected environment approval retained).
 
 Acceptance criteria:
 
@@ -515,6 +520,7 @@ Evidence:
 - `infra/litho-mainnet-9005/ansible/playbooks/mainnet-9005-deploy-backup-export.yml`
 - Latest inspected passing monitor run: `https://github.com/KaJLabs/Lithosphere/actions/runs/33479593016`
 - Passing dual-recipient backup: `https://github.com/KaJLabs/Lithosphere/actions/runs/33489075548`
+- Passing first scheduled recurrence: `https://github.com/KaJLabs/Lithosphere/actions/runs/33505116681`
 - Dual-recipient implementation: `https://github.com/KaJLabs/Lithosphere/pull/139`
 - Resolved backup incident: `https://github.com/KaJLabs/Lithosphere/issues/74`
 
@@ -719,8 +725,21 @@ Evidence:
 | 2026-08-23 | Deployment access | CLIENT-CONFIRMED | Access is available, but no credential was exposed or tested and no deployment/activation authorization was inferred. |
 | 2026-09-01 | Dual-recipient backup activation | PASS (MANUAL) | PR #139 merged; approved manual run `33489075548` produced two independently encrypted ciphertexts and a manifest at signed height `5,776,198`; artifact hashes match the manifest. First scheduled recurrence remains to be observed. |
 | 2026-09-01 | Dual-recipient recovery drill | PASS | Primary and backup custodians independently passed offline decryption and content validation at height `5,776,198`; no plaintext key files were written locally and no recovery private key was shared/uploaded. Incident #74 closed. |
+| 2026-09-01 | Dual-recipient scheduled recurrence | PASS | Protected scheduled run `33505116681` on merged commit `9d09afa72d865b9c957396d386e0a50a4e282245` produced two distinct-recipient ciphertexts and a matching manifest at signed height `5,802,670`; no recovery private key was used and no plaintext key files were written locally. |
 
 ## Change log
+
+### 2026-09-01 — MX-06 first scheduled dual-recipient recurrence verified
+
+- Approved the protected environment gate for scheduled run `33505116681`; the workflow event remained `schedule`
+  and ran against merged commit `9d09afa72d865b9c957396d386e0a50a4e282245`.
+- Verified the run passed at signed height `5,802,670`, used no recovery private key, wrote no plaintext key files
+  locally, and uploaded exactly two ciphertexts plus one manifest.
+- Downloaded the artifact read-only and confirmed both ciphertext SHA-256 values match the manifest and the two
+  public recipient fingerprints are distinct. No decryption, restore, restart, or validator mutation was performed.
+- Closed the scheduled-recurrence checkpoint. MX-06 remains open for private-inventory configuration cleanup, drift
+  detection, the controlled alert exercise, and final owner/CAB acceptance.
+- Updated by: `bachal-mb`.
 
 ### 2026-09-01 — MX-06 dual-recipient backup activation and recovery verified
 
