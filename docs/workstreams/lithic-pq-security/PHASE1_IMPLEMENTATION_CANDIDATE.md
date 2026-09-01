@@ -1,4 +1,4 @@
-# Phase 1 R1 implementation candidate
+# Phase 1 R2 implementation candidate
 
 **Status:** disabled, non-consensus, Makalu-only candidate
 
@@ -25,8 +25,9 @@ The candidate provides:
 - explicit repeated-hint regressions for ML-DSA-65 and ML-DSA-87 routed through
   the public verifier;
 - an exact 64-byte `SigningRootV1` verification boundary for later Phase 2 use;
-- x86-64 and ARM64 CI measurements, process-memory evidence, and a reproducible
-  CycloneDX SBOM.
+- x86-64 and ARM64 CI measurements with 32 retained trials per operation and
+  independently recomputable mean, median and nearest-rank p95 statistics;
+- process-memory evidence and a reproducible CycloneDX SBOM.
 
 The compiler is pinned to Rust `1.96.0`; workflow actions are pinned to full
 commit SHAs. Evidence records its exact GitHub commit, run, attempt, runner
@@ -52,4 +53,5 @@ cargo run -p litho-pq-conformance --release --locked -- benchmark
 ```
 
 CI runs the same commands on GitHub-hosted Linux x86-64 and ARM64 runners. The
-benchmark numbers are measurements, not approved gas or consensus constants.
+benchmark samples and derived statistics are measurements, not approved gas or
+consensus constants.

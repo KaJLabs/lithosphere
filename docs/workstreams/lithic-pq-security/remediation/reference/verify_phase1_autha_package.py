@@ -7,6 +7,8 @@ import json
 import zipfile
 from pathlib import Path, PurePosixPath
 
+NIST_MANIFEST_SHA256 = "756599cf7726563346a3875f42e194e40825176cee323d54622cbbe2c305c87d"
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -84,6 +86,15 @@ def main() -> None:
             )
             if not present:
                 raise RuntimeError(f"missing required package content: {item}")
+
+        nist_manifests = (
+            "candidate/toolchain/crates/litho-pq-conformance/fixtures/nist/manifest.json",
+            "reproduction/toolchain/crates/litho-pq-conformance/fixtures/nist/manifest.json",
+        )
+        for name in nist_manifests:
+            digest = hashlib.sha256(archive.read(name)).hexdigest()
+            if digest != NIST_MANIFEST_SHA256:
+                raise RuntimeError(f"NIST fixture manifest commitment mismatch: {name}")
 
     print(f"verified={args.archive.resolve()}")
     print(f"members={len(names)}")

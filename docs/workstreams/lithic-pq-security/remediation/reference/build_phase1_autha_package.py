@@ -11,8 +11,10 @@ from pathlib import Path, PurePosixPath
 
 FIXED_SOURCE_PATHS = (
     ".github/workflows/ci-toolchain.yaml",
+    "SECURITY.md",
     "docs/workstreams/lithic-pq-security/PHASE1_IMPLEMENTATION_CANDIDATE.md",
-    "docs/workstreams/lithic-pq-security/AUTHA_PHASE1_IMPLEMENTATION_HANDOFF.md",
+    "docs/workstreams/lithic-pq-security/AUTHA_PHASE1_R2_HANDOFF.md",
+    "docs/workstreams/lithic-pq-security/AUTHA_PHASE1_R2_REMEDIATION_MATRIX.md",
     "docs/workstreams/lithic-pq-security/remediation/reference/build_phase1_autha_package.py",
     "docs/workstreams/lithic-pq-security/remediation/reference/verify_phase1_autha_package.py",
     "toolchain/Cargo.lock",

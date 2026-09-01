@@ -219,7 +219,20 @@ jobs:
           /usr/bin/time -v -o pq-evidence/process-memory.txt \
             cargo run -p litho-pq-conformance --release --locked -- benchmark \
             > pq-evidence/benchmark.json
-          jq -e '.schema == 1 and (.profiles | length) == 3' pq-evidence/benchmark.json >/dev/null
+          jq -e '
+            .schema == 2 and
+            .sample_count == 32 and
+            (.profiles | length) == 3 and
+            (.sample_count as $count |
+              all(.profiles[];
+                all([.keygen, .sign, .verify][];
+                  (.samples_us | length) == $count and
+                  has("mean_us") and has("median_us") and has("p95_us") and
+                  has("min_us") and has("max_us")
+                )
+              )
+            )
+          ' pq-evidence/benchmark.json >/dev/null
           rustc --version --verbose > pq-evidence/rustc-version.txt
           uname -a > pq-evidence/platform.txt
           {
