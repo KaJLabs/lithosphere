@@ -11,6 +11,10 @@ defines KaJ Labs' accountable ownership, technical-control boundaries, and the
 validator-key replacement procedure. The authoritative
 launch evidence is in `LAUNCH_RECORD_2026-07-28.md`.
 
+The current post-launch health, backup-control closure, private drift
+preparation, registry status, and honest remaining gates are recorded in
+[`POST_LAUNCH_SCOPE_CLOSURE_2026-09-02.md`](POST_LAUNCH_SCOPE_CLOSURE_2026-09-02.md).
+
 Client-ready PDFs:
 
 - [Validator setup guide](../../LITHO_Validator_Setup_Guide.pdf)
