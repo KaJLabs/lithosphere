@@ -48,3 +48,21 @@ The following are in scope for responsible disclosure:
 ## Security Audits
 
 Lithosphere is actively pursuing third-party security audits. Completed audit reports will be published here with scope statements and remediation status as they become available.
+
+## Offline Release-Signing Key
+
+KaJ Labs authenticates designated offline audit and release artifacts with the
+following organizational OpenPGP key. Verify this fingerprint through this
+repository before trusting a detached signature received through another
+channel:
+
+```text
+KaJ Labs Release Signing
+Primary fingerprint: 073B 5DB3 50EF 4BEB D939 F243 1032 6AAA 1839 EAEB
+Signing subkey:       7138 DEE3 D051 92AB 157C 7E8C 3B3A 6159 F3A5 EEDE
+Primary-key expiry:   2027-09-01
+```
+
+An expiry extension or replacement key must be published here through a
+reviewed repository change before it is used. A fingerprint identifies a key;
+it does not by itself authorize an artifact or network activation.

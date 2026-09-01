@@ -24,10 +24,11 @@ Selected cases:
 
 The reduced signature fixture manifest is
 `fixtures/nist/manifest.json` (SHA-256
-`224570219ea696dfb913d9e1a3e3c2faab26146da18feb7e37c1f0027178e3e3`).
+`756599cf7726563346a3875f42e194e40825176cee323d54622cbbe2c305c87d`).
 It records the SHA-256 of every full upstream JSON source and every extracted
 binary. `fixtures/generate_from_nist.py` deterministically regenerates it from
-those immutable sources.
+those immutable sources. The Phase 1 package verifier enforces this commitment
+against both the candidate and self-contained reproduction copies.
 
 | Profile | Operation | ACVP group/case | Expected result |
 | --- | --- | --- | --- |
