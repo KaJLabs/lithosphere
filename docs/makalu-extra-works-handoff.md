@@ -1,10 +1,10 @@
 # Makalu extra works — living handoff
 
 - **Status:** Active — closing one stream at a time
-- **Last verified:** 2026-08-23 PKT (UTC+05:00)
+- **Last verified:** 2026-09-01 PKT (UTC+05:00)
 - **Repository:** `KaJLabs/Lithosphere`
-- **Default branch inspected:** `origin/main` at `6ab0dcb0774421d6d57895b302ab8cc5b73d1762`
-- **Latest merged workstream change:** PR #129 at `6ab0dcb0774421d6d57895b302ab8cc5b73d1762`
+- **Default branch inspected:** `origin/main` at `a1e7bb1c40e05e6b9420d39383a06c787d128acb`
+- **Latest merged workstream change:** PR #139 at `a1e7bb1c40e05e6b9420d39383a06c787d128acb`
 - **Network in scope:** Makalu testnet, EVM chain ID `700777`, Cosmos chain ID `lithosphere_700777-2`
 
 This is the source of truth for the seven Makalu extra-work streams. Update it whenever code is merged, a release is
@@ -48,7 +48,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
-| MX-06 | Validator cleanup and safety | Chain monitor active; encrypted backup blocked | EXTERNAL BLOCKER | Assign custodians and add the public `BACKUP_RECIPIENT`, then run backup/restore verification. |
+| MX-06 | Validator cleanup and safety | Dual-recipient backup/recovery passed; first scheduled recurrence and config cleanup remain | EXTERNAL BLOCKER | Confirm the next scheduled backup, then obtain the private inventory and rolling-cleanup window. |
 | MX-02 | LEP100 faucet assets | Current faucet accepted by client; remaining rotation/funding closure postponed | DEFERRED | Take no faucet deployment or funding action until the client reprioritizes it. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
@@ -62,7 +62,7 @@ Only one repository stream is active at a time. An external blocker is recorded 
 to the next executable stream without pretending the blocked stream is complete.
 
 1. [ ] **MX-01 MultX / Lithoswap** — active priority; independent Autha fix review and production approvals block deployment/activation.
-2. [ ] **MX-06 Validator cleanup and safety** — waiting on responder/custodian governance and public backup recipient.
+2. [ ] **MX-06 Validator cleanup and safety** — manual activation/recovery passed; first scheduled recurrence, private-inventory cleanup, and owner acceptance remain.
 3. [ ] **MX-03 Thanos Wallet** — deployed; waiting on wallet-team acceptance.
 4. [ ] **MX-04 DNNS** — deployed; waiting on DNNS-owner acceptance inputs.
 5. [ ] **MX-05 Quantt** — deployed but disabled; waiting on Quantt API/TLS/product inputs and acceptance.
@@ -443,11 +443,15 @@ Evidence:
 **Owners:** Validator Infra team + Chain team + CAB/change approver; Dev Infra owns the audit helper
 
 **Current state:** The audit helper and rolling-cleanup material still require the authoritative private inventory and
-an approved cleanup window. Separately, the mainnet safety foundation has advanced: restricted `lithomonitor` access
-is installed on the validator and both sentries, pinned host fingerprints were confirmed, PR #73 placed the protected
-monitor and backup workflows on `main`, and scheduled chain progression checks are passing. Restricted `lithobackup`
-access is installed on the validator, but every scheduled encrypted backup currently fails closed because the public
-`BACKUP_RECIPIENT` environment value has not been configured.
+an approved cleanup window. The mainnet safety foundation is active: restricted `lithomonitor` access is installed on
+the validator and both sentries, pinned host fingerprints were confirmed, and scheduled chain progression checks are
+passing. PR #139 upgraded the signing-state control to two independent recipients. Protected run `33489075548`
+captured and independently encrypted height `5,776,198`; the retained manifest contains two distinct recipient
+fingerprints and matching ciphertext hashes. Both custodians independently decrypted and content-validated their
+ciphertext offline without writing plaintext key files locally or sharing/uploading recovery private keys. Backup
+incident #74 is closed. No restore was installed and no second signer was started.
+The successful activation run was an approved manual dispatch; the next scheduled run must pass to establish recurring
+dual-recipient operation.
 
 Completed or evidenced:
 
@@ -460,6 +464,10 @@ Completed or evidenced:
 - [x] All three Ed25519 host fingerprints confirmed and pinned (2026-08-10).
 - [x] Protected five-minute chain progression workflow is available on `main` and passing (2026-08-14).
 - [x] Dedicated forced-command signing-state backup key installed on the validator (2026-08-10).
+- [x] PR #139 requires two distinct public recipients and protected reviewers with self-review prevention (2026-09-01).
+- [x] Protected dual-recipient backup run `33489075548` passed and uploaded two ciphertexts plus one manifest (2026-09-01).
+- [x] Both custodians independently passed offline decryption and content validation at height `5,776,198`; no
+      plaintext key file or recovery private key was shared/uploaded (2026-09-01).
 
 External inputs and authority required:
 
@@ -467,9 +475,9 @@ External inputs and authority required:
 - [ ] Named Chain/Validator Infra owners and an approved maintenance window.
 - [ ] Authority to render intent, fetch non-secret live TOML, apply config, and restart one sentry at a time.
 - [ ] KaJ Labs assigns a primary responder, independent backup responder, and approved alert destination.
-- [ ] Two independent recovery custodians complete the documented recipient ceremony offline.
-- [ ] Add only the resulting public recipient JSON as `BACKUP_RECIPIENT` in `litho-mainnet-backup`; never upload the
-      recovery private key.
+- [x] Two independent recovery custodians completed the documented recipient ceremonies offline.
+- [x] Only their public records are configured as `BACKUP_RECIPIENT_PRIMARY` and `BACKUP_RECIPIENT_BACKUP`; recovery
+      private keys remain offline and separately controlled.
 
 Remaining actions:
 
@@ -481,8 +489,9 @@ Remaining actions:
 - [ ] Re-audit after rollout and require a clean result.
 - [ ] Add scheduled read-only drift detection in the private repo; retain only the sanitized JSON report.
 - [ ] Run a controlled monitoring alert and retain delivery/acknowledgement evidence for both responders.
-- [ ] Run one successful scheduled encrypted signing-state backup.
-- [ ] Perform the isolated, non-signing recovery verification drill and retain its report.
+- [x] Run one successful protected encrypted signing-state backup (`33489075548`).
+- [x] Perform isolated, non-signing recovery verification independently for both recipients.
+- [ ] Confirm the first post-activation scheduled dual-recipient backup passes without manual intervention.
 
 Acceptance criteria:
 
@@ -491,7 +500,7 @@ Acceptance criteria:
 - [ ] No public CometBFT RPC exposure is introduced.
 - [ ] All nodes recover peers, remain caught up, and pass the full observation interval.
 - [ ] Scheduled detection and alert ownership are active.
-- [ ] Encrypted signing-state backup and isolated verification drill pass under two-person recovery custody.
+- [x] Encrypted signing-state backup and isolated verification drill pass under two-person recovery custody.
 - [ ] Validator Infra, Chain, and CAB approvers, window, report, and evidence are recorded.
 
 Evidence:
@@ -504,10 +513,10 @@ Evidence:
 - `.github/workflows/mainnet-signing-state-backup.yaml`
 - `infra/litho-mainnet-9005/ansible/playbooks/mainnet-9005-deploy-monitor-account.yml`
 - `infra/litho-mainnet-9005/ansible/playbooks/mainnet-9005-deploy-backup-export.yml`
-- Latest passing monitor run: `https://github.com/KaJLabs/Lithosphere/actions/runs/31945720631`
-- Latest failed backup run: `https://github.com/KaJLabs/Lithosphere/actions/runs/31933222228` (`BACKUP_RECIPIENT` empty;
-  validation stopped before SSH/export/encryption)
-- Deduplicated open incident: `https://github.com/KaJLabs/Lithosphere/issues/74`
+- Latest inspected passing monitor run: `https://github.com/KaJLabs/Lithosphere/actions/runs/33479593016`
+- Passing dual-recipient backup: `https://github.com/KaJLabs/Lithosphere/actions/runs/33489075548`
+- Dual-recipient implementation: `https://github.com/KaJLabs/Lithosphere/pull/139`
+- Resolved backup incident: `https://github.com/KaJLabs/Lithosphere/issues/74`
 
 ## MX-07 — Developer infrastructure toolchain full release
 
@@ -708,8 +717,26 @@ Evidence:
 | 2026-08-23 | Faucet priority | DEFERRED | Client accepted the faucet for now and directed the team to more important work; no rotation, funding, deployment, or secret change was performed. |
 | 2026-08-23 | MultX v0.8.1 candidate verification | PASS, NOT DEPLOYABLE | Exact `6ab0dcb`/`multx-audit-candidate-v0.8.1-20260822` checkout passed 112 contract, 32 API, and 23 signer tests. Autha fix review and production approvals remain mandatory. |
 | 2026-08-23 | Deployment access | CLIENT-CONFIRMED | Access is available, but no credential was exposed or tested and no deployment/activation authorization was inferred. |
+| 2026-09-01 | Dual-recipient backup activation | PASS (MANUAL) | PR #139 merged; approved manual run `33489075548` produced two independently encrypted ciphertexts and a manifest at signed height `5,776,198`; artifact hashes match the manifest. First scheduled recurrence remains to be observed. |
+| 2026-09-01 | Dual-recipient recovery drill | PASS | Primary and backup custodians independently passed offline decryption and content validation at height `5,776,198`; no plaintext key files were written locally and no recovery private key was shared/uploaded. Incident #74 closed. |
 
 ## Change log
+
+### 2026-09-01 — MX-06 dual-recipient backup activation and recovery verified
+
+- Verified PR #139 merged as `a1e7bb1c40e05e6b9420d39383a06c787d128acb` and changed the protected workflow
+  to require two distinct public recipient records.
+- Verified environment protection requires reviewers and prevents self-review; both public recipient secrets are
+  configured without exposing their contents.
+- Verified protected run `33489075548` passed every step and retained two ciphertexts plus one non-secret manifest.
+- Downloaded the artifact read-only and matched both ciphertext SHA-256 values to the manifest; its distinct public
+  recipient fingerprints, chain ID, consensus public key, and signed height `5,776,198` are recorded.
+- Recorded both custodians' independent offline decryption/content-validation results. No private recovery material
+  was received, shared, uploaded, or committed; no restore or validator mutation occurred.
+- Closed deduplicated backup incident #74 after its missing-recipient root cause was resolved. MX-06 remains open for
+  the first scheduled recurrence, separately authorized validator configuration cleanup, drift detection, alert
+  exercise, and final owner/CAB acceptance.
+- Updated by: `bachal-mb`.
 
 ### 2026-08-23 — Client reprioritized faucet; MultX verification resumed
 
