@@ -48,7 +48,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
-| MX-06 | Validator cleanup and safety | Backup/recovery, mainnet drift closure, and protected alert delivery passed; scheduled drift implementation is in private PR #18, but activation and the first run remain gated | EXTERNAL BLOCKER | Review private PR #18; provide the approved forced-command control host and environment secrets; verify the first manual and scheduled runs; then link the exact PR #17 maintenance approval/window. |
+| MX-06 | Validator cleanup and safety | Scheduled drift detection is active through a restricted control host; the first manual run passed cleanly and the first scheduled recurrence remains to be observed | IN PROGRESS | Verify the first 03:17 UTC scheduled run, then link the exact PR #17 maintenance approval/window. |
 | MX-02 | LEP100 faucet assets | Current faucet accepted by client; remaining rotation/funding closure postponed | DEFERRED | Take no faucet deployment or funding action until the client reprioritizes it. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
@@ -62,7 +62,7 @@ Only one repository stream is active at a time. An external blocker is recorded 
 to the next executable stream without pretending the blocked stream is complete.
 
 1. [ ] **MX-01 MultX / Lithoswap** — active priority; independent Autha fix review and production approvals block deployment/activation.
-2. [ ] **MX-06 Validator cleanup and safety** — backup/recovery and mainnet drift closure passed; scheduled detection, alert ownership/testing, and final evidence remain.
+2. [ ] **MX-06 Validator cleanup and safety** — backup/recovery, mainnet drift closure, alert delivery, and the first manual scheduled-drift run passed; first scheduled recurrence and final evidence remain.
 3. [ ] **MX-03 Thanos Wallet** — deployed; waiting on wallet-team acceptance.
 4. [ ] **MX-04 DNNS** — deployed; waiting on DNNS-owner acceptance inputs.
 5. [ ] **MX-05 Quantt** — deployed but disabled; waiting on Quantt API/TLS/product inputs and acceptance.
@@ -478,11 +478,13 @@ open; no duplicate Ansible or SSH operation was performed. Public PR #149 subseq
  has no reviewer protection rules because adding them there would block every unattended five-minute monitor. A
  separate secret-free `litho-mainnet-monitoring-test` approval environment now requires `@lithoagent` or `@Jkasr`
  review and prevents self-review. Merged PR #153 separates controlled-test approval from automatic incident delivery so
- that protection can be used without delaying real alerts. Private-infra PR #18 now proposes a daily 03:17 UTC
- check-only drift workflow, a forced-command control-host boundary, strict sanitization, and 14-day report retention.
- The secret-free `litho-mainnet-drift` environment and non-secret `DRIFT_RUNNER_USER` variable exist, but the required
- host, SSH-key, and pinned-host-key secrets are not configured. No drift workflow is on the private default branch and
- no first run has occurred. An unrestricted validator key must not be placed in GitHub.
+ that protection can be used without delaying real alerts. Private-infra PR #18 merged the daily 03:17 UTC check-only
+ drift workflow, forced-command control-host boundary, strict sanitization, and 14-day report retention. Follow-up PR
+ #19 records the approved `vps2` control host, schedule, retention, and Litho Agent (`@lithoagent`) as rollback owner.
+ A dedicated forced-command key and pinned control-host record are configured in `litho-mainnet-drift`; no validator
+ private key is stored in GitHub. Manual workflow run `33688898843` passed on private-infra commit
+ `d678eacd8eded1afb8135d6999111720bd8f3ae9` with all three hosts reachable and zero changed or failed tasks. Arbitrary
+ SSH command execution was independently denied. The first scheduled recurrence remains to be observed.
 
 Completed or evidenced:
 
@@ -533,16 +535,18 @@ Remaining actions:
 - [x] Roll the two production sentries one at a time with rollback and catch-up/chain checks; the validator was not
       restarted (private PR #17 closure record).
 - [x] Re-audit after rollout: `changed=0`, `unreachable=0`, and `failed=0` on all three nodes.
-- [ ] Review and merge private PR #18, approve its forced-command execution host, daily 03:17 UTC cadence, and 14-day
-      sanitized-report retention, then configure its three protected environment secrets without storing an
-      unrestricted validator key in GitHub.
+- [x] Private PR #18 merged the scheduled drift implementation; PR #19 records approval of `vps2`, daily 03:17 UTC,
+      14-day sanitized retention, and Litho Agent (`@lithoagent`) as rollback owner.
+- [x] Configure the three `litho-mainnet-drift` environment secrets with a dedicated forced-command key and pinned
+      control-host record; no validator private key is stored in GitHub.
 - [x] Run a controlled monitoring alert and verify delivery to the configured Telegram destination
       (`33635711860`, 2026-09-02).
 - [x] Retain independent receipt acknowledgements from both `@lithoagent` and `@Jkasr` (client-confirmed,
       2026-09-02).
 - [x] Merged PR #153 routes controlled tests through the secret-free protected `litho-mainnet-monitoring-test`
       environment without placing an approval gate in front of automatic incidents.
-- [ ] Run and verify the first manual drift check, followed by the first scheduled recurrence.
+- [x] Run and verify the first manual drift check (`33688898843`): three hosts, zero changed, unreachable, or failed.
+- [ ] Verify the first scheduled 03:17 UTC recurrence.
 - [x] Run one successful protected encrypted signing-state backup (`33489075548`).
 - [x] Perform isolated, non-signing recovery verification independently for both recipients.
 - [x] Confirm the first post-activation scheduled dual-recipient backup passes without a manual workflow dispatch
@@ -556,7 +560,7 @@ Acceptance criteria:
       proxy.
 - [x] Both sentries recovered and public verification confirmed chain identity, caught-up state, and block progression.
 - [x] Five-minute chain progression monitoring, named alert ownership, and Telegram delivery are active.
-- [ ] Scheduled private-repository configuration drift detection is active.
+- [x] Scheduled private-repository configuration drift detection is active; first manual run passed.
 - [x] Encrypted signing-state backup and isolated verification drill pass under two-person recovery custody.
 - [ ] Validator Infra, Chain, and CAB approvers and the closure report are recorded; exact UTC window/approval evidence
       remains to be linked.
@@ -575,7 +579,9 @@ Evidence:
 - Passing controlled Telegram delivery: `https://github.com/KaJLabs/Lithosphere/actions/runs/33635711860`
 - Alert ownership and delivery runbook: `https://github.com/KaJLabs/Lithosphere/pull/149`
 - Controlled-test approval separation: `https://github.com/KaJLabs/Lithosphere/pull/153`
-- Scheduled drift implementation proposal: `https://github.com/KaJLabs/Lithosphere-Production-Infra/pull/18`
+- Scheduled drift implementation: `https://github.com/KaJLabs/Lithosphere-Production-Infra/pull/18`
+- Scheduled drift approval record: `https://github.com/KaJLabs/Lithosphere-Production-Infra/pull/19`
+- Passing first manual drift run: `https://github.com/KaJLabs/Lithosphere-Production-Infra/actions/runs/33688898843`
 - Passing dual-recipient backup: `https://github.com/KaJLabs/Lithosphere/actions/runs/33489075548`
 - Passing first scheduled recurrence: `https://github.com/KaJLabs/Lithosphere/actions/runs/33505116681`
 - Dual-recipient implementation: `https://github.com/KaJLabs/Lithosphere/pull/139`
@@ -789,9 +795,23 @@ Evidence:
 | 2026-09-02 | MX-06 mainnet drift closure | PASS, FOLLOW-UPS OPEN | Litho Agent (`@lithoagent`) was assigned to all three approval roles. Private PR #17 records one-at-a-time sentry RPC/proxy remediation and a final clean three-node drift run. Independent public probes confirmed chain IDs, progression, caught-up state, and closed direct sentry RPC ports. Scheduled drift detection, independent responder/alert assignments, alert-delivery evidence, and the exact UTC approval/window link remain open. |
 | 2026-09-02 | MX-06 monitoring ownership and delivery | PASS, FOLLOW-UPS OPEN | PR #149 records `@lithoagent` as primary responder, `@Jkasr` as independent backup, and Telegram via `@LITHO_Moniter_bot` as the approved channel. Both environment-scoped Telegram secrets exist, controlled run `33635711860` passed health and delivery, scheduled run `33659094490` passed, and the client confirmed both responders acknowledged receipt. Monitoring-environment reviewer protection remains open. |
 | 2026-09-02 | MX-06 controlled-test protection design | MERGED, FOLLOW-UPS OPEN | The secret-free approval environment requires `@lithoagent` or `@Jkasr` review with self-review prevention. PR #153 merged the controlled-test gate without blocking unattended incident monitoring. |
-| 2026-09-03 | MX-06 scheduled drift preparation | PR OPEN, ACTIVATION BLOCKED | Private PR #18 proposes daily check-only drift detection through a forced-command control host, strict report sanitization, and 14-day artifact retention. The environment and runner username exist, but its three secrets, independent review, merge, first manual run, and first scheduled recurrence remain open. |
+| 2026-09-03 | MX-06 scheduled drift activation | PASS (MANUAL), RECURRENCE OPEN | Private PRs #18 and #19 are merged. The approved `vps2` forced-command runner is active with pinned host trust and environment-scoped credentials; no validator key is stored in GitHub. Manual run `33688898843` passed on all three nodes with zero changed, unreachable, or failed tasks. The first 03:17 UTC scheduled recurrence remains to be observed. |
 
 ## Change log
+
+### 2026-09-03 — MX-06 scheduled drift detection activated
+
+- Merged private-infra PR #18 and approval-record PR #19; approved `vps2`, daily 03:17 UTC, 14-day sanitized-report
+  retention, and Litho Agent (`@lithoagent`) as rollback owner.
+- Installed the root-owned wrapper at commit `d678eacd8eded1afb8135d6999111720bd8f3ae9` behind a dedicated SSH
+  forced-command account. An arbitrary command test was denied with exit 64.
+- Configured only the dedicated runner host, runner key, and pinned host record in the `litho-mainnet-drift`
+  environment. The existing node credential remains root-only on the control host and was not placed in GitHub.
+- Manual workflow run `33688898843` passed with all three hosts reachable and zero changed, unreachable, or failed
+  tasks. Its retained artifact is the strict sanitized recap only.
+- Kept MX-06 open until the first scheduled 03:17 UTC recurrence passes and the exact PR #17 maintenance-window
+  approval evidence is linked.
+- Updated by: `bachal-mb`.
 
 ### 2026-09-03 — MX-06 scheduled drift detection prepared
 
