@@ -48,7 +48,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
-| MX-06 | Validator cleanup and safety | Backup/recovery, mainnet drift closure, alert ownership/delivery, and responder acknowledgements passed; approval-only test protection is in PR #153; recurring drift detection and exact window evidence remain | EXTERNAL BLOCKER | Review PR #153; approve a drift-check execution host, restricted credential, cadence, and retention; then link the exact PR #17 maintenance approval/window. |
+| MX-06 | Validator cleanup and safety | Backup/recovery, mainnet drift closure, and protected alert delivery passed; scheduled drift implementation is in private PR #18, but activation and the first run remain gated | EXTERNAL BLOCKER | Review private PR #18; provide the approved forced-command control host and environment secrets; verify the first manual and scheduled runs; then link the exact PR #17 maintenance approval/window. |
 | MX-02 | LEP100 faucet assets | Current faucet accepted by client; remaining rotation/funding closure postponed | DEFERRED | Take no faucet deployment or funding action until the client reprioritizes it. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
@@ -473,16 +473,16 @@ port `27057`. The exact UTC maintenance approval/window is not linked in the clo
 open; no duplicate Ansible or SSH operation was performed. Public PR #149 subsequently recorded Litho Agent
  (`@lithoagent`) as primary responder, `@Jkasr` as independent backup responder, and Telegram through
  `@LITHO_Moniter_bot` as the approved alert channel. Environment-scoped Telegram secrets are configured, and controlled
- test run `33635711860` passed the three-node health check and Telegram delivery step. The repository does not record
- both responders independently confirmed receipt on 2026-09-02. The `litho-mainnet-monitoring` environment currently
+ test run `33635711860` passed the three-node health check and Telegram delivery step. Both responders independently
+ confirmed receipt on 2026-09-02. The `litho-mainnet-monitoring` environment currently
  has no reviewer protection rules because adding them there would block every unattended five-minute monitor. A
  separate secret-free `litho-mainnet-monitoring-test` approval environment now requires `@lithoagent` or `@Jkasr`
- review and prevents self-review; PR #153 separates controlled-test approval from automatic incident delivery so that
- protection can be used without delaying real alerts. The private infrastructure repository has no scheduled drift
- workflow, Actions environment, or Actions secrets. Its inventory expects a privileged root SSH key, while the
- installed forced-command monitoring identity cannot execute the Ansible playbook. Scheduled drift detection therefore
- remains blocked on an approved execution host, restricted credential design, cadence, and report-retention period; an
- unrestricted validator key must not be placed in GitHub.
+ review and prevents self-review. Merged PR #153 separates controlled-test approval from automatic incident delivery so
+ that protection can be used without delaying real alerts. Private-infra PR #18 now proposes a daily 03:17 UTC
+ check-only drift workflow, a forced-command control-host boundary, strict sanitization, and 14-day report retention.
+ The secret-free `litho-mainnet-drift` environment and non-secret `DRIFT_RUNNER_USER` variable exist, but the required
+ host, SSH-key, and pinned-host-key secrets are not configured. No drift workflow is on the private default branch and
+ no first run has occurred. An unrestricted validator key must not be placed in GitHub.
 
 Completed or evidenced:
 
@@ -533,14 +533,16 @@ Remaining actions:
 - [x] Roll the two production sentries one at a time with rollback and catch-up/chain checks; the validator was not
       restarted (private PR #17 closure record).
 - [x] Re-audit after rollout: `changed=0`, `unreachable=0`, and `failed=0` on all three nodes.
-- [ ] Add scheduled read-only drift detection in the private repo after approving its execution host, restricted
-      credential, cadence, and sanitized-report retention; do not store an unrestricted validator key in GitHub.
+- [ ] Review and merge private PR #18, approve its forced-command execution host, daily 03:17 UTC cadence, and 14-day
+      sanitized-report retention, then configure its three protected environment secrets without storing an
+      unrestricted validator key in GitHub.
 - [x] Run a controlled monitoring alert and verify delivery to the configured Telegram destination
       (`33635711860`, 2026-09-02).
 - [x] Retain independent receipt acknowledgements from both `@lithoagent` and `@Jkasr` (client-confirmed,
       2026-09-02).
-- [ ] Review and merge PR #153, which routes controlled tests through the secret-free protected
-      `litho-mainnet-monitoring-test` environment without placing an approval gate in front of automatic incidents.
+- [x] Merged PR #153 routes controlled tests through the secret-free protected `litho-mainnet-monitoring-test`
+      environment without placing an approval gate in front of automatic incidents.
+- [ ] Run and verify the first manual drift check, followed by the first scheduled recurrence.
 - [x] Run one successful protected encrypted signing-state backup (`33489075548`).
 - [x] Perform isolated, non-signing recovery verification independently for both recipients.
 - [x] Confirm the first post-activation scheduled dual-recipient backup passes without a manual workflow dispatch
@@ -573,6 +575,7 @@ Evidence:
 - Passing controlled Telegram delivery: `https://github.com/KaJLabs/Lithosphere/actions/runs/33635711860`
 - Alert ownership and delivery runbook: `https://github.com/KaJLabs/Lithosphere/pull/149`
 - Controlled-test approval separation: `https://github.com/KaJLabs/Lithosphere/pull/153`
+- Scheduled drift implementation proposal: `https://github.com/KaJLabs/Lithosphere-Production-Infra/pull/18`
 - Passing dual-recipient backup: `https://github.com/KaJLabs/Lithosphere/actions/runs/33489075548`
 - Passing first scheduled recurrence: `https://github.com/KaJLabs/Lithosphere/actions/runs/33505116681`
 - Dual-recipient implementation: `https://github.com/KaJLabs/Lithosphere/pull/139`
@@ -785,9 +788,22 @@ Evidence:
 | 2026-09-01 | MX-06 private inventory gate | BLOCKED | Private PR #16 merged the strict-host-key inventory, check-only drift playbook, and loopback sentry RPC intent as `339e9a9acb0b3e10bc0e0ea8ae1d0213f04925c4`; approver assignments remain pending, so no Ansible command ran. |
 | 2026-09-02 | MX-06 mainnet drift closure | PASS, FOLLOW-UPS OPEN | Litho Agent (`@lithoagent`) was assigned to all three approval roles. Private PR #17 records one-at-a-time sentry RPC/proxy remediation and a final clean three-node drift run. Independent public probes confirmed chain IDs, progression, caught-up state, and closed direct sentry RPC ports. Scheduled drift detection, independent responder/alert assignments, alert-delivery evidence, and the exact UTC approval/window link remain open. |
 | 2026-09-02 | MX-06 monitoring ownership and delivery | PASS, FOLLOW-UPS OPEN | PR #149 records `@lithoagent` as primary responder, `@Jkasr` as independent backup, and Telegram via `@LITHO_Moniter_bot` as the approved channel. Both environment-scoped Telegram secrets exist, controlled run `33635711860` passed health and delivery, scheduled run `33659094490` passed, and the client confirmed both responders acknowledged receipt. Monitoring-environment reviewer protection remains open. |
-| 2026-09-02 | MX-06 controlled-test protection design | PR OPEN, EXTERNAL INPUTS OPEN | Created a secret-free approval environment requiring `@lithoagent` or `@Jkasr` review with self-review prevention. PR #153 separates that controlled-test gate from unattended incident monitoring. The private repo has no scheduled drift workflow or automation credentials; execution host, restricted credential, cadence, retention, and exact PR #17 window evidence remain required. |
+| 2026-09-02 | MX-06 controlled-test protection design | MERGED, FOLLOW-UPS OPEN | The secret-free approval environment requires `@lithoagent` or `@Jkasr` review with self-review prevention. PR #153 merged the controlled-test gate without blocking unattended incident monitoring. |
+| 2026-09-03 | MX-06 scheduled drift preparation | PR OPEN, ACTIVATION BLOCKED | Private PR #18 proposes daily check-only drift detection through a forced-command control host, strict report sanitization, and 14-day artifact retention. The environment and runner username exist, but its three secrets, independent review, merge, first manual run, and first scheduled recurrence remain open. |
 
 ## Change log
+
+### 2026-09-03 — MX-06 scheduled drift detection prepared
+
+- Opened private-infra PR #18 with a daily 03:17 UTC check-only workflow, forced-command control-host wrapper, strict
+  JSON sanitizer, four passing sanitizer tests, and 14-day sanitized-artifact retention.
+- Created the secret-free `litho-mainnet-drift` environment and set only the non-secret runner username. No host,
+  private key, or known-host secret was available or configured.
+- Requested independent review from `@lithoagent` and `@Jkasr` and posted the exact activation checklist on PR #18.
+- Did not merge, dispatch, connect to a node, apply configuration, or restart a service. The first manual and scheduled
+  checks remain blocked on the approved control host, forced-command credential installation, pinned fingerprint, and
+  secret-manager configuration.
+- Updated by: `bachal-mb`.
 
 ### 2026-09-02 — MX-06 controlled-test protection prepared; drift automation blocker verified
 
