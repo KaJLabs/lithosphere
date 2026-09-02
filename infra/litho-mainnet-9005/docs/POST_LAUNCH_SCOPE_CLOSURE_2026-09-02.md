@@ -1,8 +1,8 @@
 # LITHO mainnet post-launch closure evidence
 
-Status: **public health, backup controls, infrastructure drift, and EVM
-registry closure reverified; external ownership, monitoring acknowledgement,
-and final acceptance gates remain open**
+Status: **public health, backup controls, infrastructure drift, EVM registry,
+and monitoring closure reverified; external ownership and final acceptance
+gates remain open**
 
 This record updates the original mainnet handoff evidence without authorizing
 a production configuration change, validator transaction, or feature
@@ -111,19 +111,16 @@ completed successfully on `2026-09-02`. The read-only three-node progression
 check, protected Telegram configuration validation, and Telegram delivery step
 all passed. The workflow made no node configuration change or transaction.
 
-The technical delivery test is complete. Final monitoring acceptance remains
-open only until primary responder `@lithoagent` and independent backup
-responder `@Jkasr` each acknowledge receipt, as required by the alert-delivery
+The technical delivery test is complete. Primary responder `@lithoagent` and
+independent backup responder `@Jkasr` each independently confirmed receipt on
+`2026-09-02`, satisfying the acknowledgement requirement in the alert-delivery
 runbook.
 
 ## Honest remaining original-scope gates
 
-1. Record independent alert-receipt acknowledgements from primary responder
-   `@lithoagent` and independent backup `@Jkasr`. The protected delivery run
-   itself has passed; secret values remain protected and are not recorded here.
-2. Obtain Autha's focused final release-evidence disposition for the exact L1
+1. Obtain Autha's focused final release-evidence disposition for the exact L1
    security release identity.
-3. Complete the named-owner register and client acceptance/signature section.
+2. Complete the named-owner register and client acceptance/signature section.
 
 MultX activation, post-quantum activation, additional validator onboarding,
 and exchange/product integration remain separate workstreams.
