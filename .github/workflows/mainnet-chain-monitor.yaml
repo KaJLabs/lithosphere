@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+    inputs:
+      deliver_test_alert:
+        description: Send a controlled Telegram test alert after the read-only health check
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -20,6 +26,8 @@ jobs:
       MONITOR_SENTRY1_HOST: ${{ secrets.MONITOR_SENTRY1_HOST }}
       MONITOR_SENTRY2_HOST: ${{ secrets.MONITOR_SENTRY2_HOST }}
       MONITOR_SSH_USER: ${{ vars.MONITOR_SSH_USER || 'lithomonitor' }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -71,6 +79,27 @@ jobs:
                 body: `The protected five-minute consensus progression check failed.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nTreat this as a P0 until chain progression and validator signing are independently confirmed. Do not restart or restore the validator without the single-writer and signing-state recovery gates.`,
               });
             }
+
+      - name: Validate protected Telegram alert configuration
+        if: steps.monitor.outcome == 'failure' || (github.event_name == 'workflow_dispatch' && inputs.deliver_test_alert)
+        shell: bash
+        run: |
+          [[ -n "$TELEGRAM_BOT_TOKEN" ]] || { echo "Missing protected environment secret: TELEGRAM_BOT_TOKEN"; exit 1; }
+          [[ -n "$TELEGRAM_CHAT_ID" ]] || { echo "Missing protected environment secret: TELEGRAM_CHAT_ID"; exit 1; }
+
+      - name: Deliver Telegram alert
+        if: steps.monitor.outcome == 'failure' || (github.event_name == 'workflow_dispatch' && inputs.deliver_test_alert)
+        shell: bash
+        env:
+          ALERT_KIND: ${{ steps.monitor.outcome == 'failure' && 'INCIDENT' || 'CONTROLLED TEST' }}
+        run: |
+          message="LITHO mainnet ${ALERT_KIND}: chain monitor run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Primary: @lithoagent. Backup: @Jkasr."
+          curl --fail --silent --show-error \
+            --request POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${message}" \
+            >/dev/null
 
       - name: Fail after incident creation
         if: steps.monitor.outcome == 'failure'

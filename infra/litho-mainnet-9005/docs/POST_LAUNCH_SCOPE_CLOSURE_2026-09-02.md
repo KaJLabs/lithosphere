@@ -104,8 +104,9 @@ registry publishes chain ID `9005`.
 
 1. Obtain external maintainer acceptance of the submitted EVM registry entry,
    then retain the merge and aggregate-publication evidence.
-2. Record the monitoring responders and alert destination and complete the
-   controlled alert-delivery test.
+2. Complete the controlled alert-delivery test for the recorded primary
+   responder `@lithoagent`, independent backup `@Jkasr`, and approved Telegram
+   channel. Secret values remain protected and are not recorded here.
 3. Obtain Autha's focused final release-evidence disposition for the exact L1
    security release identity.
 4. Complete the named-owner register and client acceptance/signature section.
