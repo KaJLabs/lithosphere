@@ -48,7 +48,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
-| MX-06 | Validator cleanup and safety | Backup/recovery, mainnet drift closure, alert ownership, and controlled Telegram delivery passed; recurring drift detection, independent receipt acknowledgements, environment reviewer protection, and exact window evidence remain | EXTERNAL BLOCKER | Install scheduled read-only drift detection, record both responders' test-alert acknowledgements, protect the monitoring environment against self-review, and link the exact PR #17 maintenance approval/window. |
+| MX-06 | Validator cleanup and safety | Backup/recovery, mainnet drift closure, alert ownership, controlled Telegram delivery, and both responder acknowledgements passed; recurring drift detection, environment reviewer protection, and exact window evidence remain | EXTERNAL BLOCKER | Install scheduled read-only drift detection, protect the monitoring environment against self-review, and link the exact PR #17 maintenance approval/window. |
 | MX-02 | LEP100 faucet assets | Current faucet accepted by client; remaining rotation/funding closure postponed | DEFERRED | Take no faucet deployment or funding action until the client reprioritizes it. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
@@ -474,8 +474,8 @@ open; no duplicate Ansible or SSH operation was performed. Public PR #149 subseq
  (`@lithoagent`) as primary responder, `@Jkasr` as independent backup responder, and Telegram through
  `@LITHO_Moniter_bot` as the approved alert channel. Environment-scoped Telegram secrets are configured, and controlled
  test run `33635711860` passed the three-node health check and Telegram delivery step. The repository does not record
- both responders' independent receipt acknowledgements, and the `litho-mainnet-monitoring` environment currently has
- no reviewer protection rules despite the runbook requiring approved reviewers and self-review prevention.
+ both responders independently confirmed receipt on 2026-09-02. The `litho-mainnet-monitoring` environment currently
+ has no reviewer protection rules despite the runbook requiring approved reviewers and self-review prevention.
 
 Completed or evidenced:
 
@@ -529,7 +529,8 @@ Remaining actions:
 - [ ] Add scheduled read-only drift detection in the private repo; retain only the sanitized JSON report.
 - [x] Run a controlled monitoring alert and verify delivery to the configured Telegram destination
       (`33635711860`, 2026-09-02).
-- [ ] Retain independent receipt acknowledgements from both `@lithoagent` and `@Jkasr`.
+- [x] Retain independent receipt acknowledgements from both `@lithoagent` and `@Jkasr` (client-confirmed,
+      2026-09-02).
 - [ ] Add approved reviewers with self-review prevention to the `litho-mainnet-monitoring` environment as required by
       the alert-delivery runbook.
 - [x] Run one successful protected encrypted signing-state backup (`33489075548`).
@@ -774,7 +775,7 @@ Evidence:
 | 2026-09-01 | Dual-recipient scheduled recurrence | PASS | Protected scheduled run `33505116681` on merged commit `9d09afa72d865b9c957396d386e0a50a4e282245` produced two distinct-recipient ciphertexts and a matching manifest at signed height `5,802,670`; no recovery private key was used and no plaintext key files were written locally. |
 | 2026-09-01 | MX-06 private inventory gate | BLOCKED | Private PR #16 merged the strict-host-key inventory, check-only drift playbook, and loopback sentry RPC intent as `339e9a9acb0b3e10bc0e0ea8ae1d0213f04925c4`; approver assignments remain pending, so no Ansible command ran. |
 | 2026-09-02 | MX-06 mainnet drift closure | PASS, FOLLOW-UPS OPEN | Litho Agent (`@lithoagent`) was assigned to all three approval roles. Private PR #17 records one-at-a-time sentry RPC/proxy remediation and a final clean three-node drift run. Independent public probes confirmed chain IDs, progression, caught-up state, and closed direct sentry RPC ports. Scheduled drift detection, independent responder/alert assignments, alert-delivery evidence, and the exact UTC approval/window link remain open. |
-| 2026-09-02 | MX-06 monitoring ownership and delivery | PASS, FOLLOW-UPS OPEN | PR #149 records `@lithoagent` as primary responder, `@Jkasr` as independent backup, and Telegram via `@LITHO_Moniter_bot` as the approved channel. Both environment-scoped Telegram secrets exist, controlled run `33635711860` passed health and delivery, and scheduled run `33659094490` passed. Independent receipt acknowledgements and monitoring-environment reviewer protection are not evidenced. |
+| 2026-09-02 | MX-06 monitoring ownership and delivery | PASS, FOLLOW-UPS OPEN | PR #149 records `@lithoagent` as primary responder, `@Jkasr` as independent backup, and Telegram via `@LITHO_Moniter_bot` as the approved channel. Both environment-scoped Telegram secrets exist, controlled run `33635711860` passed health and delivery, scheduled run `33659094490` passed, and the client confirmed both responders acknowledged receipt. Monitoring-environment reviewer protection remains open. |
 
 ## Change log
 
@@ -786,8 +787,9 @@ Evidence:
   values.
 - Verified controlled workflow run `33635711860` passed the read-only three-node monitor and sent a `CONTROLLED TEST`
   message; scheduled run `33659094490` subsequently passed on current `main`.
-- Kept the alert exercise partially open because the repository contains no independent receipt acknowledgements from
-  both responders and the monitoring environment has no reviewer protection rules, contrary to the merged runbook.
+- Recorded the client's confirmation that both responders independently acknowledged receipt of the controlled alert.
+- Kept the monitoring protection gate open because the environment has no reviewer protection rules, contrary to the
+  merged runbook.
 - Updated by: `bachal-mb`.
 
 ### 2026-09-02 — MX-06 mainnet drift and sentry RPC closure verified
