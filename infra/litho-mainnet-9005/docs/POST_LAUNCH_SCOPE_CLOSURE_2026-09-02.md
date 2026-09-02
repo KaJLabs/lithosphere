@@ -1,7 +1,8 @@
 # LITHO mainnet post-launch closure evidence
 
-Status: **public health and completed backup controls reverified; external
-ownership, registry, drift, and final acceptance gates remain open**
+Status: **public health, backup controls, and infrastructure drift closure
+reverified; external ownership, registry, and final acceptance gates remain
+open**
 
 This record updates the original mainnet handoff evidence without authorizing
 a production configuration change, validator transaction, or feature
@@ -48,7 +49,7 @@ evidence:
 
 No restore was installed and no second signer was started.
 
-## Private-inventory drift preparation
+## Private-inventory drift closure
 
 Private infrastructure PR
 `KaJLabs/Lithosphere-Production-Infra#16` merged as
@@ -56,9 +57,25 @@ Private infrastructure PR
 `mainnet-9005` inventory, the read-only drift playbook, and the desired-state
 loopback binding `tcp://127.0.0.1:27057` for raw sentry CometBFT RPC.
 
-No drift check or configuration apply is represented as completed here. The
-Validator Infra, Chain, and CAB approvers must be named before the authorized
-`--check --diff` run. Any later apply or restart requires a separate approval.
+Litho Agent (`@lithoagent`) was recorded as the Validator Infra, Chain, and CAB
+approver and authorized the read-only drift window. The exact merged playbook
+completed against all three nodes with zero unreachable hosts and zero
+failures. It found both sentries still listening publicly on raw CometBFT RPC
+port `27057`.
+
+During the separately approved controlled remediation window, the sentry-1
+Nginx CometBFT upstream was changed from sentry 2's public address to the
+co-located `127.0.0.1:27057` listener. Nginx configuration validation passed,
+old workers were retired during an approved brief restart, and both sentry RPC
+listeners were then changed one at a time to
+`tcp://127.0.0.1:27057`. The validator was not restarted.
+
+Final checks observed EVM chain ID `0x232d`, Cosmos chain ID
+`lithosphere_9005-1`, `catching_up=false`, reachable gRPC, and block progression
+from `5,955,778` to `5,955,784`. A final `--check --diff` run returned
+`changed=0`, `unreachable=0`, and `failed=0` on all three nodes. The detailed
+private evidence and strengthened runtime checks are in
+`KaJLabs/Lithosphere-Production-Infra#17`.
 
 ## Canonical EVM registry status
 
@@ -85,15 +102,13 @@ registry publishes chain ID `9005`.
 
 ## Honest remaining original-scope gates
 
-1. Name the Validator Infra, Chain, and CAB approvers, then run the merged
-   read-only drift check.
-2. Obtain external maintainer acceptance of the submitted EVM registry entry,
+1. Obtain external maintainer acceptance of the submitted EVM registry entry,
    then retain the merge and aggregate-publication evidence.
-3. Record the monitoring responders and alert destination and complete the
+2. Record the monitoring responders and alert destination and complete the
    controlled alert-delivery test.
-4. Obtain Autha's focused final release-evidence disposition for the exact L1
+3. Obtain Autha's focused final release-evidence disposition for the exact L1
    security release identity.
-5. Complete the named-owner register and client acceptance/signature section.
+4. Complete the named-owner register and client acceptance/signature section.
 
 MultX activation, post-quantum activation, additional validator onboarding,
 and exchange/product integration remain separate workstreams.
