@@ -11,10 +11,12 @@ const validManifest = () => ({
     auditedTag: 'multx-audited-release-v1.0.0',
     commit: 'a'.repeat(40),
     deploymentPlanSha256: 'b'.repeat(64),
+    bytecodeEvidenceSha256: 'f'.repeat(64),
     deploymentApprovalUrl: 'https://evidence.example/deployment',
     deployedAtUtc: '2026-09-01T10:30:00Z',
     sourceBridgeRuntimeSha256: 'c'.repeat(64),
     destinationBridgeRuntimeSha256: 'e'.repeat(64),
+    wrappedTokenNormalizedRuntimeSha256: 'd'.repeat(64),
   },
   chains: [9005, 1, 56, 8453].map((chainId, index) => ({
     chainId,
@@ -27,6 +29,7 @@ const validManifest = () => ({
       deploymentBlock: 100 + index,
       runtimeSha256: (chainId === 9005 ? 'c' : 'e').repeat(64),
       owner: address(30 + index * 2),
+      governanceSafe: address(90 + index),
       pauseGuardian: address(31 + index * 2),
       paused: true,
       signaturesRequired: 5,
@@ -92,6 +95,12 @@ describe('mainnet deployment manifest', () => {
     const manifest = validManifest();
     manifest.chains[2].bridge.runtimeSha256 = 'f'.repeat(64);
     expect(() => validateDeploymentManifest(manifest)).to.throw('does not match the audited release');
+  });
+
+  it('requires the independently supplied bytecode evidence digest', () => {
+    const manifest = validManifest();
+    delete manifest.release.bytecodeEvidenceSha256;
+    expect(() => validateDeploymentManifest(manifest)).to.throw('bytecodeEvidenceSha256');
   });
 
   it('rejects an incomplete or extra on-chain route declaration', () => {

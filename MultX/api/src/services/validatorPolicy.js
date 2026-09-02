@@ -29,3 +29,50 @@ export function validateValidatorSet(validators, signaturesRequired) {
   }
   return { required, addresses };
 }
+
+export function validateProductionSignerEnvironment(env = process.env) {
+  if (String(env.SIGNATURES_REQUIRED) !== '5') {
+    throw new Error('production SIGNATURES_REQUIRED must be exactly 5');
+  }
+  const configured = [];
+  for (let index = 0; index < 10; index += 1) {
+    const url = env[`VALIDATOR_SIGNER_URL_${index}`];
+    const signerAddress = env[`VALIDATOR_SIGNER_ADDRESS_${index}`];
+    if (index < 7 && (!url || !signerAddress)) {
+      throw new Error(`production validator signer ${index} URL and address are required`);
+    }
+    if (index >= 7 && (url || signerAddress)) {
+      throw new Error('production requires exactly signer indices 0 through 6');
+    }
+    if (index < 7) configured.push({ index, url, address: signerAddress });
+  }
+  validateValidatorSet(configured, 5);
+  return configured;
+}
+
+export async function verifyLiveValidatorTopology(chains, expectedAddresses, providerFactory) {
+  const abi = [
+    'function signaturesRequired() view returns (uint256)',
+    'function getValidatorCount() view returns (uint256)',
+    'function getValidators() view returns (address[])',
+  ];
+  for (const chain of chains) {
+    const provider = providerFactory(chain.rpc, chain.chainId);
+    const network = await provider.getNetwork();
+    if (Number(network.chainId) !== Number(chain.chainId)) {
+      throw new Error(`${chain.name} RPC chain identity mismatch`);
+    }
+    const bridge = new ethers.Contract(chain.bridge, abi, provider);
+    const [thresholdValue, countValue, live] = await Promise.all([
+      bridge.signaturesRequired(), bridge.getValidatorCount(), bridge.getValidators(),
+    ]);
+    const threshold = Number(thresholdValue.toString());
+    const count = Number(countValue.toString());
+    if (threshold !== 5 || count !== 7 || live.length !== 7) {
+      throw new Error(`${chain.name} live bridge topology is not exact 5-of-7`);
+    }
+    if (live.some((item, index) => item.toLowerCase() !== expectedAddresses[index])) {
+      throw new Error(`${chain.name} live validator set does not match configured signers`);
+    }
+  }
+}

@@ -96,6 +96,8 @@ function validateDeploymentPlan(input) {
   if (!/^[0-9a-f]{64}$/i.test(sourceRuntimeHash)) throw new Error('release.sourceBridgeRuntimeSha256 must be SHA-256');
   const destinationRuntimeHash = requiredText(release.destinationBridgeRuntimeSha256, 'release.destinationBridgeRuntimeSha256');
   if (!/^[0-9a-f]{64}$/i.test(destinationRuntimeHash)) throw new Error('release.destinationBridgeRuntimeSha256 must be SHA-256');
+  const wrappedRuntimeHash = requiredText(release.wrappedTokenNormalizedRuntimeSha256, 'release.wrappedTokenNormalizedRuntimeSha256');
+  if (!/^[0-9a-f]{64}$/i.test(wrappedRuntimeHash)) throw new Error('release.wrappedTokenNormalizedRuntimeSha256 must be SHA-256');
   exactHttpsUrl(release.auditReportUrl, 'release.auditReportUrl');
   exactHttpsUrl(release.fixReviewUrl, 'release.fixReviewUrl');
 
@@ -131,6 +133,7 @@ function validateDeploymentPlan(input) {
     const expectedKind = chainId === 9005 ? 'source' : 'destination';
     if (chain.bridgeKind !== expectedKind) throw new Error(`${prefix}.bridgeKind must be ${expectedKind}`);
     requiredText(chain.name, `${prefix}.name`);
+    address(chain.expectedBridgeAddress, `${prefix}.expectedBridgeAddress`);
     exactHttpsUrl(chain.rpcHttps, `${prefix}.rpcHttps`);
     wssUrl(chain.rpcWss, `${prefix}.rpcWss`);
     positiveInteger(chain.confirmations, `${prefix}.confirmations`);
@@ -174,6 +177,8 @@ function validateDeploymentPlan(input) {
     if (new Set(asset.destinationChainIds).size !== 3) throw new Error(`${prefix}.destinationChainIds contains duplicates`);
     const caps = requiredObject(asset.dailyCapBaseUnits, `${prefix}.dailyCapBaseUnits`);
     REQUIRED_CHAIN_IDS.forEach((chainId) => positiveBaseUnits(caps[String(chainId)], `${prefix}.dailyCapBaseUnits.${chainId}`));
+    const destinationTokens = requiredObject(asset.destinationTokenAddresses, `${prefix}.destinationTokenAddresses`);
+    DESTINATION_CHAIN_IDS.forEach((chainId) => address(destinationTokens[String(chainId)], `${prefix}.destinationTokenAddresses.${chainId}`));
     exactHttpsUrl(asset.approvalRecordUrl, `${prefix}.approvalRecordUrl`);
   });
 

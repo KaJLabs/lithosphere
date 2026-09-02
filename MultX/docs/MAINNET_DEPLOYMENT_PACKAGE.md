@@ -23,14 +23,21 @@ disabled.
   incomplete, unpaused, unverified, unaudited-bytecode or
   cross-chain-inconsistent manifest.
 - `contracts/scripts/mainnet/verify-deployment-readonly.js`: performs only RPC
-  reads to prove chain IDs, runtime hashes, pause state, owners, guardians,
+  reads to independently bind the exact approved plan and bytecode-evidence
+  files to the manifest, prove deployment transaction/creation-block provenance,
+  chain IDs, runtime hashes, pause state, owners, guardians,
   an exact complete 5-of-7 signer set (including a live-count check), supported
   assets and routes, caps and wrapped-token origin/bridge roles. It refuses
   common signing-credential environment variables.
+- `contracts/scripts/mainnet/generate-bytecode-evidence.js`: derives bridge and
+  wrapped-token creation/runtime hashes, immutable-reference offsets, compiler
+  version and settings directly from pinned Hardhat build information. The
+  generated JSON is independently hashed and supplied to the verifier.
 - `infra/network.mainnet.template.json`: API/indexer route manifest populated
   only from the validated deployment manifest.
 - `infra/docker-compose.mainnet.template.yml`: non-runnable API/database
-  template aligned with private Fargate signer HTTPS/bearer-token access.
+  template aligned with private Fargate signer HTTPS/bearer-token access and
+  an explicit trusted reverse-proxy hop for correct per-client rate limiting.
 
 ## Required sequence
 
@@ -68,7 +75,9 @@ disabled.
 
    ```bash
    node scripts/mainnet/verify-deployment-readonly.js \
+     --plan /secure/path/approved-plan.json \
      --manifest /secure/path/deployment-manifest.json \
+     --bytecode-evidence /secure/path/audited-bytecode-evidence.json \
      --confirm-transaction-free
    ```
 

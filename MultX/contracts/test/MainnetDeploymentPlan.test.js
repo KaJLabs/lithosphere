@@ -16,6 +16,7 @@ const validPlan = () => ({
     bytecodeEvidenceSha256: 'b'.repeat(64),
     sourceBridgeRuntimeSha256: 'c'.repeat(64),
     destinationBridgeRuntimeSha256: 'd'.repeat(64),
+    wrappedTokenNormalizedRuntimeSha256: 'e'.repeat(64),
   },
   changeWindow: {
     startUtc: '2026-09-01T10:00:00Z',
@@ -30,6 +31,7 @@ const validPlan = () => ({
   chains: [9005, 1, 56, 8453].map((chainId, index) => ({
     chainId,
     name: `Chain ${chainId}`,
+    expectedBridgeAddress: addresses[7 + index * 3],
     bridgeKind: chainId === 9005 ? 'source' : 'destination',
     rpcHttps: `https://rpc-${chainId}.example`,
     rpcWss: `wss://rpc-${chainId}.example/ws`,
@@ -54,6 +56,7 @@ const validPlan = () => ({
       56: '1000000000000000000',
       8453: '1000000000000000000',
     },
+    destinationTokenAddresses: { 1: addresses[16], 56: addresses[17], 8453: addresses[18] },
     approvalRecordUrl: 'https://evidence.example/asset',
   }],
 });

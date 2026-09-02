@@ -5,10 +5,12 @@
     "auditedTag": "REPLACE_WITH_FINAL_AUDITED_REMEDIATION_TAG",
     "commit": "REPLACE_WITH_40_HEX_COMMIT",
     "deploymentPlanSha256": "REPLACE_WITH_APPROVED_PLAN_SHA256",
+    "bytecodeEvidenceSha256": "REPLACE_WITH_APPROVED_BYTECODE_EVIDENCE_SHA256",
     "deploymentApprovalUrl": "REPLACE_WITH_APPROVAL_HTTPS_URL",
     "deployedAtUtc": "REPLACE_WITH_ISO_UTC_TIMESTAMP",
     "sourceBridgeRuntimeSha256": "REPLACE_WITH_AUDITED_SOURCE_BRIDGE_RUNTIME_SHA256",
-    "destinationBridgeRuntimeSha256": "REPLACE_WITH_AUDITED_DESTINATION_BRIDGE_RUNTIME_SHA256"
+    "destinationBridgeRuntimeSha256": "REPLACE_WITH_AUDITED_DESTINATION_BRIDGE_RUNTIME_SHA256",
+    "wrappedTokenNormalizedRuntimeSha256": "REPLACE_WITH_AUDITED_WRAPPED_TOKEN_NORMALIZED_RUNTIME_SHA256"
   },
   "chains": [
     {
@@ -22,6 +24,7 @@
         "deploymentBlock": "REPLACE_WITH_POSITIVE_BLOCK_NUMBER",
         "runtimeSha256": "REPLACE_WITH_AUDITED_RUNTIME_SHA256",
         "owner": "REPLACE_WITH_LITHO_TIMELOCK",
+        "governanceSafe": "REPLACE_WITH_LITHO_SAFE",
         "pauseGuardian": "REPLACE_WITH_LITHO_PAUSE_GUARDIAN",
         "paused": true,
         "signaturesRequired": 5,
