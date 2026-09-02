@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.28.2](https://github.com/KaJLabs/Lithosphere/compare/v1.28.1...v1.28.2) (2026-09-02)
+
+
+### Bug Fixes
+
+* **l1:** enforce pre-activation approval gate ([#156](https://github.com/KaJLabs/Lithosphere/issues/156)) ([dd55b50](https://github.com/KaJLabs/Lithosphere/commit/dd55b505f3ffc3dd6770931fb98aa64af90998fc))
+* **mainnet:** protect controlled alert delivery ([#153](https://github.com/KaJLabs/Lithosphere/issues/153)) ([6bf8989](https://github.com/KaJLabs/Lithosphere/commit/6bf8989c443b931521de1b8e4d9b6e4615bd7411))
+
 ## [1.28.1](https://github.com/KaJLabs/Lithosphere/compare/v1.28.0...v1.28.1) (2026-09-02)
 
 
