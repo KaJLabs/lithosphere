@@ -48,7 +48,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
-| MX-06 | Validator cleanup and safety | Backup/recovery controls passed; private inventory and a check-only drift playbook are merged with loopback sentry RPC intent, while approvers remain unnamed | EXTERNAL BLOCKER | Name the Validator Infra, Chain, and CAB approvers, then run only the authorized Ansible `--check --diff` operation. |
+| MX-06 | Validator cleanup and safety | Backup/recovery and mainnet drift closure passed; recurring drift detection, alert exercise, responder assignments, and exact window evidence remain | EXTERNAL BLOCKER | Install scheduled read-only drift detection, assign independent responders/alert channel, run the controlled alert test, and link the exact PR #17 maintenance approval/window. |
 | MX-02 | LEP100 faucet assets | Current faucet accepted by client; remaining rotation/funding closure postponed | DEFERRED | Take no faucet deployment or funding action until the client reprioritizes it. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
@@ -62,7 +62,7 @@ Only one repository stream is active at a time. An external blocker is recorded 
 to the next executable stream without pretending the blocked stream is complete.
 
 1. [ ] **MX-01 MultX / Lithoswap** — active priority; independent Autha fix review and production approvals block deployment/activation.
-2. [ ] **MX-06 Validator cleanup and safety** — backup activation, recovery, and first scheduled recurrence passed; private-inventory cleanup and owner acceptance remain.
+2. [ ] **MX-06 Validator cleanup and safety** — backup/recovery and mainnet drift closure passed; scheduled detection, alert ownership/testing, and final evidence remain.
 3. [ ] **MX-03 Thanos Wallet** — deployed; waiting on wallet-team acceptance.
 4. [ ] **MX-04 DNNS** — deployed; waiting on DNNS-owner acceptance inputs.
 5. [ ] **MX-05 Quantt** — deployed but disabled; waiting on Quantt API/TLS/product inputs and acceptance.
@@ -461,8 +461,16 @@ verified. Private PR #16 subsequently merged as
 playbook `ansible/playbooks/mainnet-9005-drift-check.yml`, which refuses to run outside Ansible check mode. Both sentry
 host records now bind raw CometBFT RPC to `tcp://127.0.0.1:27057`, resolving the earlier public-RPC policy conflict in
 desired state. The older merged detector in `BrewCodeDev/lithosphere-dev-infra` targets obsolete AWS inventory and
-disables SSH host-key verification, so it is not authorized or suitable for current bare-metal mainnet. Approver
-assignments are still explicitly pending; therefore no drift command has been run.
+disables SSH host-key verification, so it is not authorized or suitable for current bare-metal mainnet.
+On 2026-09-02 KaJ Labs assigned Litho Agent (`@lithoagent`) as Validator Infra, Chain, and CAB approver. Before a
+duplicate check was run, private-infra PR #17 was found already merged as
+`a0c76357ade9cee8cb0d3bc5014ca7130453a324`. Its closure record says the other team completed the check-only baseline,
+corrected the Nginx upstream and both sentry raw RPC bindings one at a time in a separately approved window, and
+finished with `changed=0`, `unreachable=0`, and `failed=0` on all three nodes. It records no validator restart or
+chain-state change. Independent public probes then confirmed Cosmos/REST `lithosphere_9005-1`, EVM `0x232d`, height
+progression `5,960,798` to `5,960,804`, `catching_up=false`, and no reachable direct HTTP service on either sentry's
+port `27057`. The exact UTC maintenance approval/window is not linked in the closure record, so that evidence remains
+open; no duplicate Ansible or SSH operation was performed.
 
 Completed or evidenced:
 
@@ -490,10 +498,13 @@ External inputs and authority required:
 - [x] The exact authorized playbook is `ansible/playbooks/mainnet-9005-drift-check.yml`; it hard-fails unless Ansible
       check mode is active.
 - [x] Both sentry records bind raw CometBFT RPC to `tcp://127.0.0.1:27057`, resolving the desired-state policy conflict.
-- [ ] Named Chain, Validator Infra, and CAB approvers and an approved check window.
+- [x] Litho Agent (`@lithoagent`) is assigned as Validator Infra, Chain, and CAB approver (2026-09-02).
+- [ ] Link the exact UTC approval/window record for the PR #17 sentry remediation; the closure document describes a
+      separately approved window but does not identify its approval artifact or timestamps.
 - [x] Authority is limited to a read-only Ansible `--check --diff` run; no apply, configuration change, deployment,
       or restart is authorized.
-- [ ] Separate authority to apply reviewed intent and restart one sentry at a time.
+- [x] Private PR #17 records completion of the separately approved one-sentry-at-a-time remediation; no validator
+      restart or chain-state mutation occurred.
 - [ ] KaJ Labs assigns a primary responder, independent backup responder, and approved alert destination.
 - [x] Two independent recovery custodians completed the documented recipient ceremonies offline.
 - [x] Only their public records are configured as `BACKUP_RECIPIENT_PRIMARY` and `BACKUP_RECIPIENT_BACKUP`; recovery
@@ -501,12 +512,14 @@ External inputs and authority required:
 
 Remaining actions:
 
-- [ ] Review and merge the audit helper, policy, and runbook without any live snapshots or credentials.
-- [ ] In the private repo, remove 40+ unrelated template deltas before permitting a config-tag apply.
-- [ ] Render expected TOML, fetch live TOML read-only, and produce the baseline drift report.
-- [ ] Align the four identified sentries to `timeout_commit = "500ms"` through Ansible intent.
-- [ ] Roll one sentry at a time with peer, catch-up, RPC, consensus, and metrics observation between nodes.
-- [ ] Re-audit after rollout and require a clean result.
+- [x] Review and merge the private check-only playbook, scoped role, templates, inventory, and closure record without
+      live snapshots or credentials (private PRs #16 and #17).
+- [x] Isolate the mainnet-only inventory/role from the obsolete AWS and unrelated template deltas.
+- [x] Render intent, compare all three live nodes read-only, and record the baseline finding in private PR #17.
+- [x] Align both production sentries to the reviewed `timeout_commit = "500ms"` and loopback raw-RPC intent.
+- [x] Roll the two production sentries one at a time with rollback and catch-up/chain checks; the validator was not
+      restarted (private PR #17 closure record).
+- [x] Re-audit after rollout: `changed=0`, `unreachable=0`, and `failed=0` on all three nodes.
 - [ ] Add scheduled read-only drift detection in the private repo; retain only the sanitized JSON report.
 - [ ] Run a controlled monitoring alert and retain delivery/acknowledgement evidence for both responders.
 - [x] Run one successful protected encrypted signing-state backup (`33489075548`).
@@ -516,13 +529,15 @@ Remaining actions:
 
 Acceptance criteria:
 
-- [ ] Reviewed Ansible dry-run contains only the approved cleanup delta.
-- [ ] Every targeted node passes the policy and exact intent-vs-live audit.
-- [ ] No public CometBFT RPC exposure is introduced.
-- [ ] All nodes recover peers, remain caught up, and pass the full observation interval.
+- [x] Reviewed Ansible dry-run identified only the sentry raw-RPC and proxy-upstream cleanup recorded in PR #17.
+- [x] Every targeted node passes the final exact intent-vs-live audit.
+- [x] No direct public CometBFT listener remains on either sentry; public queries continue through the policy-gated
+      proxy.
+- [x] Both sentries recovered and public verification confirmed chain identity, caught-up state, and block progression.
 - [ ] Scheduled detection and alert ownership are active.
 - [x] Encrypted signing-state backup and isolated verification drill pass under two-person recovery custody.
-- [ ] Validator Infra, Chain, and CAB approvers, window, report, and evidence are recorded.
+- [ ] Validator Infra, Chain, and CAB approvers and the closure report are recorded; exact UTC window/approval evidence
+      remains to be linked.
 
 Evidence:
 
@@ -539,6 +554,8 @@ Evidence:
 - Passing first scheduled recurrence: `https://github.com/KaJLabs/Lithosphere/actions/runs/33505116681`
 - Dual-recipient implementation: `https://github.com/KaJLabs/Lithosphere/pull/139`
 - Resolved backup incident: `https://github.com/KaJLabs/Lithosphere/issues/74`
+- Private inventory/check-only playbook: `https://github.com/KaJLabs/Lithosphere-Production-Infra/pull/16`
+- Private drift/remediation closure: `https://github.com/KaJLabs/Lithosphere-Production-Infra/pull/17`
 
 ## MX-07 — Developer infrastructure toolchain full release
 
@@ -743,8 +760,24 @@ Evidence:
 | 2026-09-01 | Dual-recipient recovery drill | PASS | Primary and backup custodians independently passed offline decryption and content validation at height `5,776,198`; no plaintext key files were written locally and no recovery private key was shared/uploaded. Incident #74 closed. |
 | 2026-09-01 | Dual-recipient scheduled recurrence | PASS | Protected scheduled run `33505116681` on merged commit `9d09afa72d865b9c957396d386e0a50a4e282245` produced two distinct-recipient ciphertexts and a matching manifest at signed height `5,802,670`; no recovery private key was used and no plaintext key files were written locally. |
 | 2026-09-01 | MX-06 private inventory gate | BLOCKED | Private PR #16 merged the strict-host-key inventory, check-only drift playbook, and loopback sentry RPC intent as `339e9a9acb0b3e10bc0e0ea8ae1d0213f04925c4`; approver assignments remain pending, so no Ansible command ran. |
+| 2026-09-02 | MX-06 mainnet drift closure | PASS, FOLLOW-UPS OPEN | Litho Agent (`@lithoagent`) was assigned to all three approval roles. Private PR #17 records one-at-a-time sentry RPC/proxy remediation and a final clean three-node drift run. Independent public probes confirmed chain IDs, progression, caught-up state, and closed direct sentry RPC ports. Scheduled drift detection, independent responder/alert assignments, alert-delivery evidence, and the exact UTC approval/window link remain open. |
 
 ## Change log
+
+### 2026-09-02 — MX-06 mainnet drift and sentry RPC closure verified
+
+- Verified `@lithoagent` resolves to the GitHub user Litho Agent and recorded the client's assignment of that identity
+  as Validator Infra, Chain, and CAB approver.
+- Found the requested production operation already completed by the other team in merged private PR #17; did not run
+  a duplicate Ansible or SSH operation.
+- Reviewed the private closure record: both sentry raw RPC listeners and the sentry-1 Nginx upstream were moved to
+  loopback one node at a time, the validator was not restarted, and the final check-only run reported `changed=0`,
+  `unreachable=0`, and `failed=0` across all three nodes.
+- Independently verified public Cosmos/REST chain ID `lithosphere_9005-1`, EVM chain ID `0x232d`, block progression
+  `5,960,798` to `5,960,804`, `catching_up=false`, and direct port `27057` timeouts on both sentry IPs.
+- Kept MX-06 open for scheduled private-repo drift detection, independent responder and alert-channel assignments, the
+  controlled alert-delivery test, and a link to the exact UTC PR #17 approval/window record.
+- Updated by: `bachal-mb`.
 
 ### 2026-09-01 — MX-06 private inventory and approval gate verified
 
