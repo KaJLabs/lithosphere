@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.28.1](https://github.com/KaJLabs/Lithosphere/compare/v1.28.0...v1.28.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **multx:** close v0.8.1 audit blockers ([#150](https://github.com/KaJLabs/Lithosphere/issues/150)) ([f67ecfb](https://github.com/KaJLabs/Lithosphere/commit/f67ecfb1d0b3078e53c2eb39d6ba88e0ae373bdd))
+* **pq:** close Phase 1 R1 audit findings ([#145](https://github.com/KaJLabs/Lithosphere/issues/145)) ([4b7f0f6](https://github.com/KaJLabs/Lithosphere/commit/4b7f0f6ede24e07859402a7538dfdbf5846ac182))
+
+
+### Security
+
+* **mainnet:** record RPC drift closure ([#147](https://github.com/KaJLabs/Lithosphere/issues/147)) ([4e01f43](https://github.com/KaJLabs/Lithosphere/commit/4e01f4391c652228cde37b4901d1ab0aea9c999d))
+
+
+### Observability
+
+* **mainnet:** prepare Telegram alert delivery ([#149](https://github.com/KaJLabs/Lithosphere/issues/149)) ([925fa92](https://github.com/KaJLabs/Lithosphere/commit/925fa928f3bc23dd86bc515a12462a471431f833))
+
 ## [1.28.0](https://github.com/KaJLabs/Lithosphere/compare/v1.27.1...v1.28.0) (2026-09-01)
 
 
