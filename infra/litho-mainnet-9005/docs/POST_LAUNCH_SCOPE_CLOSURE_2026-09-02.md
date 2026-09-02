@@ -1,8 +1,8 @@
 # LITHO mainnet post-launch closure evidence
 
-Status: **public health, backup controls, and infrastructure drift closure
-reverified; external ownership, registry, and final acceptance gates remain
-open**
+Status: **public health, backup controls, infrastructure drift, EVM registry,
+and monitoring closure reverified; external ownership and final acceptance
+gates remain open**
 
 This record updates the original mainnet handoff evidence without authorizing
 a production configuration change, validator transaction, or feature
@@ -96,20 +96,31 @@ canonical submission is
 [`ethereum-lists/chains#8661`](https://github.com/ethereum-lists/chains/pull/8661),
 commit `782156ed2c8b475d9e1112168b06e73a09f3ce2c`.
 
-Submission evidence is now recorded, but registry acceptance remains open
-until the external maintainers merge the pull request and the aggregate
-registry publishes chain ID `9005`.
+The external maintainers approved the submission and merged it through their
+merge queue on `2026-09-02` as commit `813b938`. Five registry checks passed.
+The canonical [`chainid.network/chains.json`](https://chainid.network/chains.json)
+aggregate now publishes `Lithosphere Mainnet` with chain and network ID `9005`,
+short name `litho`, native currency `LITHO` with 18 decimals, the approved RPC,
+and Lithoscan explorer. A same-day EVM JSON-RPC recheck returned `0x232d`.
+
+## Monitoring delivery status
+
+The protected controlled-delivery workflow
+[33635711860](https://github.com/KaJLabs/Lithosphere/actions/runs/33635711860)
+completed successfully on `2026-09-02`. The read-only three-node progression
+check, protected Telegram configuration validation, and Telegram delivery step
+all passed. The workflow made no node configuration change or transaction.
+
+The technical delivery test is complete. Primary responder `@lithoagent` and
+independent backup responder `@Jkasr` each independently confirmed receipt on
+`2026-09-02`, satisfying the acknowledgement requirement in the alert-delivery
+runbook.
 
 ## Honest remaining original-scope gates
 
-1. Obtain external maintainer acceptance of the submitted EVM registry entry,
-   then retain the merge and aggregate-publication evidence.
-2. Complete the controlled alert-delivery test for the recorded primary
-   responder `@lithoagent`, independent backup `@Jkasr`, and approved Telegram
-   channel. Secret values remain protected and are not recorded here.
-3. Obtain Autha's focused final release-evidence disposition for the exact L1
+1. Obtain Autha's focused final release-evidence disposition for the exact L1
    security release identity.
-4. Complete the named-owner register and client acceptance/signature section.
+2. Complete the named-owner register and client acceptance/signature section.
 
 MultX activation, post-quantum activation, additional validator onboarding,
 and exchange/product integration remain separate workstreams.
