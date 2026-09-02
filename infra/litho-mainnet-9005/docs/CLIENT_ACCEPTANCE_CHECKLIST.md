@@ -71,7 +71,7 @@ and technical controls.
 | Validator operations and maintenance approval | KaJ Labs | KaJ Labs | `TBD` | [ ] |
 | Consensus-key and signing-state custody | KaJ Labs | KaJ Labs | `TBD` | [ ] |
 | DNS, Cloudflare, and certificate renewal | KaJ Labs | KaJ Labs | `TBD` | [ ] |
-| Mainnet monitoring and alert routing | KaJ Labs | KaJ Labs | `TBD` | [ ] |
+| Mainnet monitoring and alert routing | Litho Agent (`@lithoagent`) | `@Jkasr` | 2026-09-02 | [ ] |
 | Lithoscan release and rollback | KaJ Labs | KaJ Labs | `TBD` | [ ] |
 | Governance and economic-parameter decisions | KaJ Labs | KaJ Labs | `TBD` | [ ] |
 
@@ -84,7 +84,7 @@ written risk acceptance and review date.
 |---|---|---|---|---|
 | Single active validator and no active failover signer | `TBD` | KaJ Labs | `TBD` | [ ] |
 | Recurring encrypted current signing-state backup and isolated recovery verification | [Backup runbook](SIGNING_STATE_BACKUP_RUNBOOK.md), [activation run 33489075548](https://github.com/KaJLabs/Lithosphere/actions/runs/33489075548), and [scheduled recurrence 33505116681](https://github.com/KaJLabs/Lithosphere/actions/runs/33505116681) | KaJ Labs | 2026-09-01 | [x] |
-| Mainnet monitor/rules prepared but protected access and paging route not activated | `TBD` | KaJ Labs | `TBD` | [ ] |
+| Mainnet monitor and alert routing | Primary `@lithoagent`, independent backup `@Jkasr`, and Telegram channel approved; protected delivery test remains pending. See [alert-delivery runbook](MONITORING_ALERT_DELIVERY_RUNBOOK.md) | KaJ Labs | 2026-09-02 | [ ] |
 | Raw sentry CometBFT RPC exposure | Both sentries bind `127.0.0.1:27057`; Nginx uses the co-located loopback upstream; final authorized drift run returned `changed=0`, `unreachable=0`, and `failed=0`. See [post-launch closure evidence](POST_LAUNCH_SCOPE_CLOSURE_2026-09-02.md) and private infrastructure PR `#17` | KaJ Labs | 2026-09-02 | [x] |
 | Restore, failover, and transaction drills outstanding | `TBD` | KaJ Labs | `TBD` | [ ] |
 | Fixed-supply patch release acceptance | Autha R1 conditional pass records no remaining Critical or High implementation defect; focused final release-evidence disposition remains pending | KaJ Labs | 2026-09-02 | [ ] |
