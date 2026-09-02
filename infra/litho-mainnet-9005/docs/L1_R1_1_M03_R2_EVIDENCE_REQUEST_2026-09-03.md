@@ -31,6 +31,18 @@ collector supplied with the R2 package and return its output. It must capture:
 Do not include environment files, SSH material, validator keys, mnemonics,
 private endpoints, provider credentials, or unredacted process environments.
 
+After obtaining the reviewed collector from the merged default branch, run:
+
+```bash
+sudo bash collect_l1_m03_host_evidence.sh \
+  lithod-mtest-val-02 http://127.0.0.1:26757 \
+  l1-m03-host-evidence
+```
+
+Verify `l1-m03-host-evidence/SHA256SUMS.txt` locally and transfer the directory
+through the approved evidence channel. The collector performs only read-only
+file hashing, systemd metadata queries, local RPC queries, and journal reads.
+
 ## Governance evidence still required
 
 - KaJ Labs acceptance of
