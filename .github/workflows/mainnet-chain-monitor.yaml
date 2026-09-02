@@ -80,20 +80,18 @@ jobs:
               });
             }
 
-      - name: Validate protected Telegram alert configuration
-        if: steps.monitor.outcome == 'failure' || (github.event_name == 'workflow_dispatch' && inputs.deliver_test_alert)
+      - name: Validate protected Telegram incident configuration
+        if: steps.monitor.outcome == 'failure'
         shell: bash
         run: |
           [[ -n "$TELEGRAM_BOT_TOKEN" ]] || { echo "Missing protected environment secret: TELEGRAM_BOT_TOKEN"; exit 1; }
           [[ -n "$TELEGRAM_CHAT_ID" ]] || { echo "Missing protected environment secret: TELEGRAM_CHAT_ID"; exit 1; }
 
-      - name: Deliver Telegram alert
-        if: steps.monitor.outcome == 'failure' || (github.event_name == 'workflow_dispatch' && inputs.deliver_test_alert)
+      - name: Deliver Telegram incident alert
+        if: steps.monitor.outcome == 'failure'
         shell: bash
-        env:
-          ALERT_KIND: ${{ steps.monitor.outcome == 'failure' && 'INCIDENT' || 'CONTROLLED TEST' }}
         run: |
-          message="LITHO mainnet ${ALERT_KIND}: chain monitor run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Primary: @lithoagent. Backup: @Jkasr."
+          message="LITHO mainnet INCIDENT: chain monitor run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Primary: @lithoagent. Backup: @Jkasr."
           curl --fail --silent --show-error \
             --request POST \
             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
@@ -104,3 +102,41 @@ jobs:
       - name: Fail after incident creation
         if: steps.monitor.outcome == 'failure'
         run: exit 1
+
+  controlled_test_approval:
+    name: Approve controlled alert test
+    needs: progression
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deliver_test_alert && needs.progression.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment: litho-mainnet-monitoring-test
+    permissions: {}
+    steps:
+      - name: Record approval gate
+        run: echo "Controlled alert delivery approved after a successful read-only monitor."
+
+  controlled_test_delivery:
+    name: Deliver controlled alert test
+    needs: controlled_test_approval
+    runs-on: ubuntu-latest
+    environment: litho-mainnet-monitoring
+    permissions: {}
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - name: Validate protected Telegram test configuration
+        shell: bash
+        run: |
+          [[ -n "$TELEGRAM_BOT_TOKEN" ]] || { echo "Missing protected environment secret: TELEGRAM_BOT_TOKEN"; exit 1; }
+          [[ -n "$TELEGRAM_CHAT_ID" ]] || { echo "Missing protected environment secret: TELEGRAM_CHAT_ID"; exit 1; }
+
+      - name: Deliver controlled Telegram alert
+        shell: bash
+        run: |
+          message="LITHO mainnet CONTROLLED TEST: chain monitor run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Primary: @lithoagent. Backup: @Jkasr."
+          curl --fail --silent --show-error \
+            --request POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${message}" \
+            >/dev/null
