@@ -1,0 +1,86 @@
+name: LITHO L1 release approval gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: Exact target network
+        required: true
+        type: choice
+        options: [makalu, kamet, mainnet]
+      release_tag:
+        description: Immutable GitHub release tag containing the candidate binary
+        required: true
+        type: string
+      binary_asset_name:
+        description: Exact candidate binary asset name
+        required: true
+        type: string
+      approval_bundle_path:
+        description: Reviewed approval JSON path in this repository
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  approval:
+    runs-on: ubuntu-latest
+    environment: l1-${{ inputs.target_environment }}-activation
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject unsafe input paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          case '${{ inputs.binary_asset_name }}' in
+            ''|*/*|*..*) echo 'Unsafe binary asset name' >&2; exit 1 ;;
+          esac
+          case '${{ inputs.approval_bundle_path }}' in
+            infra/litho-mainnet-9005/docs/approvals/*.json) ;;
+            *) echo 'Approval JSON must be under the reviewed approvals directory' >&2; exit 1 ;;
+          esac
+
+      - name: Download immutable release candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p candidate
+          gh release download '${{ inputs.release_tag }}' \
+            --repo '${{ github.repository }}' \
+            --pattern '${{ inputs.binary_asset_name }}' \
+            --dir candidate
+          test -f 'candidate/${{ inputs.binary_asset_name }}'
+
+      - name: Enforce pre-activation approval evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python infra/litho-mainnet-9005/scripts/verify_l1_release_approval.py \
+            --approval '${{ inputs.approval_bundle_path }}' \
+            --binary 'candidate/${{ inputs.binary_asset_name }}' \
+            --environment '${{ inputs.target_environment }}' \
+            | tee l1-release-gate.txt
+
+      - name: Record immutable gate receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum \
+            '${{ inputs.approval_bundle_path }}' \
+            'candidate/${{ inputs.binary_asset_name }}' \
+            l1-release-gate.txt \
+            > L1_RELEASE_GATE_SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: l1-${{ inputs.target_environment }}-release-gate-${{ github.run_id }}
+          path: |
+            l1-release-gate.txt
+            L1_RELEASE_GATE_SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 90
