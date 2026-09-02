@@ -48,7 +48,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
-| MX-06 | Validator cleanup and safety | Backup/recovery and mainnet drift closure passed; recurring drift detection, alert exercise, responder assignments, and exact window evidence remain | EXTERNAL BLOCKER | Install scheduled read-only drift detection, assign independent responders/alert channel, run the controlled alert test, and link the exact PR #17 maintenance approval/window. |
+| MX-06 | Validator cleanup and safety | Backup/recovery, mainnet drift closure, alert ownership, and controlled Telegram delivery passed; recurring drift detection, independent receipt acknowledgements, environment reviewer protection, and exact window evidence remain | EXTERNAL BLOCKER | Install scheduled read-only drift detection, record both responders' test-alert acknowledgements, protect the monitoring environment against self-review, and link the exact PR #17 maintenance approval/window. |
 | MX-02 | LEP100 faucet assets | Current faucet accepted by client; remaining rotation/funding closure postponed | DEFERRED | Take no faucet deployment or funding action until the client reprioritizes it. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
@@ -470,7 +470,12 @@ finished with `changed=0`, `unreachable=0`, and `failed=0` on all three nodes. I
 chain-state change. Independent public probes then confirmed Cosmos/REST `lithosphere_9005-1`, EVM `0x232d`, height
 progression `5,960,798` to `5,960,804`, `catching_up=false`, and no reachable direct HTTP service on either sentry's
 port `27057`. The exact UTC maintenance approval/window is not linked in the closure record, so that evidence remains
-open; no duplicate Ansible or SSH operation was performed.
+open; no duplicate Ansible or SSH operation was performed. Public PR #149 subsequently recorded Litho Agent
+ (`@lithoagent`) as primary responder, `@Jkasr` as independent backup responder, and Telegram through
+ `@LITHO_Moniter_bot` as the approved alert channel. Environment-scoped Telegram secrets are configured, and controlled
+ test run `33635711860` passed the three-node health check and Telegram delivery step. The repository does not record
+ both responders' independent receipt acknowledgements, and the `litho-mainnet-monitoring` environment currently has
+ no reviewer protection rules despite the runbook requiring approved reviewers and self-review prevention.
 
 Completed or evidenced:
 
@@ -505,7 +510,8 @@ External inputs and authority required:
       or restart is authorized.
 - [x] Private PR #17 records completion of the separately approved one-sentry-at-a-time remediation; no validator
       restart or chain-state mutation occurred.
-- [ ] KaJ Labs assigns a primary responder, independent backup responder, and approved alert destination.
+- [x] KaJ Labs assigned Litho Agent (`@lithoagent`) as primary responder, `@Jkasr` as independent backup responder,
+      and Telegram through `@LITHO_Moniter_bot` as the approved alert destination (PR #149, 2026-09-02).
 - [x] Two independent recovery custodians completed the documented recipient ceremonies offline.
 - [x] Only their public records are configured as `BACKUP_RECIPIENT_PRIMARY` and `BACKUP_RECIPIENT_BACKUP`; recovery
       private keys remain offline and separately controlled.
@@ -521,7 +527,11 @@ Remaining actions:
       restarted (private PR #17 closure record).
 - [x] Re-audit after rollout: `changed=0`, `unreachable=0`, and `failed=0` on all three nodes.
 - [ ] Add scheduled read-only drift detection in the private repo; retain only the sanitized JSON report.
-- [ ] Run a controlled monitoring alert and retain delivery/acknowledgement evidence for both responders.
+- [x] Run a controlled monitoring alert and verify delivery to the configured Telegram destination
+      (`33635711860`, 2026-09-02).
+- [ ] Retain independent receipt acknowledgements from both `@lithoagent` and `@Jkasr`.
+- [ ] Add approved reviewers with self-review prevention to the `litho-mainnet-monitoring` environment as required by
+      the alert-delivery runbook.
 - [x] Run one successful protected encrypted signing-state backup (`33489075548`).
 - [x] Perform isolated, non-signing recovery verification independently for both recipients.
 - [x] Confirm the first post-activation scheduled dual-recipient backup passes without a manual workflow dispatch
@@ -534,7 +544,8 @@ Acceptance criteria:
 - [x] No direct public CometBFT listener remains on either sentry; public queries continue through the policy-gated
       proxy.
 - [x] Both sentries recovered and public verification confirmed chain identity, caught-up state, and block progression.
-- [ ] Scheduled detection and alert ownership are active.
+- [x] Five-minute chain progression monitoring, named alert ownership, and Telegram delivery are active.
+- [ ] Scheduled private-repository configuration drift detection is active.
 - [x] Encrypted signing-state backup and isolated verification drill pass under two-person recovery custody.
 - [ ] Validator Infra, Chain, and CAB approvers and the closure report are recorded; exact UTC window/approval evidence
       remains to be linked.
@@ -549,7 +560,9 @@ Evidence:
 - `.github/workflows/mainnet-signing-state-backup.yaml`
 - `infra/litho-mainnet-9005/ansible/playbooks/mainnet-9005-deploy-monitor-account.yml`
 - `infra/litho-mainnet-9005/ansible/playbooks/mainnet-9005-deploy-backup-export.yml`
-- Latest inspected passing monitor run: `https://github.com/KaJLabs/Lithosphere/actions/runs/33479593016`
+- Latest inspected passing scheduled monitor run: `https://github.com/KaJLabs/Lithosphere/actions/runs/33659094490`
+- Passing controlled Telegram delivery: `https://github.com/KaJLabs/Lithosphere/actions/runs/33635711860`
+- Alert ownership and delivery runbook: `https://github.com/KaJLabs/Lithosphere/pull/149`
 - Passing dual-recipient backup: `https://github.com/KaJLabs/Lithosphere/actions/runs/33489075548`
 - Passing first scheduled recurrence: `https://github.com/KaJLabs/Lithosphere/actions/runs/33505116681`
 - Dual-recipient implementation: `https://github.com/KaJLabs/Lithosphere/pull/139`
@@ -761,8 +774,21 @@ Evidence:
 | 2026-09-01 | Dual-recipient scheduled recurrence | PASS | Protected scheduled run `33505116681` on merged commit `9d09afa72d865b9c957396d386e0a50a4e282245` produced two distinct-recipient ciphertexts and a matching manifest at signed height `5,802,670`; no recovery private key was used and no plaintext key files were written locally. |
 | 2026-09-01 | MX-06 private inventory gate | BLOCKED | Private PR #16 merged the strict-host-key inventory, check-only drift playbook, and loopback sentry RPC intent as `339e9a9acb0b3e10bc0e0ea8ae1d0213f04925c4`; approver assignments remain pending, so no Ansible command ran. |
 | 2026-09-02 | MX-06 mainnet drift closure | PASS, FOLLOW-UPS OPEN | Litho Agent (`@lithoagent`) was assigned to all three approval roles. Private PR #17 records one-at-a-time sentry RPC/proxy remediation and a final clean three-node drift run. Independent public probes confirmed chain IDs, progression, caught-up state, and closed direct sentry RPC ports. Scheduled drift detection, independent responder/alert assignments, alert-delivery evidence, and the exact UTC approval/window link remain open. |
+| 2026-09-02 | MX-06 monitoring ownership and delivery | PASS, FOLLOW-UPS OPEN | PR #149 records `@lithoagent` as primary responder, `@Jkasr` as independent backup, and Telegram via `@LITHO_Moniter_bot` as the approved channel. Both environment-scoped Telegram secrets exist, controlled run `33635711860` passed health and delivery, and scheduled run `33659094490` passed. Independent receipt acknowledgements and monitoring-environment reviewer protection are not evidenced. |
 
 ## Change log
+
+### 2026-09-02 — MX-06 monitoring ownership and controlled delivery verified
+
+- Verified the documented GitHub identities resolve to Litho Agent (`@lithoagent`) and King Kasr (`@jkasr`).
+- Verified merged PR #149 records the primary responder, independent backup responder, and approved Telegram channel.
+- Verified `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` exist as environment-scoped secrets without exposing their
+  values.
+- Verified controlled workflow run `33635711860` passed the read-only three-node monitor and sent a `CONTROLLED TEST`
+  message; scheduled run `33659094490` subsequently passed on current `main`.
+- Kept the alert exercise partially open because the repository contains no independent receipt acknowledgements from
+  both responders and the monitoring environment has no reviewer protection rules, contrary to the merged runbook.
+- Updated by: `bachal-mb`.
 
 ### 2026-09-02 — MX-06 mainnet drift and sentry RPC closure verified
 
