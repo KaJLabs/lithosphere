@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "approvalId": "PENDING",
+  "releaseId": "PENDING",
+  "binarySha256": "PENDING",
+  "environment": "makalu",
+  "cosmosChainId": "lithosphere_700777-2",
+  "evmChainId": 700777,
+  "validator": "PENDING",
+  "executionOperator": "PENDING",
+  "independentObserver": "PENDING",
+  "singleValidatorPauseRequired": false,
+  "singleValidatorPauseApproved": false,
+  "window": {
+    "startsAt": "PENDING",
+    "endsAt": "PENDING"
+  },
+  "authaApproval": {
+    "decision": "PENDING",
+    "approvalReference": "PENDING",
+    "approvedAt": "PENDING",
+    "artifactPath": "PENDING",
+    "artifactSha256": "PENDING"
+  },
+  "kajLabsApproval": {
+    "decision": "PENDING",
+    "approvalReference": "PENDING",
+    "approvedAt": "PENDING",
+    "artifactPath": "PENDING",
+    "artifactSha256": "PENDING"
+  }
+}

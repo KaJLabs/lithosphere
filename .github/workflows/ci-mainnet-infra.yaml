@@ -7,6 +7,7 @@ on:
       - ".github/workflows/ci-mainnet-infra.yaml"
       - ".github/workflows/mainnet-chain-monitor.yaml"
       - ".github/workflows/mainnet-signing-state-backup.yaml"
+      - ".github/workflows/l1-release-approval-gate.yaml"
   push:
     branches: [main]
     paths:
@@ -14,6 +15,7 @@ on:
       - ".github/workflows/ci-mainnet-infra.yaml"
       - ".github/workflows/mainnet-chain-monitor.yaml"
       - ".github/workflows/mainnet-signing-state-backup.yaml"
+      - ".github/workflows/l1-release-approval-gate.yaml"
 
 permissions:
   contents: read
