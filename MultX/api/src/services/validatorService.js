@@ -3,13 +3,25 @@ import { ethers } from 'ethers';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
 import { createRemoteSigner } from './remoteSigner.js';
-import { positiveSafeInteger, validateValidatorSet } from './validatorPolicy.js';
+import {
+  positiveSafeInteger,
+  validateProductionSignerEnvironment,
+  validateValidatorSet,
+  verifyLiveValidatorTopology,
+} from './validatorPolicy.js';
 
 let validators = [];
 let allowedSignerAddresses = [];
 let signaturesRequired = null;
 let signingIntervalId = null;
 let signingRunning = false;
+
+const productionProviderFactory = (rpc) => new ethers.JsonRpcProvider(rpc);
+
+async function assertProductionTopology(chains = config.chainsToWatch) {
+  if (process.env.NODE_ENV !== 'production') return;
+  await verifyLiveValidatorTopology(chains, allowedSignerAddresses, productionProviderFactory);
+}
 
 /**
  * Production uses one independently operated HTTPS signer per validator,
@@ -24,7 +36,7 @@ async function loadValidators(timeoutMs) {
 
   for (let i = 0; i < 10; i++) {
     const url = process.env[`VALIDATOR_SIGNER_URL_${i}`];
-    if (!url) break;
+    if (!url) continue;
     try {
       loaded.push(await createRemoteSigner({
         index: i,
@@ -61,6 +73,7 @@ export async function startValidatorService() {
   if (process.env.NODE_ENV === 'production' && !process.env.SIGNATURES_REQUIRED) {
     throw new Error('[ValidatorService] SIGNATURES_REQUIRED must be explicit in production');
   }
+  if (process.env.NODE_ENV === 'production') validateProductionSignerEnvironment();
   const timeoutMs = positiveSafeInteger(
     process.env.VALIDATOR_SIGNER_TIMEOUT_MS || '8000',
     'VALIDATOR_SIGNER_TIMEOUT_MS',
@@ -80,6 +93,10 @@ export async function startValidatorService() {
   );
   allowedSignerAddresses = validated.addresses;
   signaturesRequired = validated.required;
+
+  if (process.env.NODE_ENV === 'production') {
+    await assertProductionTopology();
+  }
 
   const remoteCount = validators.filter((v) => v.kind === 'remote').length;
   const fileCount = validators.filter((v) => v.kind === 'filekey').length;
@@ -182,11 +199,16 @@ async function processSignings() {
           );
 
           if (sigResult.rows[0].sig_count >= signaturesRequired) {
+            // Re-read the destination bridge policy immediately before the
+            // durable state transition; a post-startup signer rotation must
+            // fail closed rather than strand a falsely "signed" transfer.
+            await assertProductionTopology([targetSpec]);
             await pool.query(
               `UPDATE bridge_transactions SET status = 'signed' WHERE tx_hash = $1`,
               [tx.tx_hash]
             );
             console.log(`[ValidatorService] Tx ${tx.tx_hash.substring(0, 10)}... reached signing threshold`);
+            break;
           }
         } catch (err) {
           console.error(`[ValidatorService] Signing error (validator ${validator.index}): ${err.message}`);

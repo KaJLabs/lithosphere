@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { ethers } = require('ethers');
 const { validateDeploymentManifest } = require('./validate-deployment-manifest');
+const { validateDeploymentPlan } = require('./validate-deployment-plan');
 
 const BRIDGE_ABI = [
   'function owner() view returns (address)',
@@ -27,6 +28,13 @@ const WRAPPED_ABI = [
   'function totalSupply() view returns (uint256)',
 ];
 
+const TIMELOCK_ABI = [
+  'function getMinDelay() view returns (uint256)',
+  'function hasRole(bytes32,address) view returns (bool)',
+];
+const PROPOSER_ROLE = ethers.utils.id('PROPOSER_ROLE');
+const EXECUTOR_ROLE = ethers.utils.id('EXECUTOR_ROLE');
+
 const LOCKED_TOPIC = ethers.utils.id('TokensLocked(bytes32,address,address,uint256,uint256,uint256)');
 const RELEASED_TOPIC = ethers.utils.id('TokensReleased(bytes32,address,address,uint256,uint256,address,address)');
 const ROUTE_INTERFACE = new ethers.utils.Interface([
@@ -38,6 +46,155 @@ const LOG_BLOCK_RANGE = 2_000;
 const sha256Code = (code) => crypto.createHash('sha256')
   .update(Buffer.from(code.slice(2), 'hex'))
   .digest('hex');
+
+const sha256Bytes = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
+
+const equalAddress = (left, right) => left.toLowerCase() === right.toLowerCase();
+
+function validateBytecodeEvidence(evidenceBytes) {
+  let evidence;
+  try { evidence = JSON.parse(evidenceBytes.toString('utf8')); }
+  catch { throw new Error('bytecode evidence must be a canonical JSON manifest'); }
+  const sha = (value, label) => {
+    if (!/^[0-9a-f]{64}$/i.test(value || '')) throw new Error(`${label} must be SHA-256`);
+    return value.toLowerCase();
+  };
+  if (!evidence.contracts || !evidence.contracts.wrappedToken) throw new Error('bytecode evidence contract records are required');
+  sha(evidence.contracts.sourceBridge?.runtimeSha256, 'source bridge evidence hash');
+  sha(evidence.contracts.destinationBridge?.runtimeSha256, 'destination bridge evidence hash');
+  sha(evidence.contracts.wrappedToken.normalizedRuntimeSha256, 'wrapped-token normalized evidence hash');
+  for (const [name, record] of Object.entries(evidence.contracts)) {
+    if (!/^0x[0-9a-f]+$/i.test(record.creationBytecode || '') ||
+        sha256Code(record.creationBytecode) !== sha(record.creationSha256, `${name} creation hash`)) {
+      throw new Error(`${name} creation bytecode does not match its evidence hash`);
+    }
+  }
+  const refs = evidence.contracts.wrappedToken.immutableReferences;
+  if (!Array.isArray(refs) || refs.length === 0 || refs.some((ref) => (
+    !Number.isSafeInteger(ref.start) || ref.start < 0 || !Number.isSafeInteger(ref.length) || ref.length <= 0
+  ))) throw new Error('wrapped-token immutable references are invalid');
+  return evidence;
+}
+
+function normalizedRuntimeSha256(code, immutableReferences) {
+  const bytes = Buffer.from(code.slice(2), 'hex');
+  for (const ref of immutableReferences) {
+    if (ref.start + ref.length > bytes.length) throw new Error('immutable reference exceeds wrapped-token runtime bytecode');
+    bytes.fill(0, ref.start, ref.start + ref.length);
+  }
+  return sha256Bytes(bytes);
+}
+
+function verifyApprovedDeploymentBindings(planBytes, evidenceBytes, manifest) {
+  if (!Buffer.isBuffer(planBytes) || !Buffer.isBuffer(evidenceBytes)) {
+    throw new Error('approved plan and bytecode evidence must be independently supplied as raw files');
+  }
+  const plan = JSON.parse(planBytes.toString('utf8'));
+  const evidence = validateBytecodeEvidence(evidenceBytes);
+  validateDeploymentPlan(plan);
+  validateDeploymentManifest(manifest);
+  if (sha256Bytes(planBytes) !== manifest.release.deploymentPlanSha256.toLowerCase()) {
+    throw new Error('approved deployment plan SHA-256 does not match manifest');
+  }
+  if (sha256Bytes(evidenceBytes) !== plan.release.bytecodeEvidenceSha256.toLowerCase() ||
+      sha256Bytes(evidenceBytes) !== manifest.release.bytecodeEvidenceSha256.toLowerCase()) {
+    throw new Error('independent bytecode evidence SHA-256 does not match plan and manifest');
+  }
+  for (const field of ['auditedTag', 'commit']) {
+    if (String(plan.release[field]).toLowerCase() !== String(manifest.release[field]).toLowerCase()) {
+      throw new Error(`release.${field} does not match approved plan`);
+    }
+  }
+  if (String(evidence.auditedTag).toLowerCase() !== plan.release.auditedTag.toLowerCase() ||
+      String(evidence.commit).toLowerCase() !== plan.release.commit.toLowerCase()) {
+    throw new Error('bytecode evidence source identity does not match approved plan');
+  }
+  const evidenceHashes = {
+    sourceBridgeRuntimeSha256: evidence.contracts.sourceBridge.runtimeSha256,
+    destinationBridgeRuntimeSha256: evidence.contracts.destinationBridge.runtimeSha256,
+    wrappedTokenNormalizedRuntimeSha256: evidence.contracts.wrappedToken.normalizedRuntimeSha256,
+  };
+  for (const [field, value] of Object.entries(evidenceHashes)) {
+    if (value.toLowerCase() !== plan.release[field].toLowerCase() ||
+        value.toLowerCase() !== manifest.release[field].toLowerCase()) {
+      throw new Error(`${field} is not bound to independent bytecode evidence`);
+    }
+  }
+  const approvedValidators = plan.bridgeSignerSet.addresses.map((item) => item.toLowerCase());
+  for (const chain of manifest.chains) {
+    const approvedChain = plan.chains.find((item) => item.chainId === chain.chainId);
+    if (!approvedChain) throw new Error(`${chain.name} is absent from approved plan`);
+    if (chain.name !== approvedChain.name || chain.bridgeKind !== approvedChain.bridgeKind ||
+        new URL(chain.rpcHttps).toString() !== new URL(approvedChain.rpcHttps).toString()) {
+      throw new Error(`${chain.name} identity or RPC does not match approved plan`);
+    }
+    if (!equalAddress(chain.bridge.address, approvedChain.expectedBridgeAddress)) {
+      throw new Error(`${chain.name} bridge address does not match approved plan`);
+    }
+    if (!equalAddress(chain.bridge.owner, approvedChain.timelock) ||
+        !equalAddress(chain.bridge.governanceSafe, approvedChain.safe) ||
+        !equalAddress(chain.bridge.pauseGuardian, approvedChain.pauseGuardian)) {
+      throw new Error(`${chain.name} governance does not match approved plan`);
+    }
+    if (chain.bridge.signaturesRequired !== plan.bridgeSignerSet.threshold ||
+        chain.bridge.validators.some((item, index) => item.toLowerCase() !== approvedValidators[index])) {
+      throw new Error(`${chain.name} signer policy does not match approved plan`);
+    }
+    if (chain.assets.length !== plan.assets.length) {
+      throw new Error(`${chain.name} asset set does not exactly match approved plan`);
+    }
+    for (const approvedAsset of plan.assets) {
+      const asset = chain.assets.find((item) => item.symbol.toLowerCase() === approvedAsset.symbol.toLowerCase());
+      if (!asset) throw new Error(`${chain.name} is missing approved asset ${approvedAsset.symbol}`);
+      const expectedTargets = chain.chainId === 9005 ? approvedAsset.destinationChainIds : [9005];
+      if (asset.targetChainIds.map(Number).sort().join(',') !== [...expectedTargets].map(Number).sort().join(',') ||
+          asset.dailyCapBaseUnits !== approvedAsset.dailyCapBaseUnits[String(chain.chainId)]) {
+        throw new Error(`${chain.name} ${asset.symbol} routes or cap do not match approved plan`);
+      }
+      if (chain.chainId === 9005) {
+        if (!equalAddress(asset.address, approvedAsset.originToken)) {
+          throw new Error(`${chain.name} ${asset.symbol} origin token does not match approved plan`);
+        }
+      } else {
+        if (asset.originChainId !== approvedAsset.originChainId ||
+            !equalAddress(asset.originToken, approvedAsset.originToken)) {
+          throw new Error(`${chain.name} ${asset.symbol} origin mapping does not match approved plan`);
+        }
+        if (!equalAddress(asset.address, approvedAsset.destinationTokenAddresses[String(chain.chainId)])) {
+          throw new Error(`${chain.name} ${asset.symbol} wrapped address does not match approved plan`);
+        }
+      }
+    }
+  }
+  return { plan, evidence };
+}
+
+async function verifyCreationProvenance(provider, address, txHash, deploymentBlock, label, expectedDeployer, expectedCreationBytecode) {
+  const [receipt, transaction] = await Promise.all([
+    provider.getTransactionReceipt(txHash), provider.getTransaction(txHash),
+  ]);
+  if (!receipt || Number(receipt.status) !== 1 || Number(receipt.blockNumber) !== deploymentBlock) {
+    throw new Error(`${label} deployment receipt does not prove the declared creation block`);
+  }
+  if (!receipt.contractAddress || !equalAddress(receipt.contractAddress, address)) {
+    throw new Error(`${label} deployment receipt contract address mismatch`);
+  }
+  if (!transaction || transaction.hash.toLowerCase() !== txHash.toLowerCase() ||
+      (expectedDeployer && !equalAddress(transaction.from, expectedDeployer))) {
+    throw new Error(`${label} deployment transaction provenance mismatch`);
+  }
+  if (!expectedCreationBytecode || !String(transaction.data || '').toLowerCase().startsWith(expectedCreationBytecode.toLowerCase())) {
+    throw new Error(`${label} deployment transaction does not contain audited creation bytecode`);
+  }
+  const [before, created] = await Promise.all([
+    provider.getCode(address, deploymentBlock - 1),
+    provider.getCode(address, deploymentBlock),
+  ]);
+  if (before !== '0x' || created === '0x') {
+    throw new Error(`${label} bytecode boundary does not prove creation at declared block`);
+  }
+  return deploymentBlock;
+}
 
 async function verifyExactValidatorSet(bridge, expected, chainName, blockTag) {
   const [countValue, completeSet] = await Promise.all([
@@ -112,8 +269,8 @@ async function verifyRouteUniverse(provider, bridge, asset, manifest, chain, blo
   }
 }
 
-async function verifyDeploymentReadonly(manifest, providerFactory = (rpc) => new ethers.providers.JsonRpcProvider(rpc)) {
-  validateDeploymentManifest(manifest);
+async function verifyDeploymentReadonly(manifest, approvedInputs, providerFactory = (rpc) => new ethers.providers.JsonRpcProvider(rpc)) {
+  const { plan, evidence } = verifyApprovedDeploymentBindings(approvedInputs?.planBytes, approvedInputs?.evidenceBytes, manifest);
   const results = [];
   for (const chain of manifest.chains) {
     const provider = providerFactory(chain.rpcHttps, chain.chainId);
@@ -123,12 +280,20 @@ async function verifyDeploymentReadonly(manifest, providerFactory = (rpc) => new
     const verificationHeader = await provider.getBlock(verificationBlock);
     if (!verificationHeader?.hash) throw new Error(`${chain.name} verification block hash is unavailable`);
 
+    const provenBridgeBlock = await verifyCreationProvenance(
+      provider, chain.bridge.address, chain.bridge.deploymentTxHash,
+      chain.bridge.deploymentBlock, `${chain.name} bridge`,
+      plan.chains.find((item) => item.chainId === chain.chainId).deployer,
+      chain.chainId === 9005 ? evidence.contracts.sourceBridge.creationBytecode : evidence.contracts.destinationBridge.creationBytecode,
+    );
     const bridgeCode = await provider.getCode(chain.bridge.address, verificationBlock);
     if (bridgeCode === '0x') throw new Error(`${chain.name} bridge has no bytecode`);
     if (sha256Code(bridgeCode) !== chain.bridge.runtimeSha256.toLowerCase()) {
       throw new Error(`${chain.name} bridge runtime SHA-256 mismatch`);
     }
     const bridge = new ethers.Contract(chain.bridge.address, BRIDGE_ABI, provider);
+    const approvedChain = plan.chains.find((item) => item.chainId === chain.chainId);
+    const timelock = new ethers.Contract(approvedChain.timelock, TIMELOCK_ABI, provider);
     const [owner, guardian, paused, threshold] = await Promise.all([
       bridge.owner({ blockTag: verificationBlock }),
       bridge.pauseGuardian({ blockTag: verificationBlock }),
@@ -139,9 +304,19 @@ async function verifyDeploymentReadonly(manifest, providerFactory = (rpc) => new
     if (guardian.toLowerCase() !== chain.bridge.pauseGuardian.toLowerCase()) throw new Error(`${chain.name} pause guardian mismatch`);
     if (paused !== true) throw new Error(`${chain.name} bridge is not paused`);
     if (threshold.toNumber() !== 5) throw new Error(`${chain.name} threshold is not 5`);
+    const [delay, safeCanPropose, safeCanExecute] = await Promise.all([
+      timelock.getMinDelay({ blockTag: verificationBlock }),
+      timelock.hasRole(PROPOSER_ROLE, approvedChain.safe, { blockTag: verificationBlock }),
+      timelock.hasRole(EXECUTOR_ROLE, approvedChain.safe, { blockTag: verificationBlock }),
+    ]);
+    if (delay.toString() !== String(approvedChain.timelockDelaySeconds) || !safeCanPropose || !safeCanExecute) {
+      throw new Error(`${chain.name} live timelock/Safe governance does not match approved plan`);
+    }
 
     await verifyExactValidatorSet(bridge, chain.bridge.validators, chain.name, verificationBlock);
-    await verifyPristineBridgeHistory(provider, bridge, chain, verificationBlock);
+    await verifyPristineBridgeHistory(
+      provider, bridge, { ...chain, bridge: { ...chain.bridge, deploymentBlock: provenBridgeBlock } }, verificationBlock,
+    );
 
     for (const asset of chain.assets) {
       const [supported, cap, locked, released, code] = await Promise.all([
@@ -161,7 +336,17 @@ async function verifyDeploymentReadonly(manifest, providerFactory = (rpc) => new
       }
 
       if (asset.kind === 'wrapped') {
+        await verifyCreationProvenance(
+          provider, asset.address, asset.deploymentTxHash,
+          asset.deploymentBlock, `${chain.name} ${asset.symbol}`,
+          plan.chains.find((item) => item.chainId === chain.chainId).deployer,
+          evidence.contracts.wrappedToken.creationBytecode,
+        );
         const token = new ethers.Contract(asset.address, WRAPPED_ABI, provider);
+        if (normalizedRuntimeSha256(code, evidence.contracts.wrappedToken.immutableReferences) !==
+            plan.release.wrappedTokenNormalizedRuntimeSha256.toLowerCase()) {
+          throw new Error(`${chain.name} ${asset.symbol} normalized audited runtime SHA-256 mismatch`);
+        }
         const [originChainId, originToken, immutableBridge, totalSupply] = await Promise.all([
           token.originChainId({ blockTag: verificationBlock }),
           token.originToken({ blockTag: verificationBlock }),
@@ -191,8 +376,11 @@ async function verifyDeploymentReadonly(manifest, providerFactory = (rpc) => new
 
 if (require.main === module) {
   const index = process.argv.indexOf('--manifest');
-  if (index === -1 || !process.argv[index + 1] || !process.argv.includes('--confirm-transaction-free')) {
-    console.error('Usage: node verify-deployment-readonly.js --manifest /path/manifest.json --confirm-transaction-free');
+  const planIndex = process.argv.indexOf('--plan');
+  const evidenceIndex = process.argv.indexOf('--bytecode-evidence');
+  if (index === -1 || !process.argv[index + 1] || planIndex === -1 || !process.argv[planIndex + 1] ||
+      evidenceIndex === -1 || !process.argv[evidenceIndex + 1] || !process.argv.includes('--confirm-transaction-free')) {
+    console.error('Usage: node verify-deployment-readonly.js --plan /path/approved-plan.json --manifest /path/manifest.json --bytecode-evidence /path/evidence.json --confirm-transaction-free');
     process.exit(2);
   }
   if (process.env.DEPLOYER_PRIVATE_KEY || process.env.RELAYER_PRIVATE_KEY || process.env.MNEMONIC) {
@@ -200,7 +388,11 @@ if (require.main === module) {
   }
   const file = path.resolve(process.argv[index + 1]);
   const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
-  verifyDeploymentReadonly(manifest).then((results) => {
+  const approvedInputs = {
+    planBytes: fs.readFileSync(path.resolve(process.argv[planIndex + 1])),
+    evidenceBytes: fs.readFileSync(path.resolve(process.argv[evidenceIndex + 1])),
+  };
+  verifyDeploymentReadonly(manifest, approvedInputs).then((results) => {
     console.log(JSON.stringify({ transactionFree: true, results }, null, 2));
   }).catch((error) => {
     console.error(error.message);
@@ -212,6 +404,11 @@ module.exports = {
   getBridgeActivityLogs,
   getLogsByTopics,
   sha256Code,
+  sha256Bytes,
+  normalizedRuntimeSha256,
+  validateBytecodeEvidence,
+  verifyApprovedDeploymentBindings,
+  verifyCreationProvenance,
   verifyDeploymentReadonly,
   verifyExactValidatorSet,
   verifyPristineBridgeHistory,

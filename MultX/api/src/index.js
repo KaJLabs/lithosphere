@@ -17,25 +17,27 @@ import tokensRoutes from './routes/tokens.js';
 import chainsRoutes from './routes/chains.js';
 import healthRoutes from './routes/health.js';
 import metricsRouter, { httpRequestsTotal, httpRequestDuration } from './routes/metrics.js';
+import { instrumentHttpRequest } from './middleware/httpMetrics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
+if (process.env.NODE_ENV === 'production') {
+  const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS);
+  if (!Number.isSafeInteger(trustProxyHops) || trustProxyHops < 1 || trustProxyHops > 3) {
+    throw new Error('TRUST_PROXY_HOPS must explicitly identify 1-3 trusted production proxy hops');
+  }
+  app.set('trust proxy', trustProxyHops);
+}
+
 // Middleware
 app.use(cors({ origin: config.corsOrigins }));
 app.use(express.json());
 
 // Prometheus request instrumentation
-app.use((req, res, next) => {
-  const end = httpRequestDuration.startTimer({ method: req.method, route: req.path });
-  res.on('finish', () => {
-    httpRequestsTotal.inc({ method: req.method, route: req.path, status_code: res.statusCode });
-    end();
-  });
-  next();
-});
+app.use(instrumentHttpRequest(httpRequestsTotal, httpRequestDuration));
 
 // Global rate limiter: 100 req / 60s / IP
 const limiter = rateLimit({

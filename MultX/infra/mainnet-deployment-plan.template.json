@@ -8,7 +8,8 @@
     "fixReviewUrl": "REPLACE_WITH_FINAL_FIX_REVIEW_HTTPS_URL",
     "bytecodeEvidenceSha256": "REPLACE_WITH_64_HEX_EVIDENCE_SHA256",
     "sourceBridgeRuntimeSha256": "REPLACE_WITH_AUDITED_SOURCE_BRIDGE_RUNTIME_SHA256",
-    "destinationBridgeRuntimeSha256": "REPLACE_WITH_AUDITED_DESTINATION_BRIDGE_RUNTIME_SHA256"
+    "destinationBridgeRuntimeSha256": "REPLACE_WITH_AUDITED_DESTINATION_BRIDGE_RUNTIME_SHA256",
+    "wrappedTokenNormalizedRuntimeSha256": "REPLACE_WITH_AUDITED_WRAPPED_TOKEN_NORMALIZED_RUNTIME_SHA256"
   },
   "changeWindow": {
     "startUtc": "REPLACE_WITH_ISO_UTC_START",
@@ -40,6 +41,7 @@
     {
       "chainId": 9005,
       "name": "LITHO Mainnet",
+      "expectedBridgeAddress": "REPLACE_WITH_PRECOMPUTED_LITHO_BRIDGE_ADDRESS",
       "bridgeKind": "source",
       "rpcHttps": "https://rpc-mainnet.litho.ai",
       "rpcWss": "wss://rpc-mainnet.litho.ai/websocket",
@@ -54,6 +56,7 @@
     {
       "chainId": 1,
       "name": "Ethereum Mainnet",
+      "expectedBridgeAddress": "REPLACE_WITH_PRECOMPUTED_ETHEREUM_BRIDGE_ADDRESS",
       "bridgeKind": "destination",
       "rpcHttps": "REPLACE_WITH_APPROVED_ETHEREUM_HTTPS_RPC",
       "rpcWss": "REPLACE_WITH_APPROVED_ETHEREUM_WSS_RPC",
@@ -68,6 +71,7 @@
     {
       "chainId": 56,
       "name": "BNB Smart Chain Mainnet",
+      "expectedBridgeAddress": "REPLACE_WITH_PRECOMPUTED_BNB_BRIDGE_ADDRESS",
       "bridgeKind": "destination",
       "rpcHttps": "REPLACE_WITH_APPROVED_BNB_HTTPS_RPC",
       "rpcWss": "REPLACE_WITH_APPROVED_BNB_WSS_RPC",
@@ -82,6 +86,7 @@
     {
       "chainId": 8453,
       "name": "Base Mainnet",
+      "expectedBridgeAddress": "REPLACE_WITH_PRECOMPUTED_BASE_BRIDGE_ADDRESS",
       "bridgeKind": "destination",
       "rpcHttps": "REPLACE_WITH_APPROVED_BASE_HTTPS_RPC",
       "rpcWss": "REPLACE_WITH_APPROVED_BASE_WSS_RPC",
@@ -107,6 +112,11 @@
         "1": "REPLACE_WITH_APPROVED_ETHEREUM_CAP",
         "56": "REPLACE_WITH_APPROVED_BNB_CAP",
         "8453": "REPLACE_WITH_APPROVED_BASE_CAP"
+      },
+      "destinationTokenAddresses": {
+        "1": "REPLACE_WITH_PRECOMPUTED_ETHEREUM_WRAPPED_TOKEN",
+        "56": "REPLACE_WITH_PRECOMPUTED_BNB_WRAPPED_TOKEN",
+        "8453": "REPLACE_WITH_PRECOMPUTED_BASE_WRAPPED_TOKEN"
       },
       "approvalRecordUrl": "REPLACE_WITH_ASSET_APPROVAL_HTTPS_URL"
     }

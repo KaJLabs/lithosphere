@@ -78,8 +78,10 @@ function validateDeploymentManifest(input) {
   text(release.auditedTag, 'release.auditedTag');
   if (!/^[0-9a-f]{40}$/i.test(text(release.commit, 'release.commit'))) throw new Error('release.commit must be a 40-character Git SHA');
   sha256(release.deploymentPlanSha256, 'release.deploymentPlanSha256');
+  sha256(release.bytecodeEvidenceSha256, 'release.bytecodeEvidenceSha256');
   const sourceRuntimeHash = sha256(release.sourceBridgeRuntimeSha256, 'release.sourceBridgeRuntimeSha256');
   const destinationRuntimeHash = sha256(release.destinationBridgeRuntimeSha256, 'release.destinationBridgeRuntimeSha256');
+  sha256(release.wrappedTokenNormalizedRuntimeSha256, 'release.wrappedTokenNormalizedRuntimeSha256');
   url(release.deploymentApprovalUrl, 'release.deploymentApprovalUrl');
   exactUtc(release.deployedAtUtc, 'release.deployedAtUtc');
 
@@ -105,8 +107,11 @@ function validateDeploymentManifest(input) {
     const auditedRuntimeHash = chainId === 9005 ? sourceRuntimeHash : destinationRuntimeHash;
     if (bridgeRuntimeHash !== auditedRuntimeHash) throw new Error(`${prefix}.bridge.runtimeSha256 does not match the audited release`);
     const owner = address(bridge.owner, `${prefix}.bridge.owner`);
+    const governanceSafe = address(bridge.governanceSafe, `${prefix}.bridge.governanceSafe`);
     const guardian = address(bridge.pauseGuardian, `${prefix}.bridge.pauseGuardian`);
-    if (owner.toLowerCase() === guardian.toLowerCase()) throw new Error(`${prefix}.bridge owner and pause guardian must be distinct`);
+    if (new Set([owner, governanceSafe, guardian].map((item) => item.toLowerCase())).size !== 3) {
+      throw new Error(`${prefix}.bridge owner, governance Safe and pause guardian must be distinct`);
+    }
     if (bridge.paused !== true) throw new Error(`${prefix}.bridge.paused must be true`);
     if (bridge.signaturesRequired !== 5) throw new Error(`${prefix}.bridge.signaturesRequired must be 5`);
     if (!Array.isArray(bridge.validators) || bridge.validators.length !== 7) throw new Error(`${prefix}.bridge.validators must contain seven addresses`);

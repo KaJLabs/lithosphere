@@ -1,5 +1,8 @@
 const { expect } = require('chai');
-const { verifyExactValidatorSet } = require('../scripts/mainnet/verify-deployment-readonly');
+const {
+  verifyCreationProvenance,
+  verifyExactValidatorSet,
+} = require('../scripts/mainnet/verify-deployment-readonly');
 
 const validators = Array.from({ length: 7 }, (_, index) =>
   `0x${String(index + 1).padStart(40, '0')}`
@@ -8,6 +11,46 @@ const validators = Array.from({ length: 7 }, (_, index) =>
 const bridgeWith = (live) => ({
   getValidatorCount: async () => ({ toString: () => String(live.length) }),
   getValidators: async () => live,
+});
+
+describe('deployment creation provenance', function () {
+  const address = '0x1111111111111111111111111111111111111111';
+  const txHash = `0x${'1'.repeat(64)}`;
+
+  it('accepts a successful receipt and exact empty-to-code boundary', async function () {
+    const provider = {
+      getTransactionReceipt: async () => ({ status: 1, blockNumber: 100, contractAddress: address }),
+      getTransaction: async () => ({ hash: txHash, from: address, data: '0x60006000' }),
+      getCode: async (_address, block) => block === 99 ? '0x' : '0x6000',
+    };
+    expect(await verifyCreationProvenance(provider, address, txHash, 100, 'bridge', address, '0x6000')).to.equal(100);
+  });
+
+  it('rejects caller-selected historical starts without creation proof', async function () {
+    const provider = {
+      getTransactionReceipt: async () => ({ status: 1, blockNumber: 99, contractAddress: address }),
+      getTransaction: async () => ({ hash: txHash, from: address, data: '0x60006000' }),
+      getCode: async () => '0x6000',
+    };
+    await expectReject(verifyCreationProvenance(provider, address, txHash, 100, 'bridge', address, '0x6000'), /does not prove/);
+  });
+
+  it('rejects the wrong deployer or unaudited creation bytecode', async function () {
+    const provider = {
+      getTransactionReceipt: async () => ({ status: 1, blockNumber: 100, contractAddress: address }),
+      getTransaction: async () => ({ hash: txHash, from: address, data: '0x60006000' }),
+      getCode: async (_address, block) => block === 99 ? '0x' : '0x6000',
+    };
+    await expectReject(
+      verifyCreationProvenance(provider, address, txHash, 100, 'bridge',
+        '0x2222222222222222222222222222222222222222', '0x6000'),
+      /provenance mismatch/,
+    );
+    await expectReject(
+      verifyCreationProvenance(provider, address, txHash, 100, 'bridge', address, '0x6100'),
+      /audited creation bytecode/,
+    );
+  });
 });
 
 async function expectReject(promise, pattern) {
