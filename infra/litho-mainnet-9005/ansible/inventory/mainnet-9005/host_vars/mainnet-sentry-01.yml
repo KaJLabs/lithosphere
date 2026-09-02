@@ -10,7 +10,7 @@ litho_grpc_port: 9490
 litho_evm_rpc_port: 8945
 litho_ws_port: 8946
 litho_metrics_port: 27060
-rpc_laddr: "tcp://0.0.0.0:27057"
+rpc_laddr: "tcp://127.0.0.1:27057"
 api_address: "tcp://0.0.0.0:1717"
 grpc_address: "0.0.0.0:9490"
 evm_rpc_address: "0.0.0.0:8945"
