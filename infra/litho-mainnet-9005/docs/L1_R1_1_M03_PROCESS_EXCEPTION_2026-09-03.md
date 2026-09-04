@@ -2,7 +2,8 @@
 
 Date: 2026-09-03
 
-Status: **KaJ Labs acceptance required; no deployment authorization granted**
+Status: **KaJ Labs accepted the documented process exception and corrective
+controls; no deployment authorization granted**
 
 ## Immutable identities
 
@@ -63,11 +64,19 @@ responses in the focused archive.
 The accountable KaJ Labs approver must complete this section through a durable,
 reviewed record. Do not backdate it.
 
-- Decision: `PENDING` (`accept process exception` or `reject`)
-- Approver name and GitHub username: `PENDING`
-- Approval timestamp (UTC): `PENDING`
-- Approval reference: `PENDING`
-- Corrective controls accepted: `PENDING`
+- Decision: `accept process exception`
+- Approver name and GitHub username: Litho Agent (`@lithoagent`), acting for
+  KaJ Labs
+- Approval timestamp (UTC): `2026-09-04T00:20:05Z`
+- Approval reference: KaJ Labs project-channel confirmation, durably recorded
+  by the reviewed pull request containing this disposition
+- Corrective controls accepted: `YES`
+
+The provider snapshot was confirmed during the controlled window, but expired
+automatically on `2026-09-02` and cannot be restored or freshly exported. A
+retained screenshot of the provider confirmation is included only in the
+secure evidence supplement. This limitation is disclosed rather than
+reconstructed or backdated.
 
 After KaJ Labs accepts the exception and the evidence supplement is complete,
 submit both to Autha for focused M03 closure. Only Autha can provide the final
