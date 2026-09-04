@@ -1,6 +1,6 @@
 # LITHO Mainnet 9005 Client Acceptance Checklist
 
-Last reviewed: 2026-09-02
+Last reviewed: 2026-09-04
 
 This is a review and signature record, not evidence that unchecked work is
 complete. Checked items below mean the repository contains delivery evidence;
@@ -59,21 +59,21 @@ they do not substitute for client acceptance.
 ## C. Required owner assignment
 
 KaJ Labs is recorded as the accountable organization for the current handoff.
-Individual primary and backup contacts remain to be named in the
-client-controlled escalation register. See
+KaJ Labs confirmed Litho Agent (`@lithoagent`) as primary owner and Jkasr
+(`@Jkasr`) as independent secondary owner on 2026-09-04. See
 [OWNERSHIP_AND_ADMIN_CONTROL_HANDOVER.md](OWNERSHIP_AND_ADMIN_CONTROL_HANDOVER.md)
 for the distinction between organizational ownership, operational custody,
 and technical controls.
 
 | Responsibility | Primary owner | Backup owner | Target date | Accepted |
 |---|---|---|---|---|
-| Incident command and 24/7 escalation | KaJ Labs | KaJ Labs | `TBD` | [ ] |
-| Validator operations and maintenance approval | KaJ Labs | KaJ Labs | `TBD` | [ ] |
-| Consensus-key and signing-state custody | KaJ Labs | KaJ Labs | `TBD` | [ ] |
-| DNS, Cloudflare, and certificate renewal | KaJ Labs | KaJ Labs | `TBD` | [ ] |
-| Mainnet monitoring and alert routing | Litho Agent (`@lithoagent`) | `@Jkasr` | 2026-09-02 | [ ] |
-| Lithoscan release and rollback | KaJ Labs | KaJ Labs | `TBD` | [ ] |
-| Governance and economic-parameter decisions | KaJ Labs | KaJ Labs | `TBD` | [ ] |
+| Incident command and 24/7 escalation | Litho Agent (`@lithoagent`) | Jkasr (`@Jkasr`) | 2026-09-04 | [x] |
+| Validator operations and maintenance approval | Litho Agent (`@lithoagent`) | Jkasr (`@Jkasr`) | 2026-09-04 | [x] |
+| Consensus-key and signing-state custody | Litho Agent (`@lithoagent`) | Jkasr (`@Jkasr`) | 2026-09-04 | [x] |
+| DNS, Cloudflare, and certificate renewal | Litho Agent (`@lithoagent`) | Jkasr (`@Jkasr`) | 2026-09-04 | [x] |
+| Mainnet monitoring and alert routing | Litho Agent (`@lithoagent`) | Jkasr (`@Jkasr`) | 2026-09-04 | [x] |
+| Lithoscan release and rollback | Litho Agent (`@lithoagent`) | Jkasr (`@Jkasr`) | 2026-09-04 | [x] |
+| Governance and economic-parameter decisions | Litho Agent (`@lithoagent`) | Jkasr (`@Jkasr`) | 2026-09-04 | [x] |
 
 ## D. Risk closure or explicit acceptance
 

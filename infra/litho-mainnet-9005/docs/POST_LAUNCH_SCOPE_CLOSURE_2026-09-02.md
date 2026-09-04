@@ -1,8 +1,8 @@
 # LITHO mainnet post-launch closure evidence
 
 Status: **public health, backup controls, infrastructure drift, EVM registry,
-and monitoring closure reverified; external ownership and final acceptance
-gates remain open**
+monitoring, and named ownership reverified; Autha disposition and formal client
+acceptance remain open**
 
 This record updates the original mainnet handoff evidence without authorizing
 a production configuration change, validator transaction, or feature
@@ -120,7 +120,9 @@ runbook.
 
 1. Obtain Autha's focused final release-evidence disposition for the exact L1
    security release identity.
-2. Complete the named-owner register and client acceptance/signature section.
+2. Complete the client acceptance decision and signature section. The named
+   owner register was completed on 2026-09-04 with Litho Agent
+   (`@lithoagent`) as primary and Jkasr (`@Jkasr`) as independent secondary.
 
 MultX activation, post-quantum activation, additional validator onboarding,
 and exchange/product integration remain separate workstreams.
