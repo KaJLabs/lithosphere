@@ -1,11 +1,20 @@
 # LITHO Mainnet 9005 Ownership and Admin-Control Handover
 
-Last reviewed: 2026-07-29
+Last reviewed: 2026-09-04
 
-Accountable organization: **KaJ Labs**. Individual operators, custodians, Safe
-signers, and escalation contacts remain to be named in the client-controlled
-operating record. An organization or Safe address does not replace the need
-for people who can respond to an incident.
+Accountable organization: **KaJ Labs**. KaJ Labs confirmed Litho Agent
+(`@lithoagent`) as primary operational owner and Jkasr (`@Jkasr`) as
+independent secondary owner on 2026-09-04. Individual custodians and Safe
+signers remain governed by their applicable restricted custody records. An
+organization or Safe address does not replace the need for people who can
+respond to an incident.
+
+## Named operational owner register
+
+| Role | Assigned owner | Confirmation date |
+|---|---|---|
+| Primary operational owner | Litho Agent (`@lithoagent`) | 2026-09-04 |
+| Independent secondary owner | Jkasr (`@Jkasr`) | 2026-09-04 |
 
 This document defines the operational ownership and technical controls covered
 by the handoff. It does not disclose credentials, private keys, recovery
