@@ -11,7 +11,9 @@
   journal per signer.
 - PostgreSQL, monitoring and backups isolated from validator key custody.
 
-The API contains no AWS SDK, cloud credentials or validator private keys.
+The API and signer packages contain no AWS SDK or cloud credentials. Validator
+private keys exist only as owner-restricted read-only mounts on their respective
+signer VPSs and never enter the API container.
 Relayer and application secrets are injected through mounted files. In
 production, local validator key files and plaintext secret environment values
 are rejected.
@@ -46,6 +48,8 @@ must remain in the frozen audit suite.
 - Independent audit confirmation of the destination-domain binding and replay tests.
 - Seven operator-approved VPSs, addresses, mTLS certificates and policies.
 - Encrypted offline backups and recovery drills for every signer.
+- Verified `0600` key/journal files and `0700` state directories owned by the
+  rootless signer UID, with symlinks rejected.
 - Deployment contract addresses and token routes after the contract audit.
 - Staging fault tests: signer outage, wrong identity, expired certificate,
   reorg/insufficient confirmations, route mismatch and equivocation attempt.

@@ -1,5 +1,9 @@
 # Makalu MultX Bridge — Deploy Handoff (for the Makalu dev)
 
+> **Archived (2026-09-05): do not execute.** This handoff assumes the retired
+> KMS-era validator service. It is preserved only as historical testnet
+> evidence and is not approved for a new deployment.
+
 > Goal: deploy the MultXBridge on **Makalu (EVM chainId 700777)** and register
 > the 10 Makalu LEP100 tokens. This is the **lock side** and is route-independent
 > — you can run it now, regardless of which destination chain is chosen.

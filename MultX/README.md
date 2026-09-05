@@ -9,9 +9,9 @@ cross-chain bridge.
   deployment scripts; and testnet deployment manifests.
 - `api/`: bridge API, database migrations, event listener, relayer and
   validator-signature services.
-- `signer/`: isolated AWS Fargate signer candidate using a dedicated
-  non-exportable KMS key, DynamoDB anti-equivocation journal, private HTTPS
-  endpoint and bearer token for each of seven signers.
+- `signer/`: isolated non-AWS VPS signer using a dedicated mounted key,
+  fsync-backed anti-equivocation journal and direct mTLS endpoint for each of
+  seven signers.
 - `sdk/`: `@litho/multx-sdk` v0.3.0 source, React adapter, presets and tests.
 - `web/`: the complete Vite/React application containing the MultX bridge UI.
 - `infra/`: testnet-only Compose and legacy Ansible deployment references.
@@ -37,20 +37,18 @@ No private keys, credentials, signing material or live `.env` files belong in
 Git. Use protected GitHub environments or the approved deployment secret
 manager.
 
-Autha's v0.7.0 review remains **NOT READY FOR MAINNET**. The current v0.8
-engineering remediation is mapped in
-[`docs/audit/AUTHA_V070_REMEDIATION_2026-08-21.md`](docs/audit/AUTHA_V070_REMEDIATION_2026-08-21.md).
-It is not an audited release: the exact merged commit still requires a new
-immutable tag, a complete regenerated evidence bundle, and Autha fix-review
-approval. Older v0.6/v0.7 tags and evidence files are historical inputs only
-and must not be used as the v0.8 release identity.
+The v0.8.2 focused-closure candidate and evidence bundle are published, but
+Autha acceptance and review of the non-AWS signer change remain required.
+Older candidates and evidence files are historical inputs only and must not be
+used as the current release identity.
 See [`docs/MAINNET_DEPLOYMENT_GATES.md`](docs/MAINNET_DEPLOYMENT_GATES.md) for
 the fail-closed production sequence and remaining approvals.
 Use [`docs/V05_TESTNET_REDEPLOYMENT.md`](docs/V05_TESTNET_REDEPLOYMENT.md) for
 the manifest-driven, paused Kamet/Makalu candidate redeployment procedure.
 The approved signer direction and its fail-closed activation boundary are
-recorded in
-[`docs/FARGATE_PRODUCTION_SIGNER_CANDIDATE.md`](docs/FARGATE_PRODUCTION_SIGNER_CANDIDATE.md).
+recorded in [`docs/VPS_SIGNER_ARCHITECTURE.md`](docs/VPS_SIGNER_ARCHITECTURE.md).
+Rejected AWS proposals are isolated under `docs/archive/rejected-aws/` for
+historical audit traceability only.
 The deployed verification infrastructure does not authorize bridge releases:
 `SIGNER_RELEASE_SIGNING_ENABLED` remains false until the audit, governance,
 route-policy and production-activation gates are approved.

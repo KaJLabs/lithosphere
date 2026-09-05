@@ -36,8 +36,8 @@ disabled.
 - `infra/network.mainnet.template.json`: API/indexer route manifest populated
   only from the validated deployment manifest.
 - `infra/docker-compose.mainnet.template.yml`: non-runnable API/database
-  template aligned with private Fargate signer HTTPS/bearer-token access and
-  an explicit trusted reverse-proxy hop for correct per-client rate limiting.
+  template aligned with seven independent private VPS signer mTLS endpoints
+  and an explicit trusted reverse-proxy hop for correct per-client rate limiting.
 
 ## Required sequence
 
@@ -82,7 +82,7 @@ disabled.
    ```
 
 9. Commit only the sanitized validated manifest. Store private RPC credentials,
-   custody data, bearer tokens and infrastructure inventory in the protected
+   custody data, TLS private keys and infrastructure inventory in the protected
    secret manager/private infrastructure repository.
 10. Configure API routes and signer policies from that manifest, leave release
     signing disabled, and request a separate production-canary approval.

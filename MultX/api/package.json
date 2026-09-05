@@ -13,7 +13,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@aws-sdk/client-kms": "^3.1049.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "ethers": "^6.17.0",

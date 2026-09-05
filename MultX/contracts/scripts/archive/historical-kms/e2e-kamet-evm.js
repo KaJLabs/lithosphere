@@ -15,6 +15,7 @@
  * Kamet is Ethermint -> legacy type-0 txs against a synced RPC.
  * Env: DEPLOYER_PRIVATE_KEY (contracts/.env). LITHO_RPC_HTTP for a direct synced sentry.
  */
+throw new Error('Archived KMS-era script: execution is forbidden');
 require("dotenv").config();
 const { ethers } = require("ethers");
 

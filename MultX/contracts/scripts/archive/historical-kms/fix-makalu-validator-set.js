@@ -17,6 +17,7 @@
  *   npx hardhat run scripts/fix-makalu-validator-set.js --network litho_makalu
  */
 
+throw new Error('Archived KMS-era script: execution is forbidden');
 const hre = require("hardhat");
 
 const MAKALU_BRIDGE = process.env.BRIDGE_CONTRACT_MAKALU || "0x5832D5E609c6690f74c7683606Eb20F89ff096a6";

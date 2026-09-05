@@ -8,8 +8,6 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.1049.0",
-    "@aws-sdk/client-kms": "^3.1049.0",
     "ethers": "^6.17.0"
   }
 }

@@ -31,6 +31,9 @@ export function validateValidatorSet(validators, signaturesRequired) {
 }
 
 export function validateProductionSignerEnvironment(env = process.env) {
+  for (const name of ['AWS_REGION', 'VALIDATOR_KMS_KEY_ARN', 'SIGNER_KMS_KEY_ARN']) {
+    if (env[name]) throw new Error(`${name} is not supported by the non-AWS production signer path`);
+  }
   if (String(env.SIGNATURES_REQUIRED) !== '5') {
     throw new Error('production SIGNATURES_REQUIRED must be exactly 5');
   }
@@ -38,13 +41,31 @@ export function validateProductionSignerEnvironment(env = process.env) {
   for (let index = 0; index < 10; index += 1) {
     const url = env[`VALIDATOR_SIGNER_URL_${index}`];
     const signerAddress = env[`VALIDATOR_SIGNER_ADDRESS_${index}`];
+    const signerFields = [
+      url,
+      signerAddress,
+      env[`VALIDATOR_SIGNER_CA_FILE_${index}`],
+      env[`VALIDATOR_SIGNER_CERT_FILE_${index}`],
+      env[`VALIDATOR_SIGNER_KEY_FILE_${index}`],
+      env[`VALIDATOR_SIGNER_TOKEN_FILE_${index}`],
+    ];
     if (index < 7 && (!url || !signerAddress)) {
       throw new Error(`production validator signer ${index} URL and address are required`);
     }
-    if (index >= 7 && (url || signerAddress)) {
+    if (index >= 7 && signerFields.some(Boolean)) {
       throw new Error('production requires exactly signer indices 0 through 6');
     }
     if (index < 7) configured.push({ index, url, address: signerAddress });
+    if (index < 7) {
+      if (env[`VALIDATOR_SIGNER_TOKEN_FILE_${index}`]) {
+        throw new Error(`production validator signer ${index} must use mTLS, not bearer authentication`);
+      }
+      for (const suffix of ['CA_FILE', 'CERT_FILE', 'KEY_FILE']) {
+        if (!env[`VALIDATOR_SIGNER_${suffix}_${index}`]) {
+          throw new Error(`production validator signer ${index} mTLS ${suffix.toLowerCase()} is required`);
+        }
+      }
+    }
   }
   validateValidatorSet(configured, 5);
   return configured;

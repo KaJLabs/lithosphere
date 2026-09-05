@@ -44,6 +44,9 @@ const productionEnv = () => Object.fromEntries([
   ...Array.from({ length: 7 }, (_, index) => [
     [`VALIDATOR_SIGNER_URL_${index}`, `https://signer-${index}.internal`],
     [`VALIDATOR_SIGNER_ADDRESS_${index}`, `0x${String(index + 1).padStart(40, '0')}`],
+    [`VALIDATOR_SIGNER_CA_FILE_${index}`, `/run/secrets/signer-${index}-ca.crt`],
+    [`VALIDATOR_SIGNER_CERT_FILE_${index}`, `/run/secrets/signer-${index}-client.crt`],
+    [`VALIDATOR_SIGNER_KEY_FILE_${index}`, `/run/secrets/signer-${index}-client.key`],
   ]).flat(),
 ]);
 
@@ -53,8 +56,16 @@ test('production signer environment is exactly contiguous 5-of-7', () => {
   assert.throws(() => validateProductionSignerEnvironment(gap), /signer 3/);
   const extra = productionEnv(); extra.VALIDATOR_SIGNER_URL_7 = 'https://extra.internal';
   assert.throws(() => validateProductionSignerEnvironment(extra), /exactly signer indices/);
+  const extraCredential = productionEnv(); extraCredential.VALIDATOR_SIGNER_KEY_FILE_7 = '/run/secrets/extra.key';
+  assert.throws(() => validateProductionSignerEnvironment(extraCredential), /exactly signer indices/);
   const wrongThreshold = productionEnv(); wrongThreshold.SIGNATURES_REQUIRED = '4';
   assert.throws(() => validateProductionSignerEnvironment(wrongThreshold), /exactly 5/);
+  const bearer = productionEnv(); bearer.VALIDATOR_SIGNER_TOKEN_FILE_0 = '/run/secrets/token';
+  assert.throws(() => validateProductionSignerEnvironment(bearer), /must use mTLS/);
+  const missingCert = productionEnv(); delete missingCert.VALIDATOR_SIGNER_CERT_FILE_2;
+  assert.throws(() => validateProductionSignerEnvironment(missingCert), /mTLS cert_file is required/);
+  const aws = productionEnv(); aws.AWS_REGION = 'us-east-1';
+  assert.throws(() => validateProductionSignerEnvironment(aws), /not supported/);
 });
 
 test('startup topology must match the exact live on-chain 5-of-7 set', async () => {

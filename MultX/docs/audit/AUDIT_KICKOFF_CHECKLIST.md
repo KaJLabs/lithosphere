@@ -41,11 +41,10 @@
 - [ ] **[I]** Deliver: threat model, triaged Slither report, Hardhat test suite
       (`contracts/test/`), Foundry invariant suite
       (`contracts/test/foundry/`), historical testnet deployment evidence
-      (`contracts/deployments/`), the Fargate signer candidate
-      (`docs/FARGATE_PRODUCTION_SIGNER_CANDIDATE.md`), signer source manifest
-      (`docs/audit/AUDIT_SIGNER_SOURCE_MANIFEST_2026-08-19.md`), and signer
-      operator runbook (`signer/OPERATOR_RUNBOOK.md`). VPS/mTLS material is
-      rehearsal-only and is not the approved production architecture.
+      (`contracts/deployments/`), the non-AWS VPS signer candidate
+      (`docs/VPS_SIGNER_ARCHITECTURE.md`), signer source manifest
+      (`docs/audit/AUDIT_SIGNER_SOURCE_MANIFEST_2026-09-05.md`), and signer
+      operator runbook (`signer/OPERATOR_RUNBOOK.md`).
 - [x] **[I]** Generate the **test-coverage report** (`cd contracts && npm run coverage`). The candidate has 88 passing Hardhat tests. Regenerate from the immutable tag when handing the package to the firm.
 
       | File | % Stmts | % Branch | % Funcs | % Lines |

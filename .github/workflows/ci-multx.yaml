@@ -119,6 +119,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Reject AWS runtime dependencies and mainnet settings
+        run: node MultX/scripts/check-non-aws-runtime.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: 20

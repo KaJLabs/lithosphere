@@ -1,5 +1,11 @@
 # MultX Bridge Integration — Kamet Explorer Deployment Guide
 
+> **Historical testnet record:** this document describes the retired Kamet
+> KMS-era backend and is not a LITHO-mainnet deployment procedure. The project
+> does not use AWS. Use `../docs/VPS_SIGNER_ARCHITECTURE.md` and
+> `../docs/MAINNET_DEPLOYMENT_GATES.md` for the current disabled, non-AWS
+> production-candidate path.
+
 **Status**: Complete and ready for deployment
 **Commit**: `cabdfe2` (feat: implement MultX Swap bridge integration)
 **Date**: 2026-03-10

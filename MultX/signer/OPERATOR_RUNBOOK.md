@@ -24,7 +24,8 @@ chat, email, source control or CI variables.
    Compose plugin.
 2. Create operator-controlled directories for secrets, configuration and state.
    The container runs as UID/GID 1000, so grant only that identity read access
-   to mounted secrets and read/write access to the state directory.
+   to mounted secrets and read/write access to the state directory. The private
+   key and journal must be mode `0600`; their directories must be `0700`.
 3. Copy `compose.example.yaml` as `compose.yaml` and `signer.env.example` as
    `signer.env`. Put `SIGNER_PRIVATE_KEY_PATH`, `SIGNER_POLICY_PATH`,
    `SIGNER_TLS_CERT_PATH`, `SIGNER_TLS_KEY_PATH`, `SIGNER_CLIENT_CA_PATH`, and
@@ -47,6 +48,9 @@ chat, email, source control or CI variables.
 - A policy RPC pointed at the wrong chain ID is rejected.
 - Missing/malformed confirmation depth, an insecure remote RPC, duplicate
   source/route, zero critical address, or corrupt journal prevents startup.
+- Any legacy AWS/KMS/DynamoDB environment variable, bearer-only production
+  transport, environment-supplied policy, symlinked key/journal, or permissive
+  key/journal mode prevents startup.
 - Repeating the same approved request returns the same signer identity and a
   valid signature; attempting equivocation for a signed source nonce is rejected.
 - Restarting the container preserves the journal and the equivocation decision.
