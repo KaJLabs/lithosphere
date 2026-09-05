@@ -40,8 +40,9 @@ same commit. Never include wallet keys, API keys, validator snapshots, private i
 No stream is marked complete unless every acceptance criterion has evidence. The Lithoscan mainnet cutover is
 complete, but it is not one of these seven Makalu extra-work closures. On 2026-08-23 the client accepted the faucet
 for now, deferred further MX-02 work, confirmed deployment access, and asked the team to focus on more important
-tasks. MX-01 MultX is therefore the active priority; its production deployment remains blocked by the independent
-Autha fix review and the governance, route, signer, canary, and activation approvals.
+tasks. MX-01 MultX is therefore the active priority; its production deployment remains blocked by independent Autha
+acceptance, replacement or isolation of unauthorized legacy AWS paths, and the governance, route, signer, canary,
+and activation approvals.
 
 The worktree is shared and contains pre-existing changes across several streams. Preserve them, isolate each stream
 into a reviewable change, and never bulk-commit the dirty worktree.
@@ -53,7 +54,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
 | MX-05 | Quantt | Assumption-free gates deployed; adapter remains disabled | EXTERNAL BLOCKER | Quantt owner supplies the API contract/credential and fixes or replaces the development TLS endpoint. |
-| MX-01 | MultX / Lithoswap | v0.8.1 remediation candidate merged/tagged; Autha fix review pending; MultX disabled | IN PROGRESS | Obtain Autha approval of the exact immutable candidate, then complete the transaction-free deployment gates. |
+| MX-01 | MultX / Lithoswap | v0.8.2 focused-closure prerelease published; Autha acceptance and non-AWS production architecture pending; mainnet disabled | IN PROGRESS | Send the exact v0.8.2 release to Autha, then remove or formally isolate the unauthorized legacy AWS paths before production planning. |
 | MX-07 | Developer toolchain | All eight tool boundaries plus locked, checksummed three-OS preview packaging reviewed; four tools remain specification-only and there is no deployable compiler/public release | IN PROGRESS | Obtain approved language/VM semantics and product/release/security acceptance before compiler or public-release work. |
 
 ## Sequential closure queue
@@ -74,15 +75,16 @@ to the next executable stream without pretending the blocked stream is complete.
 **Owners:** Dev Infra + Backend/Bridge team + contract deploy authority + approved liquidity owner
 
 **Current state:** The MultX bridge UI/API, Lithoswap V2 contracts, optional subgraph, and production-candidate
-hardening are merged. Since the earlier VPS-only review, PRs #115, #116, and #119 changed the repository's recorded
-production signer direction to seven isolated AWS Fargate/KMS signers, while keeping release signing disabled. Autha
-reported v0.7 as not ready for mainnet. PR #129 merged the v0.8 remediation as
-`6ab0dcb0774421d6d57895b302ab8cc5b73d1762`, tagged
-`multx-audit-candidate-v0.8.1-20260822`; independent Autha fix-review acceptance of that exact candidate is pending.
-The client confirmed deployment access on 2026-08-23, but that does not authorize infrastructure, contract, signer,
-liquidity, canary, or feature-flag changes. The previously stated no-AWS direction and the newer repository direction
-must be explicitly reconciled by the accountable architecture owner before any AWS connectivity or deployment work.
-MultX, Swap, and release signing remain disabled.
+hardening are merged. PR #150 closed Autha v0.8.1 findings H-01, H-02, H-03, and M-01 at exact commit
+`f67ecfb1d0b3078e53c2eb39d6ba88e0ae373bdd`. The annotated tag and prerelease
+`multx-audit-candidate-v0.8.2-20260902` now provide the exact source archive, 510-file checksum manifest, independent
+bytecode evidence, clean reproduction logs, and GitHub evidence for focused Autha closure review. No Autha acceptance
+for this exact candidate was found in repository issues, PR comments, or reviews as of 2026-09-05. The project has
+explicitly confirmed that AWS is not used; therefore the legacy Fargate/KMS sources and deployment wording retained
+in this candidate are unauthorized and must be removed or formally isolated before a deployable production candidate
+is prepared. Deployment access does not authorize infrastructure, contracts, signers, liquidity, canary, or feature
+flags. Live LITHO mainnet configuration was reverified on 2026-09-05 as chain `9005` with Faucet, Bridge, and Swap
+all disabled. Release signing also remains disabled.
 
 Completed or evidenced:
 
@@ -118,16 +120,26 @@ Completed or evidenced:
       `multx-audit-candidate-v0.8.1-20260822` (2026-08-22).
 - [x] Clean-checkout verification on that tag passed 112 contract, 32 API, and 23 signer tests (2026-08-23).
 - [x] Client confirmed deployment access is available; no credential was printed or committed (2026-08-23).
+- [x] PR #150 merged the H-01/H-02/H-03/M-01 engineering closure at
+      `f67ecfb1d0b3078e53c2eb39d6ba88e0ae373bdd`; its exact-commit MultX source gates passed (2026-09-02).
+- [x] Clean-checkout reproduction of the v0.8.2 tag passed 118 contract, 37 API, and 23 signer tests; production
+      dependency gates reported no high or critical findings (2026-09-05).
+- [x] Published the v0.8.2 Autha focused-closure prerelease with exact source, SHA-256 manifest, independent bytecode
+      evidence, test/audit logs, and PR/workflow evidence (2026-09-05).
+- [x] Reverified LITHO mainnet `/api/config`: EVM chain ID 9005 and `faucet: false`, `bridge: false`, `swap: false`
+      (2026-09-05).
 
 Remaining actions:
 
 - [x] Isolate, review, and merge the V2 contracts, release-gated deployment/liquidity scripts, and tests in PR #68.
 - [x] Review and merge the optional V2 subgraph and remediate its dependency advisories (PRs #71 and #128).
-- [ ] Obtain an explicit accountable-owner decision reconciling the earlier no-AWS direction with the AWS
-      Fargate/KMS candidate now recorded on `main`; do not configure AWS connectivity from an inferred decision.
+- [x] Record the explicit project decision that AWS is not used; no AWS connectivity or deployment is authorized.
 - [x] Merge the provider-neutral signer/API/bridge review hardening in PR #93.
-- [ ] Obtain Autha's fix-review approval bound to the exact v0.8.1 tag and 40-character commit, then regenerate the
-      final evidence bundle required by the audit record.
+- [x] Regenerate and publish the exact v0.8.2 focused-closure evidence bundle.
+- [ ] Obtain Autha's written acceptance bound to tag `multx-audit-candidate-v0.8.2-20260902`, commit
+      `f67ecfb1d0b3078e53c2eb39d6ba88e0ae373bdd`, and the published evidence checksums.
+- [ ] Remove or formally isolate the legacy AWS Fargate/KMS production paths and update the mainnet deployment
+      package to the approved non-AWS signer architecture; submit the resulting candidate for the required review.
 - [ ] Complete independent and operator acceptance, including key custody, host hardening, monitoring, failure
       behavior, recovery, and rollback before deployment.
 - [ ] Modernize or explicitly disposition the MultX deployment/test toolchain's transitive audit findings before
@@ -170,8 +182,14 @@ Evidence:
 - Lithoswap V2 PR: `https://github.com/KaJLabs/Lithosphere/pull/68`
 - Blocked AWS proposal: `https://github.com/KaJLabs/Lithosphere/pull/78`
 - Provider-neutral signer hardening: `https://github.com/KaJLabs/Lithosphere/pull/93`
+- Autha v0.8.2 remediation PR: `https://github.com/KaJLabs/Lithosphere/pull/150`
+- Exact-commit MultX source gates: `https://github.com/KaJLabs/Lithosphere/actions/runs/33654850127`
+- v0.8.2 focused-closure prerelease:
+  `https://github.com/KaJLabs/Lithosphere/releases/tag/multx-audit-candidate-v0.8.2-20260902`
+- v0.8.2 source archive SHA-256: `8f9c01c6aa176788d271c7edcce7dd7d2b6c0a82ffcba4470800da5d4269456c`
+- v0.8.2 evidence archive SHA-256: `2b35ed93dc2efc9af289bf15ccd6c3ee33aad0467b27b03634c91e1bdc62858d`
 - Live probes: `https://makalu.litho.ai/api/config`, `https://makalu.litho.ai/swap`,
-  `https://makalu.litho.ai/cross-swap`
+  `https://makalu.litho.ai/cross-swap`, `https://lithoscan.ai/api/config`
 
 ## MX-02 — LEP100 Lithic-native assets on the faucet
 
