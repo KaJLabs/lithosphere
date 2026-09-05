@@ -48,7 +48,7 @@ into a reviewable change, and never bulk-commit the dirty worktree.
 
 | ID | Workstream | Current gate | Status | Immediate next action |
 | --- | --- | --- | --- | --- |
-| MX-06 | Validator cleanup and safety | Scheduled drift detection is active through a restricted control host; the first manual run passed cleanly and the first scheduled recurrence remains to be observed | IN PROGRESS | Verify the first 03:17 UTC scheduled run, then link the exact PR #17 maintenance approval/window. |
+| MX-06 | Validator cleanup and safety | All technical, monitoring, recovery, ownership, and governance-exception gates are evidenced | COMPLETE | Continue routine monitoring; any future node change requires a new approved window. |
 | MX-02 | LEP100 faucet assets | Current faucet accepted by client; remaining rotation/funding closure postponed | DEFERRED | Take no faucet deployment or funding action until the client reprioritizes it. |
 | MX-03 | Thanos Wallet | Repository work merged and deployed; acceptance open | EXTERNAL BLOCKER | Wallet team completes the published-version browser matrix, signed transaction, and approval record. |
 | MX-04 | DNNS | Verified explorer hardening merged and deployed; owner acceptance open | EXTERNAL BLOCKER | DNNS owner confirms the supported interface, fixes public docs, nominates a reverse record, and accepts cache policy. |
@@ -62,7 +62,7 @@ Only one repository stream is active at a time. An external blocker is recorded 
 to the next executable stream without pretending the blocked stream is complete.
 
 1. [ ] **MX-01 MultX / Lithoswap** — active priority; independent Autha fix review and production approvals block deployment/activation.
-2. [ ] **MX-06 Validator cleanup and safety** — backup/recovery, mainnet drift closure, alert delivery, and the first manual scheduled-drift run passed; first scheduled recurrence and final evidence remain.
+2. [x] **MX-06 Validator cleanup and safety** — complete; the missing historical PR #17 window artifact is preserved and accepted through private PR #23 rather than reconstructed.
 3. [ ] **MX-03 Thanos Wallet** — deployed; waiting on wallet-team acceptance.
 4. [ ] **MX-04 DNNS** — deployed; waiting on DNNS-owner acceptance inputs.
 5. [ ] **MX-05 Quantt** — deployed but disabled; waiting on Quantt API/TLS/product inputs and acceptance.
@@ -484,7 +484,14 @@ open; no duplicate Ansible or SSH operation was performed. Public PR #149 subseq
  A dedicated forced-command key and pinned control-host record are configured in `litho-mainnet-drift`; no validator
  private key is stored in GitHub. Manual workflow run `33688898843` passed on private-infra commit
  `d678eacd8eded1afb8135d6999111720bd8f3ae9` with all three hosts reachable and zero changed or failed tasks. Arbitrary
- SSH command execution was independently denied. The first scheduled recurrence remains to be observed.
+ SSH command execution was independently denied. The first two automatic attempts exposed a reviewed-commit pinning
+ defect and failed closed. Private PR #22 corrected that defect. Scheduled run `33953350571` then passed on current
+ private `main`; its strict sanitized artifact reports `result: clean`, exactly three hosts, and `changed=0`,
+ `unreachable=0`, `failed=0`. Protected post-merge Telegram test run `33671700384` was approved by `@lithoagent` and
+ passed the health, approval, and delivery jobs on 2026-09-05. Private PR #23 preserves the missing original PR #17
+ UTC window artifact as a governance exception. The project representative confirmed that the named owners privately
+ approved the exception and directed `BrewCodeDev` to merge it; the documentation-only window closed with merge commit
+ `72162ec8fee557d9f612f0acbf3acb26769b57aa` at `2026-09-05T16:33:22Z`. No historical timestamp was reconstructed.
 
 Completed or evidenced:
 
@@ -513,8 +520,8 @@ External inputs and authority required:
       check mode is active.
 - [x] Both sentry records bind raw CometBFT RPC to `tcp://127.0.0.1:27057`, resolving the desired-state policy conflict.
 - [x] Litho Agent (`@lithoagent`) is assigned as Validator Infra, Chain, and CAB approver (2026-09-02).
-- [ ] Link the exact UTC approval/window record for the PR #17 sentry remediation; the closure document describes a
-      separately approved window but does not identify its approval artifact or timestamps.
+- [x] Preserve the absent PR #17 UTC approval/window artifact as a historical evidence deficiency and record the named
+      owners' accepted governance exception in private PR #23; do not reconstruct unknown timestamps.
 - [x] Authority is limited to a read-only Ansible `--check --diff` run; no apply, configuration change, deployment,
       or restart is authorized.
 - [x] Private PR #17 records completion of the separately approved one-sentry-at-a-time remediation; no validator
@@ -546,7 +553,8 @@ Remaining actions:
 - [x] Merged PR #153 routes controlled tests through the secret-free protected `litho-mainnet-monitoring-test`
       environment without placing an approval gate in front of automatic incidents.
 - [x] Run and verify the first manual drift check (`33688898843`): three hosts, zero changed, unreachable, or failed.
-- [ ] Verify the first scheduled 03:17 UTC recurrence.
+- [x] Verify a successful automatic recurrence after the initial fail-closed pinning defect was corrected in private
+      PR #22 (`33953350571`, 2026-09-05): three hosts, zero changed, unreachable, or failed.
 - [x] Run one successful protected encrypted signing-state backup (`33489075548`).
 - [x] Perform isolated, non-signing recovery verification independently for both recipients.
 - [x] Confirm the first post-activation scheduled dual-recipient backup passes without a manual workflow dispatch
@@ -562,8 +570,8 @@ Acceptance criteria:
 - [x] Five-minute chain progression monitoring, named alert ownership, and Telegram delivery are active.
 - [x] Scheduled private-repository configuration drift detection is active; first manual run passed.
 - [x] Encrypted signing-state backup and isolated verification drill pass under two-person recovery custody.
-- [ ] Validator Infra, Chain, and CAB approvers and the closure report are recorded; exact UTC window/approval evidence
-      remains to be linked.
+- [x] Validator Infra, Chain, and CAB approvers, closure evidence, and the accepted historical-window exception are
+      recorded.
 
 Evidence:
 
@@ -577,11 +585,15 @@ Evidence:
 - `infra/litho-mainnet-9005/ansible/playbooks/mainnet-9005-deploy-backup-export.yml`
 - Latest inspected passing scheduled monitor run: `https://github.com/KaJLabs/Lithosphere/actions/runs/33659094490`
 - Passing controlled Telegram delivery: `https://github.com/KaJLabs/Lithosphere/actions/runs/33635711860`
+- Passing protected post-merge Telegram delivery: `https://github.com/KaJLabs/Lithosphere/actions/runs/33671700384`
 - Alert ownership and delivery runbook: `https://github.com/KaJLabs/Lithosphere/pull/149`
 - Controlled-test approval separation: `https://github.com/KaJLabs/Lithosphere/pull/153`
 - Scheduled drift implementation: `https://github.com/KaJLabs/Lithosphere-Production-Infra/pull/18`
 - Scheduled drift approval record: `https://github.com/KaJLabs/Lithosphere-Production-Infra/pull/19`
 - Passing first manual drift run: `https://github.com/KaJLabs/Lithosphere-Production-Infra/actions/runs/33688898843`
+- Passing automatic drift recurrence: `https://github.com/KaJLabs/Lithosphere-Production-Infra/actions/runs/33953350571`
+- Reviewed control-commit pinning fix: `https://github.com/KaJLabs/Lithosphere-Production-Infra/pull/22`
+- Accepted PR #17 window-evidence exception: `https://github.com/KaJLabs/Lithosphere-Production-Infra/pull/23`
 - Passing dual-recipient backup: `https://github.com/KaJLabs/Lithosphere/actions/runs/33489075548`
 - Passing first scheduled recurrence: `https://github.com/KaJLabs/Lithosphere/actions/runs/33505116681`
 - Dual-recipient implementation: `https://github.com/KaJLabs/Lithosphere/pull/139`
@@ -796,8 +808,38 @@ Evidence:
 | 2026-09-02 | MX-06 monitoring ownership and delivery | PASS, FOLLOW-UPS OPEN | PR #149 records `@lithoagent` as primary responder, `@Jkasr` as independent backup, and Telegram via `@LITHO_Moniter_bot` as the approved channel. Both environment-scoped Telegram secrets exist, controlled run `33635711860` passed health and delivery, scheduled run `33659094490` passed, and the client confirmed both responders acknowledged receipt. Monitoring-environment reviewer protection remains open. |
 | 2026-09-02 | MX-06 controlled-test protection design | MERGED, FOLLOW-UPS OPEN | The secret-free approval environment requires `@lithoagent` or `@Jkasr` review with self-review prevention. PR #153 merged the controlled-test gate without blocking unattended incident monitoring. |
 | 2026-09-03 | MX-06 scheduled drift activation | PASS (MANUAL), RECURRENCE OPEN | Private PRs #18 and #19 are merged. The approved `vps2` forced-command runner is active with pinned host trust and environment-scoped credentials; no validator key is stored in GitHub. Manual run `33688898843` passed on all three nodes with zero changed, unreachable, or failed tasks. The first 03:17 UTC scheduled recurrence remains to be observed. |
+| 2026-09-05 | MX-06 protected alert and drift recurrence | PASS, ONE EVIDENCE GATE OPEN | `@lithoagent` approved protected test run `33671700384`; health, approval, and Telegram delivery passed. After two automatic drift attempts failed closed on a reviewed-commit pinning defect, private PR #22 corrected the control, and scheduled run `33953350571` passed with a clean three-host sanitized artifact and zero changed, unreachable, or failed tasks. Only the exact PR #17 UTC maintenance approval/window artifact remains open. |
+| 2026-09-05 | MX-06 final governance closure | COMPLETE | Private PR #23 preserves the missing historical PR #17 approval-window artifact as an accepted exception. The project representative confirmed the named owners privately approved it and instructed `BrewCodeDev` to merge; merge `72162ec8` closed the documentation-only window at `2026-09-05T16:33:22Z`. No historical timestamp was reconstructed and no infrastructure operation occurred. |
 
 ## Change log
+
+### 2026-09-05 — MX-06 validator infrastructure cleanup closed
+
+- Verified private PR #23 merged as `72162ec8fee557d9f612f0acbf3acb26769b57aa` at
+  `2026-09-05T16:33:22Z`.
+- Recorded the project representative's attestation that the named owners privately approved the governance exception
+  and instructed `BrewCodeDev` to merge it.
+- Preserved the original PR #17 approval-window timestamps as unknown; no retrospective approval artifact or timestamp
+  was invented.
+- Marked MX-06 complete based on its clean desired-state checks, recovery evidence, restricted monitoring, successful
+  protected alert delivery, successful automatic drift recurrence, named ownership, and accepted evidence exception.
+- No Ansible execution, configuration apply, node access, restart, transaction, or secret read was performed.
+- Updated by: `bachal-mb`.
+
+### 2026-09-05 — MX-06 protected alert and scheduled drift recurrence verified
+
+- Verified `@lithoagent` approved protected workflow run `33671700384`; its read-only health check, approval gate, and
+  controlled Telegram delivery all passed.
+- Reviewed the scheduled-drift history rather than ignoring failed attempts. The 2026-09-03 and 2026-09-04 schedules
+  failed closed because documentation merges changed `main` while the control host correctly remained pinned to its
+  reviewed operational commit.
+- Verified private PR #22 separated the approved control-host commit from the workflow commit, and the subsequent
+  automatic run `33953350571` passed.
+- Downloaded and inspected that run's retained artifact: strict schema, chain `lithosphere_9005-1`, exactly three
+  inventory aliases, `result: clean`, and zero changed, unreachable, or failed tasks.
+- No configuration apply, node restart, transaction, or secret read was performed. MX-06 remains open only for the
+  exact UTC approval/window artifact for the already completed private PR #17 maintenance.
+- Updated by: `bachal-mb`.
 
 ### 2026-09-03 — MX-06 scheduled drift detection activated
 
