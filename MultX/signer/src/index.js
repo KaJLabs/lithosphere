@@ -3,7 +3,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { Contract, getAddress, getBytes, JsonRpcProvider, verifyMessage } from 'ethers';
 import { hasValidBearerToken, loadBearerToken } from './auth.js';
-import { createDynamoDecisionJournal } from './dynamoJournal.js';
+import { validateDeploymentMode } from './deploymentMode.js';
 import { createDecisionJournal } from './journal.js';
 import {
   assertLockEvent,
@@ -23,38 +23,24 @@ const requiredFile = (envName) => {
 };
 
 const signingEnabled = process.env.SIGNER_RELEASE_SIGNING_ENABLED === 'true';
+const deploymentMode = validateDeploymentMode();
 const policy = loadSignerPolicy({ signingEnabled });
 const signer = await createSigningKey();
 if (policy?.signerAddress && getAddress(policy.signerAddress) !== signer.address) {
   throw new Error(`policy signer ${policy.signerAddress} does not match key ${signer.address}`);
 }
 
-if (signer.kind === 'kms') {
-  const challenge = getBytes(Buffer.from('MultX production signer transaction-free verification v1'));
-  const signature = await signer.signMessage(challenge);
-  if (verifyMessage(challenge, signature).toLowerCase() !== signer.address.toLowerCase()) {
-    throw new Error('transaction-free KMS verification recovered the wrong signer');
-  }
-  console.log(`[signer] transaction-free KMS verification passed for ${signer.address}`);
+const challenge = getBytes(Buffer.from('MultX production signer transaction-free verification v1'));
+const challengeSignature = await signer.signMessage(challenge);
+if (verifyMessage(challenge, challengeSignature).toLowerCase() !== signer.address.toLowerCase()) {
+  throw new Error('transaction-free key verification recovered the wrong signer');
 }
+console.log(`[signer] transaction-free key verification passed for ${signer.address}`);
 
-const journalBackend = process.env.SIGNER_JOURNAL_BACKEND ||
-  (process.env.NODE_ENV === 'production' ? 'dynamodb' : 'file');
-let journal;
-if (journalBackend === 'dynamodb') {
-  journal = createDynamoDecisionJournal({
-    tableName: process.env.SIGNER_DYNAMODB_TABLE,
-    signerAddress: signer.address,
-    region: process.env.AWS_REGION,
-  });
-  await journal.assertReady();
-} else if (journalBackend === 'file' && process.env.NODE_ENV !== 'production') {
-  journal = createDecisionJournal(
-    process.env.SIGNER_STATE_FILE || '/var/lib/multx-signer/signed-releases.jsonl',
-  );
-} else {
-  throw new Error('production signer requires SIGNER_JOURNAL_BACKEND=dynamodb');
-}
+const journal = createDecisionJournal(
+  process.env.SIGNER_STATE_FILE || '/var/lib/multx-signer/signed-releases.jsonl',
+  { strictPermissions: deploymentMode.production },
+);
 
 if (!signingEnabled) console.log('[signer] release signing is disabled');
 
@@ -140,7 +126,7 @@ const send = (res, status, body) => {
   res.end(payload);
 };
 
-const transport = process.env.SIGNER_TRANSPORT || 'mtls';
+const transport = deploymentMode.transport;
 let bearerToken = null;
 let server;
 const handler = async (req, res) => {

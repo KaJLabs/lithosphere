@@ -57,8 +57,8 @@ manual review.
 - General `api/` business logic beyond the two coordinator integration files
   explicitly listed in section 4
 - Faucet contracts/scripts; `kamet-explorer` frontend
-- AWS account configuration, VPC/ALB hardening, ECS operations and monitoring
-  infrastructure (separate cloud-operations review)
+- VPS operating-system hardening, private routing, firewalling, backups and
+  monitoring infrastructure (separate operations review)
 
 ---
 
@@ -68,9 +68,9 @@ MultX is an N-of-M validator-multisig lock/mint bridge. On the source chain a
 user calls `lockTokens`, which escrows the source asset or burns a destination
 wrapped asset and
 emits `TokensLocked` with a monotonic nonce. A set of **7 bridge signers
-(5-of-7 threshold)** runs as seven isolated AWS Fargate services. Each signer
-uses a unique non-exportable KMS secp256k1 key, DynamoDB decision journal,
-private HTTPS endpoint and bearer token. It independently verifies the source
+(5-of-7 threshold)** runs as seven independently operated VPS services. Each
+signer uses a distinct owner-restricted mounted secp256k1 key, persistent
+fsync-backed decision journal and direct mTLS endpoint. It independently verifies the source
 event and route policy before producing an ECDSA signature. Anyone can submit
 the 5+ ordered signatures to `releaseTokens` on the destination chain, which
 verifies the validator set, checks `processedNonces` for replay, enforces a
@@ -93,15 +93,15 @@ owner-gated. Full detail in the threat model (attached).
    nonce-monotonicity, threshold well-formedness — each mutation-validated and run
    in CI). Directly addresses several §5 questions with executable properties.
 4. Deployment scripts and the current Kamet (testnet) deployment record.
-5. Fargate/KMS signer implementation and architecture: `signer/`,
+5. Non-AWS VPS signer implementation and architecture: `signer/`,
    `api/src/services/{remoteSigner,validatorService}.js`,
-   `docs/FARGATE_PRODUCTION_SIGNER_CANDIDATE.md`, and
-   `docs/audit/AUDIT_SIGNER_SOURCE_MANIFEST_2026-08-19.md`.
+   `docs/VPS_SIGNER_ARCHITECTURE.md`, and
+   `docs/audit/AUDIT_SIGNER_SOURCE_MANIFEST_2026-09-05.md`.
 6. Operator runbooks and a dedicated technical point of contact for the duration.
 
 The Solidity review remains the fixed three-file, 382-code-line scope. Please quote the off-chain
 signer protocol review separately so its source-event verification, message
-construction, private HTTPS/bearer boundary, KMS signing and DynamoDB
+construction, direct mTLS boundary, mounted-key signing and persistent journal
 anti-equivocation behavior are explicitly covered.
 
 ---

@@ -23,6 +23,7 @@
  *   npx hardhat run scripts/deploy-makalu-dest-chain.js --network base_sepolia
  */
 
+throw new Error('Archived KMS-era script: execution is forbidden');
 const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");

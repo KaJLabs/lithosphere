@@ -9,6 +9,7 @@ const readRequiredFile = (file, envName) => {
 
 export const loadSignerPolicy = ({
   signingEnabled,
+  production = process.env.NODE_ENV === 'production',
   policyFile = process.env.SIGNER_POLICY_FILE,
   policyJson = process.env.SIGNER_POLICY_JSON,
 } = {}) => {
@@ -18,6 +19,9 @@ export const loadSignerPolicy = ({
   if (!policyFile && !policyJson) {
     if (!signingEnabled) return null;
     throw new Error('SIGNER_POLICY_FILE or SIGNER_POLICY_JSON is required when signing is enabled');
+  }
+  if (production && policyJson) {
+    throw new Error('production signer policy must be mounted through SIGNER_POLICY_FILE');
   }
 
   const serialized = policyFile

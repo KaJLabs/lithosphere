@@ -1,10 +1,12 @@
-FROM node:20-alpine
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
 
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY . .
-RUN mkdir -p /var/lib/multx-signer && chown -R node:node /app /var/lib/multx-signer
+RUN mkdir -p /var/lib/multx-signer \
+    && chown -R node:node /app /var/lib/multx-signer \
+    && chmod 0700 /var/lib/multx-signer
 USER node
 
 EXPOSE 9443

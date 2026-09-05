@@ -49,3 +49,18 @@ test('rejects malformed journal decisions', () => {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('strict mode rejects permissive journal storage', () => {
+  if (process.platform === 'win32') return;
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'multx-journal-'));
+  const stateFile = path.join(directory, 'decisions.jsonl');
+  try {
+    fs.chmodSync(directory, 0o755);
+    assert.throws(
+      () => createDecisionJournal(stateFile, { strictPermissions: true }),
+      /owner-only permissions/,
+    );
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

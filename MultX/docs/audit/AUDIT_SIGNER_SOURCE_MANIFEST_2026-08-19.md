@@ -2,6 +2,9 @@
 
 > **Historical v0.6 evidence only.** Regenerate a complete source manifest from
 > the immutable v0.8 tag before handing the remediation back to Autha.
+> The KMS/AWS signer described below was rejected and removed from the active
+> runtime. Do not use this manifest as current implementation guidance; use
+> `AUDIT_SIGNER_SOURCE_MANIFEST_2026-09-05.md` for the non-AWS candidate.
 
 Status: audit input only. MultX and release signing remain disabled.
 

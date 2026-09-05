@@ -1,15 +1,10 @@
 # MultX independent signer
 
-The signer supports two isolated deployment modes:
-
-- an AWS ECS Fargate production candidate using one non-exportable KMS key and
-  one DynamoDB anti-equivocation table per signer; and
-- the existing file-key/mTLS mode for non-production rehearsal and independent
-  VPS operation.
-
-Production refuses file-backed keys. The MultX API connects through a private
-TLS load balancer using a bearer token injected from the secret manager. The
-KMS private key never leaves AWS KMS or enters a container or repository.
+The production signer runs on an independently operated VPS. Each signer uses
+one owner-restricted mounted secp256k1 key, a persistent fsync-backed
+anti-equivocation journal, and direct TLS 1.3 mutual authentication with the
+MultX API. AWS SDKs, cloud credentials, bearer-only production transport and
+plaintext key environment variables are not supported.
 
 Deployment templates and operator acceptance steps are in
 [`compose.example.yaml`](./compose.example.yaml) and
@@ -28,25 +23,7 @@ The signer does not blindly sign an API-provided digest. For every request it:
    signing and rejects equivocation, including after restart; and
 7. returns an EIP-191 signature only after those checks pass.
 
-## Fargate production-candidate configuration
-
-- `SIGNER_KMS_KEY_ARN`: one `ECC_SECG_P256K1` KMS key.
-- `SIGNER_DYNAMODB_TABLE`: a table whose partition key is the string
-  `decisionKey`.
-- `SIGNER_JOURNAL_BACKEND=dynamodb`.
-- `SIGNER_POLICY_JSON` or `SIGNER_POLICY_FILE`: reviewed route allowlist.
-- `SIGNER_TRANSPORT=proxy-http` and `SIGNER_BEHIND_TLS_PROXY=true`.
-- `SIGNER_BEARER_TOKEN` or `SIGNER_BEARER_TOKEN_FILE`: a 32-512 character
-  secret. In ECS, inject the environment value from Secrets Manager; never
-  put the value in a task definition or repository.
-- `SIGNER_RELEASE_SIGNING_ENABLED=false` until every activation gate passes.
-
-The load balancer must terminate HTTPS, add `X-Forwarded-Proto: https`, and
-be the only security-group source allowed to reach port 8080. `/health` is
-unauthenticated for load-balancer health checks; all identity and signing
-routes require the bearer token.
-
-## VPS rehearsal files
+## Production configuration
 
 - `SIGNER_PRIVATE_KEY_FILE`: validator ECDSA private key, readable only by the
   rootless container user.
@@ -55,6 +32,14 @@ routes require the bearer token.
 - `SIGNER_POLICY_FILE`: reviewed source-chain and token-route allowlist.
 - `SIGNER_STATE_FILE`: persistent decision journal; defaults to
   `/var/lib/multx-signer/signed-releases.jsonl`.
+- `SIGNER_JOURNAL_BACKEND=file`; any other value is rejected.
+- `SIGNER_TRANSPORT=mtls`; production rejects proxy/bearer transport.
+- `SIGNER_RELEASE_SIGNING_ENABLED=false` until every activation gate passes.
+
+The key, policy, TLS key and journal paths must be regular, non-symlink files
+or directories owned by the signer UID with no group/other access. Production
+policy is accepted only from `SIGNER_POLICY_FILE`, never JSON in an environment
+variable.
 
 The VPS host should use full-disk encryption, SSH-key-only administration, a
 default-deny firewall allowing port 9443 only from the MultX API VPS, offline

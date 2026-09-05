@@ -1,5 +1,9 @@
 # MultX Fargate production signer candidate
 
+> **Rejected and archived (2026-09-05):** the project does not use AWS. This
+> document is retained only as historical audit evidence and must not be used
+> for implementation or deployment.
+
 Status: build and transaction-free preflight only. MultX and release signing
 remain disabled.
 

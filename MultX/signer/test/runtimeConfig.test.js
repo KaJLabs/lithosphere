@@ -23,3 +23,14 @@ test('policy sources remain mutually exclusive while disabled', () => {
     /never both/,
   );
 });
+
+test('production rejects policy JSON from the environment', () => {
+  assert.throws(
+    () => loadSignerPolicy({
+      signingEnabled: true,
+      production: true,
+      policyJson: '{"sources":[]}',
+    }),
+    /must be mounted through SIGNER_POLICY_FILE/,
+  );
+});

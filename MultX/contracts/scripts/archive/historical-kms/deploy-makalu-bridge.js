@@ -24,6 +24,7 @@
  *   npx hardhat run scripts/deploy-makalu-bridge.js --network litho_makalu
  */
 
+throw new Error('Archived KMS-era script: execution is forbidden');
 const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");

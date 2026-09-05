@@ -2,9 +2,8 @@
 
 Status: **blocked - do not deploy or enable**
 
-Autha's v0.7.0 review concluded **NOT READY FOR MAINNET**. The v0.8
-remediation source is not yet a merged, immutable, independently reviewed
-release. See `docs/audit/AUTHA_V070_REMEDIATION_2026-08-21.md`. Bridge, Swap,
+The v0.8.2 focused-closure candidate is published, but Autha acceptance and
+review of the non-AWS signer change remain pending. Bridge, Swap,
 Cross-swap/MultX, and Faucet remain disabled on LITHO mainnet.
 
 ## Completed preparation
@@ -18,13 +17,15 @@ Cross-swap/MultX, and Faucet remain disabled on LITHO mainnet.
 - Contract, API, signer, SDK, and web source gates pass.
 - Candidate bytecode hashes and coverage evidence are recorded under
   `docs/audit/`.
-- The approved production candidate uses seven isolated AWS Fargate services,
-  seven non-exportable `ECC_SECG_P256K1` KMS keys, seven DynamoDB
-  anti-equivocation tables and unique private HTTPS/bearer-token boundaries.
-- Transaction-free KMS identity verification is implemented while release
-  signing remains fail-closed with `SIGNER_RELEASE_SIGNING_ENABLED=false`.
-- Native ECS task credentials are used; no permanent AWS access keys, Roles
-  Anywhere certificates or exportable signer private keys are required.
+- The approved architecture uses seven independently operated signer VPSs,
+  seven distinct mounted secp256k1 keys, seven durable fsync-backed
+  anti-equivocation journals and direct TLS 1.3 mutual authentication.
+- Startup proves the mounted key matches the approved signer address while
+  release signing remains fail-closed with
+  `SIGNER_RELEASE_SIGNING_ENABLED=false`.
+- AWS SDKs, cloud credentials, bearer-only production transport, plaintext
+  key environment variables and environment-supplied production policy are
+  rejected or absent from the production runtime.
 - Production API startup now requires an explicit audited network manifest and
   rejects all historical test-chain defaults.
 
@@ -38,7 +39,7 @@ Cross-swap/MultX, and Faucet remain disabled on LITHO mainnet.
    addresses for LITHO, Ethereum, BNB, and Base.
 5. Approved bridge/token routes, positive fixed-window lock/release caps, and supported assets; cap approval accounts for near-2x boundary bursts.
 6. Seven approved bridge signer assignments, with an approved 5-of-7
-   threshold, unique KMS identities, route policies, recovery exercises, and
+   threshold, unique signer identities, route policies, recovery exercises, and
    acceptance records. These bridge signers are separate from the target 33+
    LITHO consensus validators.
 7. Approved HTTPS/WSS RPC endpoints for every chain and funded deployment/gas
@@ -62,11 +63,11 @@ credential belongs in this repository or chat.
    owners, guardians, caps, and token routes.
 5. Complete `infra/network.mainnet.template.json`, validate it through the API
    loader, mount it read-only, and deploy immutable API/signer image digests to
-   the isolated Fargate services. Keep release signing and public feature flags
+   the isolated signer VPSs. Keep release signing and public feature flags
    disabled.
-6. Prove private-network rejection, bearer-token rejection, independent
-   source-event verification, route-policy rejection, DynamoDB
-   anti-equivocation persistence, KMS identity recovery, API database
+6. Prove private-network and mTLS-client rejection, independent source-event
+   verification, route-policy rejection, journal anti-equivocation persistence,
+   offline key recovery, API database
    recovery, monitoring, and pause/rollback procedures.
 7. Run the approved canary with bounded value and limits, reconcile source and
    destination state, then pause again for review.

@@ -2,9 +2,9 @@
 
 > **Current architecture notice (2026-08-19):** LITHO mainnet uses Cosmos ID
 > `lithosphere_9005-1` and EVM chain ID `9005`. MultX remains disabled. The
-> production candidate uses seven isolated AWS Fargate services with unique
-> non-exportable KMS keys, DynamoDB anti-equivocation journals, private HTTPS
-> endpoints and bearer tokens. The contracts and this off-chain signer
+> production candidate uses seven independent signer VPSs with distinct
+> mounted keys, fsync-backed anti-equivocation journals and direct mTLS
+> endpoints. The contracts and this off-chain signer
 > protocol require independent review before MultX can be enabled. Historical
 > Kamet deployment details remain for provenance.
 
@@ -90,7 +90,7 @@ User                  MultXBridge (dest)         Validator service       MultXBr
 
 | # | Assumption | What we mitigate / accept |
 |---|---|---|
-| T1 | Bridge signer key custody is secure | Each signer uses a unique non-exportable AWS KMS `ECC_SECG_P256K1` key. The API and containers hold no validator private keys. A private HTTPS load balancer and a unique bearer token authenticate API-to-signer traffic. Review `MultX/signer/`, `api/src/services/remoteSigner.js`, and `docs/FARGATE_PRODUCTION_SIGNER_CANDIDATE.md`. |
+| T1 | Bridge signer key custody is secure | Each independent signer VPS holds one owner-restricted mounted secp256k1 key. The API holds no validator private keys. Direct TLS 1.3 mutual authentication restricts API-to-signer traffic. Review `MultX/signer/`, `api/src/services/remoteSigner.js`, and `docs/VPS_SIGNER_ARCHITECTURE.md`. |
 | T2 | At least `signaturesRequired` bridge signers (target: **5 of 7**) act honestly | This is the core security assumption. A quorum can authorize false releases, but every supported production asset must have a positive fixed-window outbound cap. The target set is not active on mainnet yet. |
 | T3 | LITHO mainnet itself remains within its BFT safety assumptions | Bridge security inherits chain security. LITHO runs CometBFT consensus with a consensus validator set that is separate from the seven MultX bridge signers. |
 | T4 | Source-chain RPC providers return honest state to bridge signers | Every signer queries its configured RPC and verifies the exact event and confirmation depth. Quorum does not provide independence if multiple signers share the same compromised upstream; endpoint/provider diversity must be reviewed before activation. |
@@ -125,8 +125,8 @@ administrator bypass identified as Autha C-01.
 
 **This is the core trust boundary.** Mitigated only by:
 - Validator set composition (independent operators, ideally not all under one legal/operational entity)
-- Per-signer KMS/IAM isolation, private endpoint and bearer boundaries,
-  DynamoDB anti-equivocation records, and signer-local policy checks make a
+- Per-signer VPS/account isolation, direct mTLS boundaries, fsync-backed
+  anti-equivocation records, and signer-local policy checks make a
   quorum compromise materially harder
 - Fixed-window caps (`dailyCap[token]`) independently constrain locks and releases; a boundary burst can approach 2x the configured cap and is included in policy sizing
 - Emergency pause — owner can halt all bridge operations within one block of detection
@@ -241,10 +241,10 @@ To keep the audit scoped tightly and the fee predictable:
 - **ENS fork (DNNS)** in `contracts/dnns/` — separate audit scope if/when needed
 - **Faucet** scripts and contracts — testnet helper only, doesn't hold mainnet funds
 - **Indexer + bridge-api business logic** in `bridge-api/` — not on-chain code; assess via separate ops security review
-- **Validator signer infrastructure** (AWS account, VPC/ALB, ECS, IAM,
-  Secrets Manager and monitoring configuration) — separate cloud-operations
-  review; the signing protocol itself still requires application-security
-  review
+- **Validator signer infrastructure** (VPS hardening, private routing, host
+  firewall, mounted-secret custody, backups and monitoring) — separate
+  operations review; the signing protocol itself still requires
+  application-security review
 - **Frontend** (`kamet-explorer`) — not security-critical; users can always interact directly with the contract
 
 ---
@@ -277,16 +277,17 @@ We'd like the audit to specifically opine on:
   - `#4 0xc8C5c89ddb70CAEC942f2C5A77F4F4001ef3B415`
   - `#5 0x4CDd6D160Bd79fe7d4Bab06a9E0607870e8108D9`
   - `#6 0xB161611185Ce2c95849134188AC9F5DbC26bfD2D`
-- Validator keys: the LITHO mainnet candidate uses seven isolated AWS Fargate
-  services with one non-exportable KMS key and DynamoDB decision table per
-  signer. Production rejects file-backed keys. Release signing remains
+- Validator keys: the LITHO mainnet candidate uses seven independently
+  operated signer VPSs with one mounted key and persistent decision journal
+  per signer. Production rejects permissive or symlinked key/journal paths,
+  non-mTLS transport and environment-supplied policy. Release signing remains
   disabled and no LITHO mainnet signer set is active on chain yet.
 
 ### Operational runbooks supplied to audit firm
 
 - `docs/operations/BRIDGE_RUNBOOK.md` — pause procedure, validator-set rotation, daily-cap management, incident-response playbook (key compromise / suspected contract bug / RPC brownout)
-- `docs/FARGATE_PRODUCTION_SIGNER_CANDIDATE.md` — current signer trust boundaries and launch gates
-- `docs/audit/AUDIT_SIGNER_SOURCE_MANIFEST_2026-08-19.md` — immutable signer source boundary and checksums
+- `docs/VPS_SIGNER_ARCHITECTURE.md` — current signer trust boundaries and launch gates
+- `docs/audit/AUDIT_SIGNER_SOURCE_MANIFEST_2026-09-05.md` — non-AWS signer source boundary and checksums
 - `docs/operations/VALIDATOR_KEY_ROTATION.md` — historical testnet procedures; not production authorization
 
 ---
@@ -303,8 +304,8 @@ Items the audit firm should expect at kickoff:
 - [x] Hardhat test suite (`contracts/test/MultXBridge.test.js`, `MultXBridgeDest.test.js`, `WrappedLEP100.test.js`)
 - [x] Deployment scripts (`contracts/scripts/02-redeploy-bridge-hardened.js`, `03-deploy-dest-chain.js`)
 - [x] Operator runbooks (`docs/operations/BRIDGE_RUNBOOK.md`, `VALIDATOR_KEY_ROTATION.md`)
-- [x] Fargate/KMS signer candidate, architecture document and source manifest
-- [ ] Independent review of the Fargate signer protocol, private HTTPS/bearer boundary, KMS use and DynamoDB anti-equivocation procedure
+- [x] Non-AWS VPS signer candidate, architecture document and source manifest
+- [ ] Independent review of the VPS signer protocol, mTLS boundary, mounted-key custody and persistent anti-equivocation procedure
 - [x] Foundry invariant suite (`contracts/test/foundry/MultXBridgeInvariant.t.sol`) — solvency / release≤lock / nonce / threshold invariants over 16,384 fuzzed calls
 
 ---

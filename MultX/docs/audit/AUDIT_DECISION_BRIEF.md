@@ -29,7 +29,7 @@ A deliberately tight, self-contained scope so the audit is fast and inexpensive:
 
 - **3 Solidity files, 382 code lines (681 physical lines including NatSpec/comments)** — the bridge + wrapped-token contracts. No proxies, no external protocol composability.
 - The package includes the threat model, triaged Slither evidence, 88-test
-  Hardhat suite, Foundry invariants, bytecode hashes, the Fargate/KMS signer
+  Hardhat suite, Foundry invariants, bytecode hashes, the non-AWS VPS signer
   protocol and immutable contract candidate
   `multx-audit-candidate-v0.6.0-20260819`.
 

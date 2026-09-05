@@ -13,6 +13,7 @@
 // Pull the current on-chain owner's key from the approved secret manager into
 // OWNER_PRIVATE_KEY; never hardcode it or name its storage path.
 
+throw new Error('Archived KMS-era script: execution is forbidden');
 const { ethers } = require('ethers');
 
 const DEST = '0xfdA3b83FE8438123eAF5153945A46F8fcF6175f4';
