@@ -8,97 +8,130 @@ import sys
 import tempfile
 import unittest
 
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from verify_l1_release_approval import verify  # noqa: E402
 
 
 class L1ReleaseApprovalTest(unittest.TestCase):
-    def fixture(self, directory: str) -> tuple[Path, Path]:
+    release = "litho-l1-v20.0.0-r2"
+    when = datetime(2026, 9, 3, 10, 30, tzinfo=timezone.utc)
+
+    def fixture(self, directory: str) -> tuple[Path, Path, Path]:
         root = Path(directory)
         binary = root / "lithod"
         binary.write_bytes(b"exact-candidate")
-        for name in ("autha.txt", "kaj.txt"):
-            (root / name).write_text("approved\n", encoding="utf-8")
+        expected = {
+            "releaseId": self.release, "environment": "makalu",
+            "cosmosChainId": "lithosphere_700777-2", "evmChainId": 700777,
+            "validator": "mtest-val-02", "singleValidatorPauseApproved": True,
+        }
 
-        def approval(name: str) -> dict[str, str]:
+        def approval(name: str, approval_type: str) -> dict[str, str]:
             artifact = root / name
-            return {
-                "decision": "approved",
-                "approvalReference": f"approval-{name}",
-                "approvedAt": "2026-09-03T09:00:00Z",
-                "artifactPath": name,
-                "artifactSha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
-            }
+            artifact.write_text(json.dumps({
+                "schemaVersion": 1, "approvalType": approval_type,
+                "decision": "approved", "approvalReference": f"approval-{name}",
+                "approvedAt": "2026-09-03T09:00:00Z", **expected,
+            }), encoding="utf-8")
+            return {"artifactPath": name, "artifactSha256": hashlib.sha256(artifact.read_bytes()).hexdigest()}
 
+        (root / "approval.json.asc").write_text("test signature", encoding="utf-8")
         data = {
-            "schemaVersion": 1,
-            "approvalId": "L1-MAKALU-001",
-            "releaseId": "litho-l1-v20.0.0-r2",
+            "schemaVersion": 2, "approvalId": "L1-MAKALU-001", **expected,
             "binarySha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
-            "environment": "makalu",
-            "cosmosChainId": "lithosphere_700777-2",
-            "evmChainId": 700777,
-            "validator": "mtest-val-02",
-            "executionOperator": "operator-a",
-            "independentObserver": "observer-b",
+            "executionOperator": "operator-a", "independentObserver": "observer-b",
             "singleValidatorPauseRequired": True,
-            "singleValidatorPauseApproved": True,
-            "window": {
-                "startsAt": "2026-09-03T10:00:00Z",
-                "endsAt": "2026-09-03T11:00:00Z",
-            },
-            "authaApproval": approval("autha.txt"),
-            "kajLabsApproval": approval("kaj.txt"),
+            "window": {"startsAt": "2026-09-03T10:00:00Z", "endsAt": "2026-09-03T11:00:00Z"},
+            "authaApproval": approval("autha.json", "autha-l1-release"),
+            "kajLabsApproval": approval("kaj.json", "kaj-labs-l1-release"),
+            "bundleSignaturePath": "approval.json.asc",
         }
         path = root / "approval.json"
         path.write_text(json.dumps(data), encoding="utf-8")
-        return path, binary
+        public_key = root / "public.asc"
+        public_key.write_text("test public key", encoding="utf-8")
+        return path, binary, public_key
 
-    def test_accepts_complete_preapproved_window(self):
-        with tempfile.TemporaryDirectory() as directory:
-            approval, binary = self.fixture(directory)
-            result = verify(
-                approval,
-                binary,
-                "makalu",
-                datetime(2026, 9, 3, 10, 30, tzinfo=timezone.utc),
-            )
-            self.assertEqual(result["result"], "approved")
+    @staticmethod
+    def signature_ok(_artifact: Path, _signature: Path, _key: Path) -> None:
+        return None
 
-    def test_rejects_approval_after_window_start(self):
+    def run_verify(self, approval: Path, binary: Path, key: Path):
+        return verify(approval, binary, "makalu", self.when, self.release, key, self.signature_ok)
+
+    def mutate(self, approval: Path, callback) -> None:
+        data = json.loads(approval.read_text(encoding="utf-8"))
+        callback(data)
+        approval.write_text(json.dumps(data), encoding="utf-8")
+
+    def test_accepts_authenticated_exact_profile(self):
         with tempfile.TemporaryDirectory() as directory:
-            approval, binary = self.fixture(directory)
-            data = json.loads(approval.read_text(encoding="utf-8"))
-            data["authaApproval"]["approvedAt"] = "2026-09-03T10:01:00Z"
-            approval.write_text(json.dumps(data), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "approvals must predate"):
-                verify(approval, binary, "makalu", datetime(2026, 9, 3, 10, 30, tzinfo=timezone.utc))
+            approval, binary, key = self.fixture(directory)
+            self.assertEqual(self.run_verify(approval, binary, key)["result"], "approved")
 
     def test_rejects_same_operator_and_observer(self):
         with tempfile.TemporaryDirectory() as directory:
-            approval, binary = self.fixture(directory)
-            data = json.loads(approval.read_text(encoding="utf-8"))
-            data["independentObserver"] = data["executionOperator"]
-            approval.write_text(json.dumps(data), encoding="utf-8")
+            approval, binary, key = self.fixture(directory)
+            self.mutate(approval, lambda data: data.update(independentObserver=data["executionOperator"]))
             with self.assertRaisesRegex(ValueError, "must differ"):
-                verify(approval, binary, "makalu", datetime(2026, 9, 3, 10, 30, tzinfo=timezone.utc))
+                self.run_verify(approval, binary, key)
 
-    def test_rejects_binary_mismatch(self):
+    def test_rejects_wrong_release_or_network_or_validator(self):
+        mutations = (
+            lambda d: d.update(releaseId="WRONG-RELEASE"),
+            lambda d: d.update(cosmosChainId="wrong-chain"),
+            lambda d: d.update(evmChainId=1),
+            lambda d: d.update(validator="wrong-validator"),
+            lambda d: d.update(singleValidatorPauseRequired=False),
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                approval, binary, key = self.fixture(directory)
+                self.mutate(approval, mutation)
+                with self.assertRaises(ValueError):
+                    self.run_verify(approval, binary, key)
+
+    def test_rejects_unapproved_pause_and_late_approval(self):
         with tempfile.TemporaryDirectory() as directory:
-            approval, binary = self.fixture(directory)
+            approval, binary, key = self.fixture(directory)
+            self.mutate(approval, lambda data: data.update(singleValidatorPauseApproved=False))
+            with self.assertRaisesRegex(ValueError, "pause"):
+                self.run_verify(approval, binary, key)
+        with tempfile.TemporaryDirectory() as directory:
+            approval, binary, key = self.fixture(directory)
+            autha = Path(directory) / "autha.json"
+            document = json.loads(autha.read_text(encoding="utf-8"))
+            document["approvedAt"] = "2026-09-03T10:01:00Z"
+            autha.write_text(json.dumps(document), encoding="utf-8")
+            self.mutate(approval, lambda data: data["authaApproval"].update(
+                artifactSha256=hashlib.sha256(autha.read_bytes()).hexdigest()))
+            with self.assertRaisesRegex(ValueError, "approvals must predate"):
+                self.run_verify(approval, binary, key)
+
+    def test_rejects_unstructured_or_semantically_mismatched_approval(self):
+        with tempfile.TemporaryDirectory() as directory:
+            approval, binary, key = self.fixture(directory)
+            autha = Path(directory) / "autha.json"
+            document = json.loads(autha.read_text(encoding="utf-8"))
+            document["releaseId"] = "WRONG-RELEASE"
+            autha.write_text(json.dumps(document), encoding="utf-8")
+            self.mutate(approval, lambda data: data["authaApproval"].update(
+                artifactSha256=hashlib.sha256(autha.read_bytes()).hexdigest()))
+            with self.assertRaisesRegex(ValueError, "releaseId"):
+                self.run_verify(approval, binary, key)
+
+    def test_rejects_binary_mismatch_or_bad_bundle_signature(self):
+        with tempfile.TemporaryDirectory() as directory:
+            approval, binary, key = self.fixture(directory)
             binary.write_bytes(b"changed")
             with self.assertRaisesRegex(ValueError, "binary SHA-256 mismatch"):
-                verify(approval, binary, "makalu", datetime(2026, 9, 3, 10, 30, tzinfo=timezone.utc))
-
-    def test_rejects_unapproved_single_validator_pause(self):
+                self.run_verify(approval, binary, key)
         with tempfile.TemporaryDirectory() as directory:
-            approval, binary = self.fixture(directory)
-            data = json.loads(approval.read_text(encoding="utf-8"))
-            data["singleValidatorPauseApproved"] = False
-            approval.write_text(json.dumps(data), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "pause requires explicit approval"):
-                verify(approval, binary, "makalu", datetime(2026, 9, 3, 10, 30, tzinfo=timezone.utc))
+            approval, binary, key = self.fixture(directory)
+            def reject(*_args):
+                raise ValueError("bad signature")
+            with self.assertRaisesRegex(ValueError, "bad signature"):
+                verify(approval, binary, "makalu", self.when, self.release, key, reject)
 
 
 if __name__ == "__main__":

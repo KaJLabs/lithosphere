@@ -28,20 +28,23 @@ jobs:
   approval:
     runs-on: ubuntu-latest
     environment: l1-${{ inputs.target_environment }}-activation
+    env:
+      TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      BINARY_ASSET_NAME: ${{ inputs.binary_asset_name }}
+      APPROVAL_BUNDLE_PATH: ${{ inputs.approval_bundle_path }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Reject unsafe input paths
         shell: bash
         run: |
           set -euo pipefail
-          case '${{ inputs.binary_asset_name }}' in
-            ''|*/*|*..*) echo 'Unsafe binary asset name' >&2; exit 1 ;;
-          esac
-          case '${{ inputs.approval_bundle_path }}' in
-            infra/litho-mainnet-9005/docs/approvals/*.json) ;;
-            *) echo 'Approval JSON must be under the reviewed approvals directory' >&2; exit 1 ;;
-          esac
+          python infra/litho-mainnet-9005/scripts/validate_l1_release_gate_inputs.py \
+            --environment "$TARGET_ENVIRONMENT" \
+            --release-tag "$RELEASE_TAG" \
+            --binary-asset-name "$BINARY_ASSET_NAME" \
+            --approval-bundle-path "$APPROVAL_BUNDLE_PATH"
 
       - name: Download immutable release candidate
         env:
@@ -50,20 +53,22 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p candidate
-          gh release download '${{ inputs.release_tag }}' \
-            --repo '${{ github.repository }}' \
-            --pattern '${{ inputs.binary_asset_name }}' \
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$BINARY_ASSET_NAME" \
             --dir candidate
-          test -f 'candidate/${{ inputs.binary_asset_name }}'
+          test -f "candidate/$BINARY_ASSET_NAME"
 
       - name: Enforce pre-activation approval evidence
         shell: bash
         run: |
           set -euo pipefail
           python infra/litho-mainnet-9005/scripts/verify_l1_release_approval.py \
-            --approval '${{ inputs.approval_bundle_path }}' \
-            --binary 'candidate/${{ inputs.binary_asset_name }}' \
-            --environment '${{ inputs.target_environment }}' \
+            --approval "$APPROVAL_BUNDLE_PATH" \
+            --binary "candidate/$BINARY_ASSET_NAME" \
+            --environment "$TARGET_ENVIRONMENT" \
+            --expected-release-id "$RELEASE_TAG" \
+            --release-signing-public-key infra/litho-mainnet-9005/docs/KaJ-Labs-Release-Signing-PublicKey.asc \
             | tee l1-release-gate.txt
 
       - name: Record immutable gate receipt
@@ -71,12 +76,12 @@ jobs:
         run: |
           set -euo pipefail
           sha256sum \
-            '${{ inputs.approval_bundle_path }}' \
-            'candidate/${{ inputs.binary_asset_name }}' \
+            "$APPROVAL_BUNDLE_PATH" \
+            "candidate/$BINARY_ASSET_NAME" \
             l1-release-gate.txt \
             > L1_RELEASE_GATE_SHA256SUMS.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: l1-${{ inputs.target_environment }}-release-gate-${{ github.run_id }}
           path: |
