@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.28.3](https://github.com/KaJLabs/Lithosphere/compare/v1.28.2...v1.28.3) (2026-09-06)
+
+
+### Bug Fixes
+
+* **l1:** harden M03 release controls ([#165](https://github.com/KaJLabs/Lithosphere/issues/165)) ([ccdbc7c](https://github.com/KaJLabs/Lithosphere/commit/ccdbc7ccc0486bd9cdb57578e136f05266e6c5da))
+* **multx:** enforce non-aws signer architecture ([#162](https://github.com/KaJLabs/Lithosphere/issues/162)) ([cb1a0e9](https://github.com/KaJLabs/Lithosphere/commit/cb1a0e993f5224a04d712f6dbac8a7accdb57517))
+
 ## [1.28.2](https://github.com/KaJLabs/Lithosphere/compare/v1.28.1...v1.28.2) (2026-09-02)
 
 
