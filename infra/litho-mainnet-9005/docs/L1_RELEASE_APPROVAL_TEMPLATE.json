@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "approvalId": "PENDING",
   "releaseId": "PENDING",
   "binarySha256": "PENDING",
@@ -11,21 +11,16 @@
   "independentObserver": "PENDING",
   "singleValidatorPauseRequired": false,
   "singleValidatorPauseApproved": false,
+  "bundleSignaturePath": "PENDING",
   "window": {
     "startsAt": "PENDING",
     "endsAt": "PENDING"
   },
   "authaApproval": {
-    "decision": "PENDING",
-    "approvalReference": "PENDING",
-    "approvedAt": "PENDING",
     "artifactPath": "PENDING",
     "artifactSha256": "PENDING"
   },
   "kajLabsApproval": {
-    "decision": "PENDING",
-    "approvalReference": "PENDING",
-    "approvedAt": "PENDING",
     "artifactPath": "PENDING",
     "artifactSha256": "PENDING"
   }

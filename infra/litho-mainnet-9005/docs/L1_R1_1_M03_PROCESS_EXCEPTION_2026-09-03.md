@@ -14,7 +14,15 @@ controls; no deployment authorization granted**
 - Affected environment: Makalu only (`lithosphere_700777-2`, EVM `700777`)
 - Activation recorded at: `2026-09-01T10:05:26Z`
 - Autha focused re-audit SHA-256:
-  `21b48a10e7b97b0ee367a4df4e6a25b1024793525cd82e2677c339e27153d07b`
+  `2ff7f173878b8b2b953ff0c0f7785a23d98da9d57eb99f83f69b42208a20fa78`
+
+## Original finding and acceptance requirement
+
+`AUTHA-L1-M03 — prior approval was not evidenced.` No release-specific
+pre-deployment Autha approval record was supplied. The candidate could not be
+activated until Autha accepted the exact release identity and KaJ Labs retained
+the required deployment approval before activation. Future gates must retain
+that durable approval record before any rollout.
 
 ## Exception statement
 
@@ -23,9 +31,12 @@ pre-activation approval evidence required by the R1 gate. The later successful
 regression cannot retroactively prove that authorization existed before the
 activation time. This record therefore does not claim prior authorization.
 
-The technical regression was supportive: four exploit cases reverted, the
-ordinary control succeeded, and no new implementation blocker was identified.
-Autha nevertheless kept M03 open because M03 is a release-control finding.
+The technical regression was supportive but incomplete as closure evidence.
+Cases 1, 3, and 4 show clean reverts and the ordinary control succeeded. Case 2
+consumed its complete gas limit, so its status-0 receipt alone does not prove
+that the guarded path rejected it. Autha's 2026-09-02 review treated that
+technical ambiguity and the missing release-control evidence as independent
+reasons to withhold closure.
 
 ## Scope and impact
 

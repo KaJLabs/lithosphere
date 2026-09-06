@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "approvalType": "autha-l1-release or kaj-labs-l1-release",
+  "decision": "approved",
+  "approvalReference": "PENDING",
+  "approvedAt": "PENDING",
+  "releaseId": "PENDING",
+  "environment": "makalu",
+  "cosmosChainId": "lithosphere_700777-2",
+  "evmChainId": 700777,
+  "validator": "mtest-val-02",
+  "singleValidatorPauseApproved": true
+}
