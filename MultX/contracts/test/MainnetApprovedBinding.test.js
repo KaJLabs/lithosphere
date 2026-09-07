@@ -94,6 +94,29 @@ function fixture() {
 }
 
 describe('approved deployment root binding', function () {
+  it('rejects valid but byte-different approved plan without relying on policy drift', function () {
+    const { planBytes, manifest } = fixture();
+    const changed = Buffer.concat([planBytes, Buffer.from('\n')]);
+    expect(() => verifyApprovedDeploymentBindings(changed, evidenceBytes, manifest)).to.throw('approved deployment plan SHA-256');
+  });
+
+  for (const root of ['plan', 'manifest']) {
+    it(`rejects valid evidence bytes when only the ${root} evidence digest differs`, function () {
+      const { planBytes, manifest } = fixture();
+      const plan = JSON.parse(planBytes);
+      if (root === 'plan') plan.release.bytecodeEvidenceSha256 = '9'.repeat(64);
+      else manifest.release.bytecodeEvidenceSha256 = '9'.repeat(64);
+      const bytes = Buffer.from(JSON.stringify(plan));
+      manifest.release.deploymentPlanSha256 = digest(bytes);
+      expect(() => verifyApprovedDeploymentBindings(bytes, evidenceBytes, manifest)).to.throw('independent bytecode evidence SHA-256');
+    });
+  }
+
+  it('rejects a different otherwise valid precomputed bridge address', function () {
+    const { planBytes, manifest } = fixture();
+    manifest.chains[0].bridge.address = addr(999);
+    expect(() => verifyApprovedDeploymentBindings(planBytes, evidenceBytes, manifest)).to.throw('bridge address does not match approved plan');
+  });
   it('binds the exact plan and independent evidence bytes to all manifest policy', function () {
     const { planBytes, manifest } = fixture();
     expect(() => verifyApprovedDeploymentBindings(planBytes, evidenceBytes, manifest)).not.to.throw();

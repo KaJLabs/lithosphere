@@ -81,8 +81,9 @@ contract MultXBridge is Ownable, ReentrancyGuard, Pausable {
     event ValidatorSetUpdated(address[] validators, uint256 signaturesRequired);
     /// @notice Emitted when a token's daily lock cap is set.
     event DailyCapSet(address indexed token, uint256 cap);
-    /// @notice Emitted when a token/destination route is enabled or disabled.
+    /// @notice Emitted when token support is enabled or disabled.
     event SupportedTokenSet(address indexed token, bool supported);
+    /// @notice Emitted when a token/destination route is enabled or disabled.
     event SupportedRouteSet(address indexed token, uint256 indexed targetChain, bool supported);
     /// @notice Emitted when the fast pause guardian is set or cleared.
     event PauseGuardianUpdated(address indexed previousGuardian, address indexed newGuardian);

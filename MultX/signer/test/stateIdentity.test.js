@@ -16,6 +16,26 @@ function fixture(fn) {
   try { fn(root,path.join(root,'journal.jsonl')); } finally { fs.rmSync(root,{recursive:true,force:true}); }
 }
 const linux = {skip:process.platform==='win32'};
+
+test('production requires the external identity file with a specific diagnostic', () => {
+  assert.throws(() => loadStateIdentity(undefined, identity.signerAddress), /SIGNER_STATE_IDENTITY_FILE is required in production/);
+});
+
+test('on-load equivocation is rejected before a restored journal can be used', linux, () => fixture((_root, file) => {
+  initializeJournal(file, identity);
+  const record = value => JSON.stringify({ key: decision, hash: value }) + '\n';
+  fs.appendFileSync(file, record(hash) + record(hash));
+  createDecisionJournal(file, { strictPermissions: true, expectedIdentity: identity });
+  fs.appendFileSync(file, record('0x' + '44'.repeat(32)));
+  assert.throws(() => createDecisionJournal(file, { strictPermissions: true, expectedIdentity: identity }), /equivocation detected in state/);
+}));
+
+test('a journal symlink is explicitly rejected before opening its valid target', linux, () => fixture((root, file) => {
+  initializeJournal(file, identity);
+  const linked = path.join(root, 'linked.jsonl');
+  fs.symlinkSync(file, linked);
+  assert.throws(() => createDecisionJournal(linked, { strictPermissions: true, expectedIdentity: identity }), /signing journal must be a regular file, not a symlink/);
+}));
 test('production refuses absent journal and absent externally approved identity',linux,()=>fixture((_root,file)=>{
   assert.throws(()=>createDecisionJournal(file,{strictPermissions:true,expectedIdentity:identity}),/missing/);
   initializeJournal(file,identity);
