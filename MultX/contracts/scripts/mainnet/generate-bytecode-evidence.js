@@ -4,6 +4,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const CONTRACTS = {
+  govTimelock: ['contracts/governance/GovTimelock.sol', 'GovTimelock'],
   sourceBridge: ['contracts/MultXBridge.sol', 'MultXBridge'],
   destinationBridge: ['contracts/MultXBridgeDest.sol', 'MultXBridgeDest'],
   wrappedToken: ['contracts/WrappedLEP100.sol', 'WrappedLEP100'],

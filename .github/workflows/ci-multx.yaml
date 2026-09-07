@@ -107,7 +107,7 @@ jobs:
           cache-dependency-path: MultX/api/package-lock.json
       - name: Test VPS secret and remote-signer client paths
         working-directory: MultX/api
-        run: npm ci && npm audit --audit-level=high && npm test
+        run: npm ci && npm audit --omit=dev --audit-level=moderate && npm test
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
