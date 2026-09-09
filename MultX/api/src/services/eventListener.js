@@ -12,6 +12,15 @@ const watchers = new Map();
 const backoffMs = (attempts) => Math.min(2000 * 2 ** attempts, MAX_BACKOFF_MS);
 const normalizedBridge = (spec) => spec.bridge.toLowerCase();
 
+// Repeated checkpoint reads must reach RPC, even within ethers' default
+// short-lived request cache window, to detect changes before SQL commit.
+export function createEventProvider(spec) {
+  return new ethers.JsonRpcProvider(spec.rpc, spec.chainId, {
+    staticNetwork: true,
+    cacheTimeout: -1,
+  });
+}
+
 function makeWatcher(spec) {
   return {
     spec,
@@ -234,7 +243,7 @@ async function startWatcher(spec) {
   clearTimers(w);
 
   try {
-    w.provider = new ethers.JsonRpcProvider(spec.rpc, spec.chainId, { staticNetwork: true });
+    w.provider = createEventProvider(spec);
     await w.provider.getNetwork();
     const currentBlock = await w.provider.getBlockNumber();
     if (w.lastBlock === null) {
