@@ -18,6 +18,7 @@ function makeWatcher(spec) {
     provider: null,
     contract: null,
     lastBlock: null,
+    lastBlockHash: null,
     consecutiveErrors: 0,
     pollTimer: null,
     retryTimer: null,
@@ -74,10 +75,33 @@ export async function loadDurableCursor(spec, provider, database = pool, current
 }
 
 export async function processBlockRange(w, toBlock, database = pool) {
-  const filter = w.contract.filters.TokensLocked();
-  const events = await w.contract.queryFilter(filter, w.lastBlock + 1, toBlock);
+  const checkpoint = async () => {
+    if (!w.lastBlockHash) return;
+    const prior = await w.provider.getBlock(w.lastBlock);
+    if (!prior?.hash || prior.hash.toLowerCase() !== w.lastBlockHash.toLowerCase()) {
+      throw new Error('Polling checkpoint hash mismatch; manual reconciliation required');
+    }
+  };
+  await checkpoint();
   const rangeTip = await w.provider.getBlock(toBlock);
   if (!rangeTip?.hash) throw new Error(`Missing block ${toBlock} while advancing cursor`);
+  const filter = w.contract.filters.TokensLocked();
+  const events = await w.contract.queryFilter(filter, w.lastBlock + 1, toBlock);
+  const hashes = new Map([[toBlock, rangeTip.hash.toLowerCase()]]);
+  for (const event of events) {
+    if (event.removed || !Number.isSafeInteger(event.blockNumber) ||
+        event.blockNumber <= w.lastBlock || event.blockNumber > toBlock || !event.blockHash) {
+      throw new Error('Removed or invalid lock event in polled range');
+    }
+    if (!hashes.has(event.blockNumber)) {
+      const block = await w.provider.getBlock(event.blockNumber);
+      if (!block?.hash) throw new Error(`Missing event block ${event.blockNumber}`);
+      hashes.set(event.blockNumber, block.hash.toLowerCase());
+    }
+    if (event.blockHash.toLowerCase() !== hashes.get(event.blockNumber)) {
+      throw new Error('Lock event block hash mismatch; manual reconciliation required');
+    }
+  }
 
   const client = await database.connect();
   try {
@@ -159,8 +183,14 @@ export async function processBlockRange(w, toBlock, database = pool) {
          updated_at=NOW()`,
       [w.spec.chainId, normalizedBridge(w.spec), toBlock, rangeTip.hash]
     );
+    await checkpoint();
+    const finalTip = await w.provider.getBlock(toBlock);
+    if (!finalTip?.hash || finalTip.hash.toLowerCase() !== rangeTip.hash.toLowerCase()) {
+      throw new Error('Polled range reorganized before commit; retry required');
+    }
     await client.query('COMMIT');
     w.lastBlock = toBlock;
+    w.lastBlockHash = rangeTip.hash;
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch { /* preserve original failure */ }
     throw error;
@@ -208,7 +238,11 @@ async function startWatcher(spec) {
     await w.provider.getNetwork();
     const currentBlock = await w.provider.getBlockNumber();
     if (w.lastBlock === null) {
-      w.lastBlock = await loadDurableCursor(spec, w.provider, pool, currentBlock);
+      const initialBlock = await loadDurableCursor(spec, w.provider, pool, currentBlock);
+      const checkpoint = await w.provider.getBlock(initialBlock);
+      if (!checkpoint?.hash) throw new Error(`Missing initial polling checkpoint ${initialBlock}`);
+      w.lastBlock = initialBlock;
+      w.lastBlockHash = checkpoint.hash;
     }
     w.consecutiveErrors = 0;
     w.contract = new ethers.Contract(spec.bridge, BRIDGE_ABI, w.provider);
